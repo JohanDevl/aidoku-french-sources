@@ -15,3 +15,6 @@ src/rust/node_modules
 
 wasm-ld
 .env
+
+.claude/
+CLAUDE.md

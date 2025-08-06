@@ -13,11 +13,10 @@ mod parser;
 mod helper;
 
 pub static BASE_URL: &str = "https://phenix-scans.com";
-pub static API_URL: &str = "https://api.phenix-scans.com";
+pub static API_URL: &str = "https://phenix-scans.com/api";
 
 #[get_manga_list]
 fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
-	let manga_per_page = 20;
 	let mut query = String::new();
 	let mut genres_query: Vec<String> = Vec::new();
 	let mut search_query = String::new();
@@ -69,7 +68,7 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 
 	if search_query.is_empty() {
 		let genres_query_str = String::from(&genres_query.join(","));
-		let url = format!("{}/front/manga?{}&genre={}&page={}&limit={}", String::from(API_URL), query, genres_query_str, helper::i32_to_string(page), helper::i32_to_string(manga_per_page));
+		let url = format!("{}/front/manga?{}&genre={}&page={}&limit=20", String::from(API_URL), query, genres_query_str, helper::i32_to_string(page));
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_manga_list(json)
 	} else {
@@ -81,15 +80,14 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_listing]
 fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
-	let manga_per_page = 20;
 	let mut url = String::new();
 	if listing.name == "Dernières Sorties" {
-		url = format!("{}/front/manga?sort=updatedAt&page={}&limit={}", String::from(API_URL), helper::i32_to_string(page), helper::i32_to_string(manga_per_page));
+		url = format!("{}/front/homepage?page={}&section=latest&limit=20", String::from(API_URL), helper::i32_to_string(page));
 	} else if listing.name == "Populaire" {
-		url = format!("{}/front/manga?sort=rating&page={}&limit={}", String::from(API_URL), helper::i32_to_string(page), helper::i32_to_string(manga_per_page));
+		url = format!("{}/front/homepage?section=top", String::from(API_URL));
 	};
 	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-	parser::parse_manga_list(json)
+	parser::parse_manga_listing(json, &listing.name)
 }
 
 #[get_manga_details]

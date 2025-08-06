@@ -4,8 +4,81 @@ use aidoku::{
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
 
-use crate::{helper::i32_to_string, BASE_URL};
+use crate::BASE_URL;
 use crate::API_URL;
+
+pub fn parse_manga_listing(json: ObjectRef, listing_type: &str) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	let mut has_more = false;
+
+	if listing_type == "Populaire" {
+		// For the "top" section, the structure is: { "top": [...] }
+		for item in json.get("top").as_array()? {
+			let manga = item.as_object()?;
+
+			if manga.get("slug").as_string()?.read() == "unknown" {
+				continue
+			}
+			
+			let id = manga.get("slug").as_string()?.read();
+			let title = manga.get("title").as_string()?.read();
+			let cover = format!("{}/{}", String::from(API_URL), manga.get("coverImage").as_string()?.read());
+
+			mangas.push(Manga {
+				id,
+				cover,
+				title,
+				author: String::new(),
+				artist: String::new(),
+				description: String::new(),
+				url: String::new(),
+				categories: Vec::new(),
+				status: MangaStatus::Unknown,
+				nsfw: MangaContentRating::Safe,
+				viewer: MangaViewer::Scroll
+			});
+		}
+		// Top section has no pagination
+		has_more = false;
+	} else {
+		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
+		for item in json.get("latest").as_array()? {
+			let manga = item.as_object()?;
+
+			if manga.get("slug").as_string()?.read() == "unknown" {
+				continue
+			}
+			
+			let id = manga.get("slug").as_string()?.read();
+			let title = manga.get("title").as_string()?.read();
+			let cover = format!("{}/{}", String::from(API_URL), manga.get("coverImage").as_string()?.read());
+
+			mangas.push(Manga {
+				id,
+				cover,
+				title,
+				author: String::new(),
+				artist: String::new(),
+				description: String::new(),
+				url: String::new(),
+				categories: Vec::new(),
+				status: MangaStatus::Unknown,
+				nsfw: MangaContentRating::Safe,
+				viewer: MangaViewer::Scroll
+			});
+		}
+		// Check if there are more pages
+		let pagination = json.get("pagination").as_object()?;
+		let current_page = pagination.get("currentPage").as_int()?;
+		let total_pages = pagination.get("totalPages").as_int()?;
+		has_more = current_page < total_pages;
+	}
+
+	Ok(MangaPageResult {
+		manga: mangas,
+		has_more,
+	})
+}
 
 pub fn parse_manga_list(json: ObjectRef) -> Result<MangaPageResult>  {
 	let mut mangas: Vec<Manga> = Vec::new();
@@ -48,15 +121,32 @@ pub fn parse_manga_list(json: ObjectRef) -> Result<MangaPageResult>  {
 		});
 	}
 
+	// Check pagination for general list
+	let has_more = if json.get("pagination").is_some() {
+		let pagination = json.get("pagination").as_object()?;
+		if pagination.get("hasNextPage").is_some() {
+			pagination.get("hasNextPage").as_bool()?
+		} else if pagination.get("page").is_some() && pagination.get("totalPages").is_some() {
+			let current_page = pagination.get("page").as_int()?;
+			let total_pages = pagination.get("totalPages").as_int()?;
+			current_page < total_pages
+		} else {
+			false
+		}
+	} else {
+		false
+	};
+
 	Ok(MangaPageResult {
 		manga: mangas,
-		has_more: json.get("pagination").as_object()?.get("hasNextPage").as_bool()?,
+		has_more,
 	})
 }
 
 pub fn parse_search_list(json: ObjectRef) -> Result<MangaPageResult>  {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
+	// Search structure: { "mangas": [...], "pagination": {...} }
 	for item in json.get("mangas").as_array()? {
 		let manga = item.as_object()?;
 
@@ -67,11 +157,6 @@ pub fn parse_search_list(json: ObjectRef) -> Result<MangaPageResult>  {
 		let id = manga.get("slug").as_string()?.read();
 		let title = manga.get("title").as_string()?.read();
 		let cover = format!("{}/{}", String::from(API_URL), manga.get("coverImage").as_string()?.read());
-		let manga_type = manga.get("type").as_string()?.read();
-		let viewer = match manga_type.as_str() {
-			"Manga" => MangaViewer::Rtl,
-			_ => MangaViewer::Scroll,
-		};
 
 		mangas.push(Manga {
 			id,
@@ -84,36 +169,46 @@ pub fn parse_search_list(json: ObjectRef) -> Result<MangaPageResult>  {
 			categories: Vec::new(),
 			status: MangaStatus::Unknown,
 			nsfw: MangaContentRating::Safe,
-			viewer
+			viewer: MangaViewer::Scroll
 		});
 	}
 
+	// Check pagination for searches if it exists
+	let has_more = if json.get("pagination").is_some() {
+		let pagination = json.get("pagination").as_object()?;
+		let current_page = pagination.get("page").as_int().unwrap_or(0);
+		let total_pages = pagination.get("totalPages").as_int().unwrap_or(0);
+		current_page < total_pages
+	} else {
+		false
+	};
+
 	Ok(MangaPageResult {
 		manga: mangas,
-		has_more: false,
+		has_more,
 	})
 }
 
 pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {	
 	let manga = json.get("manga").as_object()?;
 
-	// Récupérer l'image de couverture
+	// Get cover image
 	let cover = format!("{}/{}", String::from(API_URL), manga.get("coverImage").as_string()?.read());
 	
-	// Récupérer le titre
+	// Get title
 	let title = manga.get("title").as_string()?.read();
 
-	// Récupérer la description (avec valeur par défaut)
+	// Get description (with default value)
 	let description = if manga.get("synopsis").is_some() && !manga.get("synopsis").as_string()?.read().is_empty() {
 		manga.get("synopsis").as_string()?.read()
 	} else {
 		String::from("Aucune description disponible.")
 	};
 
-	// Récupérer l'URL
+	// Get URL
 	let url = format!("{}/manga/{}", String::from(BASE_URL), manga_id);
 
-	// Récupérer le statut du manga
+	// Get manga status
 	let status_str = manga.get("status").as_string()?.read();
 	let status = match status_str.as_str() {
 		"Ongoing" => MangaStatus::Ongoing,
@@ -122,14 +217,14 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 		_ => MangaStatus::Unknown,
 	};
 
-    // Récupérer les catégories (genres)
+    // Get categories (genres)
 	let mut categories: Vec<String> = Vec::new();
 	for item in manga.get("genres").as_array()? {
 		let genre = item.as_object()?;
 		categories.push(genre.get("name").as_string()?.read());
 	}
 
-	// Récupérer le type de manga
+	// Get manga type
 	let manga_type = manga.get("type").as_string()?.read();
 	let viewer = match manga_type.as_str() {
 		"Manga" => MangaViewer::Rtl,
@@ -156,24 +251,39 @@ pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapt
 	
 	for item in json.get("chapters").as_array()? {
 		let chapter_object = item.as_object()?;
-		let id = i32_to_string(chapter_object.get("number").as_int()? as i32);
-		let chapter = chapter_object.get("number").as_int()? as f32;
+		
+		// Check price - only take free chapters (price == 0)
+		let price = chapter_object.get("price").as_int().unwrap_or(0);
+		if price != 0 {
+			continue;
+		}
+		
+		// Chapter number can be an integer or a float/string
+		let chapter_number = if chapter_object.get("number").as_float().is_ok() {
+			chapter_object.get("number").as_float()? as f32
+		} else {
+			chapter_object.get("number").as_int()? as f32
+		};
+		
+		let id = format!("{}", chapter_number);
 		let date_str = chapter_object.get("createdAt").as_string()?.read();
 		let mut date_updated = StringRef::from(&date_str)
 			.0
-			.as_date("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Some("en"), None)
+			.as_date("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Some("fr"), None)
 			.unwrap_or(-1.0);
 	
 		if date_updated == -1.0 {
 			date_updated = current_date();
 		}
-		let url = format!("{}/manga/{}/chapitre/{}", String::from(BASE_URL), manga_id , id);
+		
+		let title = format!("Chapter {}", chapter_number);
+		let url = format!("{}/{}", manga_id, chapter_number);
 
 		chapters.push(Chapter{
 			id,
-			title: String::from(""),
+			title,
 			volume: -1.0,
-			chapter,
+			chapter: chapter_number,
 			date_updated,
 			scanlator: String::from(""),
 			url,
