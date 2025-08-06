@@ -107,6 +107,6 @@ fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 #[get_page_list]
 fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let url = format!("{}/front/manga/{}/chapter/{}", String::from(API_URL), manga_id, chapter_id);
-	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
+	let json = Request::new(url, HttpMethod::Get).json()?.as_object()?;
 	parser::parse_page_list(json)
 }

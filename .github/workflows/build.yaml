@@ -2,7 +2,7 @@ name: Build sources
 on:
   push:
     branches:
-    - master
+    - main
     paths:
     - 'src/**'
     - '.github/workflows/build.yaml'
