@@ -12,14 +12,14 @@ This repository hosts French manga/scan sources compatible with the [Aidoku](htt
 
 Click this link from your iOS device with Aidoku installed:
 
-**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/gh-pages/)**
+**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/)**
 
 ### Method 2: Manual Installation
 
 1. Open the **Aidoku** app
 2. Go to **Settings** → **Source Lists**
 3. Tap **Add Source List**
-4. Paste this URL: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/gh-pages/`
+4. Paste this URL: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/`
 5. Tap **Add**
 
 ## 📖 Available Sources
