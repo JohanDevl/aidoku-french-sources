@@ -6,6 +6,16 @@
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
 
+## 🌐 Website
+
+Check out our interactive website to browse available sources: **[johandevl.github.io/aidoku-french-sources](https://johandevl.github.io/aidoku-french-sources/)**
+
+The website provides:
+- Interactive source browser with real-time status updates
+- Easy installation with one-click Aidoku integration
+- Source details including version, type, and status
+- Mobile-responsive design optimized for iOS devices
+
 ## 🚀 Quick Installation
 
 ### Method 1: Direct Link (Recommended)
