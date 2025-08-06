@@ -82,7 +82,7 @@ jobs:
       uses: JamesIves/github-pages-deploy-action@v4.7.2
       if: ${{ github.ref == 'refs/heads/main' }}
       with:
-        branch: gh-pages
+        branch: sources
         folder: public
         git-config-name: GitHub Actions
         git-config-email: github-actions[bot]@users.noreply.github.com
