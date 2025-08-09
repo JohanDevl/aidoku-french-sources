@@ -23,7 +23,7 @@ fn get_instance() -> MangaStreamSource {
 		manga_details_type: ".infotable td:contains(Type)+td",
 		chapter_date_format : "MMMM dd, yyyy",
 		language: "fr",
-		alt_pages: true,
+		alt_pages: false,
 		..Default::default()
 	}
 }
