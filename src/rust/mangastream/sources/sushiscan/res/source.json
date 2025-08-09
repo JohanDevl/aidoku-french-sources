@@ -1,8 +1,8 @@
 {
 	"info": {
-		"id": "fr.sushiscan",
+		"id": "fr.sushiscan.v6",
 		"lang": "fr",
-		"name": "SushiScan",
+		"name": "SushiScan v6",
 		"version": 6,
 		"url": "https://sushiscan.net/"
 	},
