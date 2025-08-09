@@ -1,0 +1,16 @@
+[
+	{
+		"type": "title"
+	},
+	{
+		"type": "select",
+		"name": "Status",
+		"options": [
+			"Tous",
+			"En Cours",
+			"Terminé",
+			"En Pause",
+			"Abandonné"
+		]
+	}
+]
