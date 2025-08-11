@@ -1,0 +1,29 @@
+# Claude Code files
+.claude/
+CLAUDE.md
+**/CLAUDE.md
+
+# Build artifacts
+src/
+target/
+.cargo/
+Cargo.toml
+Cargo.lock
+package.aix
+*.aix
+*.wasm
+*.d
+*.rlib
+*.rmeta
+
+# MCP config
+.mcp.json
+
+# macOS
+.DS_Store
+
+# Only keep website files for GitHub Pages
+!index.html
+!script.js
+!style.css
+!icons/
