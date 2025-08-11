@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
 [![Sources](https://img.shields.io/badge/sources-10-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-7-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-6-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -36,7 +36,7 @@ Click this link from your iOS device with Aidoku installed:
 |   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |   Custom    | Recent French scanlations     |
 |  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |   Custom    | French scanlation community   |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  | MangaStream | Various French scanlations    |
-|   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ✅ **Active**  | MangaStream | New domain for SushiScans     |
+|   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** | MangaStream | Chapter loading issues        |
 | **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |   Madara    | Website temporarily down      |
 |   **Manga Scan**   |   [mangascan-fr.com](https://mangascan-fr.com/)   | ❌ **Offline** |   MMRCMS    | Website temporarily down      |
 |  **LegacyScans**   |   [legacy-scans.com](https://legacy-scans.com/)   | ❌ **Offline** |   Custom    | Website temporarily down      |
