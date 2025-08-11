@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp:*)",
+      "Bash(cargo:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(aidoku package:*)",
+      "Bash(aidoku verify:*)",
+      "Bash(bash:*)",
+      "Bash(unzip -l package.aix)",
+      "Bash(mv:*)",
+      "Bash(./build.sh)",
+      "WebFetch(domain:sushiscan.net)",
+      "WebFetch(domain:sushiscan.fr)",
+      "mcp__playwright__browser_navigate",
+      "Bash(./build.sh:*)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_evaluate",
+      "Bash(unzip:*)",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_snapshot"
+    ],
+    "deny": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
+}

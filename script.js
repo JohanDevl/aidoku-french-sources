@@ -22,7 +22,7 @@ async function loadSources() {
     sourcesContainer.innerHTML = "";
 
     // Define offline sources based on the README status
-    const offlineSources = ["fr.reaperscans", "fr.mangascan", "fr.legacyscans"];
+    const offlineSources = ["fr.reaperscans", "fr.mangascan", "fr.legacyscans", "fr.sushiscan"];
 
     // Define source types
     const sourceTypes = {
