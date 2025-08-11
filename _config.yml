@@ -1,0 +1,42 @@
+title: "Aidoku French Sources"
+description: "French manga sources for Aidoku iOS app"
+baseurl: "/aidoku-french-sources"
+url: "https://johandevl.github.io"
+
+# Exclude files from processing
+exclude:
+  - src/
+  - target/
+  - .cargo/
+  - Cargo.toml
+  - Cargo.lock
+  - .gitignore
+  - CLAUDE.md
+  - .claude/
+  - .mcp.json
+  - package.aix
+  - "*.aix"
+  - "*.wasm"
+  - "*.d"
+  - "*.rlib"
+  - "*.rmeta"
+
+# Include only necessary files
+include:
+  - index.html
+  - script.js
+  - style.css
+  - icons/
+
+# Plugin settings
+plugins:
+  - jekyll-relative-links
+
+# Markdown settings
+markdown: kramdown
+highlighter: rouge
+
+# Enable relative links
+relative_links:
+  enabled: true
+  collections: false

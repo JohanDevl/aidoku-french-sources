@@ -74,7 +74,7 @@ Templates contain:
 
 ### Build Process
 
-1. **Compile**: Rust ’ WASM using `cargo +nightly build --release`
+1. **Compile**: Rust Â’ WASM using `cargo +nightly build --release`
 2. **Package**: Create `.aix` file with WASM binary + resources (`Icon.png`, `source.json`, `filters.json`)
 3. **Distribute**: Package uploaded to source repository
 
