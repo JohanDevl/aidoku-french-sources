@@ -5,7 +5,7 @@ on:
       - develop
     paths:
       - "src/**"
-      - ".github/workflows/build.yaml"
+      - ".github/workflows/build-develop.yaml"
 
 concurrency:
   group: ${{ github.workflow }}
