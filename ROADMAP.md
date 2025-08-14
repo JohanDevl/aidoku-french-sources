@@ -20,46 +20,53 @@ These are popular sources that should be prioritized for implementation:
 
 | Source Name      | URL              | Expected Type | Priority | Notes                     |
 | ---------------- | ---------------- | ------------- | -------- | ------------------------- |
-| **JapScan**      | japscan.co       | Custom        | 🔴 High  | Major French manga source |
-| **Manga-Kawaii** | manga-kawaii.com | Unknown       | 🔴 High  | Popular community site    |
-| **FlameScansFR** | flamescansfr.com | Unknown       | 🔴 High  | Active scanlation group   |
+| **JapScan**      | japscan.lol      | Custom        | 🔴 High  | Major French manga source |
+| **Manga-Kawaii** | mangakawaii.io   | Unknown       | 🔴 High  | Popular community site    |
+| **FlameScansFR** | legacy-scans.com | Unknown       | 🔴 High  | Active scanlation group   |
 | **Scan-VF**      | scan-vf.net      | Unknown       | 🔴 High  | Well-known French site    |
 
 ### Standard Priority Sources
 
-| Source Name         | Expected Type | Priority  | Notes                      |
-| ------------------- | ------------- | --------- | -------------------------- |
-| **AnimeSama**       | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
-| **AnteikuScan**     | Unknown       | 🟡 Medium | Scanlation group           |
-| **BananaScan**      | Unknown       | 🟡 Medium | Community source           |
-| **EdScanlation**    | Unknown       | 🟡 Medium | Scanlation team            |
-| **EnligneManga**    | Unknown       | 🟡 Medium | Online manga platform      |
-| **EpsilonScan**     | Unknown       | 🟡 Medium | Scanlation group           |
-| **FMTeam**          | Unknown       | 🟡 Medium | French scanlation team     |
-| **FrManga**         | Unknown       | 🟡 Medium | French manga source        |
-| **FuryoSquad**      | Unknown       | 🟡 Medium | Scanlation group           |
-| **InovaScanManga**  | Unknown       | 🟡 Medium | Scan community             |
-| **LelManga**        | Unknown       | 🟡 Medium | Related to LelscanFR       |
-| **MangaHubFR**      | Unknown       | 🟡 Medium | French manga hub           |
-| **MangasScans**     | Unknown       | 🟡 Medium | Manga scanning source      |
-| **PantheonScan**    | Unknown       | 🟡 Medium | Scanlation group           |
-| **PerfScan**        | Unknown       | 🟡 Medium | Quality-focused scans      |
-| **PoseidonScans**   | Unknown       | 🟡 Medium | Scanlation team            |
-| **RaijinScans**     | Unknown       | 🟡 Medium | Scanlation group           |
-| **RimuScans**       | Unknown       | 🟡 Medium | Scanlation team            |
-| **RoyalManga**      | Unknown       | 🟡 Medium | Premium manga source       |
-| **ScanTradUnion**   | Unknown       | 🟡 Medium | Scanlation union           |
-| **ScanVFOrg**       | Unknown       | 🟡 Medium | VF scanning organization   |
-| **SoftEpsilonScan** | Unknown       | 🟡 Medium | Related to EpsilonScan     |
-| **StarboundScans**  | Unknown       | 🟡 Medium | Scanlation group           |
-| **ToonFR**          | Unknown       | 🟡 Medium | French toon/webtoon source |
+| Source Name         | URL                | Expected Type | Priority  | Notes                      |
+| ------------------- | ------------------ | ------------- | --------- | -------------------------- |
+| **AnimeSama**       | anime-sama.fr      | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
+| **AnteikuScan**     | anteikuscan.fr     | Unknown       | 🟡 Medium | Scanlation group           |
+| **BananaScan**      | harmony-scan.fr    | Unknown       | 🟡 Medium | Community source           |
+| **EdScanlation**    | edscanlation.fr    | Unknown       | 🟡 Medium | Scanlation team            |
+| **EnligneManga**    | enlignemanga.com   | Unknown       | 🟡 Medium | Online manga platform      |
+| **EpsilonScan**     | epsilonscan.to     | Unknown       | 🟡 Medium | Scanlation group           |
+| **FMTeam**          | fmteam.fr          | Unknown       | 🟡 Medium | French scanlation team     |
+| **FrManga**         | frmanga.com        | Unknown       | 🟡 Medium | French manga source        |
+| **FuryoSquad**      | furyosociety.com   | Unknown       | 🟡 Medium | Scanlation group           |
+| **InovaScanManga**  | inovascanmanga.com | Unknown       | 🟡 Medium | Scan community             |
+| **LelManga**        | lelmanga.com       | Unknown       | 🟡 Medium | Related to LelscanFR       |
+| **MangaHubFR**      | mangahub.fr        | Unknown       | 🟡 Medium | French manga hub           |
+| **MangasScans**     | mangas-scans.com   | Unknown       | 🟡 Medium | Manga scanning source      |
+| **PantheonScan**    | pantheon-scan.com  | Unknown       | 🟡 Medium | Scanlation group           |
+| **PerfScan**        | perf-scan.net      | Unknown       | 🟡 Medium | Quality-focused scans      |
+| **PoseidonScans**   | poseidonscans.com  | Unknown       | 🟡 Medium | Scanlation team            |
+| **RaijinScans**     | raijinscan.co      | Unknown       | 🟡 Medium | Scanlation group           |
+| **RimuScans**       | rimuscans.com      | Unknown       | 🟡 Medium | Scanlation team            |
+| **RoyalManga**      | royalmanga.com     | Unknown       | 🟡 Medium | Premium manga source       |
+| **ScanTradUnion**   | scantrad-union.com | Unknown       | 🟡 Medium | Scanlation union           |
+| **ScanVFOrg**       | scanvf.org         | Unknown       | 🟡 Medium | VF scanning organization   |
+| **SoftEpsilonScan** | epsilonsoft.to     | Unknown       | 🟡 Medium | Related to EpsilonScan     |
+| **StarboundScans**  | starboundscans.com | Unknown       | 🟡 Medium | Scanlation group           |
+| **ToonFR**          | toonfr.com         | Unknown       | 🟡 Medium | French toon/webtoon source |
 
 ### Specialized Sources
 
-| Source Name  | Type      | Priority | Notes              |
-| ------------ | --------- | -------- | ------------------ |
-| **AraLosBD** | BD/Comics | 🟢 Low   | BD-focused content |
-| **BluesOlo** | Unknown   | 🟢 Low   | Niche content      |
+| Source Name          | URL                   | Type      | Priority | Notes                 |
+| -------------------- | --------------------- | --------- | -------- | --------------------- |
+| **AraLosBD**         | aralosbd.fr           | BD/Comics | 🟢 Low   | BD-focused content    |
+| **BluesOlo**         | bluesolo.org          | Unknown   | 🟢 Low   | Niche content         |
+| **HentaiOrigines**   | hentai-origines.fr    | Adult     | 🟢 Low   | Adult content source  |
+| **HentaiScantrad**   | hentai.scantrad-vf.cc | Adult     | 🟢 Low   | Adult scanlations     |
+| **HentaiZone**       | hentaizone.xyz        | Adult     | 🟢 Low   | Adult manga zone      |
+| **HistoireHentai**   | hhentai.fr            | Adult     | 🟢 Low   | Adult story content   |
+| **LunarScansHentai** | pornhwascans.fr       | Adult     | 🟢 Low   | Adult lunar scans     |
+| **ScanHentaiMenu**   | x-manga.org           | Adult     | 🟢 Low   | Adult scan menu       |
+| **YaoiScan**         | yaoiscan.fr           | Adult     | 🟢 Low   | Yaoi-specific content |
 
 ## 🏗️ Implementation Guidelines
 
@@ -115,5 +122,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-01-14_
+_Last updated: 2025-08-14_
 _Total sources tracked: 36 upcoming_
