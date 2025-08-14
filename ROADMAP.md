@@ -20,7 +20,7 @@ These are popular sources that should be prioritized for implementation:
 
 | Source Name      | URL              | Expected Type | Priority | Notes                     |
 | ---------------- | ---------------- | ------------- | -------- | ------------------------- |
-| **JapScan**      | japscan.lol      | Custom        | 🔴 High  | Major French manga source |
+| **JapScan**      | japscan.si       | Custom        | 🔴 High  | Major French manga source |
 | **Manga-Kawaii** | mangakawaii.io   | Unknown       | 🔴 High  | Popular community site    |
 | **FlameScansFR** | legacy-scans.com | Unknown       | 🔴 High  | Active scanlation group   |
 | **Scan-VF**      | scan-vf.net      | Unknown       | 🔴 High  | Well-known French site    |
@@ -53,20 +53,6 @@ These are popular sources that should be prioritized for implementation:
 | **SoftEpsilonScan** | epsilonsoft.to     | Unknown       | 🟡 Medium | Related to EpsilonScan     |
 | **StarboundScans**  | starboundscans.com | Unknown       | 🟡 Medium | Scanlation group           |
 | **ToonFR**          | toonfr.com         | Unknown       | 🟡 Medium | French toon/webtoon source |
-
-### Specialized Sources
-
-| Source Name          | URL                   | Type      | Priority | Notes                 |
-| -------------------- | --------------------- | --------- | -------- | --------------------- |
-| **AraLosBD**         | aralosbd.fr           | BD/Comics | 🟢 Low   | BD-focused content    |
-| **BluesOlo**         | bluesolo.org          | Unknown   | 🟢 Low   | Niche content         |
-| **HentaiOrigines**   | hentai-origines.fr    | Adult     | 🟢 Low   | Adult content source  |
-| **HentaiScantrad**   | hentai.scantrad-vf.cc | Adult     | 🟢 Low   | Adult scanlations     |
-| **HentaiZone**       | hentaizone.xyz        | Adult     | 🟢 Low   | Adult manga zone      |
-| **HistoireHentai**   | hhentai.fr            | Adult     | 🟢 Low   | Adult story content   |
-| **LunarScansHentai** | pornhwascans.fr       | Adult     | 🟢 Low   | Adult lunar scans     |
-| **ScanHentaiMenu**   | x-manga.org           | Adult     | 🟢 Low   | Adult scan menu       |
-| **YaoiScan**         | yaoiscan.fr           | Adult     | 🟢 Low   | Yaoi-specific content |
 
 ## 🏗️ Implementation Guidelines
 
