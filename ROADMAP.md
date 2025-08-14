@@ -18,66 +18,61 @@ Currently no sources are being actively developed.
 
 These are popular sources that should be prioritized for implementation:
 
-| Source Name | URL | Expected Type | Priority | Notes |
-|-------------|-----|---------------|----------|-------|
-| **JapScan** | japscan.co | Custom | 🔴 High | Major French manga source |
-| **Manga-Kawaii** | manga-kawaii.com | Unknown | 🔴 High | Popular community site |
-| **FlameScansFR** | flamescansfr.com | Unknown | 🔴 High | Active scanlation group |
-| **Scan-VF** | scan-vf.net | Unknown | 🔴 High | Well-known French site |
+| Source Name      | URL              | Expected Type | Priority | Notes                     |
+| ---------------- | ---------------- | ------------- | -------- | ------------------------- |
+| **JapScan**      | japscan.co       | Custom        | 🔴 High  | Major French manga source |
+| **Manga-Kawaii** | manga-kawaii.com | Unknown       | 🔴 High  | Popular community site    |
+| **FlameScansFR** | flamescansfr.com | Unknown       | 🔴 High  | Active scanlation group   |
+| **Scan-VF**      | scan-vf.net      | Unknown       | 🔴 High  | Well-known French site    |
 
 ### Standard Priority Sources
 
-| Source Name | Expected Type | Priority | Notes |
-|-------------|---------------|----------|-------|
-| **AnimeSama** | Custom | 🟡 Medium | Anime/Manga hybrid site |
-| **AnteikuScan** | Unknown | 🟡 Medium | Scanlation group |
-| **BananaScan** | Unknown | 🟡 Medium | Community source |
-| **EdScanlation** | Unknown | 🟡 Medium | Scanlation team |
-| **EnligneManga** | Unknown | 🟡 Medium | Online manga platform |
-| **EpsilonScan** | Unknown | 🟡 Medium | Scanlation group |
-| **FMTeam** | Unknown | 🟡 Medium | French scanlation team |
-| **FrManga** | Unknown | 🟡 Medium | French manga source |
-| **FuryoSquad** | Unknown | 🟡 Medium | Scanlation group |
-| **InovaScanManga** | Unknown | 🟡 Medium | Scan community |
-| **LelManga** | Unknown | 🟡 Medium | Related to LelscanFR |
-| **MangaHubFR** | Unknown | 🟡 Medium | French manga hub |
-| **MangasScans** | Unknown | 🟡 Medium | Manga scanning source |
-| **PantheonScan** | Unknown | 🟡 Medium | Scanlation group |
-| **PerfScan** | Unknown | 🟡 Medium | Quality-focused scans |
-| **PoseidonScans** | Unknown | 🟡 Medium | Scanlation team |
-| **RaijinScans** | Unknown | 🟡 Medium | Scanlation group |
-| **RimuScans** | Unknown | 🟡 Medium | Scanlation team |
-| **RoyalManga** | Unknown | 🟡 Medium | Premium manga source |
-| **ScanTradUnion** | Unknown | 🟡 Medium | Scanlation union |
-| **ScanVFOrg** | Unknown | 🟡 Medium | VF scanning organization |
-| **SoftEpsilonScan** | Unknown | 🟡 Medium | Related to EpsilonScan |
-| **StarboundScans** | Unknown | 🟡 Medium | Scanlation group |
-| **ToonFR** | Unknown | 🟡 Medium | French toon/webtoon source |
+| Source Name         | Expected Type | Priority  | Notes                      |
+| ------------------- | ------------- | --------- | -------------------------- |
+| **AnimeSama**       | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
+| **AnteikuScan**     | Unknown       | 🟡 Medium | Scanlation group           |
+| **BananaScan**      | Unknown       | 🟡 Medium | Community source           |
+| **EdScanlation**    | Unknown       | 🟡 Medium | Scanlation team            |
+| **EnligneManga**    | Unknown       | 🟡 Medium | Online manga platform      |
+| **EpsilonScan**     | Unknown       | 🟡 Medium | Scanlation group           |
+| **FMTeam**          | Unknown       | 🟡 Medium | French scanlation team     |
+| **FrManga**         | Unknown       | 🟡 Medium | French manga source        |
+| **FuryoSquad**      | Unknown       | 🟡 Medium | Scanlation group           |
+| **InovaScanManga**  | Unknown       | 🟡 Medium | Scan community             |
+| **LelManga**        | Unknown       | 🟡 Medium | Related to LelscanFR       |
+| **MangaHubFR**      | Unknown       | 🟡 Medium | French manga hub           |
+| **MangasScans**     | Unknown       | 🟡 Medium | Manga scanning source      |
+| **PantheonScan**    | Unknown       | 🟡 Medium | Scanlation group           |
+| **PerfScan**        | Unknown       | 🟡 Medium | Quality-focused scans      |
+| **PoseidonScans**   | Unknown       | 🟡 Medium | Scanlation team            |
+| **RaijinScans**     | Unknown       | 🟡 Medium | Scanlation group           |
+| **RimuScans**       | Unknown       | 🟡 Medium | Scanlation team            |
+| **RoyalManga**      | Unknown       | 🟡 Medium | Premium manga source       |
+| **ScanTradUnion**   | Unknown       | 🟡 Medium | Scanlation union           |
+| **ScanVFOrg**       | Unknown       | 🟡 Medium | VF scanning organization   |
+| **SoftEpsilonScan** | Unknown       | 🟡 Medium | Related to EpsilonScan     |
+| **StarboundScans**  | Unknown       | 🟡 Medium | Scanlation group           |
+| **ToonFR**          | Unknown       | 🟡 Medium | French toon/webtoon source |
 
 ### Specialized Sources
 
-| Source Name | Type | Priority | Notes |
-|-------------|------|----------|-------|
-| **AraLosBD** | BD/Comics | 🟢 Low | BD-focused content |
-| **BluesOlo** | Unknown | 🟢 Low | Niche content |
-| **HentaiOrigines** | Adult | 🟢 Low | Adult content source |
-| **HentaiScantrad** | Adult | 🟢 Low | Adult scanlations |
-| **HentaiZone** | Adult | 🟢 Low | Adult manga zone |
-| **HistoireHentai** | Adult | 🟢 Low | Adult story content |
-| **LunarScansHentai** | Adult | 🟢 Low | Adult lunar scans |
-| **ScanHentaiMenu** | Adult | 🟢 Low | Adult scan menu |
-| **YaoiScan** | Adult | 🟢 Low | Yaoi-specific content |
+| Source Name  | Type      | Priority | Notes              |
+| ------------ | --------- | -------- | ------------------ |
+| **AraLosBD** | BD/Comics | 🟢 Low   | BD-focused content |
+| **BluesOlo** | Unknown   | 🟢 Low   | Niche content      |
 
 ## 🏗️ Implementation Guidelines
 
 ### Before Starting a Source
 
 1. **Research the site architecture**:
+
    - Check if it uses a known template (Madara, MangaStream, MMRCMS)
    - Analyze the HTML structure and API endpoints
    - Test the site availability and stability
 
 2. **Update this roadmap**:
+
    - Move the source from "Upcoming" to "Work in Progress"
    - Add your name and start date
    - Include any specific technical notes
@@ -120,5 +115,5 @@ When working on a source:
 
 ---
 
-*Last updated: 2025-01-14*
-*Total sources tracked: 36 upcoming*
+_Last updated: 2025-01-14_
+_Total sources tracked: 36 upcoming_
