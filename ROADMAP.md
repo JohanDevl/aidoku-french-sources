@@ -14,21 +14,14 @@ Currently no sources are being actively developed.
 
 ## 🆙 Upcoming Sources
 
-### High Priority Sources
-
-These are popular sources that should be prioritized for implementation:
-
-| Source Name      | URL              | Expected Type | Priority | Notes                     |
-| ---------------- | ---------------- | ------------- | -------- | ------------------------- |
-| **JapScan**      | japscan.si       | Custom        | 🔴 High  | Major French manga source |
-| **Manga-Kawaii** | mangakawaii.io   | Unknown       | 🔴 High  | Popular community site    |
-| **FlameScansFR** | legacy-scans.com | Unknown       | 🔴 High  | Active scanlation group   |
-| **Scan-VF**      | scan-vf.net      | Unknown       | 🔴 High  | Well-known French site    |
-
 ### Standard Priority Sources
 
 | Source Name         | URL                | Expected Type | Priority  | Notes                      |
 | ------------------- | ------------------ | ------------- | --------- | -------------------------- |
+| **JapScan**         | japscan.si         | Custom        | 🔴 High   | Major French manga source  |
+| **Manga-Kawaii**    | mangakawaii.io     | Unknown       | 🔴 High   | Popular community site     |
+| **FlameScansFR**    | legacy-scans.com   | Unknown       | 🔴 High   | Active scanlation group    |
+| **Scan-VF**         | scan-vf.net        | Unknown       | 🔴 High   | Well-known French site     |
 | **AnimeSama**       | anime-sama.fr      | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
 | **AnteikuScan**     | anteikuscan.fr     | Unknown       | 🟡 Medium | Scanlation group           |
 | **BananaScan**      | harmony-scan.fr    | Unknown       | 🟡 Medium | Community source           |
@@ -108,5 +101,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-08-14_
+_Last updated: 2025-08-15_
 _Total sources tracked: 36 upcoming_
