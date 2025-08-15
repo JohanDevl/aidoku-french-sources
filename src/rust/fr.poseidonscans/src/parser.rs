@@ -85,25 +85,41 @@ fn parse_nextjs_push_data(_content: &str) -> Result<Vec<Manga>> {
 
 // Extract Next.js manga details data from manga detail page
 fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
-	// First try __NEXT_DATA__ script tag
+	// First try __NEXT_DATA__ script tag with enhanced validation
 	for script in html.select("script#__NEXT_DATA__").array() {
 		let script = script.as_node()?;
 		let content = script.html().read();
 		
 		if let Ok(manga_data) = parse_nextjs_details_data(&content) {
-			return Ok(manga_data);
+			// Validate that we have manga-related data
+			if validate_manga_details_data(&manga_data) {
+				return Ok(manga_data);
+			}
 		}
 	}
 	
-	// Fallback to self.__next_f.push() patterns
+	// Enhanced fallback to self.__next_f.push() patterns with multiple markers
 	for script in html.select("script").array() {
 		let script = script.as_node()?;
 		let content = script.html().read();
 		
-		if content.contains("self.__next_f.push") && 
-		   (content.contains("\"manga\":{") || content.contains("\"initialData\":{")) {
-			if let Ok(manga_data) = parse_nextjs_push_manga_data(&content) {
-				return Ok(manga_data);
+		if content.contains("self.__next_f.push") {
+			// Try multiple data patterns
+			let patterns = [
+				"\"initialData\":{",
+				"\"manga\":{", 
+				"\"chapter\":{",
+				"\"pageProps\":{"
+			];
+			
+			for pattern in &patterns {
+				if content.contains(pattern) {
+					if let Ok(manga_data) = parse_nextjs_push_manga_data(&content) {
+						if validate_manga_details_data(&manga_data) {
+							return Ok(manga_data);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -120,26 +136,35 @@ fn parse_nextjs_details_data(content: &str) -> Result<ObjectRef> {
 	// Parse the root JSON object
 	if let Ok(root_json) = parse(content) {
 		if let Ok(root_obj) = root_json.as_object() {
-			// Try props.pageProps first
+			// Try props.pageProps first (most common structure)
 			if let Ok(props) = root_obj.get("props").as_object() {
 				if let Ok(page_props) = props.get("pageProps").as_object() {
-					// Check if pageProps contains manga data
+					// Check if pageProps contains expected data structures
 					if page_props.get("initialData").as_object().is_ok() ||
 					   page_props.get("manga").as_object().is_ok() ||
 					   page_props.get("chapter").as_object().is_ok() ||
-					   page_props.get("images").as_array().is_ok() {
+					   page_props.get("images").as_array().is_ok() ||
+					   page_props.get("mangas").as_array().is_ok() ||
+					   page_props.get("series").as_array().is_ok() {
 						return Ok(page_props);
 					}
 				}
 			}
 			
-			// Try root level initialData
+			// Try root level initialData (alternative structure)
 			if let Ok(initial_data) = root_obj.get("initialData").as_object() {
 				if initial_data.get("manga").as_object().is_ok() ||
 				   initial_data.get("chapter").as_object().is_ok() ||
-				   initial_data.get("images").as_array().is_ok() {
+				   initial_data.get("images").as_array().is_ok() ||
+				   initial_data.get("mangas").as_array().is_ok() ||
+				   initial_data.get("series").as_array().is_ok() {
 					return Ok(initial_data);
 				}
+			}
+			
+			// Try direct manga data at root level
+			if root_obj.get("manga").as_object().is_ok() {
+				return Ok(root_obj);
 			}
 		}
 	}
@@ -322,6 +347,45 @@ fn validate_manga_data(obj: &ObjectRef, pattern: &str) -> bool {
 		}
 		_ => false
 	}
+}
+
+// Validate manga details data for main extraction
+fn validate_manga_details_data(obj: &ObjectRef) -> bool {
+	// Check if we have manga data directly
+	if let Ok(manga_obj) = obj.get("manga").as_object() {
+		let has_title = manga_obj.get("title").as_string().is_ok();
+		let has_slug = manga_obj.get("slug").as_string().is_ok();
+		if has_title && has_slug {
+			return true;
+		}
+	}
+	
+	// Check if we have initialData with manga
+	if let Ok(initial_data) = obj.get("initialData").as_object() {
+		if let Ok(manga_obj) = initial_data.get("manga").as_object() {
+			let has_title = manga_obj.get("title").as_string().is_ok();
+			let has_slug = manga_obj.get("slug").as_string().is_ok();
+			if has_title && has_slug {
+				return true;
+			}
+		}
+	}
+	
+	// Check if this object itself is a manga object
+	let has_title = obj.get("title").as_string().is_ok();
+	let has_slug = obj.get("slug").as_string().is_ok();
+	if has_title && has_slug {
+		return true;
+	}
+	
+	// Additional checks for potential manga data
+	let has_chapters = obj.get("chapters").as_array().is_ok();
+	let has_manga_fields = obj.get("author").as_string().is_ok() || 
+	                      obj.get("description").as_string().is_ok() ||
+	                      obj.get("status").as_string().is_ok();
+	
+	// Accept if we have either title or chapters with other manga indicators
+	(has_title && has_manga_fields) || (has_chapters && has_manga_fields)
 }
 
 // Parse manga status from French status string
@@ -528,28 +592,50 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	// Extract Next.js page data
 	let manga_data = extract_nextjs_manga_details(&html)?;
 	
-	// Get basic info with fallbacks
-	let title = if let Ok(title_str) = manga_data.get("title").as_string() {
-		title_str.read()
+	// Extract manga object from hierarchical structure
+	let manga_obj = if let Ok(manga) = manga_data.get("manga").as_object() {
+		manga
+	} else if let Ok(initial_data) = manga_data.get("initialData").as_object() {
+		if let Ok(manga) = initial_data.get("manga").as_object() {
+			manga
+		} else {
+			// Use the manga_data itself if it contains manga fields
+			manga_data
+		}
 	} else {
-		format!("Manga {}", manga_id)
+		// Use the manga_data itself if it contains manga fields
+		manga_data
 	};
 	
-	let slug = if let Ok(slug_str) = manga_data.get("slug").as_string() {
+	// Get basic info with improved fallbacks
+	let title = if let Ok(title_str) = manga_obj.get("title").as_string() {
+		let extracted_title = title_str.read();
+		if extracted_title.is_empty() {
+			// Convert manga_id to readable title as last resort
+			manga_id.replace("-", " ").replace("_", " ")
+		} else {
+			extracted_title
+		}
+	} else {
+		// Convert manga_id to readable title as last resort
+		manga_id.replace("-", " ").replace("_", " ")
+	};
+	
+	let slug = if let Ok(slug_str) = manga_obj.get("slug").as_string() {
 		slug_str.read()
 	} else {
 		manga_id.clone()
 	};
 	
 	// Author and artist
-	let author = if let Ok(author_str) = manga_data.get("author").as_string() {
+	let author = if let Ok(author_str) = manga_obj.get("author").as_string() {
 		let author_text = author_str.read();
 		if author_text.is_empty() { String::new() } else { author_text }
 	} else {
 		String::new()
 	};
 	
-	let artist = if let Ok(artist_str) = manga_data.get("artist").as_string() {
+	let artist = if let Ok(artist_str) = manga_obj.get("artist").as_string() {
 		let artist_text = artist_str.read();
 		if artist_text.is_empty() { String::new() } else { artist_text }
 	} else {
@@ -557,7 +643,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	};
 	
 	// Status parsing
-	let status = if let Ok(status_str) = manga_data.get("status").as_string() {
+	let status = if let Ok(status_str) = manga_obj.get("status").as_string() {
 		parse_manga_status(&status_str.read())
 	} else {
 		MangaStatus::Unknown
@@ -565,7 +651,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	
 	// Categories/genres
 	let mut categories = Vec::new();
-	if let Ok(categories_array) = manga_data.get("categories").as_array() {
+	if let Ok(categories_array) = manga_obj.get("categories").as_array() {
 		for category in categories_array {
 			if let Ok(cat_obj) = category.as_object() {
 				if let Ok(name) = cat_obj.get("name").as_string() {
@@ -593,7 +679,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	
 	// Fallback to JSON description if HTML extraction failed
 	if description.is_empty() {
-		if let Ok(json_desc) = manga_data.get("description").as_string() {
+		if let Ok(json_desc) = manga_obj.get("description").as_string() {
 			let desc = String::from(json_desc.read().trim());
 			if desc.len() > 5 && !desc.starts_with('$') {
 				description = desc;
@@ -602,7 +688,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	}
 	
 	// Add alternative names if available
-	if let Ok(alt_names) = manga_data.get("alternativeNames").as_string() {
+	if let Ok(alt_names) = manga_obj.get("alternativeNames").as_string() {
 		let alt_names = String::from(alt_names.read().trim());
 		if !alt_names.is_empty() {
 			if description == "Aucune description." || description.is_empty() {
@@ -644,72 +730,97 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Get chapters array from manga data
-	if let Ok(chapters_array) = manga_data.get("chapters").as_array() {
-		for chapter_value in chapters_array {
-			if let Ok(chapter_obj) = chapter_value.as_object() {
-				// Skip premium chapters
-				if let Ok(is_premium) = chapter_obj.get("isPremium").as_bool() {
-					if is_premium {
-						continue;
-					}
-				}
-				
-				// Get chapter number
-				let chapter_number = if let Ok(num) = chapter_obj.get("number").as_float() {
-					num
-				} else {
-					0.0
-				};
-				
-				if chapter_number <= 0.0 {
+	// Get chapters array with hierarchical fallbacks
+	let chapters_array = if let Ok(manga) = manga_data.get("manga").as_object() {
+		// Try manga.chapters first
+		if let Ok(chapters_arr) = manga.get("chapters").as_array() {
+			chapters_arr
+		} else {
+			// Fallback to direct chapters in manga_data
+			manga_data.get("chapters").as_array()?
+		}
+	} else if let Ok(initial_data) = manga_data.get("initialData").as_object() {
+		// Try initialData.manga.chapters
+		if let Ok(manga) = initial_data.get("manga").as_object() {
+			if let Ok(chapters_arr) = manga.get("chapters").as_array() {
+				chapters_arr
+			} else {
+				// Try initialData.chapters
+				initial_data.get("chapters").as_array()?
+			}
+		} else {
+			// Try initialData.chapters directly
+			initial_data.get("chapters").as_array()?
+		}
+	} else {
+		// Try direct chapters in manga_data
+		manga_data.get("chapters").as_array()?
+	};
+	
+	// Process chapters array
+	for chapter_value in chapters_array {
+		if let Ok(chapter_obj) = chapter_value.as_object() {
+			// Skip premium chapters
+			if let Ok(is_premium) = chapter_obj.get("isPremium").as_bool() {
+				if is_premium {
 					continue;
 				}
-				
-				// Format chapter number (remove .0 suffix if present)
-				let chapter_number_string = if chapter_number % 1.0 == 0.0 {
-					format!("{}", chapter_number as i32)
-				} else {
-					format!("{}", chapter_number)
-				};
-				
-				// Get chapter title
-				let chapter_title = if let Ok(title_str) = chapter_obj.get("title").as_string() {
-					let title_text = title_str.read();
-					if title_text.trim().is_empty() { None } else { Some(title_text) }
-				} else {
-					None
-				};
-				
-				// Build chapter name
-				let base_name = format!("Chapitre {}", chapter_number_string);
-				let name = if let Some(title) = chapter_title {
-					format!("{} - {}", base_name, title.trim())
-				} else {
-					base_name
-				};
-				
-				// Parse date
-				let date_upload = if let Ok(date_str) = chapter_obj.get("createdAt").as_string() {
-					parse_iso_date(&date_str.read())
-				} else {
-					0
-				};
-				
-				// Build chapter URL
-				let url = format!("/serie/{}/chapter/{}", manga_id, chapter_number_string);
-				
-				chapters.push(Chapter {
-					id: chapter_number_string,
-					title: name,
-					volume: -1.0,
-					chapter: chapter_number as f32,
-					date_updated: date_upload as f64,
-					scanlator: String::new(),
-					url,
-					lang: String::from("fr"),
-				});
 			}
+			
+			// Get chapter number
+			let chapter_number = if let Ok(num) = chapter_obj.get("number").as_float() {
+				num
+			} else {
+				0.0
+			};
+			
+			if chapter_number <= 0.0 {
+				continue;
+			}
+			
+			// Format chapter number (remove .0 suffix if present)
+			let chapter_number_string = if chapter_number % 1.0 == 0.0 {
+				format!("{}", chapter_number as i32)
+			} else {
+				format!("{}", chapter_number)
+			};
+			
+			// Get chapter title
+			let chapter_title = if let Ok(title_str) = chapter_obj.get("title").as_string() {
+				let title_text = title_str.read();
+				if title_text.trim().is_empty() { None } else { Some(title_text) }
+			} else {
+				None
+			};
+			
+			// Build chapter name
+			let base_name = format!("Chapitre {}", chapter_number_string);
+			let name = if let Some(title) = chapter_title {
+				format!("{} - {}", base_name, title.trim())
+			} else {
+				base_name
+			};
+			
+			// Parse date
+			let date_upload = if let Ok(date_str) = chapter_obj.get("createdAt").as_string() {
+				parse_iso_date(&date_str.read())
+			} else {
+				0
+			};
+			
+			// Build chapter URL
+			let url = format!("/serie/{}/chapter/{}", manga_id, chapter_number_string);
+			
+			chapters.push(Chapter {
+				id: chapter_number_string,
+				title: name,
+				volume: -1.0,
+				chapter: chapter_number as f32,
+				date_updated: date_upload as f64,
+				scanlator: String::new(),
+				url,
+				lang: String::from("fr"),
+			});
 		}
 	}
 	
