@@ -60,11 +60,26 @@ jobs:
           sudo chmod +x /usr/local/bin/sccache
       - name: Build Rust sources
         run: |
+          # Build individual sources (fr.* directories)
+          for src in ./src/rust/fr.*; do
+            if [ -d "$src" ]; then
+              echo "Building individual source: $(basename "$src")"
+              (
+                cd "$src"
+                ./build.sh
+              )
+            fi
+          done
+          
+          # Build template sources (non-fr.* directories) 
           for src in ./src/rust/*; do
-            (
-              cd "$src"
-              ./build.sh -a
-            )
+            if [ -d "$src" ] && [[ ! "$(basename "$src")" =~ ^fr\. ]]; then
+              echo "Building template: $(basename "$src")"
+              (
+                cd "$src"
+                ./build.sh -a
+              )
+            fi
           done
       - name: Building source list
         run: |

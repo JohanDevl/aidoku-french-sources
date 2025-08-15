@@ -3,7 +3,7 @@
 
 if [ "$1" != "-a" ] && [ "$1" != "" ]; then
     # compile specified source
-    cargo +nightly build --release --target wasm32-unknown-unknown
+    cargo +nightly build --release
     
     echo "packaging $1";
     mkdir -p target/wasm32-unknown-unknown/release/Payload
@@ -16,7 +16,7 @@ if [ "$1" != "-a" ] && [ "$1" != "" ]; then
     rm -rf Payload
 else
     # compile all sources
-    cargo +nightly build --release --target wasm32-unknown-unknown
+    cargo +nightly build --release
     for dir in sources/*/
     do
         dir=${dir%*/}
