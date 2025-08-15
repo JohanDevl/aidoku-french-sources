@@ -1,11 +1,35 @@
 use aidoku::{
 	error::Result, prelude::*, std::{
-		html::Node, ObjectRef, String, Vec
+		html::Node, ObjectRef, ArrayRef, String, Vec
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
 use core::cmp::Ordering;
 
 use crate::BASE_URL;
+
+// Page image data structure (equivalent to PageImageUrlData in Kotlin)
+struct PageImageData {
+	original_url: String,
+	order: i32,
+}
+
+// Page data root structure (equivalent to PageDataRoot in Kotlin)  
+struct PageDataRoot {
+	images: Option<Vec<PageImageData>>,
+	chapter: Option<PageDataChapter>,
+	initial_data: Option<PageDataInitialData>,
+}
+
+// Page data chapter structure
+struct PageDataChapter {
+	images: Option<Vec<PageImageData>>,
+}
+
+// Page data initial data structure
+struct PageDataInitialData {
+	images: Option<Vec<PageImageData>>,
+	chapter: Option<PageDataChapter>,
+}
 
 // Extract Next.js series data from /series page
 fn extract_nextjs_series_data(html: &Node) -> Result<Vec<Manga>> {
@@ -90,21 +114,214 @@ fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
 }
 
 // Parse __NEXT_DATA__ JSON content for manga details
-fn parse_nextjs_details_data(_content: &str) -> Result<ObjectRef> {
-	// TODO: Implement __NEXT_DATA__ JSON parsing for manga details
-	// This would parse JSON structure like:
-	// { "props": { "pageProps": { "manga": {...} } } }
+fn parse_nextjs_details_data(content: &str) -> Result<ObjectRef> {
 	use aidoku::std::json::parse;
+	
+	// Parse the root JSON object
+	if let Ok(root_json) = parse(content) {
+		if let Ok(root_obj) = root_json.as_object() {
+			// Try props.pageProps first
+			if let Ok(props) = root_obj.get("props").as_object() {
+				if let Ok(page_props) = props.get("pageProps").as_object() {
+					// Check if pageProps contains manga data
+					if page_props.get("initialData").as_object().is_ok() ||
+					   page_props.get("manga").as_object().is_ok() ||
+					   page_props.get("chapter").as_object().is_ok() ||
+					   page_props.get("images").as_array().is_ok() {
+						return Ok(page_props);
+					}
+				}
+			}
+			
+			// Try root level initialData
+			if let Ok(initial_data) = root_obj.get("initialData").as_object() {
+				if initial_data.get("manga").as_object().is_ok() ||
+				   initial_data.get("chapter").as_object().is_ok() ||
+				   initial_data.get("images").as_array().is_ok() {
+					return Ok(initial_data);
+				}
+			}
+		}
+	}
+	
+	// Return empty object if parsing fails
 	Ok(parse("{}").unwrap().as_object().unwrap())
 }
 
 // Parse self.__next_f.push() content for manga details
-fn parse_nextjs_push_manga_data(_content: &str) -> Result<ObjectRef> {
-	// TODO: Implement self.__next_f.push() pattern parsing for manga details
-	// This would extract JSON from patterns like:
-	// self.__next_f.push([1, "...escaped JSON containing manga object..."])
+fn parse_nextjs_push_manga_data(content: &str) -> Result<ObjectRef> {
+	// Find self.__next_f.push() patterns with manga data
+	let patterns = ["\"initialData\":{", "\"manga\":{", "\"chapter\":{"];
+	
+	// Look for self.__next_f.push([1, "..."])  patterns
+	let mut start_pos = 0;
+	while let Some(push_start) = content[start_pos..].find("self.__next_f.push([1,") {
+		let actual_start = start_pos + push_start;
+		start_pos = actual_start + 1;
+		
+		// Find the quoted string after [1,
+		if let Some(quote_start) = content[actual_start..].find('"') {
+			let string_start = actual_start + quote_start + 1;
+			
+			// Find the closing quote and bracket
+			if let Some(quote_end) = find_closing_quote(&content[string_start..]) {
+				let string_end = string_start + quote_end;
+				let escaped_json = &content[string_start..string_end];
+				
+				// Unescape the JSON string
+				let unescaped_json = unescape_json_string(escaped_json);
+				
+				// Try to find manga data patterns in unescaped JSON
+				for pattern in &patterns {
+					if let Some(pattern_pos) = unescaped_json.find(pattern) {
+						// Find the start of the JSON object containing this pattern
+						if let Some(obj_start) = find_json_object_start(&unescaped_json, pattern_pos) {
+							if let Some(json_obj) = extract_json_object(&unescaped_json, obj_start) {
+								// Try to parse this JSON object
+								use aidoku::std::json::parse;
+								if let Ok(parsed) = parse(&json_obj) {
+									if let Ok(obj_ref) = parsed.as_object() {
+										// Validate this object contains expected data
+										if validate_manga_data(&obj_ref, pattern) {
+											return Ok(obj_ref);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Return empty object if no valid data found
 	use aidoku::std::json::parse;
 	Ok(parse("{}").unwrap().as_object().unwrap())
+}
+
+// Find closing quote in JSON string, handling escapes
+fn find_closing_quote(content: &str) -> Option<usize> {
+	let mut i = 0;
+	let chars: Vec<char> = content.chars().collect();
+	
+	while i < chars.len() {
+		match chars[i] {
+			'"' => return Some(i),
+			'\\' => {
+				// Skip escaped character
+				i += 2;
+			}
+			_ => i += 1,
+		}
+	}
+	None
+}
+
+// Unescape JSON string (handle \" and \\)
+fn unescape_json_string(escaped: &str) -> String {
+	let mut result = String::new();
+	let mut chars = escaped.chars();
+	
+	while let Some(ch) = chars.next() {
+		if ch == '\\' {
+			if let Some(next_ch) = chars.next() {
+				match next_ch {
+					'"' => result.push('"'),
+					'\\' => result.push('\\'),
+					'/' => result.push('/'),
+					'b' => result.push('\u{0008}'),
+					'f' => result.push('\u{000C}'),
+					'n' => result.push('\n'),
+					'r' => result.push('\r'),
+					't' => result.push('\t'),
+					_ => {
+						result.push('\\');
+						result.push(next_ch);
+					}
+				}
+			}
+		} else {
+			result.push(ch);
+		}
+	}
+	
+	result
+}
+
+// Find the start of JSON object that contains a pattern
+fn find_json_object_start(content: &str, pattern_pos: usize) -> Option<usize> {
+	// Search backwards for opening brace
+	let mut i = pattern_pos;
+	let mut brace_count = 0;
+	
+	while i > 0 {
+		i -= 1;
+		match content.chars().nth(i)? {
+			'}' => brace_count += 1,
+			'{' => {
+				if brace_count == 0 {
+					return Some(i);
+				}
+				brace_count -= 1;
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+// Extract complete JSON object from start position
+fn extract_json_object(content: &str, start_pos: usize) -> Option<String> {
+	let chars: Vec<char> = content.chars().collect();
+	if start_pos >= chars.len() || chars[start_pos] != '{' {
+		return None;
+	}
+	
+	let mut brace_count = 0;
+	let mut in_string = false;
+	let mut escape = false;
+	
+	for (i, &ch) in chars[start_pos..].iter().enumerate() {
+		if escape {
+			escape = false;
+			continue;
+		}
+		
+		match ch {
+			'\\' if in_string => escape = true,
+			'"' => in_string = !in_string,
+			'{' if !in_string => brace_count += 1,
+			'}' if !in_string => {
+				brace_count -= 1;
+				if brace_count == 0 {
+					let end_pos = start_pos + i + 1;
+					return Some(String::from(&content[start_pos..end_pos]));
+				}
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+// Validate extracted manga data contains expected fields
+fn validate_manga_data(obj: &ObjectRef, pattern: &str) -> bool {
+	match pattern {
+		"\"initialData\":{" => {
+			obj.get("manga").as_object().is_ok() || 
+			obj.get("chapter").as_object().is_ok() ||
+			obj.get("images").as_array().is_ok()
+		}
+		"\"manga\":{" => {
+			obj.get("slug").as_string().is_ok() &&
+			obj.get("title").as_string().is_ok()
+		}
+		"\"chapter\":{" => {
+			obj.get("images").as_array().is_ok()
+		}
+		_ => false
+	}
 }
 
 // Parse manga status from French status string
@@ -502,12 +719,163 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	Ok(chapters)
 }
 
-// Parse page list (simplified)
-pub fn parse_page_list(_html: Node) -> Result<Vec<Page>> {
-	let pages: Vec<Page> = Vec::new();
+// Parse page list with Next.js data extraction and hierarchical image search
+pub fn parse_page_list(html: Node) -> Result<Vec<Page>> {
+	// Extract Next.js page data from chapter page
+	let page_data = extract_nextjs_chapter_data(&html)?;
 	
-	// This would need real Next.js data extraction for image URLs
-	// For now, return empty list
+	// Search for images in hierarchical order
+	let image_data = extract_image_data_hierarchical(&page_data)?;
+	
+	// Get chapter page URL for referer
+	let chapter_url = get_chapter_url_from_html(&html);
+	
+	// Convert image data to Page objects
+	let mut pages: Vec<Page> = Vec::new();
+	for image in image_data {
+		let absolute_url = to_absolute_url(&image.original_url);
+		
+		pages.push(Page {
+			index: image.order,
+			url: chapter_url.clone(),
+			base64: String::new(),
+			text: absolute_url, // Image URL goes in text field
+		});
+	}
+	
+	// Sort pages by index
+	pages.sort_by(|a, b| a.index.cmp(&b.index));
 	
 	Ok(pages)
+}
+
+// Extract Next.js data specifically for chapter pages
+fn extract_nextjs_chapter_data(html: &Node) -> Result<ObjectRef> {
+	// First try __NEXT_DATA__ script tag
+	for script in html.select("script#__NEXT_DATA__").array() {
+		let script = script.as_node()?;
+		let content = script.html().read();
+		
+		if let Ok(page_data) = parse_nextjs_details_data(&content) {
+			// Check if this contains chapter/image data
+			if page_data.get("chapter").as_object().is_ok() ||
+			   page_data.get("images").as_array().is_ok() ||
+			   page_data.get("initialData").as_object().is_ok() {
+				return Ok(page_data);
+			}
+		}
+	}
+	
+	// Fallback to self.__next_f.push() patterns
+	for script in html.select("script").array() {
+		let script = script.as_node()?;
+		let content = script.html().read();
+		
+		if content.contains("self.__next_f.push") && 
+		   (content.contains("\"chapter\":{") || content.contains("\"images\":[")) {
+			if let Ok(page_data) = parse_nextjs_push_manga_data(&content) {
+				return Ok(page_data);
+			}
+		}
+	}
+	
+	// Return empty object if extraction fails
+	use aidoku::std::json::parse;
+	Ok(parse("{}").unwrap().as_object().unwrap())
+}
+
+// Extract image data using hierarchical search
+fn extract_image_data_hierarchical(page_data: &ObjectRef) -> Result<Vec<PageImageData>> {
+	// Search order: root.images -> chapter.images -> initialData.images -> initialData.chapter.images
+	
+	// Try root level images first
+	if let Ok(images_array) = page_data.get("images").as_array() {
+		if let Ok(images) = parse_image_array(images_array) {
+			if !images.is_empty() {
+				return Ok(images);
+			}
+		}
+	}
+	
+	// Try chapter.images
+	if let Ok(chapter_obj) = page_data.get("chapter").as_object() {
+		if let Ok(images_array) = chapter_obj.get("images").as_array() {
+			if let Ok(images) = parse_image_array(images_array) {
+				if !images.is_empty() {
+					return Ok(images);
+				}
+			}
+		}
+	}
+	
+	// Try initialData.images
+	if let Ok(initial_data) = page_data.get("initialData").as_object() {
+		if let Ok(images_array) = initial_data.get("images").as_array() {
+			if let Ok(images) = parse_image_array(images_array) {
+				if !images.is_empty() {
+					return Ok(images);
+				}
+			}
+		}
+		
+		// Try initialData.chapter.images
+		if let Ok(chapter_obj) = initial_data.get("chapter").as_object() {
+			if let Ok(images_array) = chapter_obj.get("images").as_array() {
+				if let Ok(images) = parse_image_array(images_array) {
+					if !images.is_empty() {
+						return Ok(images);
+					}
+				}
+			}
+		}
+	}
+	
+	// Return empty vector if no images found
+	Ok(Vec::new())
+}
+
+// Parse JSON array of images into PageImageData structs
+fn parse_image_array(images_array: ArrayRef) -> Result<Vec<PageImageData>> {
+	let mut images: Vec<PageImageData> = Vec::new();
+	
+	for image_value in images_array {
+		if let Ok(image_obj) = image_value.as_object() {
+			// Get originalUrl and order
+			if let (Ok(url_str), Ok(order_num)) = (
+				image_obj.get("originalUrl").as_string(),
+				image_obj.get("order").as_int()
+			) {
+				images.push(PageImageData {
+					original_url: url_str.read(),
+					order: order_num as i32,
+				});
+			}
+		}
+	}
+	
+	Ok(images)
+}
+
+// Get chapter URL from HTML for referer header
+fn get_chapter_url_from_html(_html: &Node) -> String {
+	// TODO: Extract actual URL from HTML or use current page URL
+	// For now, return base URL as fallback
+	String::from(BASE_URL)
+}
+
+// Convert relative URLs to absolute URLs
+fn to_absolute_url(url: &str) -> String {
+	if url.starts_with("http") {
+		// Already absolute
+		String::from(url)
+	} else if url.starts_with("//") {
+		// Protocol-relative URL
+		format!("https:{}", url)
+	} else if url.starts_with("/") {
+		// Site-relative URL
+		format!("{}{}", String::from(BASE_URL), url)
+	} else {
+		// Relative URL - assume it's meant to be site-relative
+		format!("{}/{}", String::from(BASE_URL), url)
+	}
 }
