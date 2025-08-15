@@ -3,15 +3,12 @@
     "id": "fr.poseidonscans",
     "lang": "fr",
     "name": "Poseidon Scans",
-    "version": 3,
+    "version": 5,
     "url": "https://poseidonscans.com/"
   },
   "listings": [
     {
       "name": "Dernières Sorties"
-    },
-    {
-      "name": "Populaire"
     }
   ]
 }
