@@ -68,18 +68,268 @@ fn extract_nextjs_series_data(html: &Node) -> Result<Vec<Manga>> {
 }
 
 // Parse __NEXT_DATA__ JSON content for series data
-fn parse_nextjs_series_data(_content: &str) -> Result<Vec<Manga>> {
-	// TODO: Implement __NEXT_DATA__ JSON parsing
-	// This would parse JSON structure like:
-	// { "props": { "pageProps": { "mangas": [...] } } }
-	Ok(Vec::new())
+fn parse_nextjs_series_data(content: &str) -> Result<Vec<Manga>> {
+	use aidoku::std::json::parse;
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// Parse the root JSON object
+	if let Ok(root_json) = parse(content) {
+		if let Ok(root_obj) = root_json.as_object() {
+			// Try props.pageProps first (most common structure)
+			if let Ok(props) = root_obj.get("props").as_object() {
+				if let Ok(page_props) = props.get("pageProps").as_object() {
+					// Look for manga arrays
+					if let Ok(mangas_array) = page_props.get("mangas").as_array() {
+						mangas.extend(parse_manga_array(mangas_array)?);
+					} else if let Ok(series_array) = page_props.get("series").as_array() {
+						mangas.extend(parse_manga_array(series_array)?);
+					} else if let Ok(initial_data) = page_props.get("initialData").as_object() {
+						if let Ok(mangas_array) = initial_data.get("mangas").as_array() {
+							mangas.extend(parse_manga_array(mangas_array)?);
+						} else if let Ok(series_array) = initial_data.get("series").as_array() {
+							mangas.extend(parse_manga_array(series_array)?);
+						}
+					}
+				}
+			}
+			
+			// Try root level arrays (alternative structure)
+			if mangas.is_empty() {
+				if let Ok(mangas_array) = root_obj.get("mangas").as_array() {
+					mangas.extend(parse_manga_array(mangas_array)?);
+				} else if let Ok(series_array) = root_obj.get("series").as_array() {
+					mangas.extend(parse_manga_array(series_array)?);
+				} else if let Ok(initial_data) = root_obj.get("initialData").as_object() {
+					if let Ok(mangas_array) = initial_data.get("mangas").as_array() {
+						mangas.extend(parse_manga_array(mangas_array)?);
+					} else if let Ok(series_array) = initial_data.get("series").as_array() {
+						mangas.extend(parse_manga_array(series_array)?);
+					}
+				}
+			}
+		}
+	}
+	
+	Ok(mangas)
+}
+
+// Parse JSON array of manga objects into Vec<Manga>
+fn parse_manga_array(mangas_array: ArrayRef) -> Result<Vec<Manga>> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	for manga_value in mangas_array {
+		if let Ok(manga_obj) = manga_value.as_object() {
+			// Extract required fields: slug and title
+			if let (Ok(slug_str), Ok(title_str)) = (
+				manga_obj.get("slug").as_string(),
+				manga_obj.get("title").as_string()
+			) {
+				let slug = slug_str.read();
+				let title = title_str.read();
+				
+				// Skip invalid entries
+				if slug.is_empty() || slug == "unknown" || title.is_empty() {
+					continue;
+				}
+				
+				// Build cover image URL
+				let cover = if let Ok(cover_str) = manga_obj.get("coverImage").as_string() {
+					let cover_path = cover_str.read();
+					if cover_path.starts_with("http") {
+						cover_path
+					} else {
+						format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug)
+					}
+				} else {
+					format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug)
+				};
+				
+				// Extract optional fields
+				let author = if let Ok(author_str) = manga_obj.get("author").as_string() {
+					author_str.read()
+				} else {
+					String::new()
+				};
+				
+				let description = if let Ok(desc_str) = manga_obj.get("description").as_string() {
+					let desc = desc_str.read();
+					if desc.len() > 10 && !desc.starts_with('$') {
+						desc
+					} else {
+						String::new()
+					}
+				} else {
+					String::new()
+				};
+				
+				// Build manga URL
+				let url = format!("{}/serie/{}", String::from(BASE_URL), slug);
+				
+				// Create manga object
+				mangas.push(Manga {
+					id: slug,
+					cover,
+					title,
+					author,
+					artist: String::new(),
+					description,
+					url,
+					categories: Vec::new(),
+					status: MangaStatus::Unknown,
+					nsfw: MangaContentRating::Safe,
+					viewer: MangaViewer::Scroll
+				});
+			}
+		}
+	}
+	
+	Ok(mangas)
 }
 
 // Parse self.__next_f.push() content for manga data  
-fn parse_nextjs_push_data(_content: &str) -> Result<Vec<Manga>> {
-	// TODO: Implement self.__next_f.push() pattern parsing
-	// This would extract JSON from patterns like:
-	// self.__next_f.push([1, "...escaped JSON..."])
+fn parse_nextjs_push_data(content: &str) -> Result<Vec<Manga>> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// Find self.__next_f.push() patterns with manga array data
+	let patterns = ["\"mangas\":[", "\"series\":[", "\"initialData\":{"];
+	
+	// Look for self.__next_f.push([1, "..."]) patterns
+	let mut start_pos = 0;
+	while let Some(push_start) = content[start_pos..].find("self.__next_f.push([1,") {
+		let actual_start = start_pos + push_start;
+		start_pos = actual_start + 1;
+		
+		// Find the quoted string after [1,
+		if let Some(quote_start) = content[actual_start..].find('\"') {
+			let string_start = actual_start + quote_start + 1;
+			
+			// Find the closing quote and bracket
+			if let Some(quote_end) = find_closing_quote(&content[string_start..]) {
+				let string_end = string_start + quote_end;
+				let escaped_json = &content[string_start..string_end];
+				
+				// Unescape the JSON string
+				let unescaped_json = unescape_json_string(escaped_json);
+				
+				// Try to find manga array patterns in unescaped JSON
+				for pattern in &patterns {
+					if let Some(pattern_pos) = unescaped_json.find(pattern) {
+						if *pattern == "\"initialData\":{" {
+							// Handle initialData object that might contain arrays
+							if let Some(obj_start) = find_json_object_start(&unescaped_json, pattern_pos) {
+								if let Some(json_obj) = extract_json_object(&unescaped_json, obj_start) {
+									if let Ok(parsed_data) = extract_mangas_from_initialdata(&json_obj) {
+										mangas.extend(parsed_data);
+										if mangas.len() >= 50 {
+											return Ok(mangas);
+										}
+									}
+								}
+							}
+						} else {
+							// Handle direct manga/series arrays
+							if let Some(array_start) = find_json_array_start(&unescaped_json, pattern_pos) {
+								if let Some(json_array) = extract_json_array(&unescaped_json, array_start) {
+									if let Ok(parsed_mangas) = parse_json_manga_array(&json_array) {
+										mangas.extend(parsed_mangas);
+										if mangas.len() >= 50 {
+											return Ok(mangas);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	Ok(mangas)
+}
+
+// Find the start of JSON array that contains a pattern
+fn find_json_array_start(content: &str, pattern_pos: usize) -> Option<usize> {
+	// Find the '[' that starts the array containing this pattern
+	let mut i = pattern_pos;
+	let mut brace_count = 0;
+	
+	while i > 0 {
+		i -= 1;
+		match content.chars().nth(i)? {
+			']' => brace_count += 1,
+			'[' => {
+				if brace_count == 0 {
+					return Some(i);
+				}
+				brace_count -= 1;
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+// Extract complete JSON array from start position
+fn extract_json_array(content: &str, start_pos: usize) -> Option<String> {
+	let chars: Vec<char> = content.chars().collect();
+	if start_pos >= chars.len() || chars[start_pos] != '[' {
+		return None;
+	}
+	
+	let mut bracket_count = 0;
+	let mut in_string = false;
+	let mut escape = false;
+	
+	for (i, &ch) in chars[start_pos..].iter().enumerate() {
+		if escape {
+			escape = false;
+			continue;
+		}
+		
+		match ch {
+			'\\' if in_string => escape = true,
+			'"' => in_string = !in_string,
+			'[' if !in_string => bracket_count += 1,
+			']' if !in_string => {
+				bracket_count -= 1;
+				if bracket_count == 0 {
+					let end_pos = start_pos + i + 1;
+					return Some(String::from(&content[start_pos..end_pos]));
+				}
+			}
+			_ => {}
+		}
+	}
+	None
+}
+
+// Parse JSON string containing manga array
+fn parse_json_manga_array(json_str: &str) -> Result<Vec<Manga>> {
+	use aidoku::std::json::parse;
+	
+	if let Ok(parsed) = parse(json_str) {
+		if let Ok(array_ref) = parsed.as_array() {
+			return parse_manga_array(array_ref);
+		}
+	}
+	Ok(Vec::new())
+}
+
+// Extract mangas from initialData object
+fn extract_mangas_from_initialdata(json_str: &str) -> Result<Vec<Manga>> {
+	use aidoku::std::json::parse;
+	
+	if let Ok(parsed) = parse(json_str) {
+		if let Ok(obj_ref) = parsed.as_object() {
+			// Try different paths for manga arrays in initialData
+			if let Ok(mangas_array) = obj_ref.get("mangas").as_array() {
+				return parse_manga_array(mangas_array);
+			} else if let Ok(series_array) = obj_ref.get("series").as_array() {
+				return parse_manga_array(series_array);
+			}
+		}
+	}
 	Ok(Vec::new())
 }
 
@@ -554,55 +804,120 @@ pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageR
 			}
 		}
 	} else {
-		// Fallback to HTML parsing if Next.js extraction fails
-		for link in html.select("a[href*='/serie/']").array() {
-			let link = link.as_node()?;
-			let href = link.attr("href").read();
-			
-			let slug = if let Some(slug_start) = href.rfind('/') {
-				String::from(&href[slug_start + 1..])
-			} else {
-				continue;
-			};
-			
-			if slug == "unknown" || slug.is_empty() {
-				continue;
-			}
-			
-			let title_element = link.select(".title, .manga-title, h3, .name, .entry-title").first();
-			let title = if !title_element.html().is_empty() {
-				title_element.text().read()
-			} else {
-				String::from(&slug.replace("-", " "))
-			};
-			
-			// Client-side search filtering
-			if !query_lower.trim().is_empty() {
-				let title_lower = title.to_lowercase();
-				let slug_lower = slug.to_lowercase();
+		// Enhanced fallback to HTML parsing with PoseidonScans-specific selectors
+		let link_selectors = [
+			"a[href*='/serie/']",
+			"a[href^='/serie/']",
+			".manga-item a",
+			".series-item a",
+			".grid a[href]",
+			"main a[href*='serie']"
+		];
+		
+		for selector in &link_selectors {
+			for link in html.select(selector).array() {
+				let link = link.as_node()?;
+				let href = link.attr("href").read();
 				
-				if !title_lower.contains(&query_lower) && !slug_lower.contains(&query_lower) {
+				// Extract slug from href
+				let slug = if href.contains("/serie/") {
+					if let Some(slug_start) = href.rfind('/') {
+						String::from(&href[slug_start + 1..])
+					} else if let Some(serie_pos) = href.find("/serie/") {
+						let start = serie_pos + 7; // "/serie/".len()
+						if let Some(end) = href[start..].find('/') {
+							String::from(&href[start..start + end])
+						} else {
+							String::from(&href[start..])
+						}
+					} else {
+						continue;
+					}
+				} else {
 					continue;
+				};
+				
+				if slug == "unknown" || slug.is_empty() || slug.len() < 2 {
+					continue;
+				}
+				
+				// Enhanced title extraction with multiple fallbacks
+				let title_selectors = [
+					"h3.text-sm.sm\\:text-base",  // PoseidonScans specific
+					".title", ".manga-title", "h3", ".name", ".entry-title",
+					"h2", "h1", ".series-title", ".card-title"
+				];
+				
+				let mut title = String::new();
+				for title_sel in &title_selectors {
+					let title_element = link.select(title_sel).first();
+					if !title_element.html().is_empty() {
+						let extracted_text = title_element.text().read();
+						let extracted_title = extracted_text.trim();
+						if !extracted_title.is_empty() && extracted_title.len() > 2 {
+							title = String::from(extracted_title);
+							break;
+						}
+					}
+				}
+				
+				// Ultimate fallback: format slug as title
+				if title.is_empty() {
+					title = slug.replace("-", " ").replace("_", " ")
+						.split_whitespace()
+						.map(|word| {
+							if word.len() > 0 {
+								let mut chars = word.chars();
+								match chars.next() {
+									None => String::new(),
+									Some(first) => first.to_uppercase().collect::<String>() + chars.as_str()
+								}
+							} else {
+								String::new()
+							}
+						})
+						.collect::<Vec<_>>()
+						.join(" ");
+				}
+				
+				// Client-side search filtering
+				if !query_lower.trim().is_empty() {
+					let title_lower = title.to_lowercase();
+					let slug_lower = slug.to_lowercase();
+					
+					if !title_lower.contains(&query_lower) && !slug_lower.contains(&query_lower) {
+						continue;
+					}
+				}
+				
+				// Avoid duplicates by checking if slug already exists
+				if mangas.iter().any(|m| m.id == slug) {
+					continue;
+				}
+				
+				let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug);
+				let url = format!("{}/serie/{}", String::from(BASE_URL), slug);
+				
+				mangas.push(Manga {
+					id: slug,
+					cover,
+					title,
+					author: String::new(),
+					artist: String::new(),
+					description: String::new(),
+					url,
+					categories: Vec::new(),
+					status: MangaStatus::Unknown,
+					nsfw: MangaContentRating::Safe,
+					viewer: MangaViewer::Scroll
+				});
+				
+				if mangas.len() >= 30 {
+					break;
 				}
 			}
 			
-			let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug);
-			let url = format!("{}/serie/{}", String::from(BASE_URL), slug);
-			
-			mangas.push(Manga {
-				id: slug,
-				cover,
-				title,
-				author: String::new(),
-				artist: String::new(),
-				description: String::new(),
-				url,
-				categories: Vec::new(),
-				status: MangaStatus::Unknown,
-				nsfw: MangaContentRating::Safe,
-				viewer: MangaViewer::Scroll
-			});
-			
+			// Break out of selector loop if we have enough results
 			if mangas.len() >= 30 {
 				break;
 			}
