@@ -6,75 +6,103 @@ use aidoku::{
 
 use crate::BASE_URL;
 
-// Extract manga data from Next.js push scripts
+// Extract manga data from Next.js push scripts with improved pattern detection
 fn extract_nextjs_manga_data(script_content: &str) -> Result<Vec<Manga>> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
 	// Parse Next.js push data for manga descriptions with T-prefixed IDs
-	// Pattern: T{id},{description}
-	let mut current_pos = 0;
-	while let Some(start_pos) = script_content[current_pos..].find(",T") {
-		let actual_start = current_pos + start_pos + 1; // Skip the comma
-		current_pos = actual_start + 1;
-		
-		// Extract the T-prefixed ID
-		if let Some(comma_pos) = script_content[actual_start..].find(',') {
-			let id_end = actual_start + comma_pos;
-			let manga_id = String::from(&script_content[actual_start..id_end]);
+	// Try multiple patterns: :T and ,T
+	let patterns = [":T", ",T"];
+	
+	for pattern in patterns {
+		let mut current_pos = 0;
+		while let Some(start_pos) = script_content[current_pos..].find(pattern) {
+			let actual_start = current_pos + start_pos + pattern.len(); // Skip the pattern
+			current_pos = actual_start + 1;
 			
-			// Skip if not a valid T-ID format
-			if !manga_id.starts_with('T') || manga_id.len() < 3 {
-				continue;
-			}
+			// Extract the T-prefixed ID (until comma or other delimiter)
+			let id_end = script_content[actual_start..].find([',', ' ', '\n', '"', '\\'])
+				.map(|pos| actual_start + pos)
+				.unwrap_or_else(|| (actual_start + 10).min(script_content.len()));
 			
-			// Extract description (until next T-ID or end marker)
-			let desc_start = id_end + 1;
-			let desc_end = script_content[desc_start..].find(",T")
-				.map(|pos| desc_start + pos)
-				.unwrap_or_else(|| {
-					// Look for other end markers
-					script_content[desc_start..].find(['"', '\\', '\n'])
-						.map(|pos| desc_start + pos)
-						.unwrap_or(script_content.len().min(desc_start + 500))
-				});
-			
-			if desc_end > desc_start {
-				let description = String::from(script_content[desc_start..desc_end].trim());
+			if id_end > actual_start {
+				let manga_id = String::from(&script_content[actual_start..id_end]);
 				
-				// Only process if description is substantial (not a fragment)
-				if description.len() > 50 && description.chars().filter(|c| c.is_alphabetic()).count() > 30 {
-					// Create manga title from description (first sentence or truncated)
-					let title = extract_title_from_description(&description);
-					let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), manga_id.to_lowercase());
-					let url = format!("{}/serie/{}", String::from(BASE_URL), manga_id.to_lowercase());
+				// Skip if not a valid T-ID format
+				if !manga_id.starts_with('T') || manga_id.len() < 3 {
+					continue;
+				}
+				
+				// Find the start of description (after the comma)
+				if let Some(comma_pos) = script_content[id_end..].find(',') {
+					let desc_start = id_end + comma_pos + 1;
 					
-					// Truncate description for display
-					let display_description = if description.len() > 200 {
-						format!("{}...", &description[..200])
-					} else {
-						description
-					};
+					// Extract description (until next manga ID pattern or end marker)
+					let mut desc_end = desc_start + 1000; // Default length
 					
-					mangas.push(Manga {
-						id: manga_id.to_lowercase(),
-						cover,
-						title,
-						author: String::new(),
-						artist: String::new(),
-						description: display_description,
-						url,
-						categories: Vec::new(),
-						status: MangaStatus::Unknown,
-						nsfw: MangaContentRating::Safe,
-						viewer: MangaViewer::Scroll
-					});
+					// Look for next manga pattern or other end markers
+					for next_pattern in &patterns {
+						if let Some(next_pos) = script_content[desc_start..].find(next_pattern) {
+							desc_end = desc_end.min(desc_start + next_pos);
+						}
+					}
 					
-					// Limit results to avoid too many
-					if mangas.len() >= 25 {
-						break;
+					// Also check for common end markers
+					if let Some(end_pos) = script_content[desc_start..].find(['"', '\\', '\n']) {
+						desc_end = desc_end.min(desc_start + end_pos);
+					}
+					
+					desc_end = desc_end.min(script_content.len());
+					
+					if desc_end > desc_start {
+						let description = String::from(script_content[desc_start..desc_end].trim());
+						
+						// Only process if description is substantial (not a fragment) - relaxed criteria
+						if description.len() > 20 && description.chars().filter(|c| c.is_alphabetic()).count() > 15 {
+							// Skip duplicates
+							if mangas.iter().any(|m| m.id == manga_id.to_lowercase()) {
+								continue;
+							}
+							
+							// Create manga title from description (first sentence or truncated)
+							let title = extract_title_from_description(&description);
+							let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), manga_id.to_lowercase());
+							let url = format!("{}/serie/{}", String::from(BASE_URL), manga_id.to_lowercase());
+							
+							// Truncate description for display
+							let display_description = if description.len() > 200 {
+								format!("{}...", &description[..200])
+							} else {
+								description
+							};
+							
+							mangas.push(Manga {
+								id: manga_id.to_lowercase(),
+								cover,
+								title,
+								author: String::new(),
+								artist: String::new(),
+								description: display_description,
+								url,
+								categories: Vec::new(),
+								status: MangaStatus::Unknown,
+								nsfw: MangaContentRating::Safe,
+								viewer: MangaViewer::Scroll
+							});
+							
+							// Limit results to avoid too many
+							if mangas.len() >= 25 {
+								break;
+							}
+						}
 					}
 				}
 			}
+		}
+		
+		// If we found enough manga with the first pattern, stop
+		if mangas.len() >= 15 {
+			break;
 		}
 	}
 	
@@ -121,7 +149,7 @@ pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageR
 		let content = script.html().read();
 		
 		// Look for self.__next_f.push() patterns with manga data
-		if content.contains("self.__next_f.push") && content.contains(",T") {
+		if content.contains("self.__next_f.push") && (content.contains(":T") || content.contains(",T")) {
 			// Extract manga data from this script
 			if let Ok(script_mangas) = extract_nextjs_manga_data(&content) {
 				all_mangas.extend(script_mangas);
@@ -214,7 +242,7 @@ pub fn parse_popular_manga(html: Node) -> Result<MangaPageResult> {
 		let content = script.html().read();
 		
 		// Look for self.__next_f.push() patterns with manga data
-		if content.contains("self.__next_f.push") && content.contains(",T") {
+		if content.contains("self.__next_f.push") && (content.contains(":T") || content.contains(",T")) {
 			// Extract manga data from this script
 			if let Ok(script_mangas) = extract_nextjs_manga_data(&content) {
 				mangas.extend(script_mangas);
