@@ -85,15 +85,20 @@ fn parse_nextjs_push_data(_content: &str) -> Result<Vec<Manga>> {
 
 // Extract Next.js manga details data from manga detail page
 fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
+	let mut best_data: Option<ObjectRef> = None;
+	
 	// First try __NEXT_DATA__ script tag with enhanced validation
 	for script in html.select("script#__NEXT_DATA__").array() {
 		let script = script.as_node()?;
 		let content = script.html().read();
 		
 		if let Ok(manga_data) = parse_nextjs_details_data(&content) {
-			// Validate that we have manga-related data
+			// Always validate, but keep even partial data
 			if validate_manga_details_data(&manga_data) {
 				return Ok(manga_data);
+			} else if best_data.is_none() {
+				// Keep partial data as fallback
+				best_data = Some(manga_data);
 			}
 		}
 	}
@@ -109,7 +114,8 @@ fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
 				"\"initialData\":{",
 				"\"manga\":{", 
 				"\"chapter\":{",
-				"\"pageProps\":{"
+				"\"pageProps\":{",
+				"\"props\":{"
 			];
 			
 			for pattern in &patterns {
@@ -117,6 +123,9 @@ fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
 					if let Ok(manga_data) = parse_nextjs_push_manga_data(&content) {
 						if validate_manga_details_data(&manga_data) {
 							return Ok(manga_data);
+						} else if best_data.is_none() {
+							// Keep partial data as fallback
+							best_data = Some(manga_data);
 						}
 					}
 				}
@@ -124,9 +133,13 @@ fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
 		}
 	}
 	
-	// Return empty object if extraction fails
-	use aidoku::std::json::parse;
-	Ok(parse("{}").unwrap().as_object().unwrap())
+	// Return best data found, or empty object if nothing found
+	if let Some(data) = best_data {
+		Ok(data)
+	} else {
+		use aidoku::std::json::parse;
+		Ok(parse("{}").unwrap().as_object().unwrap())
+	}
 }
 
 // Parse __NEXT_DATA__ JSON content for manga details
@@ -355,7 +368,7 @@ fn validate_manga_details_data(obj: &ObjectRef) -> bool {
 	if let Ok(manga_obj) = obj.get("manga").as_object() {
 		let has_title = manga_obj.get("title").as_string().is_ok();
 		let has_slug = manga_obj.get("slug").as_string().is_ok();
-		if has_title && has_slug {
+		if has_title || has_slug {  // Changed from AND to OR for more flexibility
 			return true;
 		}
 	}
@@ -365,27 +378,36 @@ fn validate_manga_details_data(obj: &ObjectRef) -> bool {
 		if let Ok(manga_obj) = initial_data.get("manga").as_object() {
 			let has_title = manga_obj.get("title").as_string().is_ok();
 			let has_slug = manga_obj.get("slug").as_string().is_ok();
-			if has_title && has_slug {
+			if has_title || has_slug {  // Changed from AND to OR
 				return true;
 			}
+		}
+		// Also check if initialData itself has manga-like fields
+		if initial_data.get("title").as_string().is_ok() || 
+		   initial_data.get("slug").as_string().is_ok() ||
+		   initial_data.get("chapters").as_array().is_ok() {
+			return true;
 		}
 	}
 	
 	// Check if this object itself is a manga object
 	let has_title = obj.get("title").as_string().is_ok();
 	let has_slug = obj.get("slug").as_string().is_ok();
-	if has_title && has_slug {
+	let has_name = obj.get("name").as_string().is_ok();  // Alternative title field
+	if has_title || has_slug || has_name {
 		return true;
 	}
 	
-	// Additional checks for potential manga data
+	// Additional checks for potential manga data with relaxed criteria
 	let has_chapters = obj.get("chapters").as_array().is_ok();
 	let has_manga_fields = obj.get("author").as_string().is_ok() || 
 	                      obj.get("description").as_string().is_ok() ||
-	                      obj.get("status").as_string().is_ok();
+	                      obj.get("status").as_string().is_ok() ||
+	                      obj.get("categories").as_array().is_ok() ||
+	                      obj.get("coverImage").as_string().is_ok();
 	
-	// Accept if we have either title or chapters with other manga indicators
-	(has_title && has_manga_fields) || (has_chapters && has_manga_fields)
+	// Accept if we have chapters OR any manga indicators (more permissive)
+	has_chapters || has_manga_fields
 }
 
 // Parse manga status from French status string
@@ -430,6 +452,53 @@ fn parse_date_iso(_date_str: &str) -> Result<i64> {
 	// TODO: Implement proper ISO 8601 parsing
 	// This would parse dates like "2024-01-15T10:30:00.000Z"
 	Ok(0)
+}
+
+// Extract title from HTML selectors as fallback
+fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
+	// Try common title selectors found on manga detail pages
+	let title_selectors = [
+		"h1.text-2xl.font-bold",
+		"h1[data-testid='manga-title']",
+		".manga-title",
+		"h1.manga-title",
+		"h1.title",
+		".title h1",
+		"main h1",
+		"h1"
+	];
+	
+	for selector in &title_selectors {
+		let title_element = html.select(selector).first();
+		if !title_element.html().is_empty() {
+			let extracted_title = String::from(title_element.text().read().trim());
+			if !extracted_title.is_empty() && extracted_title.len() > 2 {
+				// Filter out obvious placeholders or loading text
+				if !extracted_title.to_lowercase().contains("loading") &&
+				   !extracted_title.to_lowercase().contains("error") &&
+				   !extracted_title.starts_with("...") {
+					return extracted_title;
+				}
+			}
+		}
+	}
+	
+	// Ultimate fallback: convert manga_id to readable title
+	manga_id.replace("-", " ").replace("_", " ")
+		.split_whitespace()
+		.map(|word| {
+			if word.len() > 0 {
+				let mut chars = word.chars();
+				match chars.next() {
+					None => String::new(),
+					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str()
+				}
+			} else {
+				String::new()
+			}
+		})
+		.collect::<Vec<_>>()
+		.join(" ")
 }
 
 // Extract a title from a description (first sentence or meaningful part)
@@ -589,36 +658,46 @@ pub fn parse_latest_manga(json: ObjectRef) -> Result<MangaPageResult> {
 
 // Parse manga details with Next.js data extraction
 pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
-	// Extract Next.js page data
+	// Extract Next.js page data with enhanced fallbacks
 	let manga_data = extract_nextjs_manga_details(&html)?;
 	
-	// Extract manga object from hierarchical structure
+	// Extract manga object from hierarchical structure with multiple paths
 	let manga_obj = if let Ok(manga) = manga_data.get("manga").as_object() {
 		manga
 	} else if let Ok(initial_data) = manga_data.get("initialData").as_object() {
 		if let Ok(manga) = initial_data.get("manga").as_object() {
 			manga
 		} else {
-			// Use the manga_data itself if it contains manga fields
-			manga_data
+			// Try initial_data itself as manga object
+			initial_data
 		}
 	} else {
 		// Use the manga_data itself if it contains manga fields
 		manga_data
 	};
 	
-	// Get basic info with improved fallbacks
+	// Enhanced title extraction with multiple fallback strategies
 	let title = if let Ok(title_str) = manga_obj.get("title").as_string() {
 		let extracted_title = title_str.read();
-		if extracted_title.is_empty() {
-			// Convert manga_id to readable title as last resort
-			manga_id.replace("-", " ").replace("_", " ")
-		} else {
+		if !extracted_title.is_empty() {
 			extracted_title
+		} else {
+			// Try title from HTML selector as fallback
+			extract_title_from_html(&html, &manga_id)
 		}
 	} else {
-		// Convert manga_id to readable title as last resort
-		manga_id.replace("-", " ").replace("_", " ")
+		// Try alternative title fields
+		if let Ok(name_str) = manga_obj.get("name").as_string() {
+			let extracted_name = name_str.read();
+			if !extracted_name.is_empty() {
+				extracted_name
+			} else {
+				extract_title_from_html(&html, &manga_id)
+			}
+		} else {
+			// Try title from HTML selector as fallback
+			extract_title_from_html(&html, &manga_id)
+		}
 	};
 	
 	let slug = if let Ok(slug_str) = manga_obj.get("slug").as_string() {
