@@ -30,16 +30,17 @@ fn get_manga_list(filters: Vec<Filter>, _page: i32) -> Result<MangaPageResult> {
 		}
 	}
 
-	if search_query.is_empty() {
-		// Return empty results for now - PoseidonScans search needs special handling
-		Ok(MangaPageResult {
-			manga: Vec::new(),
-			has_more: false,
-		})
-	} else {
-		// Basic search implementation - can be enhanced later
-		parser::parse_search_manga(search_query)
-	}
+	// Fetch the /series page for both empty search and actual search
+	let series_url = format!("{}/series", String::from(BASE_URL));
+	let html = Request::new(&series_url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+		.header("Referer", String::from(BASE_URL).as_str())
+		.html()?;
+	
+	// Use client-side search filtering
+	parser::parse_search_manga(search_query, html)
 }
 
 #[get_manga_listing]
@@ -50,9 +51,14 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_latest_manga(json)
 	} else if listing.name == "Populaire" {
-		// Popular manga from homepage
-		let url = String::from(BASE_URL);
-		let html = Request::new(&url, HttpMethod::Get).html()?;
+		// Popular manga from /series page
+		let series_url = format!("{}/series", String::from(BASE_URL));
+		let html = Request::new(&series_url, HttpMethod::Get)
+			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+			.header("Referer", String::from(BASE_URL).as_str())
+			.html()?;
 		parser::parse_popular_manga(html)
 	} else {
 		Ok(MangaPageResult {
