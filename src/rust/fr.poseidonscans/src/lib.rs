@@ -80,6 +80,6 @@ fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 #[get_page_list]
 fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let url = format!("{}/serie/{}/chapter/{}", String::from(BASE_URL), manga_id, chapter_id);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_page_list(html)
+	let html = Request::new(&url, HttpMethod::Get).html()?;
+	parser::parse_page_list(html, url)
 }

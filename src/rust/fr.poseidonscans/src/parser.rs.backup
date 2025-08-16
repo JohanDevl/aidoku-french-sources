@@ -78,8 +78,7 @@ fn parse_json_manga_array(json_str: &str) -> Result<Vec<Manga>> {
 	
 	if let Ok(parsed) = parse(json_str) {
 		if let Ok(array_ref) = parsed.as_array() {
-			// return parse_manga_array(array_ref);
-			return Ok(Vec::new());
+			return parse_manga_array(array_ref);
 		}
 	}
 	Ok(Vec::new())
@@ -93,11 +92,9 @@ fn extract_mangas_from_initialdata(json_str: &str) -> Result<Vec<Manga>> {
 		if let Ok(obj_ref) = parsed.as_object() {
 			// Try different paths for manga arrays in initialData
 			if let Ok(mangas_array) = obj_ref.get("mangas").as_array() {
-				// return parse_manga_array(mangas_array);
-				return Ok(Vec::new());
+				return parse_manga_array(mangas_array);
 			} else if let Ok(series_array) = obj_ref.get("series").as_array() {
-				// return parse_manga_array(series_array);
-				return Ok(Vec::new());
+				return parse_manga_array(series_array);
 			}
 		}
 	}
@@ -551,7 +548,6 @@ pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageR
 	let query_lower = search_query.to_lowercase();
 	
 	// Parse all manga from series page - try Next.js data first, fallback to HTML
-	/*
 	if let Ok(nextjs_mangas) = extract_nextjs_series_data(&html) {
 		// Use Next.js extracted data for better accuracy
 		for manga in nextjs_mangas {
@@ -575,8 +571,7 @@ pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageR
 				break;
 			}
 		}
-	} else */
-	{
+	} else {
 		// Enhanced fallback to HTML parsing with PoseidonScans-specific selectors
 		let link_selectors = [
 			"a[href*='/serie/']",
