@@ -52,8 +52,7 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 		parser::parse_latest_manga(json)
 	} else if listing.name == "Populaire" {
 		// Fetch popular manga from /series page with pagination
-		let offset = (page - 1) * 20;
-		let series_url = format!("{}/series?limit=20&offset={}", String::from(BASE_URL), offset);
+		let series_url = format!("{}/series?page={}", String::from(BASE_URL), page);
 		let html = Request::new(&series_url, HttpMethod::Get)
 			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
