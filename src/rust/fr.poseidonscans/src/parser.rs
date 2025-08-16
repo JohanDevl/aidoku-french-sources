@@ -522,6 +522,57 @@ fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
 		.join(" ")
 }
 
+// Extract manga status from HTML when Next.js extraction fails
+fn extract_status_from_html(html: &Node) -> MangaStatus {
+	// Status selectors targeting spans with specific status indicators
+	let status_selectors = [
+		"span[class*='bg-yellow-500']",    // "en pause" status (yellow background)
+		"span[class*='bg-green-500']",     // "en cours" status (green background)
+		"span[class*='bg-blue-500']",      // "terminé" status (blue background)
+		"span[class*='bg-red-500']",       // Other status variations
+		".status",                         // Generic status class
+		".manga-status",                   // Manga-specific status class
+		"span:contains('en cours')",       // Direct text search fallback
+		"span:contains('terminé')",        
+		"span:contains('en pause')",
+		"*:contains('en cours')",          // Broader text search
+		"*:contains('terminé')",
+		"*:contains('en pause')"
+	];
+	
+	for selector in &status_selectors {
+		for element in html.select(selector).array() {
+			if let Ok(element_node) = element.as_node() {
+				let text = element_node.text().read().trim().to_lowercase();
+				
+				// Check for status keywords in the extracted text
+				if text.contains("en cours") {
+					return MangaStatus::Ongoing;
+				} else if text.contains("terminé") {
+					return MangaStatus::Completed;
+				} else if text.contains("en pause") {
+					return MangaStatus::Hiatus;
+				} else if text.contains("annulé") || text.contains("abandonné") {
+					return MangaStatus::Cancelled;
+				}
+			}
+		}
+	}
+	
+	// Alternative approach: search in all text content for status keywords
+	let full_html = html.html().read().to_lowercase();
+	if full_html.contains("en cours") {
+		return MangaStatus::Ongoing;
+	} else if full_html.contains("terminé") {
+		return MangaStatus::Completed;
+	} else if full_html.contains("en pause") {
+		return MangaStatus::Hiatus;
+	}
+	
+	// Default fallback if no status found
+	MangaStatus::Unknown
+}
+
 // Extract a title from a description (first sentence or meaningful part)
 fn extract_title_from_description(description: &str) -> String {
 	// Try to find a title-like pattern (first sentence ending with .)
@@ -810,11 +861,18 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 		String::new()
 	};
 	
-	// Status parsing
+	// Status parsing with HTML fallback
 	let status = if let Ok(status_str) = manga_obj.get("status").as_string() {
-		parse_manga_status(&status_str.read())
+		let status_text = status_str.read();
+		if !status_text.is_empty() {
+			parse_manga_status(&status_text)
+		} else {
+			// Fallback to HTML extraction if JSON status is empty
+			extract_status_from_html(&html)
+		}
 	} else {
-		MangaStatus::Unknown
+		// Fallback to HTML extraction if JSON extraction fails
+		extract_status_from_html(&html)
 	};
 	
 	// Categories/genres
