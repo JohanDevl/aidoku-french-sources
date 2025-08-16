@@ -16,7 +16,7 @@ pub static BASE_URL: &str = "https://poseidonscans.com";
 pub static API_URL: &str = "https://poseidonscans.com/api";
 
 #[get_manga_list]
-fn get_manga_list(filters: Vec<Filter>, _page: i32) -> Result<MangaPageResult> {
+fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 	let mut search_query = String::new();
 	
 	for filter in filters {
@@ -30,17 +30,10 @@ fn get_manga_list(filters: Vec<Filter>, _page: i32) -> Result<MangaPageResult> {
 		}
 	}
 
-	// Fetch the /series page for both empty search and actual search
-	let series_url = format!("{}/series", String::from(BASE_URL));
-	let html = Request::new(&series_url, HttpMethod::Get)
-		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
-		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-		.header("Referer", String::from(BASE_URL).as_str())
-		.html()?;
-	
-	// Use client-side search filtering
-	parser::parse_search_manga(search_query, html)
+	// Use API endpoint for browsing all manga with pagination simulation
+	let url = format!("{}/manga/all", String::from(API_URL));
+	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
+	parser::parse_manga_list(json, search_query, page)
 }
 
 #[get_manga_listing]
@@ -62,18 +55,6 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let url = format!("{}/manga/popular", String::from(API_URL));
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_popular_manga(json)
-	} else if listing.name == "Tout" {
-		// Use all manga endpoint (50 total manga, no pagination)
-		if page > 1 {
-			// All endpoint returns complete list of 50 manga, no pagination
-			return Ok(MangaPageResult {
-				manga: Vec::new(),
-				has_more: false,
-			});
-		}
-		let url = format!("{}/manga/all", String::from(API_URL));
-		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-		parser::parse_all_manga(json)
 	} else {
 		Ok(MangaPageResult {
 			manga: Vec::new(),

@@ -1453,10 +1453,10 @@ pub fn parse_popular_manga(json: ObjectRef) -> Result<MangaPageResult> {
 	})
 }
 
-// Parse all manga from /api/manga/all API response
-pub fn parse_all_manga(json: ObjectRef) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
-	let mut has_more = false;
+// Parse manga list from /api/manga/all API response with search and pagination
+pub fn parse_manga_list(json: ObjectRef, search_query: String, page: i32) -> Result<MangaPageResult> {
+	let mut all_mangas: Vec<Manga> = Vec::new();
+	let query_lower = search_query.to_lowercase();
 
 	if let Ok(data_array) = json.get("data").as_array() {
 		for item in data_array {
@@ -1487,27 +1487,53 @@ pub fn parse_all_manga(json: ObjectRef) -> Result<MangaPageResult> {
 				}
 			}
 
-			mangas.push(Manga {
-				id: slug,
+			let manga_item = Manga {
+				id: slug.clone(),
 				cover,
-				title,
+				title: title.clone(),
 				author: String::new(),
 				artist: String::new(),
-				description,
+				description: description.clone(),
 				url: String::new(),
 				categories,
 				status: MangaStatus::Unknown,
 				nsfw: MangaContentRating::Safe,
 				viewer: MangaViewer::Scroll
-			});
+			};
+
+			// Client-side search filtering
+			if query_lower.trim().is_empty() {
+				all_mangas.push(manga_item);
+			} else {
+				let title_lower = title.to_lowercase();
+				let description_lower = description.to_lowercase();
+				let slug_lower = slug.to_lowercase();
+				
+				if title_lower.contains(&query_lower) || 
+				   description_lower.contains(&query_lower) || 
+				   slug_lower.contains(&query_lower) {
+					all_mangas.push(manga_item);
+				}
+			}
 		}
-		
-		// All API returns complete list of 50 manga (no pagination)
-		has_more = false;
 	}
 
+	// Client-side pagination (20 manga per page like PhoenixScans)
+	let items_per_page = 20;
+	let start_index = ((page - 1) * items_per_page) as usize;
+	let end_index = (start_index + items_per_page as usize).min(all_mangas.len());
+	
+	let mut paginated_mangas: Vec<Manga> = Vec::new();
+	if start_index < all_mangas.len() {
+		for i in start_index..end_index {
+			paginated_mangas.push(all_mangas[i].clone());
+		}
+	}
+	
+	let has_more = end_index < all_mangas.len();
+
 	Ok(MangaPageResult {
-		manga: mangas,
+		manga: paginated_mangas,
 		has_more,
 	})
 }
