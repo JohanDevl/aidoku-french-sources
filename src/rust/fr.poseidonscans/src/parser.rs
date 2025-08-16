@@ -1150,19 +1150,21 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 									if let Ok(part_type) = part_obj.get("@type").as_string() {
 										if part_type.read() == "ComicIssue" {
 											// Extract chapter data
-											if let (Ok(issue_num), Ok(name_str)) = (
+											if let (Ok(issue_num), Ok(_name_str)) = (
 												part_obj.get("issueNumber").as_int(),
 												part_obj.get("name").as_string()
 											) {
 												let chapter_number = issue_num as f32;
-												let name = name_str.read();
+												
+												// Use PhenixScans format: "Chapter X"
+												let title = format!("Chapter {}", issue_num);
 												
 												// Build chapter URL
 												let url = format!("/serie/{}/chapter/{}", manga_id, issue_num);
 												
 												chapters.push(Chapter {
 													id: format!("{}", issue_num),
-													title: name,
+													title,
 													volume: -1.0,
 													chapter: chapter_number,
 													date_updated: 0.0, // JSON-LD doesn't include dates
