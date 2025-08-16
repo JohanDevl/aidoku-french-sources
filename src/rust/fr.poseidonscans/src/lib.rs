@@ -51,8 +51,15 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_latest_manga(json)
 	} else if listing.name == "Populaire" {
-		// Use API endpoint for all manga with pagination
-		let url = format!("{}/manga/all?page={}", String::from(API_URL), helper::i32_to_string(page));
+		// Use dedicated popular manga endpoint (12 curated popular manga)
+		if page > 1 {
+			// Popular endpoint returns fixed list of 12 manga, no pagination
+			return Ok(MangaPageResult {
+				manga: Vec::new(),
+				has_more: false,
+			});
+		}
+		let url = format!("{}/manga/popular", String::from(API_URL));
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_popular_manga(json)
 	} else {

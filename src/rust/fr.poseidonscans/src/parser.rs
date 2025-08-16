@@ -1443,8 +1443,8 @@ pub fn parse_popular_manga(json: ObjectRef) -> Result<MangaPageResult> {
 			});
 		}
 		
-		// API returns 40 mangas per page
-		has_more = mangas.len() == 40;
+		// Popular API returns fixed list of 12 curated manga (no pagination)
+		has_more = false;
 	}
 
 	Ok(MangaPageResult {
