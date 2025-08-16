@@ -64,7 +64,15 @@ fn extract_nextjs_series_data(html: &Node) -> Result<Vec<Manga>> {
 		}
 	}
 	
-	Ok(mangas)
+	// Only return Ok if we found some manga, otherwise return Err to trigger HTML fallback
+	if mangas.is_empty() {
+		use aidoku::std::String;
+		Err(aidoku::error::AidokuError {
+			reason: aidoku::error::AidokuErrorKind::Unimplemented
+		})
+	} else {
+		Ok(mangas)
+	}
 }
 
 // Parse __NEXT_DATA__ JSON content for series data
