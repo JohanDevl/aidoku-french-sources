@@ -1012,7 +1012,8 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 		}
 	}
 	
-	// Skip date extraction - dates disabled
+	// Extract dates from HTML using relative date patterns
+	extract_chapter_dates_from_html(&html, &mut chapters);
 	
 	// Filter out premium chapters
 	chapters = filter_premium_chapters(chapters, &html);
@@ -1164,6 +1165,117 @@ fn parse_relative_date(date_str: &str) -> i64 {
 	} else {
 		result_time as i64
 	}
+}
+
+// Extract chapter dates from HTML and associate them with chapters
+fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
+	// CSS selectors to find chapter containers with dates
+	let chapter_selectors = [
+		"div[class*='space-y'] > div",           // Main chapter containers
+		".chapter-item",                         // Generic chapter items
+		"a[href*='/chapter/']",                  // Direct chapter links  
+		"div:has(a[href*='/chapter/'])",         // Containers with chapter links
+		"li:has(a[href*='/chapter/'])",          // List items with chapter links
+	];
+	
+	for selector in &chapter_selectors {
+		let chapter_elements = html.select(selector).array();
+		
+		// Skip if no elements found with this selector
+		if chapter_elements.is_empty() {
+			continue;
+		}
+		
+		// Process each chapter element to find associated dates
+		for (index, element) in chapter_elements.enumerate() {
+			if let Ok(element_node) = element.as_node() {
+				// Look for dates within this chapter element
+				let date_selectors = [
+					"span:last-child",                    // Last span (often contains date)
+					"div:last-child",                     // Last div
+					".chapter-date",                      // Specific date class
+					".date",                              // Generic date class
+					"span:contains('jour')",              // Spans containing "jour"
+					"span:contains('mois')",              // Spans containing "mois"
+					"*:contains('jour'):last-child",      // Any element with "jour" as last child
+					"*:contains('mois'):last-child",      // Any element with "mois" as last child
+				];
+				
+				let mut found_date = false;
+				for date_selector in &date_selectors {
+					for date_element in element_node.select(date_selector).array() {
+						if let Ok(date_node) = date_element.as_node() {
+							let date_text_raw = date_node.text().read();
+							let date_text = date_text_raw.trim();
+							
+							// Validate if this looks like a relative date
+							if !date_text.is_empty() && is_relative_date(date_text) {
+								// Convert to timestamp
+								let timestamp = parse_relative_date(date_text);
+								
+								// Try to find corresponding chapter by extracting chapter number from URL
+								let chapter_link = element_node.select("a[href*='/chapter/']").first();
+								if !chapter_link.html().is_empty() {
+									let href = chapter_link.attr("href").read();
+									if let Some(chapter_match) = extract_chapter_number_from_url(&href) {
+										// Find matching chapter in our list and update its date
+										for chapter in chapters.iter_mut() {
+											if chapter.chapter == chapter_match {
+												chapter.date_updated = timestamp as f64;
+												found_date = true;
+												break;
+											}
+										}
+									}
+								}
+								
+								// Alternative: try to match by index if URL method fails
+								if !found_date && index < chapters.len() {
+									// Reverse index since chapters are usually in descending order
+									let reverse_index = chapters.len() - 1 - index;
+									if reverse_index < chapters.len() {
+										chapters[reverse_index].date_updated = timestamp as f64;
+										found_date = true;
+									}
+								}
+								
+								if found_date {
+									break;
+								}
+							}
+						}
+					}
+					if found_date {
+						break;
+					}
+				}
+			}
+		}
+		
+		// If we found dates with this selector, stop trying other selectors
+		if chapters.iter().any(|ch| ch.date_updated > 0.0) {
+			break;
+		}
+	}
+}
+
+// Extract chapter number from URL path (e.g., "/serie/manga-name/chapter/42" -> 42.0)
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+	if let Some(chapter_pos) = url.rfind("/chapter/") {
+		let after_chapter = &url[chapter_pos + 9..]; // "/chapter/".len() = 9
+		if let Some(end_pos) = after_chapter.find('/') {
+			// Has path after chapter number
+			if let Ok(num) = after_chapter[..end_pos].parse::<f32>() {
+				return Some(num);
+			}
+		} else {
+			// Chapter number is at the end
+			if let Ok(num) = after_chapter.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+	None
 }
 
 // Parse page list with Next.js data extraction and hierarchical image search
