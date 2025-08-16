@@ -973,9 +973,8 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	let chapters_array = if let Ok(chapters) = manga_obj.get("chapters").as_array() {
 		chapters
 	} else {
-		return Err(aidoku::error::AidokuError {
-			reason: aidoku::error::AidokuErrorKind::Unimplemented,
-		});
+		// Fallback to JSON-LD extraction if Next.js data doesn't have chapters
+		return parse_chapter_list_from_jsonld(manga_id, html);
 	};
 	
 	let mut chapters: Vec<Chapter> = Vec::new();
@@ -1051,7 +1050,74 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	Ok(chapters)
 }
 
-
+// Fallback function: Parse chapter list from JSON-LD when Next.js data unavailable
+fn parse_chapter_list_from_jsonld(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Extract chapter basic info from JSON-LD
+	for script in html.select("script[type='application/ld+json']").array() {
+		let script = script.as_node()?;
+		let content = script.html().read();
+		
+		// Parse JSON-LD content
+		use aidoku::std::json::parse;
+		if let Ok(json_data) = parse(&content) {
+			if let Ok(json_obj) = json_data.as_object() {
+				// Check if this is a ComicSeries type with chapters
+				if let Ok(type_str) = json_obj.get("@type").as_string() {
+					if type_str.read() == "ComicSeries" {
+						// Extract chapters from hasPart array
+						if let Ok(has_part_array) = json_obj.get("hasPart").as_array() {
+							for part_value in has_part_array {
+								if let Ok(part_obj) = part_value.as_object() {
+									// Check if this is a ComicIssue
+									if let Ok(part_type) = part_obj.get("@type").as_string() {
+										if part_type.read() == "ComicIssue" {
+											// Extract chapter data
+											if let (Ok(issue_num), Ok(_name_str)) = (
+												part_obj.get("issueNumber").as_int(),
+												part_obj.get("name").as_string()
+											) {
+												let chapter_number = issue_num as f32;
+												
+												// Use Chapter format: "Chapter X"
+												let title = format!("Chapter {}", issue_num);
+												
+												// Build chapter URL
+												let url = format!("/serie/{}/chapter/{}", manga_id, issue_num);
+												
+												chapters.push(Chapter {
+													id: format!("{}", issue_num),
+													title,
+													volume: -1.0,
+													chapter: chapter_number,
+													date_updated: 0.0, // No date from JSON-LD
+													scanlator: String::new(),
+													url,
+													lang: String::from("fr"),
+												});
+											}
+										}
+									}
+								}
+							}
+							
+							// If we found chapters in this JSON-LD, break out of the loop
+							if !chapters.is_empty() {
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Sort chapters by number in descending order (latest first)
+	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+	
+	Ok(chapters)
+}
 
 // Parse page list with Next.js data extraction and hierarchical image search
 pub fn parse_page_list(html: Node, chapter_url: String) -> Result<Vec<Page>> {
