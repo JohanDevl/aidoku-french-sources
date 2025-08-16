@@ -1191,10 +1191,63 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	
 	// Skip date extraction - dates disabled
 	
+	// Filter out premium chapters
+	chapters = filter_premium_chapters(chapters, &html);
+	
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
 	
 	Ok(chapters)
+}
+
+// Filter out premium chapters based on HTML content
+fn filter_premium_chapters(chapters: Vec<Chapter>, html: &Node) -> Vec<Chapter> {
+	let mut filtered_chapters = Vec::new();
+	
+	for chapter in chapters {
+		let mut is_premium = false;
+		
+		// Look for premium indicators in the HTML for this specific chapter
+		// Check for chapter links that contain premium indicators
+		for link in html.select("a[href*='/chapter/']").array() {
+			if let Ok(link) = link.as_node() {
+				let href = link.attr("href").read();
+				
+				// Extract chapter number from URL to match with our chapter
+				if let Some(chapter_pos) = href.rfind("/chapter/") {
+					let chapter_str = &href[chapter_pos + 9..]; // "/chapter/".len() = 9
+					let chapter_num_str = if let Some(next_slash) = chapter_str.find('/') {
+						&chapter_str[..next_slash]
+					} else {
+						chapter_str
+					};
+					
+					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
+						if chapter_num as f32 == chapter.chapter {
+							// Check if this chapter link contains premium indicators
+							let link_text = link.text().read().to_lowercase();
+							let link_html = link.html().read().to_lowercase();
+							
+							if link_text.contains("premium") || 
+							   link_text.contains("accès anticipé") ||
+							   link_html.contains("premium") ||
+							   link_html.contains("accès anticipé") {
+								is_premium = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		// Only add non-premium chapters to the filtered list
+		if !is_premium {
+			filtered_chapters.push(chapter);
+		}
+	}
+	
+	filtered_chapters
 }
 
 // Enhanced detection of relative date strings
