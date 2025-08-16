@@ -1169,41 +1169,26 @@ fn parse_relative_date(date_str: &str) -> i64 {
 
 // Extract chapter dates from HTML and associate them with chapters
 fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
-	// CSS selectors to find chapter containers with dates
-	let chapter_selectors = [
-		"div[class*='space-y'] > div",           // Main chapter containers
-		".chapter-item",                         // Generic chapter items
-		"a[href*='/chapter/']",                  // Direct chapter links  
-		"div:has(a[href*='/chapter/'])",         // Containers with chapter links
-		"li:has(a[href*='/chapter/'])",          // List items with chapter links
-	];
+	// Find all chapter links directly
+	let chapter_links = html.select("a[href*='/chapter/']").array();
 	
-	for selector in &chapter_selectors {
-		let chapter_elements = html.select(selector).array();
-		
-		// Skip if no elements found with this selector
-		if chapter_elements.is_empty() {
-			continue;
-		}
-		
-		// Process each chapter element to find associated dates
-		for (index, element) in chapter_elements.enumerate() {
-			if let Ok(element_node) = element.as_node() {
-				// Look for dates within this chapter element
+	// Process each chapter link to extract its date
+	for chapter_link in chapter_links {
+		if let Ok(link_node) = chapter_link.as_node() {
+			let href = link_node.attr("href").read();
+			
+			// Extract chapter number from URL
+			if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
+				// Look for date within this specific chapter link
 				let date_selectors = [
-					"span:last-child",                    // Last span (often contains date)
-					"div:last-child",                     // Last div
-					".chapter-date",                      // Specific date class
-					".date",                              // Generic date class
-					"span:contains('jour')",              // Spans containing "jour"
-					"span:contains('mois')",              // Spans containing "mois"
-					"*:contains('jour'):last-child",      // Any element with "jour" as last child
-					"*:contains('mois'):last-child",      // Any element with "mois" as last child
+					"div",                        // Any div within the link
+					"span",                       // Any span within the link  
+					"*",                          // Any element that might contain the date
 				];
 				
 				let mut found_date = false;
 				for date_selector in &date_selectors {
-					for date_element in element_node.select(date_selector).array() {
+					for date_element in link_node.select(date_selector).array() {
 						if let Ok(date_node) = date_element.as_node() {
 							let date_text_raw = date_node.text().read();
 							let date_text = date_text_raw.trim();
@@ -1213,29 +1198,12 @@ fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
 								// Convert to timestamp
 								let timestamp = parse_relative_date(date_text);
 								
-								// Try to find corresponding chapter by extracting chapter number from URL
-								let chapter_link = element_node.select("a[href*='/chapter/']").first();
-								if !chapter_link.html().is_empty() {
-									let href = chapter_link.attr("href").read();
-									if let Some(chapter_match) = extract_chapter_number_from_url(&href) {
-										// Find matching chapter in our list and update its date
-										for chapter in chapters.iter_mut() {
-											if chapter.chapter == chapter_match {
-												chapter.date_updated = timestamp as f64;
-												found_date = true;
-												break;
-											}
-										}
-									}
-								}
-								
-								// Alternative: try to match by index if URL method fails
-								if !found_date && index < chapters.len() {
-									// Reverse index since chapters are usually in descending order
-									let reverse_index = chapters.len() - 1 - index;
-									if reverse_index < chapters.len() {
-										chapters[reverse_index].date_updated = timestamp as f64;
+								// Find matching chapter in our list and update its date
+								for chapter in chapters.iter_mut() {
+									if chapter.chapter == chapter_number {
+										chapter.date_updated = timestamp as f64;
 										found_date = true;
+										break;
 									}
 								}
 								
@@ -1250,11 +1218,6 @@ fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
 					}
 				}
 			}
-		}
-		
-		// If we found dates with this selector, stop trying other selectors
-		if chapters.iter().any(|ch| ch.date_updated > 0.0) {
-			break;
 		}
 	}
 }
