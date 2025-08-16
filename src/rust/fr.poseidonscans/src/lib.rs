@@ -51,8 +51,16 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_latest_manga(json)
 	} else if listing.name == "Populaire" {
-		// Fetch popular manga from /series page with pagination
-		let series_url = format!("{}/series?page={}", String::from(BASE_URL), page);
+		// Fetch popular manga from /series page (client-side pagination limitation)
+		if page > 1 {
+			// No more pages available - all series are loaded on page 1 only
+			return Ok(MangaPageResult {
+				manga: Vec::new(),
+				has_more: false,
+			});
+		}
+		
+		let series_url = format!("{}/series", String::from(BASE_URL));
 		let html = Request::new(&series_url, HttpMethod::Get)
 			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
@@ -60,7 +68,7 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 			.header("Referer", String::from(BASE_URL).as_str())
 			.html()?;
 		
-		// Use search parser with empty query to get all manga
+		// Use search parser with empty query to get all manga from Next.js data
 		parser::parse_search_manga(String::new(), html)
 	} else {
 		Ok(MangaPageResult {

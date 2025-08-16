@@ -932,7 +932,7 @@ pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageR
 		}
 	}
 	
-	let has_more = mangas.len() >= 10;
+	let has_more = false; // Only one page available from Next.js data
 	Ok(MangaPageResult {
 		manga: mangas,
 		has_more,
