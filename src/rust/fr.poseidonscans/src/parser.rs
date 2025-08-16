@@ -1393,3 +1393,62 @@ fn to_absolute_url(url: &str) -> String {
 		format!("{}/{}", String::from(BASE_URL), url)
 	}
 }
+
+// Parse popular manga from /api/manga/all API response
+pub fn parse_popular_manga(json: ObjectRef) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	let mut has_more = false;
+
+	if let Ok(data_array) = json.get("data").as_array() {
+		for item in data_array {
+			let manga = item.as_object()?;
+			
+			let slug = manga.get("slug").as_string()?.read();
+			if slug == "unknown" || slug.is_empty() {
+				continue;
+			}
+			
+			let title = manga.get("title").as_string()?.read();
+			let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug);
+			
+			// Extract description if available
+			let description = manga.get("description").as_string()
+				.map(|s| s.read())
+				.unwrap_or_else(|_| String::new());
+			
+			// Extract categories if available
+			let mut categories: Vec<String> = Vec::new();
+			if let Ok(cats_array) = manga.get("categories").as_array() {
+				for cat in cats_array {
+					if let Ok(cat_obj) = cat.as_object() {
+						if let Ok(name) = cat_obj.get("name").as_string() {
+							categories.push(name.read());
+						}
+					}
+				}
+			}
+
+			mangas.push(Manga {
+				id: slug,
+				cover,
+				title,
+				author: String::new(),
+				artist: String::new(),
+				description,
+				url: String::new(),
+				categories,
+				status: MangaStatus::Unknown,
+				nsfw: MangaContentRating::Safe,
+				viewer: MangaViewer::Scroll
+			});
+		}
+		
+		// API returns 40 mangas per page
+		has_more = mangas.len() == 40;
+	}
+
+	Ok(MangaPageResult {
+		manga: mangas,
+		has_more,
+	})
+}
