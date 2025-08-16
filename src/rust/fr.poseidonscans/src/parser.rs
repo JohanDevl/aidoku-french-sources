@@ -1126,104 +1126,64 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	})
 }
 
-// Parse chapter list with Next.js data extraction and premium filtering
+// Parse chapter list from JSON-LD structured data in HTML
 pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
-	// Extract Next.js page data
-	let manga_data = extract_nextjs_manga_details(&html)?;
-	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Get chapters array with hierarchical fallbacks
-	let chapters_array = if let Ok(manga) = manga_data.get("manga").as_object() {
-		// Try manga.chapters first
-		if let Ok(chapters_arr) = manga.get("chapters").as_array() {
-			chapters_arr
-		} else {
-			// Fallback to direct chapters in manga_data
-			manga_data.get("chapters").as_array()?
-		}
-	} else if let Ok(initial_data) = manga_data.get("initialData").as_object() {
-		// Try initialData.manga.chapters
-		if let Ok(manga) = initial_data.get("manga").as_object() {
-			if let Ok(chapters_arr) = manga.get("chapters").as_array() {
-				chapters_arr
-			} else {
-				// Try initialData.chapters
-				initial_data.get("chapters").as_array()?
-			}
-		} else {
-			// Try initialData.chapters directly
-			initial_data.get("chapters").as_array()?
-		}
-	} else {
-		// Try direct chapters in manga_data
-		manga_data.get("chapters").as_array()?
-	};
-	
-	// Process chapters array
-	for chapter_value in chapters_array {
-		if let Ok(chapter_obj) = chapter_value.as_object() {
-			// Skip premium chapters
-			if let Ok(is_premium) = chapter_obj.get("isPremium").as_bool() {
-				if is_premium {
-					continue;
+	// Extract JSON-LD scripts from HTML
+	for script in html.select("script[type='application/ld+json']").array() {
+		let script = script.as_node()?;
+		let content = script.html().read();
+		
+		// Parse JSON-LD content
+		use aidoku::std::json::parse;
+		if let Ok(json_data) = parse(&content) {
+			if let Ok(json_obj) = json_data.as_object() {
+				// Check if this is a ComicSeries type with chapters
+				if let Ok(type_str) = json_obj.get("@type").as_string() {
+					if type_str.read() == "ComicSeries" {
+						// Extract chapters from hasPart array
+						if let Ok(has_part_array) = json_obj.get("hasPart").as_array() {
+							for part_value in has_part_array {
+								if let Ok(part_obj) = part_value.as_object() {
+									// Check if this is a ComicIssue
+									if let Ok(part_type) = part_obj.get("@type").as_string() {
+										if part_type.read() == "ComicIssue" {
+											// Extract chapter data
+											if let (Ok(issue_num), Ok(name_str)) = (
+												part_obj.get("issueNumber").as_int(),
+												part_obj.get("name").as_string()
+											) {
+												let chapter_number = issue_num as f32;
+												let name = name_str.read();
+												
+												// Build chapter URL
+												let url = format!("/serie/{}/chapter/{}", manga_id, issue_num);
+												
+												chapters.push(Chapter {
+													id: format!("{}", issue_num),
+													title: name,
+													volume: -1.0,
+													chapter: chapter_number,
+													date_updated: 0.0, // JSON-LD doesn't include dates
+													scanlator: String::new(),
+													url,
+													lang: String::from("fr"),
+												});
+											}
+										}
+									}
+								}
+							}
+							
+							// If we found chapters in this JSON-LD, break out of the loop
+							if !chapters.is_empty() {
+								break;
+							}
+						}
+					}
 				}
 			}
-			
-			// Get chapter number
-			let chapter_number = if let Ok(num) = chapter_obj.get("number").as_float() {
-				num
-			} else {
-				0.0
-			};
-			
-			if chapter_number <= 0.0 {
-				continue;
-			}
-			
-			// Format chapter number (remove .0 suffix if present)
-			let chapter_number_string = if chapter_number % 1.0 == 0.0 {
-				format!("{}", chapter_number as i32)
-			} else {
-				format!("{}", chapter_number)
-			};
-			
-			// Get chapter title
-			let chapter_title = if let Ok(title_str) = chapter_obj.get("title").as_string() {
-				let title_text = title_str.read();
-				if title_text.trim().is_empty() { None } else { Some(title_text) }
-			} else {
-				None
-			};
-			
-			// Build chapter name
-			let base_name = format!("Chapitre {}", chapter_number_string);
-			let name = if let Some(title) = chapter_title {
-				format!("{} - {}", base_name, title.trim())
-			} else {
-				base_name
-			};
-			
-			// Parse date
-			let date_upload = if let Ok(date_str) = chapter_obj.get("createdAt").as_string() {
-				parse_iso_date(&date_str.read())
-			} else {
-				0
-			};
-			
-			// Build chapter URL
-			let url = format!("/serie/{}/chapter/{}", manga_id, chapter_number_string);
-			
-			chapters.push(Chapter {
-				id: chapter_number_string,
-				title: name,
-				volume: -1.0,
-				chapter: chapter_number as f32,
-				date_updated: date_upload as f64,
-				scanlator: String::new(),
-				url,
-				lang: String::from("fr"),
-			});
 		}
 	}
 	
