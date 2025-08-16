@@ -83,3 +83,11 @@ fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let html = Request::new(&url, HttpMethod::Get).html()?;
 	parser::parse_page_list(html, url)
 }
+
+#[modify_image_request]
+fn modify_image_request(request: Request) {
+	request
+		.header("Referer", String::from(BASE_URL).as_str())
+		.header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1");
+}
