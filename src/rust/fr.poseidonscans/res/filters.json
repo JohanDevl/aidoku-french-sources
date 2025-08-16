@@ -1,5 +1,10 @@
 [
-	{
-		"type": "title"
-	}
+  {
+    "type": "title"
+  },
+  {
+    "type": "select",
+    "name": "Status",
+    "options": ["Tous les statuts", "En cours", "Terminé", "En pause"]
+  }
 ]
