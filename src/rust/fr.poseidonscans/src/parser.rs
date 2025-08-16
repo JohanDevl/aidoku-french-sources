@@ -1123,9 +1123,9 @@ pub fn parse_page_list(html: Node, chapter_url: String) -> Result<Vec<Page>> {
 		
 		pages.push(Page {
 			index: image.order,
-			url: chapter_url.clone(),
+			url: absolute_url, // Image URL goes in url field (corrected!)
 			base64: String::new(),
-			text: absolute_url, // Image URL goes in text field
+			text: String::new(), // Empty text field
 		});
 	}
 	
