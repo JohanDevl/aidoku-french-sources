@@ -1167,7 +1167,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 													title,
 													volume: -1.0,
 													chapter: chapter_number,
-													date_updated: 0.0, // Will be updated from HTML
+													date_updated: -1.0, // No date display
 													scanlator: String::new(),
 													url,
 													lang: String::from("fr"),
@@ -1189,76 +1189,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 		}
 	}
 	
-	// Extract dates from HTML chapter links with improved selectors
-	for link in html.select("a[href*='/chapter/']").array() {
-		let link = link.as_node()?;
-		let href = link.attr("href").read();
-		
-		// Extract chapter number from URL with enhanced parsing
-		if let Some(chapter_pos) = href.rfind("/chapter/") {
-			let chapter_str = &href[chapter_pos + 9..]; // "/chapter/".len() = 9
-			// Handle chapter numbers with potential trailing paths
-			let chapter_num_str = if let Some(next_slash) = chapter_str.find('/') {
-				&chapter_str[..next_slash]
-			} else {
-				chapter_str
-			};
-			
-			if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
-				// Improved date extraction with better selectors
-				let mut date_found = false;
-				
-				// Try multiple selector strategies based on actual site structure
-				let selector_strategies = [
-					"div:last-child",           // Last div child of the link
-					"span:last-child",          // Last span child of the link  
-					"div",                      // Any div within the link
-					"span",                     // Any span within the link
-					".text-gray-400",           // Original gray text selector
-					"[class*='text-']",         // Original text class selector
-					"time",                     // Time elements if present
-					"small"                     // Small text elements
-				];
-				
-				for selector in &selector_strategies {
-					let date_elements = link.select(selector);
-					for date_elem in date_elements.array() {
-						let date_elem = date_elem.as_node()?;
-						let date_text_full = date_elem.text().read();
-						let date_text = String::from(date_text_full.trim());
-						
-						// Enhanced relative date detection
-						if is_relative_date(&date_text) {
-							// Convert relative date to timestamp
-							let timestamp = parse_relative_date(&date_text);
-							
-							// Update the corresponding chapter
-							for chapter in &mut chapters {
-								if chapter.chapter == chapter_num as f32 {
-									chapter.date_updated = timestamp as f64;
-									date_found = true;
-									break;
-								}
-							}
-							break;
-						}
-					}
-					if date_found {
-						break;
-					}
-				}
-			}
-		}
-	}
-	
-	// Intelligent fallback: if any chapters still have date_updated = 0.0, set to current date
-	use aidoku::std::current_date;
-	let fallback_date = current_date();
-	for chapter in &mut chapters {
-		if chapter.date_updated == 0.0 {
-			chapter.date_updated = fallback_date;
-		}
-	}
+	// Skip date extraction - dates disabled
 	
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
