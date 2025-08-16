@@ -9,6 +9,9 @@
   "listings": [
     {
       "name": "Dernières Sorties"
+    },
+    {
+      "name": "Populaire"
     }
   ]
 }
