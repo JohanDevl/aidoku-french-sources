@@ -1113,8 +1113,8 @@ pub fn parse_page_list(html: Node, chapter_url: String) -> Result<Vec<Page>> {
 	// Extract Next.js page data from chapter page
 	let page_data = extract_nextjs_chapter_data(&html)?;
 	
-	// Search for images in hierarchical order
-	let image_data = extract_image_data_hierarchical(&page_data)?;
+	// Search for images in hierarchical order with HTML fallback
+	let image_data = extract_image_data_hierarchical(&page_data, &html)?;
 	
 	// Convert image data to Page objects
 	let mut pages: Vec<Page> = Vec::new();
@@ -1170,8 +1170,77 @@ fn extract_nextjs_chapter_data(html: &Node) -> Result<ObjectRef> {
 	Ok(parse("{}").unwrap().as_object().unwrap())
 }
 
-// Extract image data using hierarchical search
-fn extract_image_data_hierarchical(page_data: &ObjectRef) -> Result<Vec<PageImageData>> {
+// Extract images from HTML DOM as fallback when JSON data is not available
+fn extract_images_from_html(html: &Node) -> Result<Vec<PageImageData>> {
+	let mut images: Vec<PageImageData> = Vec::new();
+	
+	// Multiple selectors to catch different image patterns in PoseidonScans
+	let image_selectors = [
+		"img[alt*='Chapter Image']",  // Images with "Chapter Image" in alt text
+		"img[src*='/chapter/']",      // Images with chapter path
+		"img[src*='/images/']",       // Images in images directory
+		"img[data-src]",             // Lazy loaded images
+		"img[data-original]",        // Alternative lazy loading
+		"main img",                  // Images in main content area
+		".chapter-content img",      // Images in chapter content
+		".manga-reader img"          // Images in manga reader
+	];
+	
+	for selector in &image_selectors {
+		for img in html.select(selector).array() {
+			if let Ok(img_node) = img.as_node() {
+				// Extract image URL from multiple possible attributes
+				let image_url = if !img_node.attr("src").read().is_empty() {
+					img_node.attr("src").read()
+				} else if !img_node.attr("data-src").read().is_empty() {
+					img_node.attr("data-src").read()
+				} else if !img_node.attr("data-original").read().is_empty() {
+					img_node.attr("data-original").read()
+				} else if !img_node.attr("data-lazy").read().is_empty() {
+					img_node.attr("data-lazy").read()
+				} else {
+					continue; // Skip if no valid image URL found
+				};
+				
+				// Skip empty URLs or placeholder images
+				if image_url.is_empty() || 
+				   image_url.contains("placeholder") || 
+				   image_url.contains("loading") ||
+				   image_url.ends_with(".svg") {
+					continue;
+				}
+				
+				// Extract order from alt text or use DOM position
+				let order = if let Some(alt_text) = img_node.attr("alt").read().split_whitespace().last() {
+					alt_text.parse::<i32>().unwrap_or_else(|_| images.len() as i32)
+				} else {
+					images.len() as i32
+				};
+				
+				// Avoid duplicates
+				if !images.iter().any(|img| img.original_url == image_url) {
+					images.push(PageImageData {
+						original_url: image_url,
+						order,
+					});
+				}
+			}
+		}
+		
+		// Break if we found images with the current selector
+		if !images.is_empty() {
+			break;
+		}
+	}
+	
+	// Sort images by order
+	images.sort_by(|a, b| a.order.cmp(&b.order));
+	
+	Ok(images)
+}
+
+// Extract image data using hierarchical search with HTML fallback
+fn extract_image_data_hierarchical(page_data: &ObjectRef, html: &Node) -> Result<Vec<PageImageData>> {
 	// Search order: root.images -> chapter.images -> initialData.images -> initialData.chapter.images
 	
 	// Try root level images first
@@ -1216,8 +1285,8 @@ fn extract_image_data_hierarchical(page_data: &ObjectRef) -> Result<Vec<PageImag
 		}
 	}
 	
-	// Return empty vector if no images found
-	Ok(Vec::new())
+	// Fallback to HTML DOM extraction if no JSON images found
+	extract_images_from_html(html)
 }
 
 // Parse JSON array of images into PageImageData structs
