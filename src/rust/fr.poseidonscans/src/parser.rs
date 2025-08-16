@@ -1126,11 +1126,11 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	})
 }
 
-// Parse chapter list from JSON-LD structured data in HTML
+// Parse chapter list from JSON-LD structured data and HTML for dates
 pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Extract JSON-LD scripts from HTML
+	// First extract chapter basic info from JSON-LD
 	for script in html.select("script[type='application/ld+json']").array() {
 		let script = script.as_node()?;
 		let content = script.html().read();
@@ -1167,7 +1167,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 													title,
 													volume: -1.0,
 													chapter: chapter_number,
-													date_updated: 0.0, // JSON-LD doesn't include dates
+													date_updated: 0.0, // Will be updated from HTML
 													scanlator: String::new(),
 													url,
 													lang: String::from("fr"),
@@ -1189,10 +1189,81 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 		}
 	}
 	
+	// Extract dates from HTML chapter links
+	for link in html.select("a[href*='/chapter/']").array() {
+		let link = link.as_node()?;
+		let href = link.attr("href").read();
+		
+		// Extract chapter number from URL
+		if let Some(chapter_pos) = href.rfind("/chapter/") {
+			let chapter_str = &href[chapter_pos + 9..]; // "/chapter/".len() = 9
+			if let Ok(chapter_num) = chapter_str.parse::<i32>() {
+				// Find date text in this link
+				let date_elements = link.select("span, div, .text-gray-400, [class*='text-']");
+				for date_elem in date_elements.array() {
+					let date_elem = date_elem.as_node()?;
+					let date_text_full = date_elem.text().read();
+					let date_text = String::from(date_text_full.trim());
+					
+					// Check if this looks like a relative date
+					if date_text.contains("heure") || date_text.contains("jour") || 
+					   date_text.contains("mois") || date_text.contains("semaine") ||
+					   date_text.contains("minute") {
+						// Convert relative date to timestamp
+						let timestamp = parse_relative_date(&date_text);
+						
+						// Update the corresponding chapter
+						for chapter in &mut chapters {
+							if chapter.chapter == chapter_num as f32 {
+								chapter.date_updated = timestamp as f64;
+								break;
+							}
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+	
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
 	
 	Ok(chapters)
+}
+
+// Convert relative date strings to timestamps
+fn parse_relative_date(date_str: &str) -> i64 {
+	use aidoku::std::current_date;
+	
+	let current_time = current_date() as i64;
+	let date_lower = date_str.to_lowercase();
+	
+	// Extract number from string
+	let mut number = 1;
+	for word in date_lower.split_whitespace() {
+		if let Ok(n) = word.parse::<i32>() {
+			number = n;
+			break;
+		}
+	}
+	
+	// Calculate seconds to subtract based on unit
+	let seconds_to_subtract = if date_lower.contains("minute") {
+		number * 60
+	} else if date_lower.contains("heure") {
+		number * 3600
+	} else if date_lower.contains("jour") {
+		number * 86400
+	} else if date_lower.contains("semaine") {
+		number * 604800
+	} else if date_lower.contains("mois") {
+		number * 2592000 // 30 days
+	} else {
+		0
+	};
+	
+	current_time - seconds_to_subtract as i64
 }
 
 // Parse page list with Next.js data extraction and hierarchical image search
