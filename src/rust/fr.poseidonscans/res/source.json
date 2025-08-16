@@ -3,7 +3,7 @@
     "id": "fr.poseidonscans",
     "lang": "fr",
     "name": "Poseidon Scans",
-    "version": 18,
+    "version": 19,
     "url": "https://poseidonscans.com/"
   },
   "listings": [
@@ -12,6 +12,9 @@
     },
     {
       "name": "Populaire"
+    },
+    {
+      "name": "Tout"
     }
   ]
 }
