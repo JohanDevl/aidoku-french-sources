@@ -1113,10 +1113,180 @@ fn parse_chapter_list_from_jsonld(manga_id: String, html: Node) -> Result<Vec<Ch
 		}
 	}
 	
+	// Extract dates from HTML for JSON-LD fallback
+	extract_chapter_dates_from_html(&html, &mut chapters);
+	
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
 	
 	Ok(chapters)
+}
+
+// Extract chapter dates from HTML and associate them with chapters
+fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
+	// Find all chapter links directly
+	let chapter_links = html.select("a[href*='/chapter/']").array();
+	
+	// Process each chapter link to extract its date
+	for chapter_link in chapter_links {
+		if let Ok(link_node) = chapter_link.as_node() {
+			let href = link_node.attr("href").read();
+			
+			// Extract chapter number from URL
+			if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
+				// Look for date within this specific chapter link
+				let date_selectors = [
+					"div",                        // Any div within the link
+					"span",                       // Any span within the link  
+					"*",                          // Any element that might contain the date
+				];
+				
+				let mut found_date = false;
+				for date_selector in &date_selectors {
+					for date_element in link_node.select(date_selector).array() {
+						if let Ok(date_node) = date_element.as_node() {
+							let date_text_raw = date_node.text().read();
+							let date_text = date_text_raw.trim();
+							
+							// Validate if this looks like a relative date
+							if !date_text.is_empty() && is_relative_date(date_text) {
+								// Convert to timestamp
+								let timestamp = parse_relative_date(date_text);
+								
+								// Find matching chapter in our list and update its date
+								for chapter in chapters.iter_mut() {
+									if chapter.chapter == chapter_number {
+										chapter.date_updated = timestamp as f64;
+										found_date = true;
+										break;
+									}
+								}
+								
+								if found_date {
+									break;
+								}
+							}
+						}
+					}
+					if found_date {
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+// Extract chapter number from URL path (e.g., "/serie/manga-name/chapter/42" -> 42.0)
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+	if let Some(chapter_pos) = url.rfind("/chapter/") {
+		let after_chapter = &url[chapter_pos + 9..]; // "/chapter/".len() = 9
+		if let Some(end_pos) = after_chapter.find('/') {
+			// Has path after chapter number
+			if let Ok(num) = after_chapter[..end_pos].parse::<f32>() {
+				return Some(num);
+			}
+		} else {
+			// Chapter number is at the end
+			if let Ok(num) = after_chapter.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+	None
+}
+
+// Enhanced detection of relative date strings
+fn is_relative_date(text: &str) -> bool {
+	if text.is_empty() || text.len() < 3 {
+		return false;
+	}
+	
+	let text_lower = text.to_lowercase();
+	
+	// Check for French relative time patterns
+	text_lower.contains("minute") || text_lower.contains("min") ||
+	text_lower.contains("heure") || text_lower.contains("hr") ||
+	text_lower.contains("jour") || text_lower.contains("day") ||
+	text_lower.contains("semaine") || text_lower.contains("week") ||
+	text_lower.contains("mois") || text_lower.contains("month") ||
+	text_lower.contains("an") || text_lower.contains("année") ||
+	text_lower.contains("aujourd'hui") || text_lower.contains("hier") ||
+	text_lower.contains("demain") || text_lower.contains("maintenant") ||
+	// Additional patterns seen on the site
+	text_lower.contains("il y a") ||
+	// Numeric patterns with time units (e.g., "22 jours", "1 mois")
+	(text_lower.chars().any(|c| c.is_ascii_digit()) && 
+	 (text_lower.contains("jour") || text_lower.contains("mois") || 
+	  text_lower.contains("heure") || text_lower.contains("semaine")))
+}
+
+// Convert relative date strings to timestamps with enhanced parsing
+fn parse_relative_date(date_str: &str) -> i64 {
+	use aidoku::std::current_date;
+	
+	let current_time = current_date();
+	let date_lower = date_str.to_lowercase();
+	
+	// Handle special cases first
+	if date_lower.contains("aujourd'hui") || date_lower.contains("maintenant") {
+		return current_time as i64;
+	}
+	if date_lower.contains("hier") {
+		return (current_time - 86400.0) as i64;
+	}
+	if date_lower.contains("demain") {
+		return (current_time + 86400.0) as i64;
+	}
+	
+	// Extract number from string with improved parsing
+	let mut number = 1;
+	for word in date_lower.split_whitespace() {
+		// Try to parse number, handle various formats
+		if let Ok(n) = word.parse::<i32>() {
+			number = n;
+			break;
+		}
+		// Handle written numbers (un, une, deux, etc.)
+		match word {
+			"un" | "une" => { number = 1; break; },
+			"deux" => { number = 2; break; },
+			"trois" => { number = 3; break; },
+			"quatre" => { number = 4; break; },
+			"cinq" => { number = 5; break; },
+			"six" => { number = 6; break; },
+			"sept" => { number = 7; break; },
+			"huit" => { number = 8; break; },
+			"neuf" => { number = 9; break; },
+			"dix" => { number = 10; break; },
+			_ => {}
+		}
+	}
+	
+	// Calculate seconds to subtract based on unit with more accurate conversions
+	let seconds_to_subtract = if date_lower.contains("minute") || date_lower.contains("min") {
+		number * 60
+	} else if date_lower.contains("heure") || date_lower.contains("hr") {
+		number * 3600
+	} else if date_lower.contains("jour") || date_lower.contains("day") {
+		number * 86400
+	} else if date_lower.contains("semaine") || date_lower.contains("week") {
+		number * 604800 // 7 days
+	} else if date_lower.contains("mois") || date_lower.contains("month") {
+		number * 2629746 // 30.44 days (more accurate month)
+	} else if date_lower.contains("an") || date_lower.contains("année") || date_lower.contains("year") {
+		number * 31556952 // 365.25 days (accounting for leap years)
+	} else {
+		0
+	};
+	
+	// Return timestamp, ensuring it's not negative
+	let result_time = current_time - seconds_to_subtract as f64;
+	if result_time < 0.0 {
+		current_time as i64
+	} else {
+		result_time as i64
+	}
 }
 
 // Parse page list with Next.js data extraction and hierarchical image search
