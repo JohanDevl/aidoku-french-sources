@@ -99,8 +99,8 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	let title = html.select("#titreOeuvre").text().read();
 	let cover = html.select("#coverOeuvre").attr("src").read();
-	let description = html.select("#sousBlocMiddle h2:contains(Synopsis)+p").text().read();
-	let genre_text = html.select("#sousBlocMiddle h2:contains(Genres)+a").text().read();
+	let description = html.select("#sousBlocMiddle p.text-sm.text-gray-400").text().read();
+	let genre_text = html.select("#sousBlocMiddle a.text-sm.text-gray-300").text().read();
 	
 	// Convertir les genres en Vec<String>
 	let categories: Vec<String> = if genre_text.is_empty() {
