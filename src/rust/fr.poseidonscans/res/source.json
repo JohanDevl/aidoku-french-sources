@@ -1,10 +1,10 @@
 {
   "info": {
-    "id": "fr.phenixscans",
+    "id": "fr.poseidonscans",
     "lang": "fr",
-    "name": "Phenix Scans",
-    "version": 6,
-    "url": "https://phenix-scans.com/"
+    "name": "Poseidon Scans",
+    "version": 1,
+    "url": "https://poseidonscans.com/"
   },
   "listings": [
     {
