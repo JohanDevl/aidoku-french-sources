@@ -75,12 +75,15 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	// Utiliser la page principale du manga pour récupérer les informations sur les scanlateurs
-	let url = format!("{}{}", String::from(BASE_URL), manga_id);
-	println!("AnimeSama debug: get_chapter_list - manga_id: {}", manga_id);
-	println!("AnimeSama debug: get_chapter_list - final URL: {}", url);
+	// CORRECTION: Utiliser la page /scan/vf/ qui contient le select des chapitres
+	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
+	println!("AnimeSama debug: get_chapter_list CALLED - manga_id: {}", manga_id);
+	println!("AnimeSama debug: get_chapter_list - corrected URL: {}", url);
 	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_chapter_list(manga_id, html)
+	println!("AnimeSama debug: HTML request completed, calling parser");
+	let result = parser::parse_chapter_list(manga_id, html);
+	println!("AnimeSama debug: Parser returned result");
+	result
 }
 
 #[get_page_list]

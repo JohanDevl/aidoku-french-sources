@@ -169,32 +169,33 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	})
 }
 
-pub fn parse_chapter_list(_manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// TEST : 10 chapitres fake pour vérifier l'affichage dans Aidoku
-	println!("AnimeSama debug: Creating 10 fake chapters for testing");
+	// TEST : 3 chapitres ultra-simples pour diagnostic
+	println!("AnimeSama debug: Starting parse_chapter_list with manga_id: {}", manga_id);
 	
-	for i in 1..=10 {
-		let chapter_url = format!("{}/catalogue/blue-lock/scan/vf/", String::from(BASE_URL));
+	for i in 1..=3 {
+		// URL unique pour chaque chapitre
+		let chapter_url = format!("{}{}/scan/vf/chapitre-{}/", String::from(BASE_URL), manga_id, i);
 		
 		chapters.push(Chapter {
-			id: format!("{}", i),
-			title: format!("Chapitre {}", i),  // Titre explicite pour test
-			volume: -1.0,
-			chapter: i as f32,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Test"),
-			url: chapter_url,
-			lang: String::from("fr")
+			id: format!("{}", i),           // ID simple: "1", "2", "3"
+			title: String::from(""),        // VIDE comme LelscanFR !
+			volume: -1.0,                   // Standard
+			chapter: i as f32,              // 1.0, 2.0, 3.0
+			date_updated: current_date(),   // Date actuelle
+			scanlator: String::from(""),    // VIDE comme LelscanFR !
+			url: chapter_url,               // URL unique
+			lang: String::from("fr")        // Français
 		});
 		
-		println!("AnimeSama debug: Created fake chapter {}", i);
+		println!("AnimeSama debug: Created chapter {} with empty title and scanlator", i);
 	}
 	
-	println!("AnimeSama debug: Created {} fake chapters", chapters.len());
+	println!("AnimeSama debug: Successfully created {} chapters", chapters.len());
 	
-	// Les plus récents en premier
+	// Derniers chapitres en premier
 	chapters.reverse();
 	
 	Ok(chapters)
