@@ -67,12 +67,56 @@ jobs:
     -
       name: Build Rust sources
       run: |
-        for src in ./src/rust/*; do
-          (
-            cd "$src"
-            ./build.sh -a
-          )
+        # Build individual sources (fr.* directories)
+        echo "=== Building Individual Sources ==="
+        for src in ./src/rust/fr.*; do
+          if [ -d "$src" ]; then
+            SOURCE_NAME=$(basename "$src")
+            echo "Found source directory: $SOURCE_NAME"
+            
+            if [ -f "$src/build.sh" ]; then
+              echo "✓ Building individual source: $SOURCE_NAME"
+              (
+                cd "$src" || exit 1
+                chmod +x build.sh
+                ./build.sh
+              ) || {
+                echo "✗ Failed to build $SOURCE_NAME, continuing with others..."
+                continue
+              }
+              echo "✓ Successfully built $SOURCE_NAME"
+            else
+              echo "✗ No build.sh found in $SOURCE_NAME, skipping..."
+            fi
+          fi
         done
+        
+        echo "=== Building Template Sources ==="
+        # Build template sources (non-fr.* directories) 
+        for src in ./src/rust/*; do
+          if [ -d "$src" ] && [[ ! "$(basename "$src")" =~ ^fr\. ]]; then
+            TEMPLATE_NAME=$(basename "$src")
+            echo "Found template directory: $TEMPLATE_NAME"
+            
+            if [ -f "$src/build.sh" ]; then
+              echo "✓ Building template: $TEMPLATE_NAME"
+              (
+                cd "$src" || exit 1
+                chmod +x build.sh
+                ./build.sh -a
+              ) || {
+                echo "✗ Failed to build template $TEMPLATE_NAME, continuing with others..."
+                continue
+              }
+              echo "✓ Successfully built template $TEMPLATE_NAME"
+            else
+              echo "✗ No build.sh found in template $TEMPLATE_NAME, skipping..."
+            fi
+          fi
+        done
+        
+        echo "=== Build Summary ==="
+        ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
     -
       name: Building source list
       run: |
