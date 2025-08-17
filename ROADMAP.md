@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 10 (6 active + 4 offline)
-- **Remaining sources**: 36
+- **Implemented sources**: 11 (7 active + 4 offline)
+- **Remaining sources**: 35
 - **Total available sources**: 46
 
 ## 🔄 Work in Progress
@@ -37,7 +37,6 @@ Currently no sources are being actively developed.
 | **MangasScans**     | mangas-scans.com   | Unknown       | 🟡 Medium | Manga scanning source      |
 | **PantheonScan**    | pantheon-scan.com  | Unknown       | 🟡 Medium | Scanlation group           |
 | **PerfScan**        | perf-scan.net      | Unknown       | 🟡 Medium | Quality-focused scans      |
-| **PoseidonScans**   | poseidonscans.com  | Unknown       | 🟡 Medium | Scanlation team            |
 | **RaijinScans**     | raijinscan.co      | Unknown       | 🟡 Medium | Scanlation group           |
 | **RimuScans**       | rimuscans.com      | Unknown       | 🟡 Medium | Scanlation team            |
 | **RoyalManga**      | royalmanga.com     | Unknown       | 🟡 Medium | Premium manga source       |
@@ -101,5 +100,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-08-15_
-_Total sources tracked: 36 upcoming_
+_Last updated: 2025-08-17_
+_Total sources tracked: 35 upcoming_
