@@ -21,6 +21,11 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 		let relative_url = element.select("a").attr("href").read();
 		let cover_url = element.select("img").attr("src").read();
 		
+		println!("🔥 parse_manga_list - Creating manga:");
+		println!("🔥   title: '{}'", title);
+		println!("🔥   relative_url (will be ID): '{}'", relative_url);
+		println!("🔥   cover_url: '{}'", cover_url);
+		
 		mangas.push(Manga {
 			id: relative_url.clone(),
 			cover: cover_url,
@@ -123,14 +128,20 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 }
 
 pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
+	println!("🔥🔥🔥 PARSE_CHAPTER_LIST CALLED !!! 🔥🔥🔥");
+	println!("🔥 parse_chapter_list - manga_id: '{}'", manga_id);
+	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// TEST : 3 chapitres ultra-simples pour diagnostic
-	println!("AnimeSama debug: Starting parse_chapter_list with manga_id: {}", manga_id);
+	println!("🔥 Creating test chapters...");
 	
 	for i in 1..=3 {
 		// URL unique pour chaque chapitre
 		let chapter_url = format!("{}{}/scan/vf/chapitre-{}/", String::from(BASE_URL), manga_id, i);
+		
+		println!("🔥 Creating chapter {}:", i);
+		println!("🔥   chapter_url: '{}'", chapter_url);
 		
 		chapters.push(Chapter {
 			id: format!("{}", i),           // ID simple: "1", "2", "3"
@@ -143,7 +154,7 @@ pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>>
 			lang: String::from("fr")        // Français
 		});
 		
-		println!("AnimeSama debug: Created chapter {} with empty title and scanlator", i);
+		println!("🔥 Chapter {} created successfully", i);
 	}
 	
 	println!("AnimeSama debug: Successfully created {} chapters", chapters.len());
