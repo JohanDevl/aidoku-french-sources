@@ -16,35 +16,35 @@ Currently no sources are being actively developed.
 
 ### Standard Priority Sources
 
-| Source Name         | URL                | Expected Type | Priority  | Notes                      |
-| ------------------- | ------------------ | ------------- | --------- | -------------------------- |
-| **JapScan**         | japscan.si         | Custom        | 🔴 High   | Major French manga source  |
-| **Manga-Kawaii**    | mangakawaii.io     | Unknown       | 🔴 High   | Popular community site     |
-| **FlameScansFR**    | legacy-scans.com   | Unknown       | 🔴 High   | Active scanlation group    |
-| **Scan-VF**         | scan-vf.net        | Unknown       | 🔴 High   | Well-known French site     |
-| **AnimeSama**       | anime-sama.fr      | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
-| **AnteikuScan**     | anteikuscan.fr     | Unknown       | 🟡 Medium | Scanlation group           |
-| **BananaScan**      | harmony-scan.fr    | Unknown       | 🟡 Medium | Community source           |
-| **EdScanlation**    | edscanlation.fr    | Unknown       | 🟡 Medium | Scanlation team            |
-| **EnligneManga**    | enlignemanga.com   | Unknown       | 🟡 Medium | Online manga platform      |
-| **EpsilonScan**     | epsilonscan.to     | Unknown       | 🟡 Medium | Scanlation group           |
-| **FMTeam**          | fmteam.fr          | Unknown       | 🟡 Medium | French scanlation team     |
-| **FrManga**         | frmanga.com        | Unknown       | 🟡 Medium | French manga source        |
-| **FuryoSquad**      | furyosociety.com   | Unknown       | 🟡 Medium | Scanlation group           |
-| **InovaScanManga**  | inovascanmanga.com | Unknown       | 🟡 Medium | Scan community             |
-| **LelManga**        | lelmanga.com       | Unknown       | 🟡 Medium | Related to LelscanFR       |
-| **MangaHubFR**      | mangahub.fr        | Unknown       | 🟡 Medium | French manga hub           |
-| **MangasScans**     | mangas-scans.com   | Unknown       | 🟡 Medium | Manga scanning source      |
-| **PantheonScan**    | pantheon-scan.com  | Unknown       | 🟡 Medium | Scanlation group           |
-| **PerfScan**        | perf-scan.net      | Unknown       | 🟡 Medium | Quality-focused scans      |
-| **RaijinScans**     | raijinscan.co      | Unknown       | 🟡 Medium | Scanlation group           |
-| **RimuScans**       | rimuscans.com      | Unknown       | 🟡 Medium | Scanlation team            |
-| **RoyalManga**      | royalmanga.com     | Unknown       | 🟡 Medium | Premium manga source       |
-| **ScanTradUnion**   | scantrad-union.com | Unknown       | 🟡 Medium | Scanlation union           |
-| **ScanVFOrg**       | scanvf.org         | Unknown       | 🟡 Medium | VF scanning organization   |
-| **SoftEpsilonScan** | epsilonsoft.to     | Unknown       | 🟡 Medium | Related to EpsilonScan     |
-| **StarboundScans**  | starboundscans.com | Unknown       | 🟡 Medium | Scanlation group           |
-| **ToonFR**          | toonfr.com         | Unknown       | 🟡 Medium | French toon/webtoon source |
+| Source Name         | URL                                              | Expected Type | Priority  | Notes                      |
+| ------------------- | ------------------------------------------------ | ------------- | --------- | -------------------------- |
+| **JapScan**         | [japscan.si](https://japscan.si)                 | Custom        | 🔴 High   | Major French manga source  |
+| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🔴 High   | Popular community site     |
+| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🔴 High   | Active scanlation group    |
+| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🔴 High   | Well-known French site     |
+| **AnimeSama**       | [anime-sama.fr](https://anime-sama.fr)           | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
+| **AnteikuScan**     | [anteikuscan.fr](https://anteikuscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
+| **BananaScan**      | [harmony-scan.fr](https://harmony-scan.fr)       | Unknown       | 🟡 Medium | Community source           |
+| **EdScanlation**    | [edscanlation.fr](https://edscanlation.fr)       | Unknown       | 🟡 Medium | Scanlation team            |
+| **EnligneManga**    | [enlignemanga.com](https://enlignemanga.com)     | Unknown       | 🟡 Medium | Online manga platform      |
+| **EpsilonScan**     | [epsilonscan.to](https://epsilonscan.to)         | Unknown       | 🟡 Medium | Scanlation group           |
+| **FMTeam**          | [fmteam.fr](https://fmteam.fr)                   | Unknown       | 🟡 Medium | French scanlation team     |
+| **FrManga**         | [frmanga.com](https://frmanga.com)               | Unknown       | 🟡 Medium | French manga source        |
+| **FuryoSquad**      | [furyosociety.com](https://furyosociety.com)     | Unknown       | 🟡 Medium | Scanlation group           |
+| **InovaScanManga**  | [inovascanmanga.com](https://inovascanmanga.com) | Unknown       | 🟡 Medium | Scan community             |
+| **LelManga**        | [lelmanga.com](https://lelmanga.com)             | Unknown       | 🟡 Medium | Related to LelscanFR       |
+| **MangaHubFR**      | [mangahub.fr](https://mangahub.fr)               | Unknown       | 🟡 Medium | French manga hub           |
+| **MangasScans**     | [mangas-scans.com](https://mangas-scans.com)     | Unknown       | 🟡 Medium | Manga scanning source      |
+| **PantheonScan**    | [pantheon-scan.com](https://pantheon-scan.com)   | Unknown       | 🟡 Medium | Scanlation group           |
+| **PerfScan**        | [perf-scan.net](https://perf-scan.net)           | Unknown       | 🟡 Medium | Quality-focused scans      |
+| **RaijinScans**     | [raijinscan.co](https://raijinscan.co)           | Unknown       | 🟡 Medium | Scanlation group           |
+| **RimuScans**       | [rimuscans.com](https://rimuscans.com)           | Unknown       | 🟡 Medium | Scanlation team            |
+| **RoyalManga**      | [royalmanga.com](https://royalmanga.com)         | Unknown       | 🟡 Medium | Premium manga source       |
+| **ScanTradUnion**   | [scantrad-union.com](https://scantrad-union.com) | Unknown       | 🟡 Medium | Scanlation union           |
+| **ScanVFOrg**       | [scanvf.org](https://scanvf.org)                 | Unknown       | 🟡 Medium | VF scanning organization   |
+| **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
+| **StarboundScans**  | [starboundscans.com](https://starboundscans.com) | Unknown       | 🟡 Medium | Scanlation group           |
+| **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
 
 ## 🏗️ Implementation Guidelines
 
