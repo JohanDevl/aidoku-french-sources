@@ -96,70 +96,23 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 }
 
 pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
-	// Sur la page principale de détails, utiliser les bons sélecteurs
+	println!("AnimeSama debug: Starting parse_manga_details for manga_id: {}", manga_id);
 	
-	// Titre : h4 dans la section principale
-	let title = if !html.select("h4").text().read().is_empty() {
-		html.select("h4").text().read()
-	} else {
-		// Fallback avec h2 si h4 n'existe pas
-		if !html.select("h2").first().text().read().is_empty() {
-			html.select("h2").first().text().read()
-		} else {
-			String::from("Manga")
-		}
-	};
-	
-	// Cover : img avec alt contenant le titre
-	let cover = html.select("img[alt*='Blue Lock'], img[alt*='lock'], img[src*='blue-lock']").attr("src").read();
-	
-	// Description : le paragraphe le plus long (synopsis)
-	let mut description = String::new();
-	let paragraphs = html.select("p");
-	let mut longest_text = String::new();
-	
-	for paragraph in paragraphs.array() {
-		let paragraph = paragraph.as_node().unwrap();
-		let text = paragraph.text().read();
-		if text.len() > longest_text.len() && text.len() > 50 {
-			longest_text = text;
-		}
-	}
-	
-	description = if longest_text.is_empty() {
-		String::from("Description non disponible")
-	} else {
-		longest_text
-	};
-	
-	// Genres : texte après le h2 "Genres"
+	// ULTRA-SIMPLE: Valeurs de fallback pour éviter tout crash
+	let title = String::from("Test Manga");
+	let cover = String::from("https://anime-sama.fr/images/default-cover.jpg");
+	let description = String::from("Description de test pour debug");
 	let mut categories: Vec<String> = Vec::new();
-	let h2_elements = html.select("h2");
+	categories.push(String::from("Test"));
 	
-	for h2_element in h2_elements.array() {
-		let h2_element = h2_element.as_node().unwrap();
-		if h2_element.text().read() == "Genres" {
-			// Récupérer l'élément suivant qui contient les genres
-			let next_element = h2_element.select("+ *").first();
-			let genre_text = next_element.text().read();
-			if !genre_text.is_empty() {
-				categories = genre_text.split(',').map(|s| String::from(s.trim())).collect();
-				break;
-			}
-		}
-	}
-	
-	// Fallback pour les catégories
-	if categories.is_empty() {
-		categories.push(String::from("Manga"));
-	};
+	println!("AnimeSama debug: Created safe manga details - title: {}", title);
 	
 	Ok(Manga {
 		id: manga_id.clone(),
 		cover,
 		title,
-		author: String::new(),
-		artist: String::new(),
+		author: String::from("Test Author"),
+		artist: String::from("Test Artist"),
 		description,
 		url: format!("{}{}", String::from(BASE_URL), manga_id),
 		categories,

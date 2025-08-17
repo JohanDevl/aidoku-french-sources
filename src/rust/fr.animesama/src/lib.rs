@@ -68,9 +68,14 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_details]
 fn get_manga_details(manga_id: String) -> Result<Manga> {
+	println!("AnimeSama debug: get_manga_details CALLED - manga_id: {}", manga_id);
 	let url = format!("{}{}", String::from(BASE_URL), manga_id);
+	println!("AnimeSama debug: get_manga_details - URL: {}", url);
 	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_manga_details(manga_id, html)
+	println!("AnimeSama debug: get_manga_details - HTML request completed, calling parser");
+	let result = parser::parse_manga_details(manga_id, html);
+	println!("AnimeSama debug: get_manga_details - parser completed successfully");
+	result
 }
 
 #[get_chapter_list]
