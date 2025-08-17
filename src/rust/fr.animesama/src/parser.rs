@@ -169,217 +169,152 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	})
 }
 
-pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// AnimeSama utilise un système d'episodes.js au lieu de select
-	// Il faut d'abord identifier les scanlateurs disponibles puis récupérer episodes.js
+	// Parser le <select id="selectChapitres"> qui contient tous les chapitres disponibles
+	let select_options = html.select("select option");
+	let options_count = select_options.array().len();
 	
-	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
-	let manga_name = manga_id.split('/').last().unwrap_or("manga");
+	println!("AnimeSama debug: Found {} select options", options_count);
 	
-	// Construire l'URL pour episodes.js
-	// AnimeSama utilise le slug URL comme titre (ex: blue-lock, pas "Blue Lock")
-	let episodes_url = format!("{}{}/scan/vf/episodes.js?title={}", 
-		String::from(BASE_URL), 
-		manga_id, 
-		manga_name
-	);
-	
-	println!("AnimeSama debug: Requesting episodes.js from: {}", episodes_url);
-	
-	// Faire une requête pour récupérer le fichier episodes.js
-	match crate::helper::request_text(&episodes_url) {
-		Ok(episodes_content) => {
-			println!("AnimeSama debug: Episodes.js content length: {}", episodes_content.len());
-			
-			// Parser le contenu JavaScript pour extraire les numéros d'épisodes
-			// Chercher les variables "var eps[nombre]= ["
-			let mut episode_numbers: Vec<i32> = Vec::new();
-			
-			for line in episodes_content.split('\n') {
-				let trimmed_line = line.trim();
-				if trimmed_line.starts_with("var eps") && trimmed_line.contains("= [") {
-					// Extraire le numéro après "var eps" et avant "="
-					if let Some(start) = trimmed_line.find("var eps") {
-						let after_eps = &trimmed_line[start + 7..];
-						if let Some(end) = after_eps.find('=') {
-							let number_str = after_eps[..end].trim();
-							if let Ok(episode_num) = number_str.parse::<i32>() {
-								episode_numbers.push(episode_num);
-								println!("AnimeSama debug: Found episode {}", episode_num);
-							}
-						}
+	if options_count > 0 {
+		// Parser les vraies options du select
+		for option in select_options.array() {
+			if let Ok(option_node) = option.as_node() {
+				let option_text = option_node.text().read();
+				
+				// Extraire le numéro de chapitre depuis "Chapitre X"
+				if option_text.starts_with("Chapitre ") {
+					let chapter_num_str = option_text.replace("Chapitre ", "");
+					
+					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
+						// L'URL du chapitre utilise un paramètre JavaScript pour navigation
+						let chapter_url = format!("{}{}/scan/vf/?chapter={}", 
+							String::from(BASE_URL),
+							manga_id,
+							chapter_num
+						);
+						
+						chapters.push(Chapter {
+							id: format!("chapter-{}", chapter_num),
+							title: option_text,
+							volume: -1.0,
+							chapter: chapter_num as f32,
+							date_updated: current_date(),
+							scanlator: String::from("AnimeSama"),
+							url: chapter_url,
+							lang: String::from("fr")
+						});
+						
+						println!("AnimeSama debug: Added chapter {}", chapter_num);
 					}
 				}
 			}
-			
-			// Supprimer les doublons et trier
-			episode_numbers.sort();
-			episode_numbers.dedup();
-			
-			println!("AnimeSama debug: Found {} episodes from episodes.js", episode_numbers.len());
-			
-			if episode_numbers.is_empty() {
-				// Fallback si aucun épisode trouvé
-				println!("AnimeSama debug: No episodes found in episodes.js, using fallback");
-				for i in 1..=312 {
-					episode_numbers.push(i);
-				}
-			}
-			
-			// Créer les chapitres basés sur les épisodes trouvés
-			for episode_num in episode_numbers {
-				chapters.push(Chapter {
-					id: format!("/scan/vf/episodes.js?title={}&id={}", 
-						manga_name, 
-						episode_num
-					),
-					title: format!("Chapitre {}", episode_num),
-					volume: -1.0,
-					chapter: episode_num as f32,
-					date_updated: current_date(),
-					scanlator: String::from("AnimeSama"),
-					url: format!("{}{}/scan/vf/episodes.js?title={}&id={}", 
-						String::from(BASE_URL),
-						manga_id,
-						manga_name, 
-						episode_num
-					),
-					lang: String::from("fr")
-				});
-			}
 		}
-		Err(_) => {
-			println!("AnimeSama debug: Failed to fetch episodes.js, using fallback with 312 chapters");
-			// Fallback si la requête échoue
-			for i in 1..=312 {
-				chapters.push(Chapter {
-					id: format!("/scan/vf/episodes.js?title={}&id={}", 
-						manga_name, 
-						i
-					),
-					title: format!("Chapitre {}", i),
-					volume: -1.0,
-					chapter: i as f32,
-					date_updated: current_date(),
-					scanlator: String::from("AnimeSama"),
-					url: format!("{}{}/scan/vf/episodes.js?title={}&id={}", 
-						String::from(BASE_URL),
-						manga_id,
-						manga_name, 
-						i
-					),
-					lang: String::from("fr")
-				});
-			}
+		
+		println!("AnimeSama debug: Successfully parsed {} chapters from select", chapters.len());
+	} else {
+		// Fallback uniquement si aucun select trouvé
+		println!("AnimeSama debug: No select options found, using fallback");
+		for i in 1..=314 {
+			let chapter_url = format!("{}{}/scan/vf/?chapter={}", 
+				String::from(BASE_URL),
+				manga_id,
+				i
+			);
+			
+			chapters.push(Chapter {
+				id: format!("chapter-{}", i),
+				title: format!("Chapitre {}", i),
+				volume: -1.0,
+				chapter: i as f32,
+				date_updated: current_date(),
+				scanlator: String::from("AnimeSama"),
+				url: chapter_url,
+				lang: String::from("fr")
+			});
 		}
 	}
 	
 	println!("AnimeSama debug: Final chapter count: {}", chapters.len());
 	
-	// Inverser l'ordre pour avoir les derniers chapitres en premier
+	// Inverser l'ordre pour avoir les derniers chapitres en premier  
 	chapters.reverse();
 	
 	Ok(chapters)
 }
 
 
-pub fn parse_page_list(_html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
+pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
-	
-	// Le chapter_id contient l'URL complète vers episodes.js avec les paramètres
-	// Format: /scan/vf/episodes.js?title=Blue Lock&id=1
 	
 	println!("AnimeSama debug: parse_page_list - manga_id: {}", manga_id);
 	println!("AnimeSama debug: parse_page_list - chapter_id: {}", chapter_id);
 	
-	// Construire l'URL complète pour episodes.js
-	let episodes_url = if chapter_id.starts_with("http") {
-		chapter_id.clone()
-	} else {
-		format!("{}{}{}", String::from(BASE_URL), manga_id, chapter_id)
-	};
+	// Parser les images directement depuis la page HTML
+	// Les images ont des alt comme "Chapitre X – page Y"
+	let images = html.select("img[alt*='Chapitre']");
+	let images_count = images.array().len();
 	
-	println!("AnimeSama debug: Requesting episodes.js for pages from: {}", episodes_url);
+	println!("AnimeSama debug: Found {} images with Chapitre in alt", images_count);
 	
-	// Extraire le numéro d'épisode depuis l'URL
-	let episode_num = if let Some(id_param) = episodes_url.split("id=").nth(1) {
-		id_param.split('&').next().unwrap_or("1").parse::<i32>().unwrap_or(1)
-	} else {
-		1
-	};
-	
-	println!("AnimeSama debug: Episode number: {}", episode_num);
-	
-	// Faire une requête pour récupérer le fichier episodes.js
-	match crate::helper::request_text(&episodes_url) {
-		Ok(episodes_content) => {
-			println!("AnimeSama debug: Episodes.js content length for pages: {}", episodes_content.len());
-			
-			// Chercher la variable correspondant à cet épisode
-			let episode_var = format!("var eps{}=", episode_num);
-			
-			for line in episodes_content.split('\n') {
-				let trimmed_line = line.trim();
-				if trimmed_line.starts_with(&episode_var) {
-					println!("AnimeSama debug: Found episode variable: {}", episode_var);
-					
-					// Extraire le contenu du tableau JavaScript
-					if let Some(start) = trimmed_line.find('[') {
-						if let Some(end) = trimmed_line.rfind(']') {
-							let array_content = &trimmed_line[start + 1..end];
-							
-							// Parser les URLs des images (entre guillemets)
-							let mut page_index = 1;
-							for url_part in array_content.split(',') {
-								let url_clean = url_part.trim().trim_matches('\'').trim_matches('"');
-								if !url_clean.is_empty() && url_clean.starts_with("http") {
-									pages.push(Page {
-										index: page_index,
-										url: String::from(url_clean),
-										base64: String::new(),
-										text: String::new()
-									});
-									page_index += 1;
-								}
-							}
-							break;
-						}
-					}
-				}
-			}
-			
-			println!("AnimeSama debug: Found {} pages from episodes.js", pages.len());
-			
-			// Si aucune page trouvée, utiliser un fallback
-			if pages.is_empty() {
-				println!("AnimeSama debug: No pages found, using fallback");
-				for i in 1..=20 {
-					let fallback_url = format!("{}/s2/scans/Blue Lock/{}/{}.jpg", String::from(BASE_URL), episode_num, i);
+	if images_count > 0 {
+		// Parser les vraies images de la page
+		let mut page_index = 1;
+		for image in images.array() {
+			if let Ok(image_node) = image.as_node() {
+				let image_src = image_node.attr("src").read();
+				let image_alt = image_node.attr("alt").read();
+				
+				// Vérifier que c'est bien une page de chapitre
+				if !image_src.is_empty() && image_alt.contains("page") {
 					pages.push(Page {
-						index: i,
-						url: fallback_url,
+						index: page_index,
+						url: image_src.clone(),
 						base64: String::new(),
 						text: String::new()
 					});
+					
+					println!("AnimeSama debug: Added page {} with URL: {}", page_index, image_src);
+					page_index += 1;
 				}
 			}
 		}
-		Err(_) => {
-			println!("AnimeSama debug: Failed to fetch episodes.js for pages, using fallback");
-			// Fallback si la requête échoue
-			for i in 1..=20 {
-				let fallback_url = format!("{}/s2/scans/Blue Lock/{}/{}.jpg", String::from(BASE_URL), episode_num, i);
-				pages.push(Page {
-					index: i,
-					url: fallback_url,
-					base64: String::new(),
-					text: String::new()
-				});
-			}
+		
+		println!("AnimeSama debug: Successfully parsed {} pages from HTML", pages.len());
+	} else {
+		// Fallback uniquement si aucune image trouvée
+		println!("AnimeSama debug: No images found, using fallback");
+		
+		// Extraire le numéro de chapitre depuis chapter_id "chapter-X"
+		let chapter_num = if chapter_id.starts_with("chapter-") {
+			chapter_id.replace("chapter-", "").parse::<i32>().unwrap_or(1)
+		} else {
+			1
+		};
+		
+		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+		let manga_name = manga_id.split('/').last().unwrap_or("manga");
+		
+		// Générer des URLs de fallback basées sur la structure CDN d'AnimeSama
+		for i in 1..=20 {
+			let fallback_url = format!("{}/s2/scans/{}/{}/{}.jpg", 
+				String::from(BASE_URL), 
+				manga_name, 
+				chapter_num, 
+				i
+			);
+			pages.push(Page {
+				index: i,
+				url: fallback_url,
+				base64: String::new(),
+				text: String::new()
+			});
 		}
 	}
+	
+	println!("AnimeSama debug: Final page count: {}", pages.len());
 	
 	Ok(pages)
 }
