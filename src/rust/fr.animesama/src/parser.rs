@@ -96,61 +96,67 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 }
 
 pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
-	let title = html.select("#titreOeuvre").text().read();
+	// Extraire titre avec valeur par défaut
+	let title = if !html.select("#titreOeuvre").text().read().is_empty() {
+		html.select("#titreOeuvre").text().read()
+	} else {
+		String::from("Manga")
+	};
+	
 	let cover = html.select("#coverOeuvre").attr("src").read();
 	
-	// Approche robuste pour extraire description et genres
+	// Essayer plusieurs méthodes pour la description
 	let mut description = String::new();
+	
+	// Méthode 1: Tous les paragraphes dans sousBlocMiddle
+	let paragraphs = html.select("#sousBlocMiddle p");
+	if paragraphs.array().len() > 0 {
+		description = paragraphs.first().text().read();
+	}
+	
+	// Méthode 2: Si vide, chercher dans tout sousBlocMiddle
+	if description.is_empty() {
+		let all_text = html.select("#sousBlocMiddle").text().read();
+		if all_text.len() > 100 { // Si il y a du contenu substantiel
+			// Extraire une partie qui semble être une description
+			let words: Vec<&str> = all_text.split_whitespace().collect();
+			if words.len() > 10 {
+				description = words[..50.min(words.len())].join(" ");
+			}
+		}
+	}
+	
+	// Valeur par défaut si toujours vide
+	if description.is_empty() {
+		description = String::from("Description non disponible");
+	}
+	
+	// Essayer plusieurs méthodes pour les genres
 	let mut genre_text = String::new();
 	
-	// Parcourir tous les h2 dans sousBlocMiddle pour trouver Synopsis et Genres
-	for h2 in html.select("#sousBlocMiddle h2").array() {
-		let h2_node = match h2.as_node() {
-			Ok(node) => node,
-			Err(_) => continue,
-		};
-		
-		let h2_text = h2_node.text().read();
-		
-		if h2_text.contains("Synopsis") {
-			// Chercher le paragraphe suivant
-			let mut current = h2_node;
-			if let Some(next_sibling) = current.next() {
-				if next_sibling.select("p").array().len() > 0 || next_sibling.tag_name().read() == "p" {
-					description = next_sibling.text().read();
-					break;
-				}
-				current = next_sibling;
-			} else {
-				break;
-			}
-		} else if h2_text.contains("Genres") {
-			// Chercher l'élément suivant contenant les genres
-			let mut current = h2_node;
-			if let Some(next_sibling) = current.next() {
-				let sibling_text = next_sibling.text().read();
-				if !sibling_text.is_empty() && sibling_text.contains(",") {
-					genre_text = sibling_text;
-					break;
-				}
-				current = next_sibling;
-			} else {
+	// Méthode 1: Tous les liens dans sousBlocMiddle
+	let links = html.select("#sousBlocMiddle a");
+	if links.array().len() > 0 {
+		genre_text = links.first().text().read();
+	}
+	
+	// Méthode 2: Chercher du texte contenant des virgules (probablement des genres)
+	if genre_text.is_empty() {
+		let all_text = html.select("#sousBlocMiddle").text().read();
+		let lines: Vec<&str> = all_text.split('\n').collect();
+		for line in lines {
+			if line.contains(',') && line.len() < 200 && line.len() > 5 {
+				genre_text = String::from(line.trim());
 				break;
 			}
 		}
 	}
 	
-	// Si la méthode robuste échoue, essayer les sélecteurs simples
-	if description.is_empty() {
-		description = html.select("#sousBlocMiddle p").first().text().read();
-	}
-	if genre_text.is_empty() {
-		genre_text = html.select("#sousBlocMiddle a").first().text().read();
-	}
-	
 	// Convertir les genres en Vec<String>
 	let categories: Vec<String> = if genre_text.is_empty() {
-		Vec::new()
+		let mut default_cats = Vec::new();
+		default_cats.push(String::from("Manga"));
+		default_cats
 	} else {
 		genre_text.split(',').map(|s| String::from(s.trim())).collect()
 	};
@@ -189,7 +195,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 			chapter: i as f32,
 			date_updated: current_date(),
 			scanlator: String::from("AnimeSama"),
-			url: format!("/catalogue/{}/scan/vf/chapitre-{}", manga_id, i),
+			url: format!("{}/scan/vf/chapitre-{}", manga_id, i),
 			lang: String::from("fr")
 		});
 	}
@@ -204,13 +210,16 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 pub fn parse_page_list(_html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
+	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+	let manga_name = manga_id.split('/').last().unwrap_or("manga");
+	
 	// Extraire le numéro de chapitre depuis l'ID
 	let chapter_num = chapter_id.replace("chapitre-", "");
 	
 	// Générer une liste de pages basique
-	// Utiliser le pattern observé d'AnimeSama: /s2/scans/{manga}/{chapter}/{page}.jpg
+	// Utiliser le pattern observé d'AnimeSama: {CDN_URL}{manga_name}/{chapter}/{page}.jpg
 	for i in 1..=20 {
-		let image_url = format!("{}{}/{}/{}.jpg", String::from(CDN_URL), manga_id, chapter_num, i);
+		let image_url = format!("{}{}/{}/{}.jpg", String::from(CDN_URL), manga_name, chapter_num, i);
 		pages.push(Page {
 			index: i,
 			url: image_url,
