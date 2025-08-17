@@ -6,7 +6,7 @@ use aidoku::{
 		net::{Request,HttpMethod},
 		String, Vec
 	},
-	Filter, FilterType, Listing, Manga, MangaPageResult, Page, Chapter
+	Filter, FilterType, Listing, Manga, MangaPageResult, MangaStatus, Page, Chapter
 };
 
 mod parser;
@@ -18,12 +18,24 @@ pub static API_URL: &str = "https://poseidonscans.com/api";
 #[get_manga_list]
 fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 	let mut search_query = String::new();
+	let mut status_filter: Option<MangaStatus> = None;
 	
 	for filter in filters {
 		match filter.kind {
 			FilterType::Title => {
 				if let Ok(value) = filter.value.as_string() {
 					search_query = value.read();
+				}
+			}
+			FilterType::Select => {
+				if filter.name == "Status" {
+					let index = filter.value.as_int().unwrap_or(-1);
+					match index {
+						1 => status_filter = Some(MangaStatus::Ongoing),
+						2 => status_filter = Some(MangaStatus::Completed),
+						3 => status_filter = Some(MangaStatus::Hiatus),
+						_ => status_filter = None,
+					}
 				}
 			}
 			_ => continue,
@@ -33,7 +45,7 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 	// Use API endpoint for browsing all manga with pagination simulation
 	let url = format!("{}/manga/all", String::from(API_URL));
 	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-	parser::parse_manga_list(json, search_query, page)
+	parser::parse_manga_list(json, search_query, status_filter, page)
 }
 
 #[get_manga_listing]

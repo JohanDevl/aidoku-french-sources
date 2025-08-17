@@ -1717,7 +1717,7 @@ pub fn parse_popular_manga(json: ObjectRef) -> Result<MangaPageResult> {
 }
 
 // Parse manga list from /api/manga/all API response with search and pagination
-pub fn parse_manga_list(json: ObjectRef, search_query: String, page: i32) -> Result<MangaPageResult> {
+pub fn parse_manga_list(json: ObjectRef, search_query: String, status_filter: Option<MangaStatus>, page: i32) -> Result<MangaPageResult> {
 	let mut all_mangas: Vec<Manga> = Vec::new();
 	let query_lower = search_query.to_lowercase();
 
@@ -1750,6 +1750,21 @@ pub fn parse_manga_list(json: ObjectRef, search_query: String, page: i32) -> Res
 				}
 			}
 
+			// Extract status if available
+			let status = if let Ok(status_str) = manga.get("status").as_string() {
+				let status_text = status_str.read();
+				parse_manga_status(&status_text)
+			} else {
+				MangaStatus::Unknown
+			};
+
+			// Apply status filter if specified
+			if let Some(filter_status) = status_filter {
+				if status != filter_status {
+					continue; // Skip this manga if it doesn't match the status filter
+				}
+			}
+
 			let manga_item = Manga {
 				id: slug.clone(),
 				cover,
@@ -1759,7 +1774,7 @@ pub fn parse_manga_list(json: ObjectRef, search_query: String, page: i32) -> Res
 				description: description.clone(),
 				url: String::new(),
 				categories,
-				status: MangaStatus::Unknown,
+				status,
 				nsfw: MangaContentRating::Safe,
 				viewer: MangaViewer::Scroll
 			};
