@@ -1040,7 +1040,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 		}
 	}
 	
-	// Extract dates from HTML for all chapters (force HTML date extraction)
+	// FORCE HTML date extraction for all chapters - ignore JSON dates completely
 	extract_chapter_dates_from_html(&html, &mut chapters);
 	
 	// Sort chapters by number in descending order (latest first)
@@ -1123,38 +1123,41 @@ fn parse_chapter_list_from_jsonld(manga_id: String, html: Node) -> Result<Vec<Ch
 
 // Extract chapter dates from HTML and associate them with chapters
 fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
-	// Find all chapter links directly
-	let chapter_links = html.select("a[href*='/chapter/']").array();
+	// Find all chapter links directly - try multiple selectors for robustness
+	let link_selectors = [
+		"a[href*='/chapter/']",       // Standard chapter links
+		"a[href*='chapter']",         // Alternative chapter links
+		".chapter-item a",            // Styled chapter items
+		"*[href*='/chapter/']"        // Any element with chapter href
+	];
 	
-	// Process each chapter link to extract its date
-	for chapter_link in chapter_links {
-		if let Ok(link_node) = chapter_link.as_node() {
-			let href = link_node.attr("href").read();
-			
-			// Extract chapter number from URL
-			if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
-				// Look for date within this specific chapter link
-				let date_selectors = [
-					"div",                        // Any div within the link
-					"span",                       // Any span within the link  
-					"*",                          // Any element that might contain the date
-				];
+	for link_selector in &link_selectors {
+		let chapter_links = html.select(link_selector).array();
+		
+		// Process each chapter link to extract its date
+		for chapter_link in chapter_links {
+			if let Ok(link_node) = chapter_link.as_node() {
+				let href = link_node.attr("href").read();
 				
-				let mut found_date = false;
-				for date_selector in &date_selectors {
-					for date_element in link_node.select(date_selector).array() {
+				// Extract chapter number from URL
+				if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
+					// Look for date within this specific chapter link with broader search
+					let date_elements = link_node.select("*").array();
+					
+					let mut found_date = false;
+					for date_element in date_elements {
 						if let Ok(date_node) = date_element.as_node() {
 							let date_text_raw = date_node.text().read();
 							let date_text = date_text_raw.trim();
 							
-							// Validate if this looks like a relative date
+							// Enhanced validation for relative dates
 							if !date_text.is_empty() && is_relative_date(date_text) {
 								// Convert to timestamp
 								let timestamp = parse_relative_date(date_text);
 								
 								// Find matching chapter in our list and update its date
 								for chapter in chapters.iter_mut() {
-									if chapter.chapter == chapter_number {
+									if (chapter.chapter - chapter_number).abs() < 0.1 {  // Float comparison
 										chapter.date_updated = timestamp as f64;
 										found_date = true;
 										break;
@@ -1167,8 +1170,9 @@ fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
 							}
 						}
 					}
+					
 					if found_date {
-						break;
+						break; // Found date for this chapter, move to next
 					}
 				}
 			}
@@ -1195,29 +1199,47 @@ fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
 	None
 }
 
-// Enhanced detection of relative date strings
+// Enhanced detection of relative date strings - optimized for PoseidonScans patterns
 fn is_relative_date(text: &str) -> bool {
-	if text.is_empty() || text.len() < 3 {
+	if text.is_empty() || text.len() < 2 {
 		return false;
 	}
 	
-	let text_lower = text.to_lowercase();
+	let text_lower = String::from(text.to_lowercase().trim());
 	
-	// Check for French relative time patterns
-	text_lower.contains("minute") || text_lower.contains("min") ||
-	text_lower.contains("heure") || text_lower.contains("hr") ||
-	text_lower.contains("jour") || text_lower.contains("day") ||
-	text_lower.contains("semaine") || text_lower.contains("week") ||
-	text_lower.contains("mois") || text_lower.contains("month") ||
-	text_lower.contains("an") || text_lower.contains("année") ||
-	text_lower.contains("aujourd'hui") || text_lower.contains("hier") ||
-	text_lower.contains("demain") || text_lower.contains("maintenant") ||
-	// Additional patterns seen on the site
-	text_lower.contains("il y a") ||
-	// Numeric patterns with time units (e.g., "22 jours", "1 mois")
-	(text_lower.chars().any(|c| c.is_ascii_digit()) && 
-	 (text_lower.contains("jour") || text_lower.contains("mois") || 
-	  text_lower.contains("heure") || text_lower.contains("semaine")))
+	// Specific patterns seen on PoseidonScans: "22 jours", "1 mois", "3 mois"
+	let exact_patterns = [
+		// Number + time unit patterns
+		"jour", "jours", "day", "days",
+		"mois", "month", "months", 
+		"semaine", "semaines", "week", "weeks",
+		"heure", "heures", "hour", "hours",
+		"minute", "minutes", "min", "mins",
+		"an", "ans", "année", "années", "year", "years"
+	];
+	
+	// Check if text contains digits AND time units (most reliable pattern)
+	let has_digit = text_lower.chars().any(|c| c.is_ascii_digit());
+	let has_time_unit = exact_patterns.iter().any(|&pattern| text_lower.contains(pattern));
+	
+	if has_digit && has_time_unit {
+		return true;
+	}
+	
+	// Special cases
+	if text_lower.contains("aujourd'hui") || text_lower.contains("hier") || 
+	   text_lower.contains("demain") || text_lower.contains("maintenant") ||
+	   text_lower.contains("il y a") {
+		return true;
+	}
+	
+	// Exact patterns that should match (common on the site)
+	let exact_matches = [
+		"1 jour", "1 mois", "2 mois", "3 mois", "4 mois", "5 mois", "6 mois",
+		"22 jours", "1 semaine", "2 semaines", "3 semaines"
+	];
+	
+	exact_matches.iter().any(|&pattern| text_lower == pattern || text_lower.contains(pattern))
 }
 
 // Convert relative date strings to timestamps with enhanced parsing
@@ -1225,7 +1247,7 @@ fn parse_relative_date(date_str: &str) -> i64 {
 	use aidoku::std::current_date;
 	
 	let current_time = current_date();
-	let date_lower = date_str.to_lowercase();
+	let date_lower = String::from(date_str.to_lowercase().trim());
 	
 	// Handle special cases first
 	if date_lower.contains("aujourd'hui") || date_lower.contains("maintenant") {
@@ -1243,8 +1265,10 @@ fn parse_relative_date(date_str: &str) -> i64 {
 	for word in date_lower.split_whitespace() {
 		// Try to parse number, handle various formats
 		if let Ok(n) = word.parse::<i32>() {
-			number = n;
-			break;
+			if n > 0 && n < 1000 { // Reasonable bounds
+				number = n;
+				break;
+			}
 		}
 		// Handle written numbers (un, une, deux, etc.)
 		match word {
@@ -1262,27 +1286,29 @@ fn parse_relative_date(date_str: &str) -> i64 {
 		}
 	}
 	
-	// Calculate seconds to subtract based on unit with more accurate conversions
+	// Calculate seconds to subtract based on unit with precise conversions
 	let seconds_to_subtract = if date_lower.contains("minute") || date_lower.contains("min") {
-		number * 60
-	} else if date_lower.contains("heure") || date_lower.contains("hr") {
-		number * 3600
+		number as i64 * 60
+	} else if date_lower.contains("heure") || date_lower.contains("hour") {
+		number as i64 * 3600
 	} else if date_lower.contains("jour") || date_lower.contains("day") {
-		number * 86400
+		number as i64 * 86400  // 24 hours
 	} else if date_lower.contains("semaine") || date_lower.contains("week") {
-		number * 604800 // 7 days
+		number as i64 * 604800  // 7 days 
 	} else if date_lower.contains("mois") || date_lower.contains("month") {
-		number * 2629746 // 30.44 days (more accurate month)
+		number as i64 * 2629746  // 30.44 days (average month)
 	} else if date_lower.contains("an") || date_lower.contains("année") || date_lower.contains("year") {
-		number * 31556952 // 365.25 days (accounting for leap years)
+		number as i64 * 31556952  // 365.25 days (accounting for leap years)
 	} else {
 		0
 	};
 	
-	// Return timestamp, ensuring it's not negative
+	// Calculate final timestamp (current time - duration)
 	let result_time = current_time - seconds_to_subtract as f64;
-	if result_time < 0.0 {
-		current_time as i64
+	
+	// Ensure result is reasonable (not negative, not too far in past)
+	if result_time < 0.0 || result_time < (current_time - 31556952.0 * 10.0) { // Max 10 years ago
+		0  // Invalid date
 	} else {
 		result_time as i64
 	}
