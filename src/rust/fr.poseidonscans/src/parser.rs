@@ -1015,13 +1015,9 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 				format!("Chapter {}", chapter_number)
 			};
 			
-			// Extract creation date from JSON (like Kotlin extension)
-			let date_updated = if let Ok(created_at) = chapter_obj.get("createdAt").as_string() {
-				let date_str = created_at.read();
-				parse_iso_date(&date_str) as f64
-			} else {
-				0.0 // No date available
-			};
+			// NOTE: Disabled JSON date extraction due to incorrect dates
+			// Force HTML date extraction for accurate relative dates
+			let date_updated = 0.0; // Will be extracted from HTML later
 			
 			// Build chapter URL
 			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
@@ -1043,6 +1039,9 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 			});
 		}
 	}
+	
+	// Extract dates from HTML for all chapters (force HTML date extraction)
+	extract_chapter_dates_from_html(&html, &mut chapters);
 	
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
