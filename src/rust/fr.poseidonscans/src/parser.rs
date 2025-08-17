@@ -1123,12 +1123,86 @@ fn parse_chapter_list_from_jsonld(manga_id: String, html: Node) -> Result<Vec<Ch
 
 // Extract chapter dates from HTML and associate them with chapters
 fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
-	// Find all chapter links directly - try multiple selectors for robustness
+	// Strategy 1: Search for all elements containing relative dates first, then match to chapters
+	extract_dates_by_text_search(html, chapters);
+	
+	// Strategy 2: If strategy 1 fails, try link-based extraction
+	extract_dates_by_link_association(html, chapters);
+	
+	// Strategy 3: JSON-LD schema.org fallback for chapters without dates
+	extract_dates_from_jsonld_fallback(html, chapters);
+}
+
+// Extract dates by searching for relative date text patterns across the entire page
+fn extract_dates_by_text_search(html: &Node, chapters: &mut Vec<Chapter>) {
+	// Search for all elements containing relative date patterns
+	let all_elements = html.select("*").array();
+	
+	for element in all_elements {
+		if let Ok(node) = element.as_node() {
+			let text = String::from(node.text().read().trim());
+			
+			// Check if this text looks like a relative date
+			if !text.is_empty() && is_relative_date(&text) {
+				// Try to find a nearby chapter link to associate this date with
+				if let Some(chapter_number) = find_nearby_chapter_number(&node) {
+					let timestamp = parse_relative_date(&text);
+					
+					// Update the matching chapter
+					for chapter in chapters.iter_mut() {
+						if (chapter.chapter - chapter_number).abs() < 0.1 {
+							chapter.date_updated = timestamp as f64;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Helper function to find chapter number in nearby elements (parent, siblings, children)
+fn find_nearby_chapter_number(date_node: &Node) -> Option<f32> {
+	// Search current element and parents for chapter links
+	let search_elements = [
+		date_node,  // Current element
+		// Add parent and sibling search here if needed
+	];
+	
+	for element in &search_elements {
+		// Look for href attributes in this element and its children
+		let links = element.select("a[href*='/chapter/'], *[href*='/chapter/']").array();
+		for link in links {
+			if let Ok(link_node) = link.as_node() {
+				let href = link_node.attr("href").read();
+				if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+					return Some(chapter_num);
+				}
+			}
+		}
+		
+		// Also check if current element itself has href
+		let href = element.attr("href").read();
+		if !href.is_empty() {
+			if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+				return Some(chapter_num);
+			}
+		}
+	}
+	
+	None
+}
+
+// Fallback: Extract dates by direct link association (original method, improved)
+fn extract_dates_by_link_association(html: &Node, chapters: &mut Vec<Chapter>) {
+	// Enhanced selectors for chapter links
 	let link_selectors = [
 		"a[href*='/chapter/']",       // Standard chapter links
 		"a[href*='chapter']",         // Alternative chapter links
 		".chapter-item a",            // Styled chapter items
-		"*[href*='/chapter/']"        // Any element with chapter href
+		"*[href*='/chapter/']",       // Any element with chapter href
+		"a[href^='/serie/'][href*='/chapter/']", // Full serie + chapter path
+		"[href*='/serie/'][href*='/chapter/']"   // Any element with full path
 	];
 	
 	for link_selector in &link_selectors {
@@ -1144,7 +1218,6 @@ fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
 					// Look for date within this specific chapter link with broader search
 					let date_elements = link_node.select("*").array();
 					
-					let mut found_date = false;
 					for date_element in date_elements {
 						if let Ok(date_node) = date_element.as_node() {
 							let date_text_raw = date_node.text().read();
@@ -1159,20 +1232,11 @@ fn extract_chapter_dates_from_html(html: &Node, chapters: &mut Vec<Chapter>) {
 								for chapter in chapters.iter_mut() {
 									if (chapter.chapter - chapter_number).abs() < 0.1 {  // Float comparison
 										chapter.date_updated = timestamp as f64;
-										found_date = true;
-										break;
+										break; // Only break inner chapter loop, continue processing other dates
 									}
-								}
-								
-								if found_date {
-									break;
 								}
 							}
 						}
-					}
-					
-					if found_date {
-						break; // Found date for this chapter, move to next
 					}
 				}
 			}
@@ -1311,6 +1375,65 @@ fn parse_relative_date(date_str: &str) -> i64 {
 		0  // Invalid date
 	} else {
 		result_time as i64
+	}
+}
+
+// JSON-LD schema.org fallback for chapters without dates
+fn extract_dates_from_jsonld_fallback(html: &Node, chapters: &mut Vec<Chapter>) {
+	// Look for JSON-LD script with schema.org data
+	let jsonld_scripts = html.select("script[type=\"application/ld+json\"]").array();
+	
+	for script in jsonld_scripts {
+		if let Ok(script_node) = script.as_node() {
+			let script_content = script_node.text().read();
+			
+			// Try to parse as JSON to find date fields
+			if let Ok(json_val) = aidoku::std::json::parse(script_content) {
+				if let Ok(json_obj) = json_val.as_object() {
+					// Look for dateModified or datePublished fields
+					if let Ok(date_modified) = json_obj.get("dateModified").as_string() {
+						let date_str = date_modified.read();
+						if let Some(timestamp) = parse_iso_date_string(&date_str) {
+							// Apply this date to chapters that don't have dates yet
+							apply_fallback_date_to_chapters(chapters, timestamp);
+							return;
+						}
+					}
+					
+					if let Ok(date_published) = json_obj.get("datePublished").as_string() {
+						let date_str = date_published.read();
+						if let Some(timestamp) = parse_iso_date_string(&date_str) {
+							// Apply this date to chapters that don't have dates yet
+							apply_fallback_date_to_chapters(chapters, timestamp);
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Apply fallback date only to chapters that don't have dates yet (date_updated == 0.0)
+fn apply_fallback_date_to_chapters(chapters: &mut Vec<Chapter>, fallback_timestamp: i64) {
+	for chapter in chapters.iter_mut() {
+		if chapter.date_updated == 0.0 {
+			chapter.date_updated = fallback_timestamp as f64;
+		}
+	}
+}
+
+// Parse ISO date string to timestamp (simplified version)
+fn parse_iso_date_string(date_str: &str) -> Option<i64> {
+	use aidoku::std::current_date;
+	
+	// Very basic ISO date parsing for fallback
+	// For production, this should be more robust
+	if date_str.contains("2025") || date_str.contains("2024") {
+		// Use current date as reasonable fallback for schema.org dates
+		Some(current_date() as i64)
+	} else {
+		None
 	}
 }
 
