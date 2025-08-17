@@ -6,7 +6,7 @@ use aidoku::{
 		net::{Request, HttpMethod},
 		String, Vec
 	},
-	Filter, FilterType, Listing, Manga, MangaPageResult, MangaStatus, Page, Chapter
+	Filter, FilterType, Listing, Manga, MangaPageResult, Page, Chapter
 };
 
 mod parser;
@@ -17,7 +17,7 @@ pub static CDN_URL: &str = "https://anime-sama.fr/s2/scans";
 
 #[get_manga_list]
 fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
-	let mut query = String::new();
+	let _query = String::new();
 	let mut genres_query: Vec<String> = Vec::new();
 	let mut search_query = String::new();
 	

@@ -65,8 +65,37 @@ pub fn clean_text(text: &str) -> String {
 		.replace("  ", " "))
 }
 
-pub fn parse_date_string(date_str: &str) -> f64 {
+pub fn parse_date_string(_date_str: &str) -> f64 {
 	// Pour l'instant, retourner la date actuelle
 	// Une implémentation plus sophistiquée serait nécessaire pour parser les dates françaises
 	current_date()
+}
+
+pub fn urldecode(text: &str) -> String {
+	let mut result = String::new();
+	let mut chars = text.chars();
+	
+	while let Some(ch) = chars.next() {
+		match ch {
+			'%' => {
+				// Récupérer les deux caractères suivants
+				if let (Some(c1), Some(c2)) = (chars.next(), chars.next()) {
+					if let Ok(byte) = u8::from_str_radix(&format!("{}{}", c1, c2), 16) {
+						result.push(byte as char);
+					} else {
+						// Si le décodage échoue, garder les caractères originaux
+						result.push('%');
+						result.push(c1);
+						result.push(c2);
+					}
+				} else {
+					result.push('%');
+				}
+			}
+			'+' => result.push(' '),
+			_ => result.push(ch),
+		}
+	}
+	
+	result
 }
