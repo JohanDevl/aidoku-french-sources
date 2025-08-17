@@ -75,7 +75,8 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	let url = format!("{}{}", String::from(BASE_URL), manga_id);
+	// Utiliser la page de lecture pour récupérer la liste des chapitres
+	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
 	let html = Request::new(url, HttpMethod::Get).html()?;
 	parser::parse_chapter_list(manga_id, html)
 }
