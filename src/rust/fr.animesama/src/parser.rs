@@ -189,16 +189,15 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 					let chapter_num_str = option_text.replace("Chapitre ", "");
 					
 					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
-						// L'URL du chapitre utilise un paramètre JavaScript pour navigation
-						let chapter_url = format!("{}{}/scan/vf/?chapter={}", 
+						// L'URL de base reste la même, c'est le JavaScript qui gère la navigation
+						let chapter_url = format!("{}{}/scan/vf/", 
 							String::from(BASE_URL),
-							manga_id,
-							chapter_num
+							manga_id
 						);
 						
 						chapters.push(Chapter {
-							id: format!("chapter-{}", chapter_num),
-							title: option_text,
+							id: chapter_num_str.clone(),
+							title: String::from(""),  // Vide comme LelscanFR !
 							volume: -1.0,
 							chapter: chapter_num as f32,
 							date_updated: current_date(),
@@ -218,15 +217,14 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 		// Fallback uniquement si aucun select trouvé
 		println!("AnimeSama debug: No select options found, using fallback");
 		for i in 1..=314 {
-			let chapter_url = format!("{}{}/scan/vf/?chapter={}", 
+			let chapter_url = format!("{}{}/scan/vf/", 
 				String::from(BASE_URL),
-				manga_id,
-				i
+				manga_id
 			);
 			
 			chapters.push(Chapter {
-				id: format!("chapter-{}", i),
-				title: format!("Chapitre {}", i),
+				id: format!("{}", i),  // ID simple comme LelscanFR
+				title: String::from(""),  // Vide comme LelscanFR !
 				volume: -1.0,
 				chapter: i as f32,
 				date_updated: current_date(),
@@ -287,12 +285,8 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		// Fallback uniquement si aucune image trouvée
 		println!("AnimeSama debug: No images found, using fallback");
 		
-		// Extraire le numéro de chapitre depuis chapter_id "chapter-X"
-		let chapter_num = if chapter_id.starts_with("chapter-") {
-			chapter_id.replace("chapter-", "").parse::<i32>().unwrap_or(1)
-		} else {
-			1
-		};
+		// Extraire le numéro de chapitre depuis chapter_id (maintenant c'est juste le numéro)
+		let chapter_num = chapter_id.parse::<i32>().unwrap_or(1);
 		
 		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
 		let manga_name = manga_id.split('/').last().unwrap_or("manga");
