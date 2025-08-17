@@ -169,75 +169,32 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	})
 }
 
-pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(_manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Parser le <select id="selectChapitres"> qui contient tous les chapitres disponibles
-	let select_options = html.select("select option");
-	let options_count = select_options.array().len();
+	// TEST : 10 chapitres fake pour vérifier l'affichage dans Aidoku
+	println!("AnimeSama debug: Creating 10 fake chapters for testing");
 	
-	println!("AnimeSama debug: Found {} select options", options_count);
-	
-	if options_count > 0 {
-		// Parser les vraies options du select
-		for option in select_options.array() {
-			if let Ok(option_node) = option.as_node() {
-				let option_text = option_node.text().read();
-				
-				// Extraire le numéro de chapitre depuis "Chapitre X"
-				if option_text.starts_with("Chapitre ") {
-					let chapter_num_str = option_text.replace("Chapitre ", "");
-					
-					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
-						// L'URL de base reste la même, c'est le JavaScript qui gère la navigation
-						let chapter_url = format!("{}{}/scan/vf/", 
-							String::from(BASE_URL),
-							manga_id
-						);
-						
-						chapters.push(Chapter {
-							id: chapter_num_str.clone(),
-							title: String::from(""),  // Vide comme LelscanFR !
-							volume: -1.0,
-							chapter: chapter_num as f32,
-							date_updated: current_date(),
-							scanlator: String::from("AnimeSama"),
-							url: chapter_url,
-							lang: String::from("fr")
-						});
-						
-						println!("AnimeSama debug: Added chapter {}", chapter_num);
-					}
-				}
-			}
-		}
+	for i in 1..=10 {
+		let chapter_url = format!("{}/catalogue/blue-lock/scan/vf/", String::from(BASE_URL));
 		
-		println!("AnimeSama debug: Successfully parsed {} chapters from select", chapters.len());
-	} else {
-		// Fallback uniquement si aucun select trouvé
-		println!("AnimeSama debug: No select options found, using fallback");
-		for i in 1..=314 {
-			let chapter_url = format!("{}{}/scan/vf/", 
-				String::from(BASE_URL),
-				manga_id
-			);
-			
-			chapters.push(Chapter {
-				id: format!("{}", i),  // ID simple comme LelscanFR
-				title: String::from(""),  // Vide comme LelscanFR !
-				volume: -1.0,
-				chapter: i as f32,
-				date_updated: current_date(),
-				scanlator: String::from("AnimeSama"),
-				url: chapter_url,
-				lang: String::from("fr")
-			});
-		}
+		chapters.push(Chapter {
+			id: format!("{}", i),
+			title: format!("Chapitre {}", i),  // Titre explicite pour test
+			volume: -1.0,
+			chapter: i as f32,
+			date_updated: current_date(),
+			scanlator: String::from("AnimeSama Test"),
+			url: chapter_url,
+			lang: String::from("fr")
+		});
+		
+		println!("AnimeSama debug: Created fake chapter {}", i);
 	}
 	
-	println!("AnimeSama debug: Final chapter count: {}", chapters.len());
+	println!("AnimeSama debug: Created {} fake chapters", chapters.len());
 	
-	// Inverser l'ordre pour avoir les derniers chapitres en premier  
+	// Les plus récents en premier
 	chapters.reverse();
 	
 	Ok(chapters)
