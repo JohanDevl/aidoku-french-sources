@@ -1,4 +1,4 @@
-use aidoku::{prelude::*, std::{String, Vec, current_date}};
+use aidoku::{prelude::*, std::{String, Vec, current_date, net::{Request, HttpMethod}}, error::Result};
 
 pub fn urlencode(text: &str) -> String {
 	let mut result = String::new();
@@ -98,4 +98,9 @@ pub fn urldecode(text: &str) -> String {
 	}
 	
 	result
+}
+
+pub fn request_text(url: &str) -> Result<String> {
+	let response = Request::new(url, HttpMethod::Get).string()?;
+	Ok(response)
 }

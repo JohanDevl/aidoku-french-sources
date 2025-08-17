@@ -75,8 +75,8 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	// Utiliser la page de lecture pour récupérer la liste des chapitres
-	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
+	// Utiliser la page principale du manga pour récupérer les informations sur les scanlateurs
+	let url = format!("{}{}", String::from(BASE_URL), manga_id);
 	println!("AnimeSama debug: get_chapter_list - manga_id: {}", manga_id);
 	println!("AnimeSama debug: get_chapter_list - final URL: {}", url);
 	let html = Request::new(url, HttpMethod::Get).html()?;
@@ -85,7 +85,8 @@ fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 
 #[get_page_list]
 fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-	let url = format!("{}{}", String::from(BASE_URL), chapter_id);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_page_list(html, manga_id, chapter_id)
+	// Le chapter_id contient déjà l'URL complète vers episodes.js
+	// On n'a pas besoin du HTML pour AnimeSama, on utilise directement episodes.js
+	let empty_html = aidoku::std::html::Node::new_fragment("")?;
+	parser::parse_page_list(empty_html, manga_id, chapter_id)
 }
