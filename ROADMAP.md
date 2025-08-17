@@ -19,9 +19,9 @@ Currently no sources are being actively developed.
 | Source Name         | URL                                              | Expected Type | Priority  | Notes                      |
 | ------------------- | ------------------------------------------------ | ------------- | --------- | -------------------------- |
 | **JapScan**         | [japscan.si](https://japscan.si)                 | Custom        | 🔴 High   | Major French manga source  |
-| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🔴 High   | Popular community site     |
-| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🔴 High   | Active scanlation group    |
-| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🔴 High   | Well-known French site     |
+| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🟡 Medium | Popular community site     |
+| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🟡 Medium | Active scanlation group    |
+| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🟡 Medium | Well-known French site     |
 | **AnimeSama**       | [anime-sama.fr](https://anime-sama.fr)           | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
 | **AnteikuScan**     | [anteikuscan.fr](https://anteikuscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
 | **BananaScan**      | [harmony-scan.fr](https://harmony-scan.fr)       | Unknown       | 🟡 Medium | Community source           |
