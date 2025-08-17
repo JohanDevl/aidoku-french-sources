@@ -68,34 +68,16 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_details]
 fn get_manga_details(manga_id: String) -> Result<Manga> {
-	println!("AnimeSama debug: get_manga_details CALLED - manga_id: {}", manga_id);
-	let url = format!("{}{}", String::from(BASE_URL), manga_id);
-	println!("AnimeSama debug: get_manga_details - URL: {}", url);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	println!("AnimeSama debug: get_manga_details - HTML request completed, calling parser");
-	let result = parser::parse_manga_details(manga_id, html);
-	println!("AnimeSama debug: get_manga_details - parser completed successfully");
-	result
+	let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+	parser::parse_manga_details(manga_id, dummy_html)
 }
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	println!("🔥🔥🔥 AnimeSama DEBUG: get_chapter_list CALLED !!! 🔥🔥🔥");
-	println!("🔥 manga_id received: '{}'", manga_id);
-	println!("🔥 manga_id length: {}", manga_id.len());
-	
-	// CORRECTION: Utiliser la page /scan/vf/ qui contient le select des chapitres
-	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
-	println!("🔥 Final URL constructed: '{}'", url);
-	
-	println!("🔥 Making HTTP request...");
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	println!("🔥 HTTP request completed, calling parser");
-	
-	let result = parser::parse_chapter_list(manga_id, html);
-	println!("🔥 Parser completed, returning result");
-	
-	result
+	// Version ultra-simple : pas de requête HTTP, juste appeler le parser
+	// Le parser va ignorer le HTML et retourner des chapitres de test
+	let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+	parser::parse_chapter_list(manga_id, dummy_html)
 }
 
 #[get_page_list]

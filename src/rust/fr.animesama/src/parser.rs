@@ -21,11 +21,6 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 		let relative_url = element.select("a").attr("href").read();
 		let cover_url = element.select("img").attr("src").read();
 		
-		println!("🔥 parse_manga_list - Creating manga:");
-		println!("🔥   title: '{}'", title);
-		println!("🔥   relative_url (will be ID): '{}'", relative_url);
-		println!("🔥   cover_url: '{}'", cover_url);
-		
 		mangas.push(Manga {
 			id: relative_url.clone(),
 			cover: cover_url,
@@ -100,25 +95,18 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 	})
 }
 
-pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
-	println!("AnimeSama debug: Starting parse_manga_details for manga_id: {}", manga_id);
-	
-	// ULTRA-SIMPLE: Valeurs de fallback pour éviter tout crash
-	let title = String::from("Test Manga");
-	let cover = String::from("https://anime-sama.fr/images/default-cover.jpg");
-	let description = String::from("Description de test pour debug");
+pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
+	// ULTRA-SIMPLE: Valeurs de test fixes
 	let mut categories: Vec<String> = Vec::new();
 	categories.push(String::from("Test"));
 	
-	println!("AnimeSama debug: Created safe manga details - title: {}", title);
-	
 	Ok(Manga {
 		id: manga_id.clone(),
-		cover,
-		title,
+		cover: String::from("https://anime-sama.fr/images/default.jpg"),
+		title: String::from("Test Manga"),
 		author: String::from("Test Author"),
 		artist: String::from("Test Artist"),
-		description,
+		description: String::from("Manga de test pour debug AnimeSama"),
 		url: format!("{}{}", String::from(BASE_URL), manga_id),
 		categories,
 		status: MangaStatus::Unknown,
@@ -128,40 +116,48 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 }
 
 pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
-	println!("🔥🔥🔥 PARSE_CHAPTER_LIST CALLED !!! 🔥🔥🔥");
-	println!("🔥 parse_chapter_list - manga_id: '{}'", manga_id);
-	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// TEST : 3 chapitres ultra-simples pour diagnostic
-	println!("🔥 Creating test chapters...");
+	// IGNORER le manga_id - toujours retourner les mêmes chapitres de test
+	// Informations visibles dans les titres pour debugging
 	
-	for i in 1..=3 {
-		// URL unique pour chaque chapitre
-		let chapter_url = format!("{}{}/scan/vf/chapitre-{}/", String::from(BASE_URL), manga_id, i);
-		
-		println!("🔥 Creating chapter {}:", i);
-		println!("🔥   chapter_url: '{}'", chapter_url);
-		
-		chapters.push(Chapter {
-			id: format!("{}", i),           // ID simple: "1", "2", "3"
-			title: String::from(""),        // VIDE comme LelscanFR !
-			volume: -1.0,                   // Standard
-			chapter: i as f32,              // 1.0, 2.0, 3.0
-			date_updated: current_date(),   // Date actuelle
-			scanlator: String::from(""),    // VIDE comme LelscanFR !
-			url: chapter_url,               // URL unique
-			lang: String::from("fr")        // Français
-		});
-		
-		println!("🔥 Chapter {} created successfully", i);
-	}
+	// Premier chapitre avec le manga_id visible dans le titre
+	chapters.push(Chapter {
+		id: String::from("1"),
+		title: format!("DEBUG: ID={}", manga_id),  // VISIBLE dans l'app !
+		volume: -1.0,
+		chapter: 1.0,
+		date_updated: current_date(),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test1"),
+		lang: String::from("fr")
+	});
 	
-	println!("AnimeSama debug: Successfully created {} chapters", chapters.len());
+	// Deuxième chapitre pour confirmer que ça marche
+	chapters.push(Chapter {
+		id: String::from("2"),
+		title: String::from("Chapitre Test 2"),
+		volume: -1.0,
+		chapter: 2.0,
+		date_updated: current_date(),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test2"),
+		lang: String::from("fr")
+	});
 	
-	// Derniers chapitres en premier
-	chapters.reverse();
+	// Troisième chapitre pour confirmer la liste
+	chapters.push(Chapter {
+		id: String::from("3"),
+		title: String::from("Chapitre Test 3"),
+		volume: -1.0,
+		chapter: 3.0,
+		date_updated: current_date(),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test3"),
+		lang: String::from("fr")
+	});
 	
+	// Pas besoin de reverse - garder l'ordre 1,2,3
 	Ok(chapters)
 }
 
