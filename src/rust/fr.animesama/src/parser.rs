@@ -174,10 +174,15 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	
 	// Parser le <select> qui contient tous les chapitres disponibles
 	let select_options = html.select("select option");
+	let options_count = select_options.array().len();
 	
-	if select_options.array().len() == 0 {
-		// Fallback : créer une liste de base si pas de select
-		for i in 1..=50 {
+	// Debug: Log pour voir si on trouve le select
+	println!("AnimeSama debug: Found {} select options", options_count);
+	
+	if options_count == 0 {
+		// Fallback : créer une liste généreuse si pas de select
+		println!("AnimeSama debug: No select found, using fallback with 314 chapters");
+		for i in 1..=314 {
 			chapters.push(Chapter {
 				id: format!("chapitre-{}", i),
 				title: format!("Chapitre {}", i),
@@ -190,31 +195,59 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 			});
 		}
 	} else {
-		// Utiliser les vraies données du select
+		// Utiliser les vraies données du select avec gestion d'erreurs sécurisée
+		println!("AnimeSama debug: Parsing {} select options", options_count);
+		
 		for option in select_options.array() {
-			let option = option.as_node().unwrap();
-			let option_text = option.text().read();
-			
-			// Extraire le numéro de chapitre depuis "Chapitre X"
-			if option_text.starts_with("Chapitre ") {
-				let chapter_num_str = option_text.replace("Chapitre ", "");
+			if let Ok(option_node) = option.as_node() {
+				let option_text = option_node.text().read();
 				
-				// Convertir en nombre
-				if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
-					chapters.push(Chapter {
-						id: format!("chapitre-{}", chapter_num),
-						title: option_text,
-						volume: -1.0,
-						chapter: chapter_num as f32,
-						date_updated: current_date(),
-						scanlator: String::from("AnimeSama"),
-						url: format!("{}/scan/vf/chapitre-{}", manga_id, chapter_num),
-						lang: String::from("fr")
-					});
+				// Extraire le numéro de chapitre depuis "Chapitre X"
+				if option_text.starts_with("Chapitre ") {
+					let chapter_num_str = option_text.replace("Chapitre ", "");
+					
+					// Convertir en nombre
+					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
+						chapters.push(Chapter {
+							id: format!("chapitre-{}", chapter_num),
+							title: option_text,
+							volume: -1.0,
+							chapter: chapter_num as f32,
+							date_updated: current_date(),
+							scanlator: String::from("AnimeSama"),
+							url: format!("{}/scan/vf/chapitre-{}", manga_id, chapter_num),
+							lang: String::from("fr")
+						});
+					} else {
+						println!("AnimeSama debug: Failed to parse chapter number: {}", chapter_num_str);
+					}
+				} else {
+					println!("AnimeSama debug: Option text doesn't start with 'Chapitre ': {}", option_text);
 				}
+			} else {
+				println!("AnimeSama debug: Failed to convert option to node");
+			}
+		}
+		
+		// Si aucun chapitre n'a été parsé malgré la présence d'options, utiliser le fallback
+		if chapters.is_empty() {
+			println!("AnimeSama debug: No chapters parsed from select, using fallback");
+			for i in 1..=314 {
+				chapters.push(Chapter {
+					id: format!("chapitre-{}", i),
+					title: format!("Chapitre {}", i),
+					volume: -1.0,
+					chapter: i as f32,
+					date_updated: current_date(),
+					scanlator: String::from("AnimeSama"),
+					url: format!("{}/scan/vf/chapitre-{}", manga_id, i),
+					lang: String::from("fr")
+				});
 			}
 		}
 	}
+	
+	println!("AnimeSama debug: Final chapter count: {}", chapters.len());
 	
 	// Inverser l'ordre pour avoir les derniers chapitres en premier
 	chapters.reverse();
