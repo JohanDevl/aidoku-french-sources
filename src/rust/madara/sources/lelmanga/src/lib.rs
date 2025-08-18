@@ -204,7 +204,138 @@ fn get_manga_details(id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
-	template::get_chapter_list(id, get_data())
+	// LelManga uses MangaThemesia structure with chapters in HTML, not AJAX
+	let data = get_data();
+	let url = format!("{}/{}/{}/", data.base_url, data.source_path, id);
+	
+	let mut req = aidoku::std::net::Request::new(&url, aidoku::std::net::HttpMethod::Get);
+	if let Some(user_agent) = &data.user_agent {
+		req = req.header("User-Agent", user_agent);
+	}
+	
+	let html = req.html()?;
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Use MangaThemesia selectors for chapters
+	for item in html.select("div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num)").array() {
+		let obj = item.as_node().expect("node array");
+		
+		let link = obj.select("a").first();
+		let href = link.attr("href").read();
+		if href.is_empty() {
+			continue;
+		}
+		
+		// Extract chapter ID from URL
+		let chapter_id = href
+			.replace(&data.base_url, "")
+			.trim_start_matches('/')
+			.trim_end_matches('/')
+			.to_string();
+		
+		if chapter_id.is_empty() {
+			continue;
+		}
+		
+		// Get chapter title with fallbacks
+		let title = if !obj.select(".lch a").text().read().is_empty() {
+			obj.select(".lch a").text().read()
+		} else if !obj.select(".chapternum").text().read().is_empty() {
+			obj.select(".chapternum").text().read()
+		} else {
+			link.text().read()
+		};
+		
+		if title.is_empty() {
+			continue;
+		}
+		
+		// Extract chapter number from URL or title
+		let chapter_num = extract_chapter_number(&chapter_id, &title);
+		
+		// Parse chapter date
+		let date_str = obj.select(".chapterdate").text().read();
+		let date_updated = parse_chapter_date(&date_str);
+		
+		chapters.push(Chapter {
+			id: chapter_id,
+			title,
+			volume: -1.0,
+			chapter: chapter_num,
+			date_updated,
+			scanlator: String::new(),
+			url: String::new(),
+			lang: data.lang.clone(),
+		});
+	}
+	
+	Ok(chapters)
+}
+
+fn extract_chapter_number(chapter_id: &str, title: &str) -> f32 {
+	// First try to extract from URL ID
+	if let Some(num_str) = chapter_id.split('-').last() {
+		if let Ok(num) = num_str.parse::<f32>() {
+			return num;
+		}
+	}
+	
+	// Then try to extract from title
+	// Look for patterns like "Chapitre 123" or "Chapter 123"
+	let words: Vec<&str> = title.split_whitespace().collect();
+	for (i, word) in words.iter().enumerate() {
+		if word.to_lowercase().contains("chapitre") || word.to_lowercase().contains("chapter") {
+			if i + 1 < words.len() {
+				if let Ok(num) = words[i + 1].parse::<f32>() {
+					return num;
+				}
+			}
+		}
+	}
+	
+	// Last resort: try to find any number in the title
+	for word in words {
+		if let Ok(num) = word.parse::<f32>() {
+			return num;
+		}
+	}
+	
+	-1.0
+}
+
+fn parse_chapter_date(date_str: &str) -> f64 {
+	// LelManga uses English date format: "MMMM d, yyyy"
+	// Examples: "August 17, 2025", "May 8, 2022"
+	
+	if date_str.is_empty() {
+		return 0.0;
+	}
+	
+	// Simple date parsing for common English month names
+	let months = [
+		("January", 1), ("February", 2), ("March", 3), ("April", 4),
+		("May", 5), ("June", 6), ("July", 7), ("August", 8),
+		("September", 9), ("October", 10), ("November", 11), ("December", 12)
+	];
+	
+	let parts: Vec<&str> = date_str.trim().split_whitespace().collect();
+	if parts.len() >= 3 {
+		// Try to parse "Month Day, Year" format
+		let month_name = parts[0];
+		let day_str = parts[1].trim_end_matches(',');
+		let year_str = parts[2];
+		
+		if let Some((_, month)) = months.iter().find(|(name, _)| name.eq_ignore_ascii_case(month_name)) {
+			if let (Ok(day), Ok(year)) = (day_str.parse::<i32>(), year_str.parse::<i32>()) {
+				// Convert to timestamp (simplified)
+				// This is a rough approximation: days since 1970-01-01
+				let days_since_1970 = (year - 1970) * 365 + (month - 1) * 30 + day;
+				return (days_since_1970 as f64) * 86400.0; // seconds in a day
+			}
+		}
+	}
+	
+	0.0
 }
 
 #[get_page_list]
