@@ -115,72 +115,27 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 	})
 }
 
-pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Parser le <select> qui contient tous les chapitres disponibles (Chapitre 1 à 314)
-	let select_options = html.select("select option");
-	let options_count = select_options.array().len();
-	
-	// DEBUG: Premier chapitre avec info de debug visible
-	chapters.push(Chapter {
-		id: String::from("debug"),
-		title: format!("DEBUG: select found {} options", options_count),
-		volume: -1.0,
-		chapter: 999.0,
-		date_updated: current_date(),
-		scanlator: format!("manga_id: {}", manga_id),
-		url: String::from("https://anime-sama.fr/debug"),
-		lang: String::from("fr")
-	});
-	
-	if options_count > 0 {
-		// Parser les vraies options du select en gardant la structure qui marche
-		for option in select_options.array() {
-			if let Ok(option_node) = option.as_node() {
-				let option_text = option_node.text().read();
-				
-				// Extraire le numéro de chapitre depuis "Chapitre X"
-				if option_text.starts_with("Chapitre ") {
-					let chapter_num_str = option_text.replace("Chapitre ", "");
-					
-					if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
-						// URL pour la lecture du chapitre spécifique
-						let chapter_url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
-						
-						chapters.push(Chapter {
-							id: format!("{}", chapter_num),     // ID simple: "1", "2", "3"...
-							title: String::from(""),            // Vide - Aidoku génère "Chapitre X"
-							volume: -1.0,
-							chapter: chapter_num as f32,        // 1.0, 2.0, 3.0...
-							date_updated: current_date(),
-							scanlator: String::from(""),        // Vide comme les sources qui marchent
-							url: chapter_url,
-							lang: String::from("fr")
-						});
-					}
-				}
-			}
-		}
-	} else {
-		// Fallback uniquement si aucun select trouvé
-		for i in 1..=314 {
-			let chapter_url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
-			
-			chapters.push(Chapter {
-				id: format!("{}", i),
-				title: String::from(""),
-				volume: -1.0,
-				chapter: i as f32,
-				date_updated: current_date(),
-				scanlator: String::from(""),
-				url: chapter_url,
-				lang: String::from("fr")
-			});
-		}
+	// IGNORER le HTML - AnimeSama utilise JavaScript dynamique, pas de <select>
+	// Générer directement tous les chapitres de 1 à 314
+	for i in 1..=314 {
+		let chapter_url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
+		
+		chapters.push(Chapter {
+			id: format!("{}", i),
+			title: String::from(""),  // Vide - Aidoku génère "Chapitre X"
+			volume: -1.0,
+			chapter: i as f32,
+			date_updated: current_date(),
+			scanlator: String::from(""),  // Vide comme les sources qui marchent
+			url: chapter_url,
+			lang: String::from("fr")
+		});
 	}
 	
-	// Inverser pour avoir les derniers chapitres en premier
+	// Inverser pour avoir les derniers chapitres en premier (314, 313, 312...)
 	chapters.reverse();
 	
 	Ok(chapters)
