@@ -17,6 +17,17 @@ fn build_chapter_url(manga_id: &str) -> String {
 	}
 }
 
+// Helper pour construire l'URL du manga correctement
+fn build_manga_url(manga_id_or_url: &str) -> String {
+	if manga_id_or_url.starts_with("http") {
+		// Contient déjà l'URL complète, la retourner telle quelle
+		String::from(manga_id_or_url)
+	} else {
+		// ID relatif, ajouter BASE_URL
+		format!("{}{}", String::from(BASE_URL), manga_id_or_url)
+	}
+}
+
 pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
@@ -39,7 +50,7 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 			author: String::new(),
 			artist: String::new(),
 			description: String::new(),
-			url: format!("{}", relative_url),
+			url: build_manga_url(&relative_url),
 			categories: Vec::new(),
 			status: MangaStatus::Unknown,
 			nsfw: MangaContentRating::Safe,
@@ -85,7 +96,7 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 				author: String::new(),
 				artist: String::new(),
 				description: String::new(),
-				url: format!("{}" relative_url),
+				url: build_manga_url(&relative_url),
 				categories: Vec::new(),
 				status: MangaStatus::Unknown,
 				nsfw: MangaContentRating::Safe,
@@ -118,7 +129,7 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 		author: String::from("Test Author"),
 		artist: String::from("Test Artist"),
 		description: String::from("Manga de test pour debug AnimeSama"),
-		url: format!("{}{}", String::from(BASE_URL), manga_id),
+		url: build_manga_url(&manga_id),
 		categories,
 		status: MangaStatus::Unknown,
 		nsfw: MangaContentRating::Safe,
