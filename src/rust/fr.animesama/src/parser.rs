@@ -3,6 +3,7 @@ use aidoku::{
 		current_date, html::Node, String, Vec
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
+use core::cmp::Ordering;
 
 use crate::{BASE_URL, helper};
 
@@ -185,115 +186,67 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 }
 
 
+// Helper pour extraire les numéros de chapitres de manière robuste depuis HTML
+fn extract_chapter_numbers_robust(html_content: &str) -> Vec<i32> {
+	let mut chapters: Vec<i32> = Vec::new();
+	
+	// Patterns multiples pour capturer différents formats
+	let patterns = [
+		">Chapitre ",
+		"\"Chapitre ",
+		"Chapitre ",
+		"chapitre "
+	];
+	
+	for pattern in &patterns {
+		let mut start_pos = 0;
+		while let Some(pos) = html_content[start_pos..].to_lowercase().find(&pattern.to_lowercase()) {
+			start_pos += pos + pattern.len();
+			
+			// Extraire le numéro
+			let mut num_str = String::new();
+			for ch in html_content[start_pos..].chars() {
+				if ch.is_ascii_digit() {
+					num_str.push(ch);
+				} else {
+					break;
+				}
+			}
+			
+			if !num_str.is_empty() {
+				if let Ok(chapter_num) = num_str.parse::<i32>() {
+					if chapter_num > 0 && chapter_num <= 1000 { // Validation reasonable
+						chapters.push(chapter_num);
+					}
+				}
+			}
+			
+			start_pos += num_str.len();
+		}
+	}
+	
+	// Supprimer les doublons et trier
+	chapters.sort_unstable();
+	chapters.dedup();
+	
+	chapters
+}
+
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
-	
-	
-	// 1. PRIORITÉ ABSOLUE : Parser le select HTML directement (méthode la plus fiable)
-	let select_result = parse_chapter_list_from_select(&html);
-	
-	match select_result {
-		Ok(select_chapters) if !select_chapters.is_empty() => {
-			// Succès avec le select HTML - ajouter les URLs correctes
-			for mut chapter in select_chapters {
-				chapter.url = build_chapter_url(&manga_id);
-				chapters.push(chapter);
-			}
-			
-			// Trouver min/max pour le debug 
-			let mut min_ch = i32::MAX;
-			let mut max_ch = 0;
-			for ch in &chapters {
-				let ch_num = ch.chapter as i32;
-				if ch_num > max_ch { max_ch = ch_num; }
-				if ch_num < min_ch { min_ch = ch_num; }
-			}
-			
-			// Ajouter un chapitre debug au début pour indiquer la méthode utilisée
-			chapters.push(Chapter {
-				id: String::from("debug_select"),
-				title: format!("DEBUG: SELECT HTML - {} chapitres (min: {}, max: {})", chapters.len(), min_ch, max_ch),
-				volume: -1.0,
-				chapter: -1.0,
-				date_updated: current_date(),
-				scanlator: String::from("AnimeSama Debug"),
-				url: String::from(""),
-				lang: String::from("fr")
-			});
-			
-			chapters.reverse(); // Derniers en premier (debug sera en premier maintenant)
-			return Ok(chapters);
-		}
-		_ => {
-			// Pas de select trouvé, continuer avec méthodes alternatives
-		}
-	}
-	
-	// 2. Fallback : Essayer la méthode episodes.js (comme Tachiyomi)
-	let episodes_result = parse_episodes_js(&manga_id, &html);
-	
-	match episodes_result {
-		Ok(js_chapters) if !js_chapters.is_empty() => {
-			chapters.extend(js_chapters);
-			
-			// Ajouter un chapitre debug
-			chapters.push(Chapter {
-				id: String::from("debug_episodes"),
-				title: format!("DEBUG: EPISODES.JS - {} chapitres extraits", chapters.len()),
-				volume: -1.0,
-				chapter: -1.0,
-				date_updated: current_date(),
-				scanlator: String::from("AnimeSama Debug"),
-				url: String::from(""),
-				lang: String::from("fr")
-			});
-			
-			chapters.reverse(); // Derniers en premier
-			return Ok(chapters);
-		}
-		_ => {
-			// episodes.js a échoué, continuer avec autres méthodes
-		}
-	}
-	
-	// 3. Fallback : Chercher les scripts JavaScript dans la page 
 	let html_content = html.html().read();
-	let script_result = parse_javascript_commands(&html_content, &manga_id);
 	
-	match script_result {
-		Ok(script_chapters) if !script_chapters.is_empty() => {
-			chapters.extend(script_chapters);
-			
-			// Ajouter un chapitre debug
+	// Méthode robuste: chercher tous les patterns possibles de chapitres
+	let chapter_numbers = extract_chapter_numbers_robust(&html_content);
+	
+	if !chapter_numbers.is_empty() {
+		// Créer les chapitres depuis les numéros trouvés
+		for chapter_num in &chapter_numbers {
 			chapters.push(Chapter {
-				id: String::from("debug_javascript"),
-				title: format!("DEBUG: JAVASCRIPT COMMANDS - {} chapitres extraits", chapters.len()),
+				id: format!("{}", chapter_num),
+				title: format!("Chapitre {}", chapter_num),
 				volume: -1.0,
-				chapter: -1.0,
-				date_updated: current_date(),
-				scanlator: String::from("AnimeSama Debug"),
-				url: String::from(""),
-				lang: String::from("fr")
-			});
-			
-			chapters.reverse();
-			return Ok(chapters);
-		}
-		_ => {
-			// Scripts ont échoué, continuer avec fallback
-		}
-	}
-	
-	// 4. Fallback pour les cas sans commandes JavaScript (comme Blue Lock)
-	let max_chapter = parse_chapter_from_message(&html_content);
-	
-	if max_chapter > 0 {
-		for i in 1..=max_chapter {
-			chapters.push(Chapter {
-				id: format!("{}", i),
-				title: format!("Chapitre {}", i),
-				volume: -1.0,
-				chapter: i as f32,
+				chapter: *chapter_num as f32,
 				date_updated: current_date(),
 				scanlator: String::from(""),
 				url: build_chapter_url(&manga_id),
@@ -301,37 +254,28 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 			});
 		}
 		
-		// Ajouter un chapitre debug
-		chapters.push(Chapter {
-			id: String::from("debug_message"),
-			title: format!("DEBUG: MESSAGE PARSING - {} chapitres détectés", max_chapter),
-			volume: -1.0,
-			chapter: -1.0,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Debug"),
-			url: String::from(""),
-			lang: String::from("fr")
-		});
-		
-		chapters.reverse();
+		// Tri par numéro de chapitre (du plus récent au plus ancien)
+		chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
 		return Ok(chapters);
 	}
 	
-	// 5. Fallback final - ajouter chapitre debug
-	let mut fallback_chapters = parse_chapter_list_simple(manga_id)?;
+	// Fallback: générer 50 chapitres par défaut
+	for i in 1..=50 {
+		chapters.push(Chapter {
+			id: format!("{}", i),
+			title: format!("Chapitre {}", i),
+			volume: -1.0,
+			chapter: i as f32,
+			date_updated: current_date(),
+			scanlator: String::from(""),
+			url: build_chapter_url(&manga_id),
+			lang: String::from("fr")
+		});
+	}
 	
-	fallback_chapters.push(Chapter {
-		id: String::from("debug_fallback"),
-		title: String::from("DEBUG: FALLBACK FINAL - 50 chapitres par défaut"),
-		volume: -1.0,
-		chapter: -1.0,
-		date_updated: current_date(),
-		scanlator: String::from("AnimeSama Debug"),
-		url: String::from(""),
-		lang: String::from("fr")
-	});
-	
-	Ok(fallback_chapters)
+	// Tri par numéro de chapitre (du plus récent au plus ancien)
+	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+	Ok(chapters)
 }
 
 pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
