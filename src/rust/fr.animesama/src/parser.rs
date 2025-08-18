@@ -331,8 +331,10 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Extraire les épisodes avec regex eps(\d+)
-	let mut episode_numbers = Vec::new();
+	// Extraire tous les numéros d'épisodes avec regex eps(\d+)
+	let mut max_episode = 0;
+	let mut min_episode = i32::MAX;
+	let mut episodes_found = Vec::new();
 	let mut start_pos = 0;
 	
 	while let Some(pos) = js_content[start_pos..].find("eps") {
@@ -350,22 +352,49 @@ fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapte
 		}
 		
 		if let Ok(episode_num) = number_str.parse::<i32>() {
-			if !episode_numbers.contains(&episode_num) {
-				episode_numbers.push(episode_num);
+			episodes_found.push(episode_num);
+			if episode_num > max_episode {
+				max_episode = episode_num;
+			}
+			if episode_num < min_episode {
+				min_episode = episode_num;
 			}
 		}
 	}
 	
-	// Trier et créer les chapitres
-	episode_numbers.sort();
-	for episode_num in episode_numbers {
+	// Nettoyer min_episode si aucun épisode trouvé
+	if min_episode == i32::MAX {
+		min_episode = 1;
+	}
+	
+	// Créer une série continue de chapitres de min_episode à max_episode
+	if max_episode > 0 {
+		// Calculer le nombre total de chapitres
+		let total_chapters = max_episode - min_episode + 1;
+		
+		for episode_num in min_episode..=max_episode {
+			chapters.push(Chapter {
+				id: format!("{}", episode_num),
+				title: format!("Chapitre {}", episode_num),
+				volume: -1.0,
+				chapter: episode_num as f32,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: build_chapter_url(manga_id),
+				lang: String::from("fr")
+			});
+		}
+		
+		// Debug temporaire : ajouter un chapitre debug pour vérifier le count
+		episodes_found.sort();
+		episodes_found.dedup(); // Enlever les doublons
 		chapters.push(Chapter {
-			id: format!("{}", episode_num),
-			title: format!("Chapitre {}", episode_num),
+			id: String::from("debug_count"),
+			title: format!("DEBUG: Range {}..{} ({} total), {} eps found", min_episode, max_episode, total_chapters, episodes_found.len()),
 			volume: -1.0,
-			chapter: episode_num as f32,
+			chapter: 999.0,
 			date_updated: current_date(),
-			scanlator: String::from(""),
+			scanlator: format!("First few eps: {:?}", episodes_found.iter().take(5).collect::<Vec<_>>()),
 			url: build_chapter_url(manga_id),
 			lang: String::from("fr")
 		});
