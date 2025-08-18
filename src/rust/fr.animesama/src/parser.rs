@@ -190,22 +190,44 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 fn extract_chapter_numbers_robust(html_content: &str) -> Vec<i32> {
 	let mut chapters: Vec<i32> = Vec::new();
 	
-	// Patterns multiples pour capturer différents formats
-	let patterns = [
-		">Chapitre ",
-		"\"Chapitre ",
-		"Chapitre ",
-		"chapitre "
-	];
+	// Recherche directe dans le HTML sans conversion de casse
+	let mut start_pos = 0;
 	
-	for pattern in &patterns {
-		let mut start_pos = 0;
-		while let Some(pos) = html_content[start_pos..].to_lowercase().find(&pattern.to_lowercase()) {
-			start_pos += pos + pattern.len();
+	// Pattern principal: rechercher "Chapitre " (avec espace) partout dans le HTML
+	while let Some(pos) = html_content[start_pos..].find("Chapitre ") {
+		let absolute_pos = start_pos + pos + 9; // Position après "Chapitre "
+		
+		// Extraire tous les chiffres qui suivent
+		let mut num_str = String::new();
+		for ch in html_content[absolute_pos..].chars() {
+			if ch.is_ascii_digit() {
+				num_str.push(ch);
+			} else {
+				break;
+			}
+		}
+		
+		// Si on a trouvé un numéro valide, l'ajouter
+		if !num_str.is_empty() {
+			if let Ok(chapter_num) = num_str.parse::<i32>() {
+				if chapter_num > 0 && chapter_num <= 1000 {
+					chapters.push(chapter_num);
+				}
+			}
+		}
+		
+		// Avancer la position de recherche
+		start_pos = absolute_pos;
+	}
+	
+	// Si pas de "Chapitre " trouvé, essayer avec "chapitre " (minuscule)
+	if chapters.is_empty() {
+		start_pos = 0;
+		while let Some(pos) = html_content[start_pos..].find("chapitre ") {
+			let absolute_pos = start_pos + pos + 9; // Position après "chapitre "
 			
-			// Extraire le numéro
 			let mut num_str = String::new();
-			for ch in html_content[start_pos..].chars() {
+			for ch in html_content[absolute_pos..].chars() {
 				if ch.is_ascii_digit() {
 					num_str.push(ch);
 				} else {
@@ -215,13 +237,13 @@ fn extract_chapter_numbers_robust(html_content: &str) -> Vec<i32> {
 			
 			if !num_str.is_empty() {
 				if let Ok(chapter_num) = num_str.parse::<i32>() {
-					if chapter_num > 0 && chapter_num <= 1000 { // Validation reasonable
+					if chapter_num > 0 && chapter_num <= 1000 {
 						chapters.push(chapter_num);
 					}
 				}
 			}
 			
-			start_pos += num_str.len();
+			start_pos = absolute_pos;
 		}
 	}
 	
@@ -236,10 +258,45 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let html_content = html.html().read();
 	
+	// DEBUG: Analyser le contenu HTML reçu
+	let has_select = html_content.contains("<select");
+	let has_option = html_content.contains("<option");
+	let chapitre_count = html_content.matches("Chapitre ").count();
+	let chapitre_lower_count = html_content.matches("chapitre ").count();
+	let html_length = html_content.len();
+	
+	// Ajouter un chapitre debug avec les infos HTML
+	chapters.push(Chapter {
+		id: String::from("debug_html_info"),
+		title: format!("DEBUG: HTML len={}, select={}, option={}, Chapitre={}, chapitre={}", 
+			html_length, has_select, has_option, chapitre_count, chapitre_lower_count),
+		volume: -1.0,
+		chapter: -999.0,
+		date_updated: current_date(),
+		scanlator: String::from("AnimeSama Debug"),
+		url: String::from(""),
+		lang: String::from("fr")
+	});
+	
 	// Méthode robuste: chercher tous les patterns possibles de chapitres
 	let chapter_numbers = extract_chapter_numbers_robust(&html_content);
 	
+	// Ajouter debug sur ce qui a été trouvé
 	if !chapter_numbers.is_empty() {
+		let min_ch = *chapter_numbers.iter().min().unwrap_or(&0);
+		let max_ch = *chapter_numbers.iter().max().unwrap_or(&0);
+		
+		chapters.push(Chapter {
+			id: String::from("debug_parsing_result"),
+			title: format!("DEBUG: Trouvé {} chapitres (min: {}, max: {})", chapter_numbers.len(), min_ch, max_ch),
+			volume: -1.0,
+			chapter: -998.0,
+			date_updated: current_date(),
+			scanlator: String::from("AnimeSama Debug"),
+			url: String::from(""),
+			lang: String::from("fr")
+		});
+		
 		// Créer les chapitres depuis les numéros trouvés
 		for chapter_num in &chapter_numbers {
 			chapters.push(Chapter {
@@ -253,28 +310,46 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 				lang: String::from("fr")
 			});
 		}
-		
-		// Tri par numéro de chapitre (du plus récent au plus ancien)
-		chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
-		return Ok(chapters);
-	}
-	
-	// Fallback: générer 50 chapitres par défaut
-	for i in 1..=50 {
+	} else {
 		chapters.push(Chapter {
-			id: format!("{}", i),
-			title: format!("Chapitre {}", i),
+			id: String::from("debug_no_chapters_found"),
+			title: String::from("DEBUG: Aucun chapitre trouvé dans le HTML"),
 			volume: -1.0,
-			chapter: i as f32,
+			chapter: -997.0,
 			date_updated: current_date(),
-			scanlator: String::from(""),
-			url: build_chapter_url(&manga_id),
+			scanlator: String::from("AnimeSama Debug"),
+			url: String::from(""),
 			lang: String::from("fr")
 		});
+		
+		// Fallback: générer 50 chapitres par défaut
+		for i in 1..=50 {
+			chapters.push(Chapter {
+				id: format!("{}", i),
+				title: format!("Chapitre {}", i),
+				volume: -1.0,
+				chapter: i as f32,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: build_chapter_url(&manga_id),
+				lang: String::from("fr")
+			});
+		}
 	}
 	
-	// Tri par numéro de chapitre (du plus récent au plus ancien)
-	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+	// Tri par numéro de chapitre (du plus récent au plus ancien), mais garder les debugs en haut
+	chapters.sort_by(|a, b| {
+		if a.chapter < 0.0 && b.chapter < 0.0 {
+			a.chapter.partial_cmp(&b.chapter).unwrap_or(Ordering::Equal)
+		} else if a.chapter < 0.0 {
+			Ordering::Less
+		} else if b.chapter < 0.0 {
+			Ordering::Greater
+		} else {
+			b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal)
+		}
+	});
+	
 	Ok(chapters)
 }
 
