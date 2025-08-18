@@ -6,6 +6,17 @@ use aidoku::{
 
 use crate::BASE_URL;
 
+// Helper pour construire l'URL correctement
+fn build_chapter_url(manga_id: &str) -> String {
+	if manga_id.starts_with("http") {
+		// manga_id contient déjà l'URL complète
+		format!("{}/scan/vf/", manga_id)
+	} else {
+		// manga_id est relatif, ajouter BASE_URL
+		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
+	}
+}
+
 pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
@@ -137,7 +148,7 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 		chapter: 999.0,
 		date_updated: current_date(),
 		scanlator: format!("manga: {}", manga_id),
-		url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
 	
@@ -158,7 +169,7 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 						chapter: chapters.len() as f32,
 						date_updated: current_date(),
 						scanlator: String::from("DEBUG"),
-						url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+						url: build_chapter_url(&manga_id),
 						lang: String::from("fr")
 					});
 				}
@@ -176,7 +187,7 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 								chapter: num as f32,
 								date_updated: current_date(),
 								scanlator: String::from(""),
-								url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+								url: build_chapter_url(&manga_id),
 								lang: String::from("fr")
 							});
 							break;
@@ -194,7 +205,7 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 			chapter: 1.0,
 			date_updated: current_date(),
 			scanlator: String::from("FALLBACK"),
-			url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+			url: build_chapter_url(&manga_id),
 			lang: String::from("fr")
 		});
 	}
@@ -213,7 +224,7 @@ pub fn parse_chapter_list_fallback(manga_id: String, _dummy_html: Node, failed_u
 		chapter: 999.0,
 		date_updated: current_date(),
 		scanlator: format!("URL: {}", failed_url),
-		url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
 	
@@ -235,7 +246,7 @@ pub fn parse_chapter_list_fallback(manga_id: String, _dummy_html: Node, failed_u
 			chapter: i as f32,
 			date_updated: current_date(),
 			scanlator: String::from(""),
-			url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+			url: build_chapter_url(&manga_id),
 			lang: String::from("fr")
 		});
 	}

@@ -75,7 +75,14 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 	// Solution hybride : essayer /scan/vf/, sinon fallback
-	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
+	// Corriger la construction d'URL selon le format du manga_id
+	let url = if manga_id.starts_with("http") {
+		// manga_id contient déjà l'URL complète
+		format!("{}/scan/vf/", manga_id)
+	} else {
+		// manga_id est relatif, ajouter BASE_URL
+		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
+	};
 	
 	// Essayer la vraie page d'abord
 	match Request::new(&url, HttpMethod::Get).html() {
