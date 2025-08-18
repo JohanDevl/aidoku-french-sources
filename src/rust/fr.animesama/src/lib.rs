@@ -74,10 +74,42 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	// AnimeSama utilise JavaScript pour générer les chapitres
-	// Utiliser directement la génération statique adaptative
-	let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
-	parser::parse_chapter_list(manga_id, dummy_html)
+	// Essayer de récupérer les chapitres dynamiquement avec headers de navigateur
+	let url = if manga_id.starts_with("http") {
+		format!("{}/scan/vf/", manga_id)
+	} else {
+		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
+	};
+	
+	// Créer une requête avec headers de navigateur complets
+	let request = Request::new(&url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+		.header("Accept-Encoding", "gzip, deflate, br")
+		.header("Cache-Control", "no-cache")
+		.header("Pragma", "no-cache")
+		.header("Sec-Fetch-Dest", "document")
+		.header("Sec-Fetch-Mode", "navigate")
+		.header("Sec-Fetch-Site", "same-origin")
+		.header("Upgrade-Insecure-Requests", "1");
+	
+	let request = if manga_id.starts_with("http") {
+		request.header("Referer", &manga_id)
+	} else {
+		request.header("Referer", &format!("{}{}", String::from(BASE_URL), manga_id))
+	};
+	
+	match request.html() {
+		Ok(html) => {
+			parser::parse_chapter_list_dynamic(manga_id, html)
+		}
+		Err(_) => {
+			// Fallback si la requête échoue
+			let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+			parser::parse_chapter_list(manga_id, dummy_html)
+		}
+	}
 }
 
 #[get_page_list]

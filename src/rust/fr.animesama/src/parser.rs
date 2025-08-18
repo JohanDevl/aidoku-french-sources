@@ -138,6 +138,119 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 }
 
 
+pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// 1. D'abord essayer de trouver un <select> généré
+	let select_options = html.select("select option");
+	let options_count = select_options.array().len();
+	
+	if options_count > 0 {
+		// Succès! Parser les vraies options
+		for option in select_options.array() {
+			if let Ok(option_node) = option.as_node() {
+				let option_text = option_node.text().read();
+				
+				if option_text.contains("hapitre") {
+					// Extraire le numéro depuis "Chapitre X"
+					let parts: Vec<&str> = option_text.split_whitespace().collect();
+					for part in parts {
+						if let Ok(num) = part.parse::<i32>() {
+							chapters.push(Chapter {
+								id: format!("{}", num),
+								title: String::from(""),
+								volume: -1.0,
+								chapter: num as f32,
+								date_updated: current_date(),
+								scanlator: String::from(""),
+								url: build_chapter_url(&manga_id),
+								lang: String::from("fr")
+							});
+							break;
+						}
+					}
+				}
+			}
+		}
+		
+		if !chapters.is_empty() {
+			chapters.reverse();
+			return Ok(chapters);
+		}
+	}
+	
+	// 2. Chercher dans le JavaScript/HTML des patterns de chapitres
+	let html_content = html.html().read();
+	
+	// Chercher "chapitre XXX" dans le contenu
+	let mut max_chapter = 0;
+	let chapter_regex_patterns = [
+		"chapitre ",
+		"Chapitre ",
+		"CHAPITRE ",
+		"chapter ",
+		"Chapter "
+	];
+	
+	for pattern in &chapter_regex_patterns {
+		let mut start_pos = 0;
+		while let Some(pos) = html_content[start_pos..].find(pattern) {
+			start_pos += pos + pattern.len();
+			let remaining = &html_content[start_pos..];
+			
+			// Extraire le numéro qui suit
+			let mut number_str = String::new();
+			for char in remaining.chars() {
+				if char.is_ascii_digit() {
+					number_str.push(char);
+				} else {
+					break;
+				}
+			}
+			
+			if let Ok(chapter_num) = number_str.parse::<i32>() {
+				if chapter_num > max_chapter && chapter_num < 10000 {  // Limite raisonnable
+					max_chapter = chapter_num;
+				}
+			}
+		}
+	}
+	
+	// Debug info
+	chapters.push(Chapter {
+		id: String::from("debug"),
+		title: format!("DYNAMIC: select_opts={} max_found={}", options_count, max_chapter),
+		volume: -1.0,
+		chapter: 999.0,
+		date_updated: current_date(),
+		scanlator: format!("URL: {}", if manga_id.starts_with("http") { format!("{}/scan/vf/", manga_id) } else { format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id) }),
+		url: build_chapter_url(&manga_id),
+		lang: String::from("fr")
+	});
+	
+	// Si on a trouvé un nombre max, générer jusqu'à ce nombre
+	if max_chapter > 0 {
+		for i in 1..=max_chapter {
+			chapters.push(Chapter {
+				id: format!("{}", i),
+				title: String::from(""),
+				volume: -1.0,
+				chapter: i as f32,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: build_chapter_url(&manga_id),
+				lang: String::from("fr")
+			});
+		}
+		
+		chapters.reverse();
+		return Ok(chapters);
+	}
+	
+	// 3. Fallback vers parsing statique
+	parse_chapter_list(manga_id, html)
+}
+
 pub fn parse_chapter_list(manga_id: String, _dummy_html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
