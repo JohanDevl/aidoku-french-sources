@@ -188,27 +188,44 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	println!("AnimeSama DEBUG: === DÉBUT PARSING CHAPITRES pour {} ===", manga_id);
 	
 	// 1. PRIORITÉ ABSOLUE : Parser le select HTML directement (méthode la plus fiable)
 	let select_result = parse_chapter_list_from_select(&html);
 	
 	match select_result {
 		Ok(select_chapters) if !select_chapters.is_empty() => {
-			println!("AnimeSama DEBUG: ✅ SELECT HTML - {} chapitres trouvés, utilisation de cette méthode", select_chapters.len());
-			
 			// Succès avec le select HTML - ajouter les URLs correctes
 			for mut chapter in select_chapters {
 				chapter.url = build_chapter_url(&manga_id);
 				chapters.push(chapter);
 			}
 			
-			chapters.reverse(); // Derniers en premier
-			println!("AnimeSama DEBUG: ✅ SELECT HTML - Retour de {} chapitres finaux", chapters.len());
+			// Trouver min/max pour le debug 
+			let mut min_ch = i32::MAX;
+			let mut max_ch = 0;
+			for ch in &chapters {
+				let ch_num = ch.chapter as i32;
+				if ch_num > max_ch { max_ch = ch_num; }
+				if ch_num < min_ch { min_ch = ch_num; }
+			}
+			
+			// Ajouter un chapitre debug au début pour indiquer la méthode utilisée
+			chapters.push(Chapter {
+				id: String::from("debug_select"),
+				title: format!("DEBUG: SELECT HTML - {} chapitres (min: {}, max: {})", chapters.len(), min_ch, max_ch),
+				volume: -1.0,
+				chapter: -1.0,
+				date_updated: current_date(),
+				scanlator: String::from("AnimeSama Debug"),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
+			
+			chapters.reverse(); // Derniers en premier (debug sera en premier maintenant)
 			return Ok(chapters);
 		}
 		_ => {
-			println!("AnimeSama DEBUG: ❌ SELECT HTML - Échec, passage aux fallbacks");
+			// Pas de select trouvé, continuer avec méthodes alternatives
 		}
 	}
 	
@@ -217,13 +234,25 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	
 	match episodes_result {
 		Ok(js_chapters) if !js_chapters.is_empty() => {
-			println!("AnimeSama DEBUG: ✅ EPISODES.JS - {} chapitres trouvés", js_chapters.len());
 			chapters.extend(js_chapters);
+			
+			// Ajouter un chapitre debug
+			chapters.push(Chapter {
+				id: String::from("debug_episodes"),
+				title: format!("DEBUG: EPISODES.JS - {} chapitres extraits", chapters.len()),
+				volume: -1.0,
+				chapter: -1.0,
+				date_updated: current_date(),
+				scanlator: String::from("AnimeSama Debug"),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
+			
 			chapters.reverse(); // Derniers en premier
 			return Ok(chapters);
 		}
 		_ => {
-			println!("AnimeSama DEBUG: ❌ EPISODES.JS - Échec");
+			// episodes.js a échoué, continuer avec autres méthodes
 		}
 	}
 	
@@ -233,13 +262,25 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	
 	match script_result {
 		Ok(script_chapters) if !script_chapters.is_empty() => {
-			println!("AnimeSama DEBUG: ✅ JAVASCRIPT COMMANDS - {} chapitres trouvés", script_chapters.len());
 			chapters.extend(script_chapters);
+			
+			// Ajouter un chapitre debug
+			chapters.push(Chapter {
+				id: String::from("debug_javascript"),
+				title: format!("DEBUG: JAVASCRIPT COMMANDS - {} chapitres extraits", chapters.len()),
+				volume: -1.0,
+				chapter: -1.0,
+				date_updated: current_date(),
+				scanlator: String::from("AnimeSama Debug"),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
+			
 			chapters.reverse();
 			return Ok(chapters);
 		}
 		_ => {
-			println!("AnimeSama DEBUG: ❌ JAVASCRIPT COMMANDS - Échec");
+			// Scripts ont échoué, continuer avec fallback
 		}
 	}
 	
@@ -247,7 +288,6 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	let max_chapter = parse_chapter_from_message(&html_content);
 	
 	if max_chapter > 0 {
-		println!("AnimeSama DEBUG: ✅ MESSAGE PARSING - {} chapitres détectés via messages", max_chapter);
 		for i in 1..=max_chapter {
 			chapters.push(Chapter {
 				id: format!("{}", i),
@@ -261,13 +301,37 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 			});
 		}
 		
+		// Ajouter un chapitre debug
+		chapters.push(Chapter {
+			id: String::from("debug_message"),
+			title: format!("DEBUG: MESSAGE PARSING - {} chapitres détectés", max_chapter),
+			volume: -1.0,
+			chapter: -1.0,
+			date_updated: current_date(),
+			scanlator: String::from("AnimeSama Debug"),
+			url: String::from(""),
+			lang: String::from("fr")
+		});
+		
 		chapters.reverse();
 		return Ok(chapters);
 	}
 	
-	// 5. Fallback final
-	println!("AnimeSama DEBUG: ⚠️  FALLBACK FINAL - Utilisation de 50 chapitres par défaut");
-	parse_chapter_list_simple(manga_id)
+	// 5. Fallback final - ajouter chapitre debug
+	let mut fallback_chapters = parse_chapter_list_simple(manga_id)?;
+	
+	fallback_chapters.push(Chapter {
+		id: String::from("debug_fallback"),
+		title: String::from("DEBUG: FALLBACK FINAL - 50 chapitres par défaut"),
+		volume: -1.0,
+		chapter: -1.0,
+		date_updated: current_date(),
+		scanlator: String::from("AnimeSama Debug"),
+		url: String::from(""),
+		lang: String::from("fr")
+	});
+	
+	Ok(fallback_chapters)
 }
 
 pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
@@ -328,17 +392,23 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	println!("AnimeSama DEBUG: Tentative de parsing du select HTML");
-	
 	// Chercher le select et ses options
 	let select_options = html.select("select option");
 	let options_count = select_options.array().len();
 	
-	println!("AnimeSama DEBUG: Trouvé {} options dans le select", options_count);
-	
 	if options_count == 0 {
-		println!("AnimeSama DEBUG: Pas de select trouvé, abandon de cette méthode");
-		return Ok(Vec::new());
+		// Pas de select trouvé, retourner chapitre debug
+		chapters.push(Chapter {
+			id: String::from("debug_no_select"),
+			title: String::from("DEBUG: Aucun select HTML trouvé"),
+			volume: -1.0,
+			chapter: -1.0,
+			date_updated: current_date(),
+			scanlator: String::from("AnimeSama Debug"),
+			url: String::from(""),
+			lang: String::from("fr")
+		});
+		return Ok(chapters);
 	}
 	
 	let mut max_chapter = 0;
@@ -373,9 +443,6 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			}
 		}
 	}
-	
-	println!("AnimeSama DEBUG: Select parsing terminé - {} chapitres extraits (min: {}, max: {})", 
-		chapters.len(), min_chapter, max_chapter);
 	
 	Ok(chapters)
 }
