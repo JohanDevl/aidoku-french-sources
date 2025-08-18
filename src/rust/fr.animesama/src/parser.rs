@@ -4,7 +4,7 @@ use aidoku::{
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
 
-use crate::BASE_URL;
+use crate::{BASE_URL, helper};
 
 // Helper pour construire l'URL correctement
 fn build_chapter_url(manga_id: &str) -> String {
@@ -184,48 +184,60 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// 1. D'abord essayer de trouver un <select> généré
-	let select_options = html.select("select option");
-	let options_count = select_options.array().len();
+	// 1. Essayer la méthode episodes.js (comme Tachiyomi)
+	let episodes_result = parse_episodes_js(&manga_id, &html);
 	
-	if options_count > 0 {
-		// Succès! Parser les vraies options
-		for option in select_options.array() {
-			if let Ok(option_node) = option.as_node() {
-				let option_text = option_node.text().read();
-				
-				if option_text.contains("hapitre") {
-					// Extraire le numéro depuis "Chapitre X"
-					let parts: Vec<&str> = option_text.split_whitespace().collect();
-					for part in parts {
-						if let Ok(num) = part.parse::<i32>() {
-							chapters.push(Chapter {
-								id: format!("{}", num),
-								title: format!("Chapitre {}", num),
-								volume: -1.0,
-								chapter: num as f32,
-								date_updated: current_date(),
-								scanlator: String::from(""),
-								url: build_chapter_url(&manga_id),
-								lang: String::from("fr")
-							});
-							break;
-						}
-					}
-				}
-			}
-		}
-		
-		if !chapters.is_empty() {
-			chapters.reverse();
+	match episodes_result {
+		Ok(js_chapters) if !js_chapters.is_empty() => {
+			// Succès avec episodes.js - ajouter debug
+			chapters.push(Chapter {
+				id: String::from("debug"),
+				title: String::from("Debug Info"),
+				volume: -1.0,
+				chapter: 999.0,
+				date_updated: current_date(),
+				scanlator: format!("EPISODES_JS: {} chapters found | URL: {} | manga_id: {}", js_chapters.len(), request_url, manga_id),
+				url: build_chapter_url(&manga_id),
+				lang: String::from("fr")
+			});
+			
+			// Ajouter les chapitres trouvés
+			chapters.extend(js_chapters);
+			chapters.reverse(); // Derniers en premier
 			return Ok(chapters);
+		}
+		_ => {
+			// episodes.js a échoué, continuer avec autres méthodes
 		}
 	}
 	
-	// 2. Chercher dans le JavaScript/HTML des patterns de chapitres
+	// 2. Chercher les scripts JavaScript dans la page (fallback Tachiyomi)
 	let html_content = html.html().read();
+	let script_result = parse_javascript_commands(&html_content);
 	
-	// Chercher "chapitre XXX" dans le contenu
+	match script_result {
+		Ok(script_chapters) if !script_chapters.is_empty() => {
+			chapters.push(Chapter {
+				id: String::from("debug"),
+				title: String::from("Debug Info"),
+				volume: -1.0,
+				chapter: 999.0,
+				date_updated: current_date(),
+				scanlator: format!("SCRIPT_PARSING: {} chapters found | URL: {} | manga_id: {}", script_chapters.len(), request_url, manga_id),
+				url: build_chapter_url(&manga_id),
+				lang: String::from("fr")
+			});
+			
+			chapters.extend(script_chapters);
+			chapters.reverse();
+			return Ok(chapters);
+		}
+		_ => {
+			// Scripts ont échoué aussi
+		}
+	}
+	
+	// 3. Méthode originale: chercher les patterns de chapitres
 	let mut max_chapter = 0;
 	let chapter_regex_patterns = [
 		"chapitre ",
@@ -241,7 +253,6 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 			start_pos += pos + pattern.len();
 			let remaining = &html_content[start_pos..];
 			
-			// Extraire le numéro qui suit
 			let mut number_str = String::new();
 			for char in remaining.chars() {
 				if char.is_ascii_digit() {
@@ -252,26 +263,25 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 			}
 			
 			if let Ok(chapter_num) = number_str.parse::<i32>() {
-				if chapter_num > max_chapter && chapter_num < 10000 {  // Limite raisonnable
+				if chapter_num > max_chapter && chapter_num < 10000 {
 					max_chapter = chapter_num;
 				}
 			}
 		}
 	}
 	
-	// Debug info
+	// Debug info pour les méthodes classiques
 	chapters.push(Chapter {
 		id: String::from("debug"),
 		title: String::from("Debug Info"),
 		volume: -1.0,
 		chapter: 999.0,
 		date_updated: current_date(),
-		scanlator: format!("DYNAMIC: select_opts={} max_found={} | URL: {} | manga_id: {}", options_count, max_chapter, request_url, manga_id),
+		scanlator: format!("REGEX_PATTERN: max_found={} | URL: {} | manga_id: {}", max_chapter, request_url, manga_id),
 		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
 	
-	// Si on a trouvé un nombre max, générer jusqu'à ce nombre
 	if max_chapter > 0 {
 		for i in 1..=max_chapter {
 			chapters.push(Chapter {
@@ -290,7 +300,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 		return Ok(chapters);
 	}
 	
-	// 3. Fallback vers parsing statique
+	// 4. Fallback final
 	parse_chapter_list_simple(manga_id)
 }
 
@@ -328,6 +338,164 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, reques
 	
 	// Inverser pour avoir les derniers en premier
 	chapters.reverse();
+	
+	Ok(chapters)
+}
+
+// Fonction pour parser episodes.js (méthode Tachiyomi)
+fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
+	// Extraire le titre du manga depuis l'élément titreOeuvre
+	let manga_title = html.select("#titreOeuvre").text().read();
+	if manga_title.is_empty() {
+		return Ok(Vec::new()); // Pas de titre trouvé
+	}
+	
+	// Construire l'URL vers episodes.js
+	let episodes_url = if manga_id.starts_with("http") {
+		format!("{}/scan/vf/episodes.js?title={}", manga_id, helper::urlencode(&manga_title))
+	} else {
+		format!("{}{}/scan/vf/episodes.js?title={}", String::from(BASE_URL), manga_id, helper::urlencode(&manga_title))
+	};
+	
+	// Faire la requête vers episodes.js
+	match aidoku::std::net::Request::new(&episodes_url, aidoku::std::net::HttpMethod::Get).string() {
+		Ok(js_content) => {
+			parse_episodes_content(&js_content, manga_id)
+		}
+		Err(_) => Ok(Vec::new()) // Échec de la requête
+	}
+}
+
+// Parser le contenu JavaScript d'episodes.js
+fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Extraire les épisodes avec regex eps(\d+)
+	let mut episode_numbers = Vec::new();
+	let mut start_pos = 0;
+	
+	while let Some(pos) = js_content[start_pos..].find("eps") {
+		start_pos += pos + 3; // Skip "eps"
+		let remaining = &js_content[start_pos..];
+		
+		// Extraire le numéro d'épisode
+		let mut number_str = String::new();
+		for char in remaining.chars() {
+			if char.is_ascii_digit() {
+				number_str.push(char);
+			} else {
+				break;
+			}
+		}
+		
+		if let Ok(episode_num) = number_str.parse::<i32>() {
+			if !episode_numbers.contains(&episode_num) {
+				episode_numbers.push(episode_num);
+			}
+		}
+	}
+	
+	// Trier et créer les chapitres
+	episode_numbers.sort();
+	for episode_num in episode_numbers {
+		chapters.push(Chapter {
+			id: format!("{}", episode_num),
+			title: format!("Chapitre {}", episode_num),
+			volume: -1.0,
+			chapter: episode_num as f32,
+			date_updated: current_date(),
+			scanlator: String::from(""),
+			url: build_chapter_url(manga_id),
+			lang: String::from("fr")
+		});
+	}
+	
+	Ok(chapters)
+}
+
+// Parser les commandes JavaScript dans la page HTML (fallback)
+fn parse_javascript_commands(html_content: &str) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Chercher resetListe() pour confirmer qu'il y a des scripts
+	if !html_content.contains("resetListe()") {
+		return Ok(Vec::new());
+	}
+	
+	// Parser les commandes creerListe(start, end)
+	let mut start_pos = 0;
+	while let Some(pos) = html_content[start_pos..].find("creerListe(") {
+		start_pos += pos + 11; // Skip "creerListe("
+		let remaining = &html_content[start_pos..];
+		
+		// Extraire les paramètres jusqu'à la parenthèse fermante
+		if let Some(end_pos) = remaining.find(')') {
+			let params = &remaining[..end_pos];
+			let parts: Vec<&str> = params.split(',').collect();
+			
+			if parts.len() == 2 {
+				if let (Ok(start_num), Ok(end_num)) = (
+					parts[0].trim().parse::<i32>(),
+					parts[1].trim().parse::<i32>()
+				) {
+					// Ajouter les chapitres de start à end
+					for i in start_num..=end_num {
+						chapters.push(Chapter {
+							id: format!("{}", i),
+							title: format!("Chapitre {}", i),
+							volume: -1.0,
+							chapter: i as f32,
+							date_updated: current_date(),
+							scanlator: String::from(""),
+							url: String::new(), // sera rempli plus tard
+							lang: String::from("fr")
+						});
+					}
+				}
+			}
+		}
+		
+		start_pos += 1; // Avancer pour la prochaine recherche
+	}
+	
+	// Parser les commandes newSP() pour les chapitres spéciaux
+	let mut start_pos = 0;
+	while let Some(pos) = html_content[start_pos..].find("newSP(") {
+		start_pos += pos + 6; // Skip "newSP("
+		let remaining = &html_content[start_pos..];
+		
+		if let Some(end_pos) = remaining.find(')') {
+			let param = &remaining[..end_pos].trim();
+			
+			// Essayer de parser comme nombre ou garder comme string
+			if let Ok(special_num) = param.parse::<i32>() {
+				chapters.push(Chapter {
+					id: format!("{}", special_num),
+					title: format!("Chapitre {}", special_num),
+					volume: -1.0,
+					chapter: special_num as f32,
+					date_updated: current_date(),
+					scanlator: String::from(""),
+					url: String::new(), // sera rempli plus tard
+					lang: String::from("fr")
+				});
+			} else if param.starts_with('"') && param.ends_with('"') {
+				let special_title = &param[1..param.len()-1]; // Enlever les quotes
+				chapters.push(Chapter {
+					id: String::from(special_title),
+					title: format!("Chapitre {}", special_title),
+					volume: -1.0,
+					chapter: chapters.len() as f32 + 1.0,
+					date_updated: current_date(),
+					scanlator: String::from(""),
+					url: String::new(), // sera rempli plus tard
+					lang: String::from("fr")
+				});
+			}
+		}
+		
+		start_pos += 1;
+	}
 	
 	Ok(chapters)
 }
