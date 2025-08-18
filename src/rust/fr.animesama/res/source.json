@@ -1,0 +1,17 @@
+{
+  "info": {
+    "id": "fr.animesama",
+    "lang": "fr",
+    "name": "AnimeSama",
+    "version": 1,
+    "url": "https://anime-sama.fr/"
+  },
+  "listings": [
+    {
+      "name": "Dernières Sorties"
+    },
+    {
+      "name": "Populaire"
+    }
+  ]
+}

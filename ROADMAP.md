@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 11 (7 active + 4 offline)
-- **Remaining sources**: 35
+- **Implemented sources**: 12 (8 active + 4 offline)
+- **Remaining sources**: 34
 - **Total available sources**: 46
 
 ## 🔄 Work in Progress
@@ -19,10 +19,9 @@ Currently no sources are being actively developed.
 | Source Name         | URL                                              | Expected Type | Priority  | Notes                      |
 | ------------------- | ------------------------------------------------ | ------------- | --------- | -------------------------- |
 | **JapScan**         | [japscan.si](https://japscan.si)                 | Custom        | 🔴 High   | Major French manga source  |
-| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🔴 High   | Popular community site     |
-| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🔴 High   | Active scanlation group    |
-| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🔴 High   | Well-known French site     |
-| **AnimeSama**       | [anime-sama.fr](https://anime-sama.fr)           | Custom        | 🟡 Medium | Anime/Manga hybrid site    |
+| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🟡 Medium | Popular community site     |
+| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🟡 Medium | Active scanlation group    |
+| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🟡 Medium | Well-known French site     |
 | **AnteikuScan**     | [anteikuscan.fr](https://anteikuscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
 | **BananaScan**      | [harmony-scan.fr](https://harmony-scan.fr)       | Unknown       | 🟡 Medium | Community source           |
 | **EdScanlation**    | [edscanlation.fr](https://edscanlation.fr)       | Unknown       | 🟡 Medium | Scanlation team            |
@@ -100,5 +99,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-08-17_
-_Total sources tracked: 35 upcoming_
+_Last updated: 2025-08-18_
+_Total sources tracked: 34 upcoming_
