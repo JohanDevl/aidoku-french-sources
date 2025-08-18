@@ -295,9 +295,11 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 }
 
 pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
-	// Essayer d'extraire le vrai titre depuis l'élément h4
-	let manga_title = if html.select("h4").text().read().trim().is_empty() {
-		// Fallback: extraire depuis l'ID si pas de h4
+	// Extraire le titre depuis l'élément #titreOeuvre
+	let manga_title = if !html.select("#titreOeuvre").text().read().trim().is_empty() {
+		String::from(html.select("#titreOeuvre").text().read().trim())
+	} else {
+		// Fallback: extraire depuis l'ID si pas de #titreOeuvre
 		manga_id.split('/').last().unwrap_or("Manga")
 			.replace('-', " ")
 			.split_whitespace()
@@ -310,24 +312,44 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 			})
 			.collect::<Vec<String>>()
 			.join(" ")
-	} else {
-		// Utiliser le vrai titre depuis le HTML
-		String::from(html.select("h4").text().read().trim())
 	};
 	
-	// Essayer d'extraire la description (si disponible)
-	let description = if html.select("p").text().read().trim().is_empty() {
-		String::from("Manga disponible sur AnimeSama")
-	} else {
-		let desc = String::from(html.select("p").text().read().trim());
-		if desc.len() > 500 {
-			format!("{}...", &desc[..500])
+	// Extraire la description depuis le synopsis (h2:contains(Synopsis)+p)
+	let synopsis_elements = html.select("#sousBlocMiddle h2:contains(Synopsis) + p").array();
+	let description = if !synopsis_elements.is_empty() {
+		if let Ok(synopsis_node) = synopsis_elements.get(0).as_node() {
+			let synopsis_raw = synopsis_node.text().read();
+			let synopsis_text = synopsis_raw.trim();
+			if synopsis_text.is_empty() {
+				String::from("Manga disponible sur AnimeSama")
+			} else {
+				String::from(synopsis_text)
+			}
 		} else {
-			desc
+			String::from("Manga disponible sur AnimeSama")
 		}
+	} else {
+		String::from("Manga disponible sur AnimeSama")
 	};
 	
-	// Essayer d'extraire l'image de couverture depuis l'élément avec ID coverOeuvre
+	// Extraire les genres depuis les liens après h2:contains(Genres)
+	let mut categories: Vec<String> = Vec::new();
+	let genre_elements = html.select("#sousBlocMiddle h2:contains(Genres) + a").array();
+	for genre_elem in genre_elements {
+		if let Ok(genre_node) = genre_elem.as_node() {
+			let genre_raw = genre_node.text().read();
+			let genre_text = genre_raw.trim();
+			if !genre_text.is_empty() {
+				categories.push(String::from(genre_text));
+			}
+		}
+	}
+	// Ajouter "Manga" par défaut si aucun genre trouvé
+	if categories.is_empty() {
+		categories.push(String::from("Manga"));
+	}
+	
+	// Extraire l'image de couverture depuis l'élément avec ID coverOeuvre
 	let cover = if html.select("#coverOeuvre").attr("src").read().is_empty() {
 		String::from("https://anime-sama.fr/images/default.jpg")
 	} else {
@@ -338,9 +360,6 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 			format!("{}{}", String::from(BASE_URL), cover_src)
 		}
 	};
-	
-	let mut categories: Vec<String> = Vec::new();
-	categories.push(String::from("Manga"));
 	
 	Ok(Manga {
 		id: manga_id.clone(),
