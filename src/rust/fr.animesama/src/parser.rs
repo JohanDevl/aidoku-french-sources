@@ -334,6 +334,8 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	
 	// Extraire les genres depuis les liens après h2:contains(Genres)
 	let mut categories: Vec<String> = Vec::new();
+	
+	// Méthode 1: Essayer de récupérer les liens individuellement
 	let genre_elements = html.select("#sousBlocMiddle h2:contains(Genres) + a").array();
 	for genre_elem in genre_elements {
 		if let Ok(genre_node) = genre_elem.as_node() {
@@ -344,6 +346,31 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 			}
 		}
 	}
+	
+	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres
+	if categories.is_empty() {
+		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
+		let genres_text = html.select("#sousBlocMiddle").text().read();
+		
+		// Chercher la section GENRES dans le texte
+		if let Some(genres_start) = genres_text.find("GENRES") {
+			let genres_section = &genres_text[genres_start..];
+			
+			// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
+			if let Some(first_line_end) = genres_section.find('\n') {
+				let genres_line = genres_section[7..first_line_end].trim(); // Skip "GENRES\n"
+				
+				// Diviser par les virgules et nettoyer chaque genre
+				for genre in genres_line.split(',') {
+					let cleaned_genre = genre.trim();
+					if !cleaned_genre.is_empty() {
+						categories.push(String::from(cleaned_genre));
+					}
+				}
+			}
+		}
+	}
+	
 	// Ajouter "Manga" par défaut si aucun genre trouvé
 	if categories.is_empty() {
 		categories.push(String::from("Manga"));
