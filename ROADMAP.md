@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 12 (8 active + 4 offline)
-- **Remaining sources**: 34
+- **Implemented sources**: 13 (9 active + 4 offline)
+- **Remaining sources**: 33
 - **Total available sources**: 46
 
 ## 🔄 Work in Progress
@@ -31,7 +31,6 @@ Currently no sources are being actively developed.
 | **FrManga**         | [frmanga.com](https://frmanga.com)               | Unknown       | 🟡 Medium | French manga source        |
 | **FuryoSquad**      | [furyosociety.com](https://furyosociety.com)     | Unknown       | 🟡 Medium | Scanlation group           |
 | **InovaScanManga**  | [inovascanmanga.com](https://inovascanmanga.com) | Unknown       | 🟡 Medium | Scan community             |
-| **LelManga**        | [lelmanga.com](https://lelmanga.com)             | Unknown       | 🟡 Medium | Related to LelscanFR       |
 | **MangaHubFR**      | [mangahub.fr](https://mangahub.fr)               | Unknown       | 🟡 Medium | French manga hub           |
 | **MangasScans**     | [mangas-scans.com](https://mangas-scans.com)     | Unknown       | 🟡 Medium | Manga scanning source      |
 | **PantheonScan**    | [pantheon-scan.com](https://pantheon-scan.com)   | Unknown       | 🟡 Medium | Scanlation group           |
@@ -100,4 +99,4 @@ When working on a source:
 ---
 
 _Last updated: 2025-08-18_
-_Total sources tracked: 34 upcoming_
+_Total sources tracked: 33 upcoming_

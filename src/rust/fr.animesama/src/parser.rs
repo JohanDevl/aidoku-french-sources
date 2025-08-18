@@ -546,7 +546,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 				title: mapping.title.clone(),
 				volume: -1.0,
 				chapter: mapping.chapter_number,
-				date_updated: current_date(),
+				date_updated: -1.0,
 				scanlator: String::from(""),
 				url: String::from(""),
 				lang: String::from("fr")
@@ -561,7 +561,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 				title: format!("Chapitre {}", chapter_number as i32),
 				volume: -1.0,
 				chapter: chapter_number,
-				date_updated: current_date(),
+				date_updated: -1.0,
 				scanlator: String::from(""),
 				url: String::from(""),
 				lang: String::from("fr")
@@ -587,7 +587,7 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _reque
 			title: format!("Chapitre {}", i),
 			volume: -1.0,
 			chapter: i as f32,
-			date_updated: current_date(),
+			date_updated: -1.0,
 			scanlator: String::from(""),
 			url: build_chapter_url(&manga_id),
 			lang: String::from("fr")
@@ -651,7 +651,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 					title: format!("Chapitre {}", chapter_num),
 					volume: -1.0,
 					chapter: *chapter_num as f32,
-					date_updated: current_date(),
+					date_updated: -1.0,
 					scanlator: String::from(""),
 					url: String::from(""), // Sera rempli plus tard par build_chapter_url
 					lang: String::from("fr")
@@ -664,7 +664,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 				title: format!("DEBUG: PARSING HTML BRUT RÉUSSI - {} chapitres (min: {}, max: {})", chapter_count, min_ch, max_ch),
 				volume: -1.0,
 				chapter: -1.0,
-				date_updated: current_date(),
+				date_updated: -1.0,
 				scanlator: String::from("AnimeSama Debug"),
 				url: String::from(""),
 				lang: String::from("fr")
@@ -686,7 +686,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 				title: format!("DEBUG: HTML ANALYSIS - {}", debug_msg),
 				volume: -1.0,
 				chapter: -1.0,
-				date_updated: current_date(),
+				date_updated: -1.0,
 				scanlator: String::from("AnimeSama Debug"),
 				url: String::from(""),
 				lang: String::from("fr")
@@ -716,7 +716,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 		title: format!("DEBUG: HTML brut échoué, CSS: {} options trouvées", options_count),
 		volume: -1.0,
 		chapter: -1.0,
-		date_updated: current_date(),
+		date_updated: -1.0,
 		scanlator: String::from("AnimeSama Debug"),
 		url: String::from(""),
 		lang: String::from("fr")
@@ -755,7 +755,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 						title: format!("Chapitre {}", chapter_num),
 						volume: -1.0,
 						chapter: chapter_num as f32,
-						date_updated: current_date(),
+						date_updated: -1.0,
 						scanlator: String::from(""),
 						url: String::from(""), // Sera rempli plus tard par build_chapter_url
 						lang: String::from("fr")
@@ -777,7 +777,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 		title: format!("DEBUG: {}", debug_text),
 		volume: -1.0,
 		chapter: -2.0,
-		date_updated: current_date(),
+		date_updated: -1.0,
 		scanlator: String::from("AnimeSama Debug"),
 		url: String::from(""),
 		lang: String::from("fr")
@@ -904,7 +904,7 @@ fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapte
 				title: format!("Chapitre {}", episode_num),
 				volume: -1.0,
 				chapter: episode_num as f32,
-				date_updated: current_date(),
+				date_updated: -1.0,
 				scanlator: String::from(""),
 				url: build_chapter_url(manga_id),
 				lang: String::from("fr")
@@ -991,7 +991,7 @@ fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<C
 							title: format!("Chapitre {}", i),
 							volume: -1.0,
 							chapter: i as f32,
-							date_updated: current_date(),
+							date_updated: -1.0,
 							scanlator: String::from(""),
 							url: build_chapter_url(manga_id),
 							lang: String::from("fr")
@@ -1021,7 +1021,7 @@ fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<C
 					title: format!("Chapitre {}", special_title),
 					volume: -1.0,
 					chapter: chapter_counter as f32,
-					date_updated: current_date(),
+					date_updated: -1.0,
 					scanlator: String::from(""),
 					url: build_chapter_url(manga_id),
 					lang: String::from("fr")
@@ -1059,7 +1059,7 @@ fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<C
 						title: format!("Chapitre {}", i),
 						volume: -1.0,
 						chapter: i as f32,
-						date_updated: current_date(),
+						date_updated: -1.0,
 						scanlator: String::from(""),
 						url: build_chapter_url(manga_id),
 						lang: String::from("fr")
@@ -1128,7 +1128,7 @@ pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 			title: format!("Chapitre {}", i),
 			volume: -1.0,
 			chapter: i as f32,
-			date_updated: current_date(),
+			date_updated: -1.0,
 			scanlator: String::from(""),
 			url: build_chapter_url(&manga_id),
 			lang: String::from("fr")
