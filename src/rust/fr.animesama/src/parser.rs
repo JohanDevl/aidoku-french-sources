@@ -188,7 +188,26 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// 1. Essayer la méthode episodes.js (comme Tachiyomi)
+	// 1. PRIORITÉ ABSOLUE : Parser le select HTML directement (méthode la plus fiable)
+	let select_result = parse_chapter_list_from_select(&html);
+	
+	match select_result {
+		Ok(select_chapters) if !select_chapters.is_empty() => {
+			// Succès avec le select HTML - ajouter les URLs correctes
+			for mut chapter in select_chapters {
+				chapter.url = build_chapter_url(&manga_id);
+				chapters.push(chapter);
+			}
+			
+			chapters.reverse(); // Derniers en premier
+			return Ok(chapters);
+		}
+		_ => {
+			// Pas de select trouvé, continuer avec méthodes alternatives
+		}
+	}
+	
+	// 2. Fallback : Essayer la méthode episodes.js (comme Tachiyomi)
 	let episodes_result = parse_episodes_js(&manga_id, &html);
 	
 	match episodes_result {
@@ -203,7 +222,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 		}
 	}
 	
-	// 2. Chercher les scripts JavaScript dans la page (méthode principale)
+	// 3. Fallback : Chercher les scripts JavaScript dans la page 
 	let html_content = html.html().read();
 	let script_result = parse_javascript_commands(&html_content, &manga_id);
 	
@@ -218,7 +237,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 		}
 	}
 	
-	// 3. Fallback pour les cas sans commandes JavaScript (comme Blue Lock)
+	// 4. Fallback pour les cas sans commandes JavaScript (comme Blue Lock)
 	let max_chapter = parse_chapter_from_message(&html_content);
 	
 	if max_chapter > 0 {
@@ -239,7 +258,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 		return Ok(chapters);
 	}
 	
-	// 4. Fallback final
+	// 5. Fallback final
 	parse_chapter_list_simple(manga_id)
 }
 
@@ -295,6 +314,44 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 		}
 		Err(_) => Ok(Vec::new()) // Échec de la requête
 	}
+}
+
+// Fonction pour parser directement le select HTML (méthode prioritaire)
+fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Chercher le select et ses options
+	let select_options = html.select("select option");
+	
+	if select_options.array().len() == 0 {
+		// Pas de select trouvé
+		return Ok(Vec::new());
+	}
+	
+	for option in select_options.array() {
+		if let Ok(option_node) = option.as_node() {
+			let option_text = String::from(option_node.text().read().trim());
+			
+			// Parser "Chapitre X"
+			if option_text.starts_with("Chapitre ") {
+				let chapter_num_str = option_text.replace("Chapitre ", "");
+				if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
+					chapters.push(Chapter {
+						id: format!("{}", chapter_num),
+						title: format!("Chapitre {}", chapter_num),
+						volume: -1.0,
+						chapter: chapter_num as f32,
+						date_updated: current_date(),
+						scanlator: String::from(""),
+						url: String::from(""), // Sera rempli plus tard par build_chapter_url
+						lang: String::from("fr")
+					});
+				}
+			}
+		}
+	}
+	
+	Ok(chapters)
 }
 
 // Parser le contenu JavaScript d'episodes.js
