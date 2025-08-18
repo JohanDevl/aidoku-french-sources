@@ -131,10 +131,26 @@ fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 	}
 }
 
+// Helper pour construire l'URL de la page du chapitre
+fn build_chapter_page_url(manga_id: &str, chapter_id: &str) -> String {
+	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
+	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
+	if manga_id.starts_with("http") {
+		format!("{}{}?id={}", manga_id, scan_path, chapter_id)
+	} else {
+		format!("{}{}{}?id={}", String::from(BASE_URL), manga_id, scan_path, chapter_id)
+	}
+}
+
 #[get_page_list]
 fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-	// Le chapter_id contient déjà l'URL complète vers episodes.js
-	// On n'a pas besoin du HTML pour AnimeSama, on utilise directement episodes.js
-	let empty_html = aidoku::std::html::Node::new_fragment("")?;
-	parser::parse_page_list(empty_html, manga_id, chapter_id)
+	// Construire l'URL vers la page du chapitre pour récupérer le HTML avec JavaScript
+	let url = build_chapter_page_url(&manga_id, &chapter_id);
+	let html = Request::new(url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+		.html()?;
+	parser::parse_page_list(html, manga_id, chapter_id)
 }

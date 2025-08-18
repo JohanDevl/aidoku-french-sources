@@ -5,7 +5,7 @@ use aidoku::{
 };
 use core::cmp::Ordering;
 
-use crate::{BASE_URL, helper};
+use crate::{BASE_URL, CDN_URL, helper};
 
 // Helper pour construire l'URL correctement
 fn build_chapter_url(manga_id: &str) -> String {
@@ -889,27 +889,57 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 	let chapter_num = chapter_id.parse::<i32>().unwrap_or(1);
 	
 	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
-	// puis le convertir en format pour l'API (ex: blue-lock -> Blue Lock)
 	let manga_slug = manga_id.split('/').last().unwrap_or("manga");
-	let manga_name = manga_slug.replace('-', " ")
-		.split_whitespace()
-		.map(|word| {
-			let mut chars = word.chars();
-			match chars.next() {
-				None => String::new(),
-				Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-			}
-		})
-		.collect::<Vec<String>>()
-		.join(" ");
 	
-	// PRIORITÉ 1 : Essayer d'obtenir le nombre de pages depuis l'API
-	match get_page_count_from_api(&manga_name, chapter_num) {
-		Ok(page_count) => {
-			// Succès avec l'API - générer les URLs correctes
-			for i in 1..=page_count {
-				let page_url = format!("https://anime-sama.fr/s2/scans/{}/{}/{}.jpg", 
-					manga_slug, 
+	// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
+	let title_from_html = html.select("#titreOeuvre").text().read();
+	let manga_title = if title_from_html.is_empty() {
+		// Fallback: convertir le slug en titre (blue-lock -> Blue Lock)
+		manga_slug.replace('-', " ")
+			.split_whitespace()
+			.map(|word| {
+				let mut chars = word.chars();
+				match chars.next() {
+					None => String::new(),
+					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+				}
+			})
+			.collect::<Vec<String>>()
+			.join(" ")
+	} else {
+		title_from_html
+	};
+	
+	// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
+	let html_content = html.html().read();
+	let page_count = parse_episodes_js_from_html(&html_content, chapter_num);
+	
+	if page_count > 0 {
+		// Succès avec le parsing JavaScript - générer les URLs CDN
+		for i in 1..=page_count {
+			let page_url = format!("{}/{}/{}/{}.jpg", 
+				String::from(CDN_URL), 
+				manga_title.replace(" ", "%20"), // URL encode les espaces
+				chapter_num, 
+				i
+			);
+			pages.push(Page {
+				index: i,
+				url: page_url,
+				base64: String::new(),
+				text: String::new()
+			});
+		}
+		return Ok(pages);
+	}
+	
+	// PRIORITÉ 2 : Fallback avec l'API AnimeSama
+	match get_page_count_from_api(&manga_title, chapter_num) {
+		Ok(api_page_count) => {
+			for i in 1..=api_page_count {
+				let page_url = format!("{}/{}/{}/{}.jpg", 
+					String::from(CDN_URL), 
+					manga_title.replace(" ", "%20"), 
 					chapter_num, 
 					i
 				);
@@ -920,28 +950,82 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 					text: String::new()
 				});
 			}
-			
 			return Ok(pages);
 		}
 		Err(_) => {
-			// L'API a échoué, utiliser fallback
+			// L'API a aussi échoué
 		}
 	}
 	
-	// PRIORITÉ 2 : Fallback - générer 20 pages par défaut
+	// PRIORITÉ 3 : Fallback ultime - 20 pages par défaut
 	for i in 1..=20 {
-		let fallback_url = format!("https://anime-sama.fr/s2/scans/{}/{}/{}.jpg", 
-			manga_slug, 
+		let page_url = format!("{}/{}/{}/{}.jpg", 
+			String::from(CDN_URL), 
+			manga_title.replace(" ", "%20"), 
 			chapter_num, 
 			i
 		);
 		pages.push(Page {
 			index: i,
-			url: fallback_url,
+			url: page_url,
 			base64: String::new(),
 			text: String::new()
 		});
 	}
 	
 	Ok(pages)
+}
+
+// Fonction pour parser les patterns eps{number} dans le JavaScript (inspirée de Tachiyomi)
+fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
+	// Regex inspirée de Tachiyomi : eps(\d+)\s*(?:=\s*\[(.*?)]|\.length\s*=\s*(\d+))
+	let mut start_pos = 0;
+	let eps_pattern = format!("eps{}", chapter_num);
+	
+	// Chercher le pattern eps{chapter_num} dans le HTML
+	while let Some(pos) = html_content[start_pos..].find(&eps_pattern) {
+		start_pos += pos + eps_pattern.len();
+		let remaining = &html_content[start_pos..];
+		
+		// Cas 1: eps123.length = 15
+		if remaining.starts_with(".length") {
+			if let Some(eq_pos) = remaining[7..].find('=') {
+				let after_eq = &remaining[7 + eq_pos + 1..];
+				let mut number_str = String::new();
+				
+				for ch in after_eq.trim().chars() {
+					if ch.is_ascii_digit() {
+						number_str.push(ch);
+					} else {
+						break;
+					}
+				}
+				
+				if let Ok(page_count) = number_str.parse::<i32>() {
+					if page_count > 0 && page_count <= 100 {
+						return page_count;
+					}
+				}
+			}
+		}
+		
+		// Cas 2: eps123 = ["page1", "page2", ...]
+		if remaining.trim_start().starts_with('=') {
+			let after_eq = &remaining[remaining.find('=').unwrap() + 1..];
+			if let Some(bracket_start) = after_eq.find('[') {
+				if let Some(bracket_end) = after_eq[bracket_start..].find(']') {
+					let array_content = &after_eq[bracket_start + 1..bracket_start + bracket_end];
+					// Compter les éléments (approximatif)
+					let item_count = array_content.matches(',').count() + 1;
+					if item_count > 0 && item_count <= 100 {
+						return item_count as i32;
+					}
+				}
+			}
+		}
+		
+		start_pos += 1;
+	}
+	
+	0 // Aucun pattern trouvé
 }
