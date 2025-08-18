@@ -77,28 +77,9 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 			}
 		}
 		
-		// Pattern: finirListe(debut) - continuer jusqu'à la fin
-		if let Some(start_pos) = trimmed.find("finirListe(") {
-			let params_start = start_pos + "finirListe(".len();
-			if let Some(params_end) = trimmed[params_start..].find(");") {
-				let param = trimmed[params_start..params_start + params_end].trim();
-				
-				if let Ok(final_start) = param.parse::<i32>() {
-					// Continuer la numérotation séquentielle
-					let mut chapter_num = final_start;
-					// Ajouter au maximum 50 chapitres supplémentaires pour éviter boucle infinie
-					for _ in 0..50 {
-						mappings.push(ChapterMapping {
-							index: current_index,
-							chapter_number: chapter_num as f32,
-							title: format!("Chapitre {}", chapter_num),
-						});
-						current_index += 1;
-						chapter_num += 1;
-					}
-				}
-			}
-		}
+		// Pattern: finirListe(debut) - marquer le point de départ pour la continuation
+		// Note: On ne génère pas de mappings ici, on laisse la logique principale
+		// gérer tous les épisodes disponibles après ce point
 	}
 	
 	mappings
@@ -432,14 +413,37 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 				}
 			} else {
 				// Utiliser les mappings pour créer les chapitres avec les bons numéros
+				// D'abord, créer un mapping pour tous les épisodes définis dans le JS
 				for mapping in &chapter_mappings {
-					// Vérifier que cet indice existe dans episodes.js
 					if available_indices.contains(&mapping.index) {
 						chapters.push(Chapter {
 							id: format!("{}", mapping.index), // ID = indice pour l'API
 							title: mapping.title.clone(),         // Titre avec vrai numéro
 							volume: -1.0,
 							chapter: mapping.chapter_number,      // Vrai numéro (peut être décimal)
+							date_updated: current_date(),
+							scanlator: String::from(""),
+							url: String::from(""),
+							lang: String::from("fr")
+						});
+					}
+				}
+				
+				// Ensuite, ajouter tous les épisodes disponibles qui ne sont pas dans le mapping
+				// (pour les cas où finirListe() devrait continuer plus loin)
+				let mapped_indices: Vec<i32> = chapter_mappings.iter().map(|m| m.index).collect();
+				
+				for index in &available_indices {
+					if !mapped_indices.contains(index) {
+						// Pour les indices non mappés après finirListe(), la numérotation continue
+						// Ex: One Piece indice 1047 → chapitre 1046 (car on a "sauté" One Shot)
+						let chapter_number = (index - 1) as f32; // Simple: indice - 1
+						
+						chapters.push(Chapter {
+							id: format!("{}", index),
+							title: format!("Chapitre {}", chapter_number as i32),
+							volume: -1.0,
+							chapter: chapter_number,
 							date_updated: current_date(),
 							scanlator: String::from(""),
 							url: String::from(""),
