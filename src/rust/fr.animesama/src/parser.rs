@@ -115,26 +115,89 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 	})
 }
 
-pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Générer tous les 314 chapitres d'AnimeSama
-	// Utiliser le format exact qui fonctionne
-	for i in 1..=314 {
+	// Debug: Chercher les différents sélecteurs possibles pour le select
+	let select_all = html.select("select");
+	let select_options_all = html.select("select option");
+	let select_id = html.select("select[id*='chapitre']");  // Chercher par ID contenant "chapitre"
+	let select_class = html.select("select[class*='chapitre']");  // Chercher par class contenant "chapitre"
+	
+	// Premier chapitre de debug avec informations
+	chapters.push(Chapter {
+		id: String::from("debug"),
+		title: format!("DEBUG: selects={} opts={} id_sel={} class_sel={}", 
+			select_all.array().len(), 
+			select_options_all.array().len(),
+			select_id.array().len(),
+			select_class.array().len()
+		),
+		volume: -1.0,
+		chapter: 999.0,
+		date_updated: current_date(),
+		scanlator: format!("manga: {}", manga_id),
+		url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+		lang: String::from("fr")
+	});
+	
+	// Essayer de parser les vraies options si trouvées
+	let options_found = select_options_all.array().len();
+	if options_found > 0 {
+		for option in select_options_all.array() {
+			if let Ok(option_node) = option.as_node() {
+				let option_text = option_node.text().read();
+				let option_value = option_node.attr("value").read();
+				
+				// Debug: afficher quelques options trouvées
+				if chapters.len() < 5 {  // Limiter le debug à quelques chapitres
+					chapters.push(Chapter {
+						id: format!("opt_{}", chapters.len()),
+						title: format!("OPT: text='{}' val='{}'", option_text, option_value),
+						volume: -1.0,
+						chapter: chapters.len() as f32,
+						date_updated: current_date(),
+						scanlator: String::from("DEBUG"),
+						url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+						lang: String::from("fr")
+					});
+				}
+				
+				// Essayer de parser un numéro de chapitre
+				if option_text.contains("hapitre") && !option_text.is_empty() {
+					// Extraire le numéro depuis le texte de l'option
+					let parts: Vec<&str> = option_text.split_whitespace().collect();
+					for part in parts {
+						if let Ok(num) = part.parse::<i32>() {
+							chapters.push(Chapter {
+								id: format!("{}", num),
+								title: String::from(""),
+								volume: -1.0,
+								chapter: num as f32,
+								date_updated: current_date(),
+								scanlator: String::from(""),
+								url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
+								lang: String::from("fr")
+							});
+							break;
+						}
+					}
+				}
+			}
+		}
+	} else {
+		// Fallback si aucune option trouvée
 		chapters.push(Chapter {
-			id: format!("{}", i),
-			title: String::from(""),  // Vide - Aidoku génère "Chapitre X" automatiquement
+			id: String::from("fallback"),
+			title: String::from("FALLBACK: No select options found"),
 			volume: -1.0,
-			chapter: i as f32,
+			chapter: 1.0,
 			date_updated: current_date(),
-			scanlator: String::from(""),  // Vide comme les sources qui marchent
+			scanlator: String::from("FALLBACK"),
 			url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
 			lang: String::from("fr")
 		});
 	}
-	
-	// Inverser pour avoir les derniers chapitres en premier (314, 313, 312...)
-	chapters.reverse();
 	
 	Ok(chapters)
 }
