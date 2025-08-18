@@ -199,7 +199,94 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_details]
 fn get_manga_details(id: String) -> Result<Manga> {
-	template::get_manga_details(id, get_data())
+	// LelManga uses MangaThemesia structure with different selectors than Madara
+	let data = get_data();
+	let url = format!("{}/{}/{}/", data.base_url, data.source_path, id);
+	
+	let mut req = aidoku::std::net::Request::new(&url, aidoku::std::net::HttpMethod::Get);
+	if let Some(user_agent) = &data.user_agent {
+		req = req.header("User-Agent", user_agent);
+	}
+	
+	let html = req.html()?;
+	
+	// Use MangaThemesia selectors for manga details
+	let details_container = html.select("div.bigcontent, div.animefull, div.main-info, div.postbody").first();
+	
+	// Extract title with MangaThemesia selectors
+	let title = if !details_container.select("h1.entry-title").text().read().is_empty() {
+		details_container.select("h1.entry-title").text().read()
+	} else if !details_container.select(".ts-breadcrumb li:last-child span").text().read().is_empty() {
+		details_container.select(".ts-breadcrumb li:last-child span").text().read()
+	} else {
+		// Fallback: try to find any h1 on the page
+		html.select("h1").text().read()
+	};
+	
+	if title.is_empty() {
+		return Err(aidoku::error::AidokuError {
+			reason: aidoku::error::AidokuErrorKind::Unimplemented,
+		});
+	}
+	
+	// Extract cover image
+	let cover = if !html.select(".infomanga > div[itemprop=image] img").attr("src").read().is_empty() {
+		html.select(".infomanga > div[itemprop=image] img").attr("src").read()
+	} else if !html.select(".thumb img").attr("src").read().is_empty() {
+		html.select(".thumb img").attr("src").read()
+	} else {
+		// Try common image selectors as fallback
+		if !html.select(".manga-poster img").attr("src").read().is_empty() {
+			html.select(".manga-poster img").attr("src").read()
+		} else {
+			String::new()
+		}
+	};
+	
+	// Extract author with French selector
+	let author = details_container.select(".imptdt:contains(Auteur) i").text().read();
+	
+	// Extract artist (if different from author)
+	let artist = details_container.select(".imptdt:contains(Artiste) i").text().read();
+	
+	// Extract description with MangaThemesia selectors
+	let description = if !details_container.select(".desc").text().read().is_empty() {
+		details_container.select(".desc").text().read()
+	} else {
+		details_container.select(".entry-content[itemprop=description]").text().read()
+	};
+	
+	// Extract genres
+	let mut categories: Vec<String> = Vec::new();
+	for genre_element in details_container.select("div.gnr a, .mgen a, .seriestugenre a").array() {
+		let genre = genre_element.as_node().expect("node array").text().read();
+		if !genre.is_empty() {
+			categories.push(genre);
+		}
+	}
+	
+	// Extract status
+	let status = (data.status)(&details_container);
+	
+	// Extract content rating
+	let nsfw = (data.nsfw)(&details_container, &categories);
+	
+	// Determine viewer type
+	let viewer = (data.viewer)(&details_container, &categories);
+	
+	Ok(Manga {
+		id,
+		cover,
+		title,
+		author,
+		artist,
+		description,
+		url: String::new(),
+		categories,
+		status,
+		nsfw,
+		viewer,
+	})
 }
 
 #[get_chapter_list]
