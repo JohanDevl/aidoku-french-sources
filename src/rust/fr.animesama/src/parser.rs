@@ -354,7 +354,19 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 			let genre_raw = genre_node.text().read();
 			let genre_text = genre_raw.trim();
 			if !genre_text.is_empty() {
-				categories.push(String::from(genre_text));
+				// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
+				if genre_text.contains(',') {
+					// Diviser par les virgules et ajouter chaque genre individuellement
+					for genre in genre_text.split(',') {
+						let cleaned_genre = genre.trim();
+						if !cleaned_genre.is_empty() {
+							categories.push(String::from(cleaned_genre));
+						}
+					}
+				} else {
+					// Genre unique, l'ajouter directement
+					categories.push(String::from(genre_text));
+				}
 			}
 		}
 	}
