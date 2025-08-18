@@ -155,11 +155,11 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 		}
 	};
 	
-	// Essayer d'extraire l'image de couverture
-	let cover = if html.select("img").attr("src").read().is_empty() {
+	// Essayer d'extraire l'image de couverture depuis l'élément avec ID coverOeuvre
+	let cover = if html.select("#coverOeuvre").attr("src").read().is_empty() {
 		String::from("https://anime-sama.fr/images/default.jpg")
 	} else {
-		let cover_src = html.select("img").attr("src").read();
+		let cover_src = html.select("#coverOeuvre").attr("src").read();
 		if cover_src.starts_with("http") {
 			cover_src
 		} else {
