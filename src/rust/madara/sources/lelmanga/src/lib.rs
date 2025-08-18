@@ -427,7 +427,92 @@ fn parse_chapter_date(date_str: &str) -> f64 {
 
 #[get_page_list]
 fn get_page_list(_manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-	template::get_page_list(chapter_id, get_data())
+	// LelManga uses MangaThemesia structure with JavaScript-loaded images
+	let data = get_data();
+	let url = format!("{}/{}/", data.base_url, chapter_id);
+	
+	let mut req = aidoku::std::net::Request::new(&url, aidoku::std::net::HttpMethod::Get);
+	if let Some(user_agent) = &data.user_agent {
+		req = req.header("User-Agent", user_agent);
+	}
+	
+	let html = req.html()?;
+	let mut pages: Vec<Page> = Vec::new();
+	
+	// First try: Check if images are in HTML (div#readerarea img)
+	for (index, img_element) in html.select("div#readerarea img").array().enumerate() {
+		let img_node = img_element.as_node().expect("node array");
+		
+		// Try multiple image attributes (data-lazy-src, data-src, src)
+		let img_url = if !img_node.attr("data-lazy-src").read().is_empty() {
+			img_node.attr("data-lazy-src").read()
+		} else if !img_node.attr("data-src").read().is_empty() {
+			img_node.attr("data-src").read()
+		} else {
+			img_node.attr("src").read()
+		};
+		
+		if !img_url.is_empty() {
+			pages.push(Page {
+				index: index as i32,
+				url: img_url,
+				base64: String::new(),
+				text: String::new(),
+			});
+		}
+	}
+	
+	// If HTML parsing succeeded, return the pages
+	if !pages.is_empty() {
+		return Ok(pages);
+	}
+	
+	// Second try: Parse JavaScript configuration for images
+	let html_content = html.text().read();
+	
+	// Look for sources array in JavaScript
+	// Pattern: sources:[{"source":"Server X","images":["url1","url2"...]}]
+	if let Some(sources_start) = html_content.find("sources:[") {
+		if let Some(sources_end) = html_content[sources_start..].find("}]") {
+			let sources_content = &html_content[sources_start + 9..sources_start + sources_end];
+			
+			// Extract images array from the first source
+			if let Some(images_start) = sources_content.find("\"images\":[") {
+				if let Some(images_end) = sources_content[images_start..].find("]") {
+					let images_content = &sources_content[images_start + 10..images_start + images_end];
+					
+					// Parse individual image URLs from the JSON array
+					let mut index = 0;
+					let mut current_pos = 0;
+					
+					while let Some(quote_start) = images_content[current_pos..].find('"') {
+						let absolute_start = current_pos + quote_start + 1;
+						if let Some(quote_end) = images_content[absolute_start..].find('"') {
+							let absolute_end = absolute_start + quote_end;
+							let image_url = &images_content[absolute_start..absolute_end];
+							
+							// Only add if it looks like a valid image URL
+							if image_url.starts_with("http") && (image_url.ends_with(".jpg") || image_url.ends_with(".png") || image_url.ends_with(".webp")) {
+								pages.push(Page {
+									index,
+									url: image_url.to_string(),
+									base64: String::new(),
+									text: String::new(),
+								});
+								index += 1;
+							}
+							
+							current_pos = absolute_end + 1;
+						} else {
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	Ok(pages)
 }
 
 #[modify_image_request]
