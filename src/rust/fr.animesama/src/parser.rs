@@ -1101,10 +1101,35 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 	let manga_slug = manga_id.split('/').last().unwrap_or("manga");
 	
 	// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
-	let title_from_html = html.select("#titreOeuvre").text().read();
-	let manga_title = if title_from_html.is_empty() {
-		// Fallback: convertir le slug en titre (blue-lock -> Blue Lock)
-		manga_slug.replace('-', " ")
+	let mut manga_title = String::new();
+	
+	// Méthode 1: Chercher #titreOeuvre (page principale manga)
+	let title_from_element = html.select("#titreOeuvre").text().read();
+	if !title_from_element.is_empty() {
+		manga_title = title_from_element;
+	}
+	
+	// Méthode 2: Extraire depuis le <title> de la page (ex: "Kaiju N°8 - Scans")
+	if manga_title.is_empty() {
+		let page_title = html.select("title").text().read();
+		if !page_title.is_empty() && page_title.contains(" - ") {
+			// Extraire la partie avant " - Scans" ou " - "
+			manga_title = String::from(page_title.split(" - ").next().unwrap_or("").trim());
+		}
+	}
+	
+	// Méthode 3: Chercher dans les éléments h1 qui peuvent contenir le titre
+	if manga_title.is_empty() {
+		let h1_text = html.select("h1").text().read();
+		if !h1_text.is_empty() {
+			manga_title = h1_text;
+		}
+	}
+	
+	// Fallback final: convertir le slug en titre générique
+	if manga_title.is_empty() {
+		// Conversion générique: kaiju-n8 -> Kaiju N8  
+		manga_title = manga_slug.replace('-', " ")
 			.split_whitespace()
 			.map(|word| {
 				let mut chars = word.chars();
@@ -1114,10 +1139,8 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 				}
 			})
 			.collect::<Vec<String>>()
-			.join(" ")
-	} else {
-		title_from_html
-	};
+			.join(" ");
+	}
 	
 	// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
 	let html_content = html.html().read();
