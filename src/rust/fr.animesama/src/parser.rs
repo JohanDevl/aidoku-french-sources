@@ -397,38 +397,63 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let regex_chapters = parse_options_from_raw_html(&html_content);
 	
 	if !regex_chapters.is_empty() {
-		// Calculer min/max avant de déplacer le vector
-		let min_ch = *regex_chapters.iter().min().unwrap_or(&0);
-		let max_ch = *regex_chapters.iter().max().unwrap_or(&0);
-		let chapter_count = regex_chapters.len();
-		
-		// Succès avec parsing HTML brut
-		for chapter_num in &regex_chapters {
+		// Vérifier si ce sont des vraies valeurs ou des codes debug négatifs
+		if regex_chapters.iter().all(|&x| x > 0) {
+			// Calculer min/max avant de déplacer le vector
+			let min_ch = *regex_chapters.iter().min().unwrap_or(&0);
+			let max_ch = *regex_chapters.iter().max().unwrap_or(&0);
+			let chapter_count = regex_chapters.len();
+			
+			// Succès avec parsing HTML brut
+			for chapter_num in &regex_chapters {
+				chapters.push(Chapter {
+					id: format!("{}", chapter_num),
+					title: format!("Chapitre {}", chapter_num),
+					volume: -1.0,
+					chapter: *chapter_num as f32,
+					date_updated: current_date(),
+					scanlator: String::from(""),
+					url: String::from(""), // Sera rempli plus tard par build_chapter_url
+					lang: String::from("fr")
+				});
+			}
+			
+			// Debug pour confirmer le succès
 			chapters.push(Chapter {
-				id: format!("{}", chapter_num),
-				title: format!("Chapitre {}", chapter_num),
+				id: String::from("debug_regex_success"),
+				title: format!("DEBUG: PARSING HTML BRUT RÉUSSI - {} chapitres (min: {}, max: {})", chapter_count, min_ch, max_ch),
 				volume: -1.0,
-				chapter: *chapter_num as f32,
+				chapter: -1.0,
 				date_updated: current_date(),
-				scanlator: String::from(""),
-				url: String::from(""), // Sera rempli plus tard par build_chapter_url
+				scanlator: String::from("AnimeSama Debug"),
+				url: String::from(""),
 				lang: String::from("fr")
 			});
+			
+			return Ok(chapters);
+		} else {
+			// Codes debug négatifs - interpréter les signaux
+			let debug_code = regex_chapters[0];
+			let debug_msg = match debug_code {
+				-3000 => String::from("Pas de <select> du tout dans le HTML"),
+				-2000 => String::from("Select existe mais aucune <option>"),
+				code if code <= -1000 => format!("Select + {} <option> mais pas 'Chapitre X'", -1000 - code),
+				_ => format!("Code debug inconnu: {}", debug_code)
+			};
+			
+			chapters.push(Chapter {
+				id: String::from("debug_html_analysis"),
+				title: format!("DEBUG: HTML ANALYSIS - {}", debug_msg),
+				volume: -1.0,
+				chapter: -1.0,
+				date_updated: current_date(),
+				scanlator: String::from("AnimeSama Debug"),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
+			
+			// Continuer vers les fallbacks
 		}
-		
-		// Debug pour confirmer le succès
-		chapters.push(Chapter {
-			id: String::from("debug_regex_success"),
-			title: format!("DEBUG: PARSING HTML BRUT RÉUSSI - {} chapitres (min: {}, max: {})", chapter_count, min_ch, max_ch),
-			volume: -1.0,
-			chapter: -1.0,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Debug"),
-			url: String::from(""),
-			lang: String::from("fr")
-		});
-		
-		return Ok(chapters);
 	}
 	
 	// Si le parsing HTML brut échoue, essayer les sélecteurs CSS comme fallback
@@ -525,6 +550,18 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 fn parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
 	let mut chapters: Vec<i32> = Vec::new();
 	
+	// DEBUG: Ajouter un chapitre avec un extrait du HTML pour voir ce qu'on reçoit vraiment
+	let html_excerpt = if html_content.len() > 500 {
+		&html_content[..500]
+	} else {
+		html_content
+	};
+	
+	// Chercher s'il y a un select dans le HTML
+	let has_select = html_content.contains("<select");
+	let has_option = html_content.contains("<option");
+	let option_count = html_content.matches("<option").count();
+	
 	// Chercher tous les patterns <option>Chapitre X</option>
 	let mut start_pos = 0;
 	while let Some(pos) = html_content[start_pos..].find("<option>Chapitre ") {
@@ -553,9 +590,25 @@ fn parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
 		start_pos += 1;
 	}
 	
-	// Trier et dédupliquer
-	chapters.sort();
-	chapters.dedup();
+	// Si aucun chapitre trouvé, créer un chapitre debug avec info HTML
+	if chapters.is_empty() {
+		// Créer un chapitre debug pour montrer ce qu'on trouve dans le HTML
+		// On ne peut pas retourner Chapter ici, mais on peut utiliser les valeurs négatives pour debug
+		// Retourner une valeur spéciale qui sera interceptée par la fonction parent
+		if has_select && has_option {
+			chapters.push(-1000 - option_count as i32); // Signal: select existe mais pas de "Chapitre X"
+		} else if has_select {
+			chapters.push(-2000); // Signal: select existe mais pas d'options
+		} else {
+			chapters.push(-3000); // Signal: pas de select du tout
+		}
+	}
+	
+	// Trier et dédupliquer (sauf les valeurs debug négatives)
+	if chapters.iter().all(|&x| x > 0) {
+		chapters.sort();
+		chapters.dedup();
+	}
 	
 	chapters
 }
