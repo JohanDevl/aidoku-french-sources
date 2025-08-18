@@ -8,12 +8,16 @@ use crate::{BASE_URL, helper};
 
 // Helper pour construire l'URL correctement
 fn build_chapter_url(manga_id: &str) -> String {
+	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
+	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
 	if manga_id.starts_with("http") {
 		// manga_id contient déjà l'URL complète
-		format!("{}/scan/vf/", manga_id)
+		format!("{}{}", manga_id, scan_path)
 	} else {
 		// manga_id est relatif, ajouter BASE_URL
-		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
+		format!("{}{}{}", String::from(BASE_URL), manga_id, scan_path)
 	}
 }
 
@@ -181,7 +185,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 }
 
 
-pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, request_url: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// 1. Essayer la méthode episodes.js (comme Tachiyomi)
@@ -189,19 +193,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 	
 	match episodes_result {
 		Ok(js_chapters) if !js_chapters.is_empty() => {
-			// Succès avec episodes.js - ajouter debug
-			chapters.push(Chapter {
-				id: String::from("debug"),
-				title: String::from("Debug Info"),
-				volume: -1.0,
-				chapter: 999.0,
-				date_updated: current_date(),
-				scanlator: format!("EPISODES_JS: {} chapters found | URL: {} | manga_id: {}", js_chapters.len(), request_url, manga_id),
-				url: build_chapter_url(&manga_id),
-				lang: String::from("fr")
-			});
-			
-			// Ajouter les chapitres trouvés
+			// Succès avec episodes.js
 			chapters.extend(js_chapters);
 			chapters.reverse(); // Derniers en premier
 			return Ok(chapters);
@@ -217,17 +209,6 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 	
 	match script_result {
 		Ok(script_chapters) if !script_chapters.is_empty() => {
-			chapters.push(Chapter {
-				id: String::from("debug"),
-				title: String::from("Debug Info"),
-				volume: -1.0,
-				chapter: 999.0,
-				date_updated: current_date(),
-				scanlator: format!("SCRIPT_PARSING: {} chapters found | URL: {} | manga_id: {}", script_chapters.len(), request_url, manga_id),
-				url: build_chapter_url(&manga_id),
-				lang: String::from("fr")
-			});
-			
 			chapters.extend(script_chapters);
 			chapters.reverse();
 			return Ok(chapters);
@@ -270,18 +251,6 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 		}
 	}
 	
-	// Debug info pour les méthodes classiques
-	chapters.push(Chapter {
-		id: String::from("debug"),
-		title: String::from("Debug Info"),
-		volume: -1.0,
-		chapter: 999.0,
-		date_updated: current_date(),
-		scanlator: format!("REGEX_PATTERN: max_found={} | URL: {} | manga_id: {}", max_chapter, request_url, manga_id),
-		url: build_chapter_url(&manga_id),
-		lang: String::from("fr")
-	});
-	
 	if max_chapter > 0 {
 		for i in 1..=max_chapter {
 			chapters.push(Chapter {
@@ -304,22 +273,10 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 	parse_chapter_list_simple(manga_id)
 }
 
-pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, request_url: String, error_info: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Debug : montrer qu'on est dans le fallback
-	chapters.push(Chapter {
-		id: String::from("fallback_debug"),
-		title: String::from("Debug Info"),
-		volume: -1.0,
-		chapter: 999.0,
-		date_updated: current_date(),
-		scanlator: format!("FALLBACK: {} | URL: {} | manga_id: {}", error_info, request_url, manga_id),
-		url: build_chapter_url(&manga_id),
-		lang: String::from("fr")
-	});
-	
-	// Défaut simple : 50 chapitres pour forcer l'utilisation du parsing dynamique
+	// Défaut simple : 50 chapitres
 	let chapter_count = 50;
 	
 	// Générer les chapitres avec le count adapté
@@ -350,11 +307,15 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 		return Ok(Vec::new()); // Pas de titre trouvé
 	}
 	
+	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
+	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
 	// Construire l'URL vers episodes.js
 	let episodes_url = if manga_id.starts_with("http") {
-		format!("{}/scan/vf/episodes.js?title={}", manga_id, helper::urlencode(&manga_title))
+		format!("{}{}episodes.js?title={}", manga_id, scan_path, helper::urlencode(&manga_title))
 	} else {
-		format!("{}{}/scan/vf/episodes.js?title={}", String::from(BASE_URL), manga_id, helper::urlencode(&manga_title))
+		format!("{}{}{}episodes.js?title={}", String::from(BASE_URL), manga_id, scan_path, helper::urlencode(&manga_title))
 	};
 	
 	// Faire la requête vers episodes.js

@@ -88,11 +88,15 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
+	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
+	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
 	// Essayer de récupérer les chapitres dynamiquement avec headers de navigateur
 	let url = if manga_id.starts_with("http") {
-		format!("{}/scan/vf/", manga_id)
+		format!("{}{}", manga_id, scan_path)
 	} else {
-		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
+		format!("{}{}{}", String::from(BASE_URL), manga_id, scan_path)
 	};
 	
 	// Créer une requête avec headers de navigateur complets
