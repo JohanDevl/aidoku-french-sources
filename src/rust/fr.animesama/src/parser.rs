@@ -138,7 +138,7 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 }
 
 
-pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// 1. D'abord essayer de trouver un <select> généré
@@ -223,7 +223,7 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 		volume: -1.0,
 		chapter: 999.0,
 		date_updated: current_date(),
-		scanlator: format!("URL: {}", if manga_id.starts_with("http") { format!("{}/scan/vf/", manga_id) } else { format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id) }),
+		scanlator: format!("URL: {} | manga_id: {}", request_url, manga_id),
 		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
@@ -248,20 +248,20 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 	}
 	
 	// 3. Fallback vers parsing statique
-	parse_chapter_list(manga_id, html)
+	parse_chapter_list_simple(manga_id)
 }
 
-pub fn parse_chapter_list(manga_id: String, _dummy_html: Node) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, request_url: String, error_info: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Debug : montrer qu'on est dans le fallback
 	chapters.push(Chapter {
 		id: String::from("fallback_debug"),
-		title: format!("FALLBACK: Dynamic parsing failed"),
+		title: format!("FALLBACK: {}", error_info),
 		volume: -1.0,
 		chapter: 999.0,
 		date_updated: current_date(),
-		scanlator: format!("manga_id: {}", manga_id),
+		scanlator: format!("URL: {} | manga_id: {}", request_url, manga_id),
 		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
@@ -289,6 +289,28 @@ pub fn parse_chapter_list(manga_id: String, _dummy_html: Node) -> Result<Vec<Cha
 	Ok(chapters)
 }
 
+pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Défaut simple : 50 chapitres
+	for i in 1..=50 {
+		chapters.push(Chapter {
+			id: format!("{}", i),
+			title: String::from(""),
+			volume: -1.0,
+			chapter: i as f32,
+			date_updated: current_date(),
+			scanlator: String::from(""),
+			url: build_chapter_url(&manga_id),
+			lang: String::from("fr")
+		});
+	}
+	
+	// Inverser pour avoir les derniers en premier
+	chapters.reverse();
+	
+	Ok(chapters)
+}
 
 pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
