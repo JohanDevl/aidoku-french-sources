@@ -48,14 +48,25 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 			}
 		}
 		
-		// Pattern: newSP(special) - chapitre spécial avec décimal
+		// Pattern: newSP(special) - chapitre spécial avec décimal ou texte
 		if let Some(start_pos) = trimmed.find("newSP(") {
 			let params_start = start_pos + "newSP(".len();
 			if let Some(params_end) = trimmed[params_start..].find(");") {
 				let param = trimmed[params_start..params_start + params_end].trim();
 				
-				// Gérer les nombres décimaux comme 73.5
-				if let Ok(special_num) = param.parse::<f32>() {
+				// Cas 1: Chapitre avec label texte comme "One Shot"
+				if param.starts_with("\"") && param.ends_with("\"") && param.len() > 2 {
+					// Extraire le contenu sans les guillemets
+					let text_content = &param[1..param.len()-1];
+					mappings.push(ChapterMapping {
+						index: current_index,
+						chapter_number: current_index as f32, // Utiliser l'index comme numéro
+						title: format!("Chapitre {}", text_content),
+					});
+					current_index += 1;
+				}
+				// Cas 2: Gérer les nombres décimaux comme 73.5
+				else if let Ok(special_num) = param.parse::<f32>() {
 					mappings.push(ChapterMapping {
 						index: current_index,
 						chapter_number: special_num,
