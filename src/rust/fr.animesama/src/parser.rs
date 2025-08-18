@@ -1177,20 +1177,25 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		}
 	}
 	
-	// Fallback final: convertir le slug en titre générique
+	// Fallback final: convertir le slug en titre avec gestion des cas spéciaux
 	if manga_title.is_empty() {
-		// Conversion générique: kaiju-n8 -> Kaiju N8  
-		manga_title = manga_slug.replace('-', " ")
-			.split_whitespace()
-			.map(|word| {
-				let mut chars = word.chars();
-				match chars.next() {
-					None => String::new(),
-					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-				}
-			})
-			.collect::<Vec<String>>()
-			.join(" ");
+		manga_title = match manga_slug {
+			"kaiju-n8" => String::from("Kaiju N°8"), // Cas spécial avec symbole degré
+			_ => {
+				// Conversion générique: slug -> Title Case
+				manga_slug.replace('-', " ")
+					.split_whitespace()
+					.map(|word| {
+						let mut chars = word.chars();
+						match chars.next() {
+							None => String::new(),
+							Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+						}
+					})
+					.collect::<Vec<String>>()
+					.join(" ")
+			}
+		};
 	}
 	
 	// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
@@ -1202,7 +1207,7 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		for i in 1..=page_count {
 			let page_url = format!("{}/{}/{}/{}.jpg", 
 				String::from(CDN_URL), 
-				manga_title.replace(" ", "%20"), // URL encode les espaces
+				helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
 				chapter_index, 
 				i
 			);
@@ -1222,7 +1227,7 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 			for i in 1..=api_page_count {
 				let page_url = format!("{}/{}/{}/{}.jpg", 
 					String::from(CDN_URL), 
-					manga_title.replace(" ", "%20"), 
+					helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
 					chapter_index, 
 					i
 				);
@@ -1244,7 +1249,7 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 	for i in 1..=20 {
 		let page_url = format!("{}/{}/{}/{}.jpg", 
 			String::from(CDN_URL), 
-			manga_title.replace(" ", "%20"), 
+			helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
 			chapter_index, 
 			i
 		);
