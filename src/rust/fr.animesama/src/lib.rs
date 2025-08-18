@@ -74,28 +74,10 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	// Solution hybride : essayer /scan/vf/, sinon fallback
-	// Corriger la construction d'URL selon le format du manga_id
-	let url = if manga_id.starts_with("http") {
-		// manga_id contient déjà l'URL complète
-		format!("{}/scan/vf/", manga_id)
-	} else {
-		// manga_id est relatif, ajouter BASE_URL
-		format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id)
-	};
-	
-	// Essayer la vraie page d'abord
-	match Request::new(&url, HttpMethod::Get).html() {
-		Ok(html) => {
-			// Succès : utiliser le vrai HTML pour parsing dynamique
-			parser::parse_chapter_list_dynamic(manga_id, html)
-		}
-		Err(_) => {
-			// Échec : utiliser fallback avec dummy HTML
-			let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
-			parser::parse_chapter_list_fallback(manga_id, dummy_html, url)
-		}
-	}
+	// AnimeSama utilise JavaScript pour générer les chapitres
+	// Utiliser directement la génération statique adaptative
+	let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+	parser::parse_chapter_list(manga_id, dummy_html)
 }
 
 #[get_page_list]
