@@ -19,67 +19,85 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 	let mut mappings: Vec<ChapterMapping> = Vec::new();
 	let mut current_index = 1; // Indices commencent à 1
 	
-	// Chercher les patterns JavaScript: resetListe(), creerListe(X,Y), newSP(Z), finirListe(W)
+	// Parser ligne par ligne en respectant l'ordre des commandes
 	let lines: Vec<&str> = html_content.lines().collect();
 	
 	for line in lines {
 		let trimmed = line.trim();
 		
-		// Pattern: creerListe(debut, fin)
-		if let Some(start_pos) = trimmed.find("creerListe(") {
-			let params_start = start_pos + "creerListe(".len();
-			if let Some(params_end) = trimmed[params_start..].find(");") {
-				let params = &trimmed[params_start..params_start + params_end];
-				let parts: Vec<&str> = params.split(",").map(|s| s.trim()).collect();
-				
-				if parts.len() == 2 {
-					if let (Ok(start), Ok(end)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
-						// Créer les mappings pour la plage
-						for chapter_num in start..=end {
+		// Parser tous les patterns sur la même ligne dans l'ordre
+		let mut line_pos = 0;
+		
+		while line_pos < trimmed.len() {
+			// Chercher le prochain pattern sur cette ligne
+			let creer_pos = trimmed[line_pos..].find("creerListe(");
+			let newsp_pos = trimmed[line_pos..].find("newSP(");
+			
+			// Déterminer quel pattern vient en premier
+			let next_pattern = match (creer_pos, newsp_pos) {
+				(Some(c), Some(n)) if c < n => ("creer", line_pos + c),
+				(Some(c), None) => ("creer", line_pos + c),
+				(None, Some(n)) => ("newsp", line_pos + n),
+				_ => break, // Aucun pattern trouvé
+			};
+			
+			match next_pattern.0 {
+				"creer" => {
+					let start_pos = next_pattern.1 + "creerListe(".len();
+					if let Some(params_end) = trimmed[start_pos..].find(");") {
+						let params = &trimmed[start_pos..start_pos + params_end];
+						let parts: Vec<&str> = params.split(",").map(|s| s.trim()).collect();
+						
+						if parts.len() == 2 {
+							if let (Ok(start), Ok(end)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+								// Créer les mappings pour la plage
+								for chapter_num in start..=end {
+									mappings.push(ChapterMapping {
+										index: current_index,
+										chapter_number: chapter_num as f32,
+										title: format!("Chapitre {}", chapter_num),
+									});
+									current_index += 1;
+								}
+							}
+						}
+						line_pos = start_pos + params_end + 2; // +2 pour ");
+					} else {
+						break;
+					}
+				}
+				"newsp" => {
+					let start_pos = next_pattern.1 + "newSP(".len();
+					if let Some(params_end) = trimmed[start_pos..].find(");") {
+						let param = trimmed[start_pos..start_pos + params_end].trim();
+						
+						// Cas 1: Chapitre avec label texte comme "One Shot"
+						if param.starts_with("\"") && param.ends_with("\"") && param.len() > 2 {
+							let text_content = &param[1..param.len()-1];
 							mappings.push(ChapterMapping {
 								index: current_index,
-								chapter_number: chapter_num as f32,
-								title: format!("Chapitre {}", chapter_num),
+								chapter_number: current_index as f32, // Utiliser l'index comme numéro
+								title: format!("Chapitre {}", text_content),
 							});
 							current_index += 1;
 						}
+						// Cas 2: Gérer les nombres décimaux comme 19.5
+						else if let Ok(special_num) = param.parse::<f32>() {
+							mappings.push(ChapterMapping {
+								index: current_index,
+								chapter_number: special_num,
+								title: format!("Chapitre {}", special_num),
+							});
+							current_index += 1;
+						}
+						line_pos = start_pos + params_end + 2; // +2 pour ");
+					} else {
+						break;
 					}
 				}
+				_ => break,
 			}
 		}
-		
-		// Pattern: newSP(special) - chapitre spécial avec décimal ou texte
-		if let Some(start_pos) = trimmed.find("newSP(") {
-			let params_start = start_pos + "newSP(".len();
-			if let Some(params_end) = trimmed[params_start..].find(");") {
-				let param = trimmed[params_start..params_start + params_end].trim();
-				
-				// Cas 1: Chapitre avec label texte comme "One Shot"
-				if param.starts_with("\"") && param.ends_with("\"") && param.len() > 2 {
-					// Extraire le contenu sans les guillemets
-					let text_content = &param[1..param.len()-1];
-					mappings.push(ChapterMapping {
-						index: current_index,
-						chapter_number: current_index as f32, // Utiliser l'index comme numéro
-						title: format!("Chapitre {}", text_content),
-					});
-					current_index += 1;
-				}
-				// Cas 2: Gérer les nombres décimaux comme 73.5
-				else if let Ok(special_num) = param.parse::<f32>() {
-					mappings.push(ChapterMapping {
-						index: current_index,
-						chapter_number: special_num,
-						title: format!("Chapitre {}", special_num),
-					});
-					current_index += 1;
-				}
-			}
-		}
-		
-		// Pattern: finirListe(debut) - marquer le point de départ pour la continuation
-		// Note: On ne génère pas de mappings ici, on laisse la logique principale
-		// gérer tous les épisodes disponibles après ce point
 	}
 	
 	mappings
@@ -131,14 +149,34 @@ fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
 
 // Fonction pour calculer le numéro de chapitre réel en tenant compte des chapitres spéciaux
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Compter combien de chapitres spéciaux (non-numériques) il y a avant cet indice
-	let special_chapters_before = mappings.iter()
-		.filter(|m| m.index < index)
-		.filter(|m| !m.title.chars().any(|c| c.is_ascii_digit()) || m.title.contains("One Shot"))
-		.count() as i32;
+	// Pour les indices non mappés après finirListe(), continuer la numérotation séquentielle
+	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 27, indice 29 = chapitre 28, etc.
 	
-	// Le numéro de chapitre = indice - nombre de chapitres spéciaux avant
-	(index - special_chapters_before) as f32
+	if mappings.is_empty() {
+		return index as f32;
+	}
+	
+	// Trouver le dernier indice mappé
+	let last_mapped_index = mappings.iter().map(|m| m.index).max().unwrap_or(0);
+	
+	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
+	let last_numeric_chapter = mappings.iter()
+		.filter(|m| m.title.chars().any(|c| c.is_ascii_digit()) && !m.title.contains("One Shot"))
+		.filter_map(|m| {
+			let title_parts: Vec<&str> = m.title.split_whitespace().collect();
+			if title_parts.len() >= 2 {
+				title_parts[1].parse::<f32>().ok()
+			} else {
+				None
+			}
+		})
+		.max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+		.unwrap_or(0.0);
+	
+	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre 27
+	// Donc: indice 28 → chapitre 27, indice 29 → chapitre 28, etc.
+	let chapters_after_last_numeric = index - last_mapped_index;
+	last_numeric_chapter + chapters_after_last_numeric as f32
 }
 
 // Helper pour construire l'URL correctement
