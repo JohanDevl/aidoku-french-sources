@@ -225,6 +225,34 @@ fn get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
 	Ok(chapters)
 }
 
+// Nouvelle fonction pour récupérer le nombre de pages depuis l'API AnimeSama
+fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
+	// Construire l'URL de l'API
+	let encoded_title = helper::urlencode(manga_name);
+	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
+	
+	// Faire la requête
+	let json = Request::new(&api_url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0")
+		.header("Accept", "application/json")
+		.json()?;
+	let json_obj = json.as_object()?;
+	
+	// Parser le JSON pour trouver le nombre de pages pour ce chapitre
+	let chapter_key = format!("{}", chapter_num);
+	let chapter_value = json_obj.get(&chapter_key);
+	if let Ok(page_count) = chapter_value.as_int() {
+		if page_count > 0 {
+			return Ok(page_count as i32);
+		}
+	}
+	
+	// Si le chapitre n'est pas trouvé dans l'API, retourner une erreur
+	Err(aidoku::error::AidokuError { 
+		reason: aidoku::error::AidokuErrorKind::Unimplemented 
+	})
+}
+
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
@@ -857,68 +885,63 @@ pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
-	println!("AnimeSama debug: parse_page_list - manga_id: {}", manga_id);
-	println!("AnimeSama debug: parse_page_list - chapter_id: {}", chapter_id);
+	// Extraire le numéro de chapitre depuis chapter_id
+	let chapter_num = chapter_id.parse::<i32>().unwrap_or(1);
 	
-	// Parser les images directement depuis la page HTML
-	// Les images ont des alt comme "Chapitre X – page Y"
-	let images = html.select("img[alt*='Chapitre']");
-	let images_count = images.array().len();
-	
-	println!("AnimeSama debug: Found {} images with Chapitre in alt", images_count);
-	
-	if images_count > 0 {
-		// Parser les vraies images de la page
-		let mut page_index = 1;
-		for image in images.array() {
-			if let Ok(image_node) = image.as_node() {
-				let image_src = image_node.attr("src").read();
-				let image_alt = image_node.attr("alt").read();
-				
-				// Vérifier que c'est bien une page de chapitre
-				if !image_src.is_empty() && image_alt.contains("page") {
-					pages.push(Page {
-						index: page_index,
-						url: image_src.clone(),
-						base64: String::new(),
-						text: String::new()
-					});
-					
-					println!("AnimeSama debug: Added page {} with URL: {}", page_index, image_src);
-					page_index += 1;
-				}
+	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+	// puis le convertir en format pour l'API (ex: blue-lock -> Blue Lock)
+	let manga_slug = manga_id.split('/').last().unwrap_or("manga");
+	let manga_name = manga_slug.replace('-', " ")
+		.split_whitespace()
+		.map(|word| {
+			let mut chars = word.chars();
+			match chars.next() {
+				None => String::new(),
+				Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
 			}
+		})
+		.collect::<Vec<String>>()
+		.join(" ");
+	
+	// PRIORITÉ 1 : Essayer d'obtenir le nombre de pages depuis l'API
+	match get_page_count_from_api(&manga_name, chapter_num) {
+		Ok(page_count) => {
+			// Succès avec l'API - générer les URLs correctes
+			for i in 1..=page_count {
+				let page_url = format!("https://anime-sama.fr/s2/scans/{}/{}/{}.jpg", 
+					manga_slug, 
+					chapter_num, 
+					i
+				);
+				pages.push(Page {
+					index: i,
+					url: page_url,
+					base64: String::new(),
+					text: String::new()
+				});
+			}
+			
+			return Ok(pages);
 		}
-		
-		println!("AnimeSama debug: Successfully parsed {} pages from HTML", pages.len());
-	} else {
-		// Fallback uniquement si aucune image trouvée
-		println!("AnimeSama debug: No images found, using fallback");
-		
-		// Extraire le numéro de chapitre depuis chapter_id (maintenant c'est juste le numéro)
-		let chapter_num = chapter_id.parse::<i32>().unwrap_or(1);
-		
-		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
-		let manga_name = manga_id.split('/').last().unwrap_or("manga");
-		
-		// Générer des URLs de fallback basées sur la structure CDN d'AnimeSama
-		for i in 1..=20 {
-			let fallback_url = format!("{}/s2/scans/{}/{}/{}.jpg", 
-				String::from(BASE_URL), 
-				manga_name, 
-				chapter_num, 
-				i
-			);
-			pages.push(Page {
-				index: i,
-				url: fallback_url,
-				base64: String::new(),
-				text: String::new()
-			});
+		Err(_) => {
+			// L'API a échoué, utiliser fallback
 		}
 	}
 	
-	println!("AnimeSama debug: Final page count: {}", pages.len());
+	// PRIORITÉ 2 : Fallback - générer 20 pages par défaut
+	for i in 1..=20 {
+		let fallback_url = format!("https://anime-sama.fr/s2/scans/{}/{}/{}.jpg", 
+			manga_slug, 
+			chapter_num, 
+			i
+		);
+		pages.push(Page {
+			index: i,
+			url: fallback_url,
+			base64: String::new(),
+			text: String::new()
+		});
+	}
 	
 	Ok(pages)
 }
