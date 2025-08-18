@@ -68,8 +68,22 @@ fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_details]
 fn get_manga_details(manga_id: String) -> Result<Manga> {
-	let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
-	parser::parse_manga_details(manga_id, dummy_html)
+	// Construire l'URL de la page manga
+	let url = if manga_id.starts_with("http") {
+		manga_id.clone()
+	} else {
+		format!("{}{}", String::from(BASE_URL), manga_id)
+	};
+	
+	// Faire une vraie requête vers la page du manga
+	match Request::new(&url, HttpMethod::Get).html() {
+		Ok(html) => parser::parse_manga_details(manga_id, html),
+		Err(_) => {
+			// Fallback en cas d'échec
+			let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+			parser::parse_manga_details(manga_id, dummy_html)
+		}
+	}
 }
 
 #[get_chapter_list]

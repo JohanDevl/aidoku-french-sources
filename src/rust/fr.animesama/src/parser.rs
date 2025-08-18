@@ -117,10 +117,10 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 	})
 }
 
-pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
-	// Extraire le nom du manga depuis l'ID pour le titre
-	let manga_title = if manga_id.starts_with("http") {
-		// Extraire depuis URL complète: https://anime-sama.fr/catalogue/blue-lock -> Blue Lock
+pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
+	// Essayer d'extraire le vrai titre depuis l'élément h4
+	let manga_title = if html.select("h4").text().read().trim().is_empty() {
+		// Fallback: extraire depuis l'ID si pas de h4
 		manga_id.split('/').last().unwrap_or("Manga")
 			.replace('-', " ")
 			.split_whitespace()
@@ -134,19 +134,32 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 			.collect::<Vec<String>>()
 			.join(" ")
 	} else {
-		// Extraire depuis ID relatif: /catalogue/blue-lock -> Blue Lock  
-		manga_id.split('/').last().unwrap_or("Manga")
-			.replace('-', " ")
-			.split_whitespace()
-			.map(|word| {
-				let mut chars = word.chars();
-				match chars.next() {
-					None => String::new(),
-					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-				}
-			})
-			.collect::<Vec<String>>()
-			.join(" ")
+		// Utiliser le vrai titre depuis le HTML
+		String::from(html.select("h4").text().read().trim())
+	};
+	
+	// Essayer d'extraire la description (si disponible)
+	let description = if html.select("p").text().read().trim().is_empty() {
+		String::from("Manga disponible sur AnimeSama")
+	} else {
+		let desc = String::from(html.select("p").text().read().trim());
+		if desc.len() > 500 {
+			format!("{}...", &desc[..500])
+		} else {
+			desc
+		}
+	};
+	
+	// Essayer d'extraire l'image de couverture
+	let cover = if html.select("img").attr("src").read().is_empty() {
+		String::from("https://anime-sama.fr/images/default.jpg")
+	} else {
+		let cover_src = html.select("img").attr("src").read();
+		if cover_src.starts_with("http") {
+			cover_src
+		} else {
+			format!("{}{}", String::from(BASE_URL), cover_src)
+		}
 	};
 	
 	let mut categories: Vec<String> = Vec::new();
@@ -154,11 +167,11 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 	
 	Ok(Manga {
 		id: manga_id.clone(),
-		cover: String::from("https://anime-sama.fr/images/default.jpg"),
+		cover,
 		title: manga_title,
 		author: String::from(""),
 		artist: String::from(""),
-		description: String::from("Manga disponible sur AnimeSama"),
+		description,
 		url: build_manga_url(&manga_id),
 		categories,
 		status: MangaStatus::Unknown,
