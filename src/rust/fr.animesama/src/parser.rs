@@ -254,26 +254,20 @@ pub fn parse_chapter_list_dynamic(manga_id: String, html: Node) -> Result<Vec<Ch
 pub fn parse_chapter_list(manga_id: String, _dummy_html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Générer un nombre adaptatif de chapitres selon le manga
-	let chapter_count = if manga_id.contains("blue-lock") {
-		314  // Blue Lock a ~314 chapitres
-	} else if manga_id.contains("one-piece") {
-		1100  // One Piece a ~1100+ chapitres
-	} else if manga_id.contains("naruto") {
-		700   // Naruto a ~700 chapitres
-	} else if manga_id.contains("bleach") {
-		686   // Bleach a 686 chapitres
-	} else if manga_id.contains("my-hero-academia") || manga_id.contains("boku-no-hero") {
-		400   // My Hero Academia a ~400+ chapitres
-	} else if manga_id.contains("attack-on-titan") || manga_id.contains("shingeki") {
-		139   // Attack on Titan a 139 chapitres
-	} else if manga_id.contains("demon-slayer") || manga_id.contains("kimetsu") {
-		205   // Demon Slayer a 205 chapitres
-	} else if manga_id.contains("dragon-ball") {
-		519   // Dragon Ball a ~519 chapitres
-	} else {
-		100   // Défaut pour autres mangas
-	};
+	// Debug : montrer qu'on est dans le fallback
+	chapters.push(Chapter {
+		id: String::from("fallback_debug"),
+		title: format!("FALLBACK: Dynamic parsing failed"),
+		volume: -1.0,
+		chapter: 999.0,
+		date_updated: current_date(),
+		scanlator: format!("manga_id: {}", manga_id),
+		url: build_chapter_url(&manga_id),
+		lang: String::from("fr")
+	});
+	
+	// Défaut simple : 50 chapitres pour forcer l'utilisation du parsing dynamique
+	let chapter_count = 50;
 	
 	// Générer les chapitres avec le count adapté
 	for i in 1..=chapter_count {

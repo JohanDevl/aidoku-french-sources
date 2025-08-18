@@ -102,10 +102,11 @@ fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
 	
 	match request.html() {
 		Ok(html) => {
+			// Succès de la requête avec headers - utiliser parsing dynamique
 			parser::parse_chapter_list_dynamic(manga_id, html)
 		}
 		Err(_) => {
-			// Fallback si la requête échoue
+			// Échec de la requête avec headers - utiliser fallback
 			let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
 			parser::parse_chapter_list(manga_id, dummy_html)
 		}
