@@ -173,10 +173,22 @@ fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -
 		.max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
 		.unwrap_or(0.0);
 	
-	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre 27
-	// Donc: indice 28 → chapitre 27, indice 29 → chapitre 28, etc.
+	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre suivant entier
+	// Si le dernier chapitre est 19.5, le suivant devrait être 20, pas 20.5
 	let chapters_after_last_numeric = index - last_mapped_index;
-	last_numeric_chapter + chapters_after_last_numeric as f32
+	
+	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
+	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
+	let next_chapter_base = if fractional_part > 0.0 {
+		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
+		(last_numeric_chapter as i32 + 1) as f32
+	} else {
+		// Si c'est déjà un entier (ex: 19), le prochain est 20
+		last_numeric_chapter + 1.0
+	};
+	
+	// Les chapitres après reprennent une numérotation entière normale
+	next_chapter_base + (chapters_after_last_numeric - 1) as f32
 }
 
 // Helper pour construire l'URL correctement
