@@ -392,11 +392,49 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Essayer plusieurs sélecteurs pour les options
+	// NOUVEAU: Parser directement le HTML brut au lieu d'utiliser les sélecteurs CSS
+	let html_content = html.html().read();
+	let regex_chapters = parse_options_from_raw_html(&html_content);
+	
+	if !regex_chapters.is_empty() {
+		// Calculer min/max avant de déplacer le vector
+		let min_ch = *regex_chapters.iter().min().unwrap_or(&0);
+		let max_ch = *regex_chapters.iter().max().unwrap_or(&0);
+		let chapter_count = regex_chapters.len();
+		
+		// Succès avec parsing HTML brut
+		for chapter_num in &regex_chapters {
+			chapters.push(Chapter {
+				id: format!("{}", chapter_num),
+				title: format!("Chapitre {}", chapter_num),
+				volume: -1.0,
+				chapter: *chapter_num as f32,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: String::from(""), // Sera rempli plus tard par build_chapter_url
+				lang: String::from("fr")
+			});
+		}
+		
+		// Debug pour confirmer le succès
+		chapters.push(Chapter {
+			id: String::from("debug_regex_success"),
+			title: format!("DEBUG: PARSING HTML BRUT RÉUSSI - {} chapitres (min: {}, max: {})", chapter_count, min_ch, max_ch),
+			volume: -1.0,
+			chapter: -1.0,
+			date_updated: current_date(),
+			scanlator: String::from("AnimeSama Debug"),
+			url: String::from(""),
+			lang: String::from("fr")
+		});
+		
+		return Ok(chapters);
+	}
+	
+	// Si le parsing HTML brut échoue, essayer les sélecteurs CSS comme fallback
 	let mut select_options = html.select("select option");
 	let mut options_count = select_options.array().len();
 	
-	// Si pas d'options avec "select option", essayer d'autres sélecteurs
 	if options_count == 0 {
 		select_options = html.select("option");
 		options_count = select_options.array().len();
@@ -410,7 +448,7 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	// Ajouter debug pour voir ce qu'on trouve exactement
 	chapters.push(Chapter {
 		id: String::from("debug_select_info"),
-		title: format!("DEBUG: {} options trouvées (sélecteurs testés: select option, option, #selectChapitres option)", options_count),
+		title: format!("DEBUG: HTML brut échoué, CSS: {} options trouvées", options_count),
 		volume: -1.0,
 		chapter: -1.0,
 		date_updated: current_date(),
@@ -481,6 +519,45 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	});
 	
 	Ok(chapters)
+}
+
+// Nouvelle fonction pour parser les options directement depuis le HTML brut
+fn parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
+	let mut chapters: Vec<i32> = Vec::new();
+	
+	// Chercher tous les patterns <option>Chapitre X</option>
+	let mut start_pos = 0;
+	while let Some(pos) = html_content[start_pos..].find("<option>Chapitre ") {
+		start_pos += pos + 17; // Skip "<option>Chapitre "
+		let remaining = &html_content[start_pos..];
+		
+		// Extraire le numéro jusqu'à </option>
+		if let Some(end_pos) = remaining.find("</option>") {
+			let chapter_text = &remaining[..end_pos];
+			
+			// Parser le numéro
+			let mut number_str = String::new();
+			for char in chapter_text.chars() {
+				if char.is_ascii_digit() {
+					number_str.push(char);
+				} else {
+					break;
+				}
+			}
+			
+			if let Ok(chapter_num) = number_str.parse::<i32>() {
+				chapters.push(chapter_num);
+			}
+		}
+		
+		start_pos += 1;
+	}
+	
+	// Trier et dédupliquer
+	chapters.sort();
+	chapters.dedup();
+	
+	chapters
 }
 
 // Parser le contenu JavaScript d'episodes.js
