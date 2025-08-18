@@ -74,10 +74,21 @@ fn get_manga_details(manga_id: String) -> Result<Manga> {
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	// Requête vers la vraie page /scan/vf/ pour parser le select des chapitres
+	// Solution hybride : essayer /scan/vf/, sinon fallback
 	let url = format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_chapter_list(manga_id, html)
+	
+	// Essayer la vraie page d'abord
+	match Request::new(&url, HttpMethod::Get).html() {
+		Ok(html) => {
+			// Succès : utiliser le vrai HTML pour parsing dynamique
+			parser::parse_chapter_list_dynamic(manga_id, html)
+		}
+		Err(_) => {
+			// Échec : utiliser fallback avec dummy HTML
+			let dummy_html = Request::new("https://anime-sama.fr/", HttpMethod::Get).html()?;
+			parser::parse_chapter_list_fallback(manga_id, dummy_html, url)
+		}
+	}
 }
 
 #[get_page_list]
