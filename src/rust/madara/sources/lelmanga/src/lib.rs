@@ -470,42 +470,67 @@ fn get_page_list(_manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	// Second try: Parse JavaScript configuration for images
 	let html_content = html.text().read();
 	
-	// Look for sources array in JavaScript
-	// Pattern: sources:[{"source":"Server X","images":["url1","url2"...]}]
-	if let Some(sources_start) = html_content.find("sources:[") {
-		if let Some(sources_end) = html_content[sources_start..].find("}]") {
-			let sources_content = &html_content[sources_start + 9..sources_start + sources_end];
+	// Look for ts_reader.run configuration
+	// More robust pattern matching for the configuration object
+	if let Some(ts_reader_start) = html_content.find("ts_reader.run({") {
+		let config_start = ts_reader_start + 15; // Skip "ts_reader.run({"
+		if let Some(config_end) = html_content[config_start..].find("})") {
+			let config_content = &html_content[config_start..config_start + config_end];
 			
-			// Extract images array from the first source
-			if let Some(images_start) = sources_content.find("\"images\":[") {
-				if let Some(images_end) = sources_content[images_start..].find("]") {
-					let images_content = &sources_content[images_start + 10..images_start + images_end];
-					
-					// Parse individual image URLs from the JSON array
-					let mut index = 0;
-					let mut current_pos = 0;
-					
-					while let Some(quote_start) = images_content[current_pos..].find('"') {
-						let absolute_start = current_pos + quote_start + 1;
-						if let Some(quote_end) = images_content[absolute_start..].find('"') {
-							let absolute_end = absolute_start + quote_end;
-							let image_url = &images_content[absolute_start..absolute_end];
-							
-							// Only add if it looks like a valid image URL
-							if image_url.starts_with("http") && (image_url.ends_with(".jpg") || image_url.ends_with(".png") || image_url.ends_with(".webp")) {
+			// Look for "sources" key in the configuration
+			if let Some(sources_start) = config_content.find("\"sources\":[") {
+				let sources_section = &config_content[sources_start + 11..]; // Skip "sources":["
+				
+				// Find the images array in the first source
+				if let Some(images_start) = sources_section.find("\"images\":[") {
+					let images_section = &sources_section[images_start + 10..]; // Skip "images":["
+					if let Some(images_end) = images_section.find("]") {
+						let images_content = &images_section[..images_end];
+						
+						// Parse image URLs more robustly
+						let mut index = 0;
+						let parts: Vec<&str> = images_content.split('"').collect();
+						
+						for part in parts {
+							// Check if this part looks like a complete image URL
+							if part.starts_with("https://") && part.contains("/wp-content/uploads/") && 
+							   (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp") || part.ends_with(".jpeg")) {
 								pages.push(Page {
 									index,
-									url: image_url.to_string(),
+									url: part.to_string(),
 									base64: String::new(),
 									text: String::new(),
 								});
 								index += 1;
 							}
-							
-							current_pos = absolute_end + 1;
-						} else {
-							break;
 						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback: Look for any pattern with "images":[...] in the JavaScript
+	if pages.is_empty() {
+		if let Some(images_pattern_start) = html_content.find("\"images\":[") {
+			let images_section = &html_content[images_pattern_start + 10..];
+			if let Some(images_end) = images_section.find("]") {
+				let images_content = &images_section[..images_end];
+				
+				// Simple extraction of URLs from the array
+				let mut index = 0;
+				let parts: Vec<&str> = images_content.split('"').collect();
+				
+				for part in parts {
+					if part.starts_with("https://") && part.contains("lelmanga.com") && 
+					   (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp")) {
+						pages.push(Page {
+							index,
+							url: part.to_string(),
+							base64: String::new(),
+							text: String::new(),
+						});
+						index += 1;
 					}
 				}
 			}
@@ -517,7 +542,22 @@ fn get_page_list(_manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 
 #[modify_image_request]
 fn modify_image_request(request: Request) {
-	template::modify_image_request(String::from("lelmanga.com"), request, get_data());
+	// LelManga needs specific headers for image loading
+	let data = get_data();
+	
+	// Set appropriate headers for image requests - chain them directly
+	let request_with_headers = request
+		.header("Referer", &data.base_url)
+		.header("Accept", "image/avif,image/webp,image/png,image/jpeg,*/*")
+		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+		.header("Sec-Fetch-Dest", "image")
+		.header("Sec-Fetch-Mode", "no-cors")
+		.header("Sec-Fetch-Site", "same-origin");
+	
+	// Add user agent if configured using the template helper
+	if let Some(user_agent) = &data.user_agent {
+		request_with_headers.header("User-Agent", user_agent);
+	}
 }
 
 #[handle_url]
