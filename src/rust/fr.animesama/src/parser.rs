@@ -118,17 +118,47 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 }
 
 pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
-	// ULTRA-SIMPLE: Valeurs de test fixes
+	// Extraire le nom du manga depuis l'ID pour le titre
+	let manga_title = if manga_id.starts_with("http") {
+		// Extraire depuis URL complète: https://anime-sama.fr/catalogue/blue-lock -> Blue Lock
+		manga_id.split('/').last().unwrap_or("Manga")
+			.replace('-', " ")
+			.split_whitespace()
+			.map(|word| {
+				let mut chars = word.chars();
+				match chars.next() {
+					None => String::new(),
+					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+				}
+			})
+			.collect::<Vec<String>>()
+			.join(" ")
+	} else {
+		// Extraire depuis ID relatif: /catalogue/blue-lock -> Blue Lock  
+		manga_id.split('/').last().unwrap_or("Manga")
+			.replace('-', " ")
+			.split_whitespace()
+			.map(|word| {
+				let mut chars = word.chars();
+				match chars.next() {
+					None => String::new(),
+					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+				}
+			})
+			.collect::<Vec<String>>()
+			.join(" ")
+	};
+	
 	let mut categories: Vec<String> = Vec::new();
-	categories.push(String::from("Test"));
+	categories.push(String::from("Manga"));
 	
 	Ok(Manga {
 		id: manga_id.clone(),
 		cover: String::from("https://anime-sama.fr/images/default.jpg"),
-		title: String::from("Test Manga"),
-		author: String::from("Test Author"),
-		artist: String::from("Test Artist"),
-		description: String::from("Manga de test pour debug AnimeSama"),
+		title: manga_title,
+		author: String::from(""),
+		artist: String::from(""),
+		description: String::from("Manga disponible sur AnimeSama"),
 		url: build_manga_url(&manga_id),
 		categories,
 		status: MangaStatus::Unknown,
@@ -158,7 +188,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 						if let Ok(num) = part.parse::<i32>() {
 							chapters.push(Chapter {
 								id: format!("{}", num),
-								title: String::from(""),
+								title: format!("Chapitre {}", num),
 								volume: -1.0,
 								chapter: num as f32,
 								date_updated: current_date(),
@@ -219,11 +249,11 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 	// Debug info
 	chapters.push(Chapter {
 		id: String::from("debug"),
-		title: format!("DYNAMIC: select_opts={} max_found={}", options_count, max_chapter),
+		title: String::from("Debug Info"),
 		volume: -1.0,
 		chapter: 999.0,
 		date_updated: current_date(),
-		scanlator: format!("URL: {} | manga_id: {}", request_url, manga_id),
+		scanlator: format!("DYNAMIC: select_opts={} max_found={} | URL: {} | manga_id: {}", options_count, max_chapter, request_url, manga_id),
 		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
@@ -233,7 +263,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, reque
 		for i in 1..=max_chapter {
 			chapters.push(Chapter {
 				id: format!("{}", i),
-				title: String::from(""),
+				title: format!("Chapitre {}", i),
 				volume: -1.0,
 				chapter: i as f32,
 				date_updated: current_date(),
@@ -257,11 +287,11 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, reques
 	// Debug : montrer qu'on est dans le fallback
 	chapters.push(Chapter {
 		id: String::from("fallback_debug"),
-		title: format!("FALLBACK: {}", error_info),
+		title: String::from("Debug Info"),
 		volume: -1.0,
 		chapter: 999.0,
 		date_updated: current_date(),
-		scanlator: format!("URL: {} | manga_id: {}", request_url, manga_id),
+		scanlator: format!("FALLBACK: {} | URL: {} | manga_id: {}", error_info, request_url, manga_id),
 		url: build_chapter_url(&manga_id),
 		lang: String::from("fr")
 	});
@@ -273,7 +303,7 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, reques
 	for i in 1..=chapter_count {
 		chapters.push(Chapter {
 			id: format!("{}", i),
-			title: String::from(""),
+			title: format!("Chapitre {}", i),
 			volume: -1.0,
 			chapter: i as f32,
 			date_updated: current_date(),
@@ -296,7 +326,7 @@ pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 	for i in 1..=50 {
 		chapters.push(Chapter {
 			id: format!("{}", i),
-			title: String::from(""),
+			title: format!("Chapitre {}", i),
 			volume: -1.0,
 			chapter: i as f32,
 			date_updated: current_date(),
