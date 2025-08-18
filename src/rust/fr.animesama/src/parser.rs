@@ -122,6 +122,18 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 	let select_options = html.select("select option");
 	let options_count = select_options.array().len();
 	
+	// DEBUG: Premier chapitre avec info de debug visible
+	chapters.push(Chapter {
+		id: String::from("debug"),
+		title: format!("DEBUG: select found {} options", options_count),
+		volume: -1.0,
+		chapter: 999.0,
+		date_updated: current_date(),
+		scanlator: format!("manga_id: {}", manga_id),
+		url: String::from("https://anime-sama.fr/debug"),
+		lang: String::from("fr")
+	});
+	
 	if options_count > 0 {
 		// Parser les vraies options du select en gardant la structure qui marche
 		for option in select_options.array() {
