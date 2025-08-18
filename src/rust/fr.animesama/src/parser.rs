@@ -206,7 +206,7 @@ fn get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
 	for key in json_obj.keys() {
 		if let Ok(key_str) = key.as_string() {
 			if let Ok(chapter_num) = key_str.read().parse::<i32>() {
-				if chapter_num > 0 {
+				if chapter_num >= 0 {
 					chapters.push(chapter_num);
 				}
 			}
