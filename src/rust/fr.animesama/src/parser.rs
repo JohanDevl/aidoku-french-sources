@@ -118,32 +118,46 @@ pub fn parse_manga_details(manga_id: String, _html: Node) -> Result<Manga> {
 pub fn parse_chapter_list(manga_id: String, _html: Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// DEBUG: Premier chapitre pour confirmer que la fonction s'exécute
+	// IGNORER le manga_id - toujours retourner les mêmes chapitres de test
+	// Informations visibles dans les titres pour debugging
+	
+	// Premier chapitre avec le manga_id visible dans le titre
 	chapters.push(Chapter {
-		id: String::from("debug"),
-		title: format!("DEBUG: parse_chapter_list called for {}", manga_id),
+		id: String::from("1"),
+		title: format!("DEBUG: ID={}", manga_id),  // VISIBLE dans l'app !
 		volume: -1.0,
-		chapter: 999.0,
+		chapter: 1.0,
 		date_updated: current_date(),
-		scanlator: String::from("AnimeSama Debug"),
-		url: String::from("https://anime-sama.fr/debug"),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test1"),
 		lang: String::from("fr")
 	});
 	
-	// Générer tous les chapitres de 314 à 1 (ordre décroissant)
-	for i in (1..=314).rev() {
-		chapters.push(Chapter {
-			id: format!("{}", i),
-			title: String::from(""),  // Vide - Aidoku génère "Chapitre X"
-			volume: -1.0,
-			chapter: i as f32,
-			date_updated: current_date(),
-			scanlator: String::from(""),
-			url: format!("{}{}/scan/vf/", String::from(BASE_URL), manga_id),
-			lang: String::from("fr")
-		});
-	}
+	// Deuxième chapitre pour confirmer que ça marche
+	chapters.push(Chapter {
+		id: String::from("2"),
+		title: String::from("Chapitre Test 2"),
+		volume: -1.0,
+		chapter: 2.0,
+		date_updated: current_date(),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test2"),
+		lang: String::from("fr")
+	});
 	
+	// Troisième chapitre pour confirmer la liste
+	chapters.push(Chapter {
+		id: String::from("3"),
+		title: String::from("Chapitre Test 3"),
+		volume: -1.0,
+		chapter: 3.0,
+		date_updated: current_date(),
+		scanlator: String::from("TEST"),
+		url: String::from("https://anime-sama.fr/test3"),
+		lang: String::from("fr")
+	});
+	
+	// Pas besoin de reverse - garder l'ordre 1,2,3
 	Ok(chapters)
 }
 
