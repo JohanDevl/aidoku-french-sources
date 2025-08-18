@@ -1046,11 +1046,28 @@ pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 	Ok(chapters)
 }
 
+// Fonction pour retrouver le vrai numéro de chapitre à partir de l'indice API
+fn get_real_chapter_number_from_index(html: &Node, index: i32) -> f32 {
+	let html_content = html.html().read();
+	let mappings = parse_chapter_mapping(&html_content);
+	
+	// Chercher le mapping correspondant à cet indice
+	for mapping in mappings {
+		if mapping.index == index {
+			return mapping.chapter_number;
+		}
+	}
+	
+	// Fallback : si pas de mapping trouvé, utiliser l'indice directement
+	index as f32
+}
+
 pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
-	// Extraire le numéro de chapitre depuis chapter_id
-	let chapter_num = chapter_id.parse::<i32>().unwrap_or(1);
+	// Convertir chapter_id (indice API) en vrai numéro de chapitre
+	let chapter_index = chapter_id.parse::<i32>().unwrap_or(1);
+	let real_chapter_number = get_real_chapter_number_from_index(&html, chapter_index);
 	
 	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
 	let manga_slug = manga_id.split('/').last().unwrap_or("manga");
@@ -1076,15 +1093,15 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 	
 	// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
 	let html_content = html.html().read();
-	let page_count = parse_episodes_js_from_html(&html_content, chapter_num);
+	let page_count = parse_episodes_js_from_html(&html_content, chapter_index);
 	
 	if page_count > 0 {
-		// Succès avec le parsing JavaScript - générer les URLs CDN
+		// Succès avec le parsing JavaScript - générer les URLs CDN avec le vrai numéro
 		for i in 1..=page_count {
 			let page_url = format!("{}/{}/{}/{}.jpg", 
 				String::from(CDN_URL), 
 				manga_title.replace(" ", "%20"), // URL encode les espaces
-				chapter_num, 
+				real_chapter_number, 
 				i
 			);
 			pages.push(Page {
@@ -1097,14 +1114,15 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		return Ok(pages);
 	}
 	
-	// PRIORITÉ 2 : Fallback avec l'API AnimeSama
-	match get_page_count_from_api(&manga_title, chapter_num) {
+	// PRIORITÉ 2 : Fallback avec l'API AnimeSama (utiliser le vrai numéro pour l'API aussi)
+	let api_chapter_num = real_chapter_number as i32; // Arrondir pour l'API
+	match get_page_count_from_api(&manga_title, api_chapter_num) {
 		Ok(api_page_count) => {
 			for i in 1..=api_page_count {
 				let page_url = format!("{}/{}/{}/{}.jpg", 
 					String::from(CDN_URL), 
 					manga_title.replace(" ", "%20"), 
-					chapter_num, 
+					real_chapter_number, 
 					i
 				);
 				pages.push(Page {
@@ -1126,7 +1144,7 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		let page_url = format!("{}/{}/{}/{}.jpg", 
 			String::from(CDN_URL), 
 			manga_title.replace(" ", "%20"), 
-			chapter_num, 
+			real_chapter_number, 
 			i
 		);
 		pages.push(Page {
