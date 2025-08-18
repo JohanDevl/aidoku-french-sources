@@ -392,31 +392,49 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Chercher le select et ses options
-	let select_options = html.select("select option");
-	let options_count = select_options.array().len();
+	// Essayer plusieurs sélecteurs pour les options
+	let mut select_options = html.select("select option");
+	let mut options_count = select_options.array().len();
+	
+	// Si pas d'options avec "select option", essayer d'autres sélecteurs
+	if options_count == 0 {
+		select_options = html.select("option");
+		options_count = select_options.array().len();
+	}
 	
 	if options_count == 0 {
-		// Pas de select trouvé, retourner chapitre debug
-		chapters.push(Chapter {
-			id: String::from("debug_no_select"),
-			title: String::from("DEBUG: Aucun select HTML trouvé"),
-			volume: -1.0,
-			chapter: -1.0,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Debug"),
-			url: String::from(""),
-			lang: String::from("fr")
-		});
+		select_options = html.select("#selectChapitres option");
+		options_count = select_options.array().len();
+	}
+	
+	// Ajouter debug pour voir ce qu'on trouve exactement
+	chapters.push(Chapter {
+		id: String::from("debug_select_info"),
+		title: format!("DEBUG: {} options trouvées (sélecteurs testés: select option, option, #selectChapitres option)", options_count),
+		volume: -1.0,
+		chapter: -1.0,
+		date_updated: current_date(),
+		scanlator: String::from("AnimeSama Debug"),
+		url: String::from(""),
+		lang: String::from("fr")
+	});
+	
+	if options_count == 0 {
 		return Ok(chapters);
 	}
 	
 	let mut max_chapter = 0;
 	let mut min_chapter = i32::MAX;
+	let mut debug_options: Vec<String> = Vec::new();
 	
 	for option in select_options.array() {
 		if let Ok(option_node) = option.as_node() {
 			let option_text = String::from(option_node.text().read().trim());
+			
+			// Garder trace des premières options pour debug
+			if debug_options.len() < 5 {
+				debug_options.push(option_text.clone());
+			}
 			
 			// Parser "Chapitre X"
 			if option_text.starts_with("Chapitre ") {
@@ -443,6 +461,24 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			}
 		}
 	}
+	
+	// Ajouter debug avec le contenu réel des options
+	let debug_text = if debug_options.is_empty() {
+		String::from("Aucune option trouvée")
+	} else {
+		format!("Options: {:?}", debug_options)
+	};
+	
+	chapters.push(Chapter {
+		id: String::from("debug_options_content"),
+		title: format!("DEBUG: {}", debug_text),
+		volume: -1.0,
+		chapter: -2.0,
+		date_updated: current_date(),
+		scanlator: String::from("AnimeSama Debug"),
+		url: String::from(""),
+		lang: String::from("fr")
+	});
 	
 	Ok(chapters)
 }
