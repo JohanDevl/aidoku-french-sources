@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
-[![Sources](https://img.shields.io/badge/sources-11-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-7-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Sources](https://img.shields.io/badge/sources-12-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-8-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -36,6 +36,7 @@ Click this link from your iOS device with Aidoku installed:
 |   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |   Custom    | Recent French scanlations     |
 |  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |   Custom    | French scanlation community   |
 | **PoseidonScans**  |   [poseidonscans.com](https://poseidonscans.com/) | ✅ **Active**  |   Custom    | Next.js scanlation platform  |
+|    **AnimeSama**   |       [anime-sama.fr](https://anime-sama.fr/)     | ✅ **Active**  |   Custom    | Anime/Manga hybrid platform  |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  | MangaStream | Various French scanlations    |
 |   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** | MangaStream | Chapter loading issues        |
 | **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |   Madara    | Website temporarily down      |
@@ -58,7 +59,7 @@ This project uses **Rust** and different templates to support various website te
 |   **Madara**    | Popular WordPress CMS for manga | MangasOrigines, MangaScantrad, Astral Manga |
 | **MangaStream** |    Manga streaming framework    |            SushiScans, SushiScan            |
 |   **MMRCMS**    |     Manga management system     |                 Manga Scan                  |
-|   **Custom**    |      Custom implementation      |   LelscanFR, PhenixScans, PoseidonScans, LegacyScans   |
+|   **Custom**    |      Custom implementation      |   LelscanFR, PhenixScans, PoseidonScans, AnimeSama, LegacyScans   |
 
 ### Project Structure
 
@@ -70,6 +71,7 @@ src/rust/
 ├── fr.lelscanfr/    # Custom source for LelscanFR
 ├── fr.phenixscans/  # Custom source for PhenixScans
 ├── fr.poseidonscans/ # Custom source for PoseidonScans
+├── fr.animesama/    # Custom source for AnimeSama
 └── fr.legacyscans/  # Custom source for LegacyScans
 ```
 
