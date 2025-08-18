@@ -7,6 +7,92 @@ use core::cmp::Ordering;
 
 use crate::{BASE_URL, CDN_URL, helper};
 
+// Structure pour stocker le mapping indice -> numéro de chapitre
+struct ChapterMapping {
+	index: i32,
+	chapter_number: f32,
+	title: String,
+}
+
+// Parser les commandes JavaScript pour créer le mapping
+fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
+	let mut mappings: Vec<ChapterMapping> = Vec::new();
+	let mut current_index = 1; // Indices commencent à 1
+	
+	// Chercher les patterns JavaScript: resetListe(), creerListe(X,Y), newSP(Z), finirListe(W)
+	let lines: Vec<&str> = html_content.lines().collect();
+	
+	for line in lines {
+		let trimmed = line.trim();
+		
+		// Pattern: creerListe(debut, fin)
+		if let Some(start_pos) = trimmed.find("creerListe(") {
+			let params_start = start_pos + "creerListe(".len();
+			if let Some(params_end) = trimmed[params_start..].find(");") {
+				let params = &trimmed[params_start..params_start + params_end];
+				let parts: Vec<&str> = params.split(",").map(|s| s.trim()).collect();
+				
+				if parts.len() == 2 {
+					if let (Ok(start), Ok(end)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+						// Créer les mappings pour la plage
+						for chapter_num in start..=end {
+							mappings.push(ChapterMapping {
+								index: current_index,
+								chapter_number: chapter_num as f32,
+								title: format!("Chapitre {}", chapter_num),
+							});
+							current_index += 1;
+						}
+					}
+				}
+			}
+		}
+		
+		// Pattern: newSP(special) - chapitre spécial avec décimal
+		if let Some(start_pos) = trimmed.find("newSP(") {
+			let params_start = start_pos + "newSP(".len();
+			if let Some(params_end) = trimmed[params_start..].find(");") {
+				let param = trimmed[params_start..params_start + params_end].trim();
+				
+				// Gérer les nombres décimaux comme 73.5
+				if let Ok(special_num) = param.parse::<f32>() {
+					mappings.push(ChapterMapping {
+						index: current_index,
+						chapter_number: special_num,
+						title: format!("Chapitre {}", special_num),
+					});
+					current_index += 1;
+				}
+			}
+		}
+		
+		// Pattern: finirListe(debut) - continuer jusqu'à la fin
+		if let Some(start_pos) = trimmed.find("finirListe(") {
+			let params_start = start_pos + "finirListe(".len();
+			if let Some(params_end) = trimmed[params_start..].find(");") {
+				let param = trimmed[params_start..params_start + params_end].trim();
+				
+				if let Ok(final_start) = param.parse::<i32>() {
+					// Continuer la numérotation séquentielle
+					let mut chapter_num = final_start;
+					// Ajouter au maximum 50 chapitres supplémentaires pour éviter boucle infinie
+					for _ in 0..50 {
+						mappings.push(ChapterMapping {
+							index: current_index,
+							chapter_number: chapter_num as f32,
+							title: format!("Chapitre {}", chapter_num),
+						});
+						current_index += 1;
+						chapter_num += 1;
+					}
+				}
+			}
+		}
+	}
+	
+	mappings
+}
+
 // Helper pour construire l'URL correctement
 fn build_chapter_url(manga_id: &str) -> String {
 	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
@@ -275,44 +361,122 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 		manga_title
 	};
 	
-	// PRIORITÉ 1 : Essayer l'API get_nb_chap_et_img.php
-	match get_chapters_from_api(&manga_name) {
-		Ok(chapter_numbers) => {
-			// Succès avec l'API
-			for chapter_num in &chapter_numbers {
+	// Étape 1: Parser le JavaScript de mapping des chapitres
+	let html_content = html.html().read();
+	let chapter_mappings = parse_chapter_mapping(&html_content);
+	
+	// Étape 2: Récupérer la liste des épisodes disponibles via episodes.js
+	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
+	let episodes_url = if manga_id.starts_with("http") {
+		format!("{}{}episodes.js?title={}", manga_id, scan_path, helper::urlencode(&manga_name))
+	} else {
+		format!("{}{}{}episodes.js?title={}", String::from(BASE_URL), manga_id, scan_path, helper::urlencode(&manga_name))
+	};
+	
+	// Faire la requête vers episodes.js pour connaître les épisodes disponibles
+	match aidoku::std::net::Request::new(&episodes_url, aidoku::std::net::HttpMethod::Get).string() {
+		Ok(js_content) => {
+			// Extraire les indices d'épisodes disponibles
+			let mut available_indices: Vec<i32> = Vec::new();
+			let mut start_pos = 0;
+			
+			while let Some(pos) = js_content[start_pos..].find("eps") {
+				start_pos += pos + 3;
+				let remaining = &js_content[start_pos..];
+				
+				let mut number_str = String::new();
+				for char in remaining.chars() {
+					if char.is_ascii_digit() {
+						number_str.push(char);
+					} else {
+						break;
+					}
+				}
+				
+				if let Ok(episode_num) = number_str.parse::<i32>() {
+					available_indices.push(episode_num);
+				}
+			}
+			
+			// Supprimer les doublons et trier
+			available_indices.sort();
+			available_indices.dedup();
+			
+			// Étape 3: Combiner les mappings avec les épisodes disponibles
+			if chapter_mappings.is_empty() {
+				// Fallback: pas de mapping JavaScript, utiliser indices directs
+				for index in &available_indices {
+					chapters.push(Chapter {
+						id: format!("{}", index),
+						title: format!("Chapitre {}", index),
+						volume: -1.0,
+						chapter: *index as f32,
+						date_updated: current_date(),
+						scanlator: String::from(""),
+						url: String::from(""),
+						lang: String::from("fr")
+					});
+				}
+			} else {
+				// Utiliser les mappings pour créer les chapitres avec les bons numéros
+				for mapping in &chapter_mappings {
+					// Vérifier que cet indice existe dans episodes.js
+					if available_indices.contains(&mapping.index) {
+						chapters.push(Chapter {
+							id: format!("{}", mapping.index), // ID = indice pour l'API
+							title: mapping.title.clone(),         // Titre avec vrai numéro
+							volume: -1.0,
+							chapter: mapping.chapter_number,      // Vrai numéro (peut être décimal)
+							date_updated: current_date(),
+							scanlator: String::from(""),
+							url: String::from(""),
+							lang: String::from("fr")
+						});
+					}
+				}
+			}
+			
+			// Ajouter debug info si nécessaire
+			if chapters.is_empty() && !available_indices.is_empty() {
 				chapters.push(Chapter {
-					id: format!("{}", chapter_num),
-					title: format!("Chapitre {}", chapter_num),
+					id: String::from("debug_mapping_failed"),
+					title: format!("DEBUG: {} épisodes trouvés, {} mappings", available_indices.len(), chapter_mappings.len()),
 					volume: -1.0,
-					chapter: *chapter_num as f32,
+					chapter: -1.0,
 					date_updated: current_date(),
-					scanlator: String::from(""),
-					url: build_chapter_url(&manga_id),
+					scanlator: String::from("AnimeSama Debug"),
+					url: String::from(""),
 					lang: String::from("fr")
 				});
 			}
 			
 			// Tri par numéro de chapitre (du plus récent au plus ancien)
 			chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
-			return Ok(chapters);
+			Ok(chapters)
 		}
 		Err(_) => {
-			// L'API a échoué, essayer episodes.js
+			// Fallback si episodes.js échoue - utiliser juste le mapping HTML
+			if !chapter_mappings.is_empty() {
+				for mapping in &chapter_mappings {
+					chapters.push(Chapter {
+						id: format!("{}", mapping.index),
+						title: mapping.title.clone(),
+						volume: -1.0,
+						chapter: mapping.chapter_number,
+						date_updated: current_date(),
+						scanlator: String::from(""),
+						url: String::from(""),
+						lang: String::from("fr")
+					});
+				}
+				// Tri par numéro de chapitre (du plus récent au plus ancien)
+				chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+			}
+			Ok(chapters)
 		}
 	}
-	
-	// PRIORITÉ 2 : Fallback sur episodes.js si l'API échoue
-	match parse_episodes_js(&manga_id, &html) {
-		Ok(js_chapters) if !js_chapters.is_empty() => {
-			return Ok(js_chapters);
-		}
-		_ => {
-			// episodes.js a aussi échoué
-		}
-	}
-	
-	// Aucune méthode n'a fonctionné - retourner liste vide
-	Ok(chapters)
 }
 
 pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
