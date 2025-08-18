@@ -188,11 +188,15 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
+	println!("AnimeSama DEBUG: === DÉBUT PARSING CHAPITRES pour {} ===", manga_id);
+	
 	// 1. PRIORITÉ ABSOLUE : Parser le select HTML directement (méthode la plus fiable)
 	let select_result = parse_chapter_list_from_select(&html);
 	
 	match select_result {
 		Ok(select_chapters) if !select_chapters.is_empty() => {
+			println!("AnimeSama DEBUG: ✅ SELECT HTML - {} chapitres trouvés, utilisation de cette méthode", select_chapters.len());
+			
 			// Succès avec le select HTML - ajouter les URLs correctes
 			for mut chapter in select_chapters {
 				chapter.url = build_chapter_url(&manga_id);
@@ -200,10 +204,11 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 			}
 			
 			chapters.reverse(); // Derniers en premier
+			println!("AnimeSama DEBUG: ✅ SELECT HTML - Retour de {} chapitres finaux", chapters.len());
 			return Ok(chapters);
 		}
 		_ => {
-			// Pas de select trouvé, continuer avec méthodes alternatives
+			println!("AnimeSama DEBUG: ❌ SELECT HTML - Échec, passage aux fallbacks");
 		}
 	}
 	
@@ -212,13 +217,13 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	
 	match episodes_result {
 		Ok(js_chapters) if !js_chapters.is_empty() => {
-			// Succès avec episodes.js
+			println!("AnimeSama DEBUG: ✅ EPISODES.JS - {} chapitres trouvés", js_chapters.len());
 			chapters.extend(js_chapters);
 			chapters.reverse(); // Derniers en premier
 			return Ok(chapters);
 		}
 		_ => {
-			// episodes.js a échoué, continuer avec autres méthodes
+			println!("AnimeSama DEBUG: ❌ EPISODES.JS - Échec");
 		}
 	}
 	
@@ -228,12 +233,13 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	
 	match script_result {
 		Ok(script_chapters) if !script_chapters.is_empty() => {
+			println!("AnimeSama DEBUG: ✅ JAVASCRIPT COMMANDS - {} chapitres trouvés", script_chapters.len());
 			chapters.extend(script_chapters);
 			chapters.reverse();
 			return Ok(chapters);
 		}
 		_ => {
-			// Scripts ont échoué, continuer avec fallback
+			println!("AnimeSama DEBUG: ❌ JAVASCRIPT COMMANDS - Échec");
 		}
 	}
 	
@@ -241,6 +247,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	let max_chapter = parse_chapter_from_message(&html_content);
 	
 	if max_chapter > 0 {
+		println!("AnimeSama DEBUG: ✅ MESSAGE PARSING - {} chapitres détectés via messages", max_chapter);
 		for i in 1..=max_chapter {
 			chapters.push(Chapter {
 				id: format!("{}", i),
@@ -259,6 +266,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	}
 	
 	// 5. Fallback final
+	println!("AnimeSama DEBUG: ⚠️  FALLBACK FINAL - Utilisation de 50 chapitres par défaut");
 	parse_chapter_list_simple(manga_id)
 }
 
@@ -320,13 +328,21 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
+	println!("AnimeSama DEBUG: Tentative de parsing du select HTML");
+	
 	// Chercher le select et ses options
 	let select_options = html.select("select option");
+	let options_count = select_options.array().len();
 	
-	if select_options.array().len() == 0 {
-		// Pas de select trouvé
+	println!("AnimeSama DEBUG: Trouvé {} options dans le select", options_count);
+	
+	if options_count == 0 {
+		println!("AnimeSama DEBUG: Pas de select trouvé, abandon de cette méthode");
 		return Ok(Vec::new());
 	}
+	
+	let mut max_chapter = 0;
+	let mut min_chapter = i32::MAX;
 	
 	for option in select_options.array() {
 		if let Ok(option_node) = option.as_node() {
@@ -336,6 +352,13 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			if option_text.starts_with("Chapitre ") {
 				let chapter_num_str = option_text.replace("Chapitre ", "");
 				if let Ok(chapter_num) = chapter_num_str.parse::<i32>() {
+					if chapter_num > max_chapter {
+						max_chapter = chapter_num;
+					}
+					if chapter_num < min_chapter {
+						min_chapter = chapter_num;
+					}
+					
 					chapters.push(Chapter {
 						id: format!("{}", chapter_num),
 						title: format!("Chapitre {}", chapter_num),
@@ -350,6 +373,9 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			}
 		}
 	}
+	
+	println!("AnimeSama DEBUG: Select parsing terminé - {} chapitres extraits (min: {}, max: {})", 
+		chapters.len(), min_chapter, max_chapter);
 	
 	Ok(chapters)
 }
