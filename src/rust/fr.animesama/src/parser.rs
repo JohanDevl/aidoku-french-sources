@@ -1,6 +1,6 @@
 use aidoku::{
 	error::Result, prelude::*, std::{
-		current_date, html::Node, String, Vec
+		current_date, html::Node, net::{Request, HttpMethod}, String, Vec
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
 use core::cmp::Ordering;
@@ -186,170 +186,104 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 }
 
 
-// Helper pour extraire les numéros de chapitres de manière robuste depuis HTML
-fn extract_chapter_numbers_robust(html_content: &str) -> Vec<i32> {
+// Nouvelle fonction pour récupérer les chapitres depuis l'API AnimeSama
+fn get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
+	// Construire l'URL de l'API
+	let encoded_title = helper::urlencode(manga_title);
+	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
+	
+	// Faire la requête
+	let json = Request::new(&api_url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0")
+		.header("Accept", "application/json")
+		.json()?;
+	let json_obj = json.as_object()?;
+	
+	// Parser le JSON pour extraire les clés (numéros de chapitres)
 	let mut chapters: Vec<i32> = Vec::new();
 	
-	// Recherche directe dans le HTML sans conversion de casse
-	let mut start_pos = 0;
-	
-	// Pattern principal: rechercher "Chapitre " (avec espace) partout dans le HTML
-	while let Some(pos) = html_content[start_pos..].find("Chapitre ") {
-		let absolute_pos = start_pos + pos + 9; // Position après "Chapitre "
-		
-		// Extraire tous les chiffres qui suivent
-		let mut num_str = String::new();
-		for ch in html_content[absolute_pos..].chars() {
-			if ch.is_ascii_digit() {
-				num_str.push(ch);
-			} else {
-				break;
-			}
-		}
-		
-		// Si on a trouvé un numéro valide, l'ajouter
-		if !num_str.is_empty() {
-			if let Ok(chapter_num) = num_str.parse::<i32>() {
+	// Parcourir toutes les clés de l'objet JSON
+	for key in json_obj.keys() {
+		if let Ok(key_str) = key.as_string() {
+			if let Ok(chapter_num) = key_str.read().parse::<i32>() {
 				if chapter_num > 0 && chapter_num <= 1000 {
 					chapters.push(chapter_num);
 				}
 			}
 		}
-		
-		// Avancer la position de recherche
-		start_pos = absolute_pos;
 	}
 	
-	// Si pas de "Chapitre " trouvé, essayer avec "chapitre " (minuscule)
-	if chapters.is_empty() {
-		start_pos = 0;
-		while let Some(pos) = html_content[start_pos..].find("chapitre ") {
-			let absolute_pos = start_pos + pos + 9; // Position après "chapitre "
-			
-			let mut num_str = String::new();
-			for ch in html_content[absolute_pos..].chars() {
-				if ch.is_ascii_digit() {
-					num_str.push(ch);
-				} else {
-					break;
-				}
-			}
-			
-			if !num_str.is_empty() {
-				if let Ok(chapter_num) = num_str.parse::<i32>() {
-					if chapter_num > 0 && chapter_num <= 1000 {
-						chapters.push(chapter_num);
-					}
-				}
-			}
-			
-			start_pos = absolute_pos;
-		}
-	}
-	
-	// Supprimer les doublons et trier
+	// Trier les chapitres
 	chapters.sort_unstable();
-	chapters.dedup();
 	
-	chapters
+	if chapters.is_empty() {
+		return Err(aidoku::error::AidokuError { 
+			reason: aidoku::error::AidokuErrorKind::Unimplemented 
+		});
+	}
+	
+	Ok(chapters)
 }
 
 pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
-	let html_content = html.html().read();
 	
-	// DEBUG: Analyser le contenu HTML reçu
-	let has_select = html_content.contains("<select");
-	let has_option = html_content.contains("<option");
-	let chapitre_count = html_content.matches("Chapitre ").count();
-	let chapitre_lower_count = html_content.matches("chapitre ").count();
-	let html_length = html_content.len();
-	
-	// Ajouter un chapitre debug avec les infos HTML
-	chapters.push(Chapter {
-		id: String::from("debug_html_info"),
-		title: format!("DEBUG: HTML len={}, select={}, option={}, Chapitre={}, chapitre={}", 
-			html_length, has_select, has_option, chapitre_count, chapitre_lower_count),
-		volume: -1.0,
-		chapter: -999.0,
-		date_updated: current_date(),
-		scanlator: String::from("AnimeSama Debug"),
-		url: String::from(""),
-		lang: String::from("fr")
-	});
-	
-	// Méthode robuste: chercher tous les patterns possibles de chapitres
-	let chapter_numbers = extract_chapter_numbers_robust(&html_content);
-	
-	// Ajouter debug sur ce qui a été trouvé
-	if !chapter_numbers.is_empty() {
-		let min_ch = *chapter_numbers.iter().min().unwrap_or(&0);
-		let max_ch = *chapter_numbers.iter().max().unwrap_or(&0);
-		
-		chapters.push(Chapter {
-			id: String::from("debug_parsing_result"),
-			title: format!("DEBUG: Trouvé {} chapitres (min: {}, max: {})", chapter_numbers.len(), min_ch, max_ch),
-			volume: -1.0,
-			chapter: -998.0,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Debug"),
-			url: String::from(""),
-			lang: String::from("fr")
-		});
-		
-		// Créer les chapitres depuis les numéros trouvés
-		for chapter_num in &chapter_numbers {
-			chapters.push(Chapter {
-				id: format!("{}", chapter_num),
-				title: format!("Chapitre {}", chapter_num),
-				volume: -1.0,
-				chapter: *chapter_num as f32,
-				date_updated: current_date(),
-				scanlator: String::from(""),
-				url: build_chapter_url(&manga_id),
-				lang: String::from("fr")
-			});
-		}
+	// Extraire le titre du manga depuis le HTML
+	let manga_title = html.select("#titreOeuvre").text().read();
+	let manga_name = if manga_title.is_empty() {
+		// Transformer le manga_id en titre (blue-lock -> Blue Lock)
+		manga_id.replace("-", " ")
+			.split_whitespace()
+			.map(|word| {
+				let mut chars = word.chars();
+				match chars.next() {
+					None => String::new(),
+					Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+				}
+			})
+			.collect::<Vec<String>>()
+			.join(" ")
 	} else {
-		chapters.push(Chapter {
-			id: String::from("debug_no_chapters_found"),
-			title: String::from("DEBUG: Aucun chapitre trouvé dans le HTML"),
-			volume: -1.0,
-			chapter: -997.0,
-			date_updated: current_date(),
-			scanlator: String::from("AnimeSama Debug"),
-			url: String::from(""),
-			lang: String::from("fr")
-		});
-		
-		// Fallback: générer 50 chapitres par défaut
-		for i in 1..=50 {
-			chapters.push(Chapter {
-				id: format!("{}", i),
-				title: format!("Chapitre {}", i),
-				volume: -1.0,
-				chapter: i as f32,
-				date_updated: current_date(),
-				scanlator: String::from(""),
-				url: build_chapter_url(&manga_id),
-				lang: String::from("fr")
-			});
+		manga_title
+	};
+	
+	// PRIORITÉ 1 : Essayer l'API get_nb_chap_et_img.php
+	match get_chapters_from_api(&manga_name) {
+		Ok(chapter_numbers) => {
+			// Succès avec l'API
+			for chapter_num in &chapter_numbers {
+				chapters.push(Chapter {
+					id: format!("{}", chapter_num),
+					title: format!("Chapitre {}", chapter_num),
+					volume: -1.0,
+					chapter: *chapter_num as f32,
+					date_updated: current_date(),
+					scanlator: String::from(""),
+					url: build_chapter_url(&manga_id),
+					lang: String::from("fr")
+				});
+			}
+			
+			// Tri par numéro de chapitre (du plus récent au plus ancien)
+			chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+			return Ok(chapters);
+		}
+		Err(_) => {
+			// L'API a échoué, essayer episodes.js
 		}
 	}
 	
-	// Tri par numéro de chapitre (du plus récent au plus ancien), mais garder les debugs en haut
-	chapters.sort_by(|a, b| {
-		if a.chapter < 0.0 && b.chapter < 0.0 {
-			a.chapter.partial_cmp(&b.chapter).unwrap_or(Ordering::Equal)
-		} else if a.chapter < 0.0 {
-			Ordering::Less
-		} else if b.chapter < 0.0 {
-			Ordering::Greater
-		} else {
-			b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal)
+	// PRIORITÉ 2 : Fallback sur episodes.js si l'API échoue
+	match parse_episodes_js(&manga_id, &html) {
+		Ok(js_chapters) if !js_chapters.is_empty() => {
+			return Ok(js_chapters);
 		}
-	});
+		_ => {
+			// episodes.js a aussi échoué
+		}
+	}
 	
+	// Aucune méthode n'a fonctionné - retourner liste vide
 	Ok(chapters)
 }
 
