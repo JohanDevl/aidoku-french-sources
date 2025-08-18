@@ -85,6 +85,62 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 	mappings
 }
 
+// Fonction pour récupérer le nombre total de chapitres depuis l'API
+fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
+	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", 
+		helper::urlencode(manga_title));
+	
+	match aidoku::std::net::Request::new(&api_url, aidoku::std::net::HttpMethod::Get).string() {
+		Ok(response_text) => {
+			// Parser manuellement le JSON pour trouver le numéro de chapitre maximum
+			// L'API retourne un objet comme {"1":20, "2":18, ..., "314":15}
+			let mut max_chapter = 0;
+			
+			// Chercher tous les patterns "numéro": dans la réponse
+			let mut start_pos = 0;
+			while let Some(quote_pos) = response_text[start_pos..].find("\"") {
+				start_pos += quote_pos + 1;
+				if let Some(end_quote) = response_text[start_pos..].find("\"") {
+					let key = &response_text[start_pos..start_pos + end_quote];
+					if let Ok(chapter_num) = key.parse::<i32>() {
+						if chapter_num > max_chapter {
+							max_chapter = chapter_num;
+						}
+					}
+					start_pos += end_quote + 1;
+				} else {
+					break;
+				}
+			}
+			
+			if max_chapter > 0 {
+				Ok(max_chapter)
+			} else {
+				Err(aidoku::error::AidokuError { 
+					reason: aidoku::error::AidokuErrorKind::Unimplemented 
+				})
+			}
+		}
+		Err(_) => {
+			Err(aidoku::error::AidokuError { 
+				reason: aidoku::error::AidokuErrorKind::Unimplemented 
+			})
+		}
+	}
+}
+
+// Fonction pour calculer le numéro de chapitre réel en tenant compte des chapitres spéciaux
+fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
+	// Compter combien de chapitres spéciaux (non-numériques) il y a avant cet indice
+	let special_chapters_before = mappings.iter()
+		.filter(|m| m.index < index)
+		.filter(|m| !m.title.chars().any(|c| c.is_ascii_digit()) || m.title.contains("One Shot"))
+		.count() as i32;
+	
+	// Le numéro de chapitre = indice - nombre de chapitres spéciaux avant
+	(index - special_chapters_before) as f32
+}
+
 // Helper pour construire l'URL correctement
 fn build_chapter_url(manga_id: &str) -> String {
 	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
@@ -357,141 +413,57 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	let html_content = html.html().read();
 	let chapter_mappings = parse_chapter_mapping(&html_content);
 	
-	// Étape 2: Récupérer la liste des épisodes disponibles via episodes.js
-	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
-	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
-	
-	let episodes_url = if manga_id.starts_with("http") {
-		format!("{}{}episodes.js?title={}", manga_id, scan_path, helper::urlencode(&manga_name))
-	} else {
-		format!("{}{}{}episodes.js?title={}", String::from(BASE_URL), manga_id, scan_path, helper::urlencode(&manga_name))
+	// Étape 2: Utiliser l'API pour connaître le nombre TOTAL de chapitres disponibles
+	let total_chapters = match get_total_chapters_from_api(&manga_name) {
+		Ok(count) => count,
+		Err(_) => {
+			// Fallback: utiliser une valeur par défaut raisonnable
+			if !chapter_mappings.is_empty() {
+				// Utiliser le dernier indice des mappings + quelques chapitres
+				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(100) + 50
+			} else {
+				100 // Valeur par défaut
+			}
+		}
 	};
 	
-	// Faire la requête vers episodes.js pour connaître les épisodes disponibles
-	match aidoku::std::net::Request::new(&episodes_url, aidoku::std::net::HttpMethod::Get).string() {
-		Ok(js_content) => {
-			// Extraire les indices d'épisodes disponibles
-			let mut available_indices: Vec<i32> = Vec::new();
-			let mut start_pos = 0;
+	// Étape 3: Créer tous les chapitres de 1 au maximum total
+	// En utilisant les mappings JavaScript quand ils existent
+	for index in 1..=total_chapters {
+		// Chercher si un mapping existe pour cet indice
+		if let Some(mapping) = chapter_mappings.iter().find(|m| m.index == index) {
+			// Utiliser le mapping JavaScript
+			chapters.push(Chapter {
+				id: format!("{}", mapping.index),
+				title: mapping.title.clone(),
+				volume: -1.0,
+				chapter: mapping.chapter_number,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
+		} else {
+			// Pas de mapping, utiliser numérotation normale
+			// MAIS ajuster pour les chapitres spéciaux qui "décalent" la numérotation
+			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings);
 			
-			while let Some(pos) = js_content[start_pos..].find("eps") {
-				start_pos += pos + 3;
-				let remaining = &js_content[start_pos..];
-				
-				let mut number_str = String::new();
-				for char in remaining.chars() {
-					if char.is_ascii_digit() {
-						number_str.push(char);
-					} else {
-						break;
-					}
-				}
-				
-				if let Ok(episode_num) = number_str.parse::<i32>() {
-					available_indices.push(episode_num);
-				}
-			}
-			
-			// Supprimer les doublons et trier
-			available_indices.sort();
-			available_indices.dedup();
-			
-			// Étape 3: Combiner les mappings avec les épisodes disponibles
-			if chapter_mappings.is_empty() {
-				// Fallback: pas de mapping JavaScript, utiliser indices directs
-				for index in &available_indices {
-					chapters.push(Chapter {
-						id: format!("{}", index),
-						title: format!("Chapitre {}", index),
-						volume: -1.0,
-						chapter: *index as f32,
-						date_updated: current_date(),
-						scanlator: String::from(""),
-						url: String::from(""),
-						lang: String::from("fr")
-					});
-				}
-			} else {
-				// Utiliser les mappings pour créer les chapitres avec les bons numéros
-				// D'abord, créer un mapping pour tous les épisodes définis dans le JS
-				for mapping in &chapter_mappings {
-					if available_indices.contains(&mapping.index) {
-						chapters.push(Chapter {
-							id: format!("{}", mapping.index), // ID = indice pour l'API
-							title: mapping.title.clone(),         // Titre avec vrai numéro
-							volume: -1.0,
-							chapter: mapping.chapter_number,      // Vrai numéro (peut être décimal)
-							date_updated: current_date(),
-							scanlator: String::from(""),
-							url: String::from(""),
-							lang: String::from("fr")
-						});
-					}
-				}
-				
-				// Ensuite, ajouter tous les épisodes disponibles qui ne sont pas dans le mapping
-				// (pour les cas où finirListe() devrait continuer plus loin)
-				let mapped_indices: Vec<i32> = chapter_mappings.iter().map(|m| m.index).collect();
-				
-				for index in &available_indices {
-					if !mapped_indices.contains(index) {
-						// Pour les indices non mappés après finirListe(), la numérotation continue
-						// Ex: One Piece indice 1047 → chapitre 1046 (car on a "sauté" One Shot)
-						let chapter_number = (index - 1) as f32; // Simple: indice - 1
-						
-						chapters.push(Chapter {
-							id: format!("{}", index),
-							title: format!("Chapitre {}", chapter_number as i32),
-							volume: -1.0,
-							chapter: chapter_number,
-							date_updated: current_date(),
-							scanlator: String::from(""),
-							url: String::from(""),
-							lang: String::from("fr")
-						});
-					}
-				}
-			}
-			
-			// Ajouter debug info si nécessaire
-			if chapters.is_empty() && !available_indices.is_empty() {
-				chapters.push(Chapter {
-					id: String::from("debug_mapping_failed"),
-					title: format!("DEBUG: {} épisodes trouvés, {} mappings", available_indices.len(), chapter_mappings.len()),
-					volume: -1.0,
-					chapter: -1.0,
-					date_updated: current_date(),
-					scanlator: String::from("AnimeSama Debug"),
-					url: String::from(""),
-					lang: String::from("fr")
-				});
-			}
-			
-			// Tri par numéro de chapitre (du plus récent au plus ancien)
-			chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
-			Ok(chapters)
-		}
-		Err(_) => {
-			// Fallback si episodes.js échoue - utiliser juste le mapping HTML
-			if !chapter_mappings.is_empty() {
-				for mapping in &chapter_mappings {
-					chapters.push(Chapter {
-						id: format!("{}", mapping.index),
-						title: mapping.title.clone(),
-						volume: -1.0,
-						chapter: mapping.chapter_number,
-						date_updated: current_date(),
-						scanlator: String::from(""),
-						url: String::from(""),
-						lang: String::from("fr")
-					});
-				}
-				// Tri par numéro de chapitre (du plus récent au plus ancien)
-				chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
-			}
-			Ok(chapters)
+			chapters.push(Chapter {
+				id: format!("{}", index),
+				title: format!("Chapitre {}", chapter_number as i32),
+				volume: -1.0,
+				chapter: chapter_number,
+				date_updated: current_date(),
+				scanlator: String::from(""),
+				url: String::from(""),
+				lang: String::from("fr")
+			});
 		}
 	}
+	
+	// Tri par numéro de chapitre (du plus récent au plus ancien)
+	chapters.sort_by(|a, b| b.chapter.partial_cmp(&a.chapter).unwrap_or(Ordering::Equal));
+	Ok(chapters)
 }
 
 pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
