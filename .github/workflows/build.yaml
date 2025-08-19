@@ -123,6 +123,53 @@ jobs:
       run: |
         aidoku build ./**/*.aix
     -
+      name: Collecting icons
+      run: |
+        mkdir -p public/icons
+        
+        # Function to extract info from source.json
+        extract_source_info() {
+          local source_json="$1"
+          if [ -f "$source_json" ]; then
+            local id=$(jq -r '.info.id' "$source_json" 2>/dev/null || echo "")
+            local version=$(jq -r '.info.version' "$source_json" 2>/dev/null || echo "")
+            echo "$id:$version"
+          fi
+        }
+        
+        # Collect icons from individual sources (fr.*)
+        for src in ./src/rust/fr.*; do
+          if [ -d "$src/res" ]; then
+            source_info=$(extract_source_info "$src/res/source.json")
+            if [ -n "$source_info" ] && [ "$source_info" != ":" ]; then
+              id=$(echo "$source_info" | cut -d':' -f1)
+              version=$(echo "$source_info" | cut -d':' -f2)
+              if [ -f "$src/res/Icon.png" ] && [ -n "$id" ] && [ -n "$version" ]; then
+                echo "Copying icon for $id version $version"
+                cp "$src/res/Icon.png" "public/icons/${id}-v${version}.png"
+              fi
+            fi
+          fi
+        done
+        
+        # Collect icons from template sources
+        for template in ./src/rust/*/sources/*; do
+          if [ -d "$template/res" ]; then
+            source_info=$(extract_source_info "$template/res/source.json")
+            if [ -n "$source_info" ] && [ "$source_info" != ":" ]; then
+              id=$(echo "$source_info" | cut -d':' -f1)
+              version=$(echo "$source_info" | cut -d':' -f2)
+              if [ -f "$template/res/Icon.png" ] && [ -n "$id" ] && [ -n "$version" ]; then
+                echo "Copying icon for $id version $version"
+                cp "$template/res/Icon.png" "public/icons/${id}-v${version}.png"
+              fi
+            fi
+          fi
+        done
+        
+        echo "Icons collected:"
+        ls -la public/icons/ || echo "No icons found"
+    -
       name: Deploy to GitHub Pages (main -> sources)
       uses: JamesIves/github-pages-deploy-action@v4.7.2
       if: ${{ github.ref == 'refs/heads/main' }}
@@ -143,6 +190,17 @@ jobs:
         git-config-name: GitHub Actions
         git-config-email: github-actions[bot]@users.noreply.github.com
         commit-message: Update source list
+        single-commit: true
+    -
+      name: Deploy to GitHub Pages (main -> gh-pages)
+      uses: JamesIves/github-pages-deploy-action@v4.7.2
+      if: ${{ github.ref == 'refs/heads/main' }}
+      with:
+        branch: gh-pages
+        folder: public
+        git-config-name: GitHub Actions
+        git-config-email: github-actions[bot]@users.noreply.github.com
+        commit-message: Update sources and icons
         single-commit: true
     - 
       name: Uploading packages as artifact

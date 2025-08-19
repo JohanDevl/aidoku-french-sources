@@ -92,7 +92,7 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 	
 	if has_search {
 		// Use search URL format
-		url = format!("{}/?title={}&page={}", data.base_url, search_query, page);
+		url = format!("{}/?s={}&page={}", data.base_url, search_query, page);
 	}
 	
 	get_manga_from_page(url, data)
