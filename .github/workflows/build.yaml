@@ -191,17 +191,6 @@ jobs:
         git-config-email: github-actions[bot]@users.noreply.github.com
         commit-message: Update source list
         single-commit: true
-    -
-      name: Deploy to GitHub Pages (main -> gh-pages)
-      uses: JamesIves/github-pages-deploy-action@v4.7.2
-      if: ${{ github.ref == 'refs/heads/main' }}
-      with:
-        branch: gh-pages
-        folder: public
-        git-config-name: GitHub Actions
-        git-config-email: github-actions[bot]@users.noreply.github.com
-        commit-message: Update sources and icons
-        single-commit: true
     - 
       name: Uploading packages as artifact
       uses: actions/upload-artifact@v4
