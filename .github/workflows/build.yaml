@@ -122,7 +122,15 @@ jobs:
     -
       name: Building source list
       run: |
-        aidoku build ./**/*.aix -o public
+        # Build sources to temporary directory
+        mkdir -p build_output
+        aidoku build ./**/*.aix -o build_output
+        
+        # Copy aidoku build output to public directory (preserving website files)
+        cp -r build_output/* public/
+        
+        echo "Final public directory contents:"
+        ls -la public/
     -
       name: Deploy to GitHub Pages (main -> sources)
       uses: JamesIves/github-pages-deploy-action@v4.7.2
