@@ -526,69 +526,37 @@ fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
 fn extract_tags_from_html(html: &Node) -> Vec<String> {
 	let mut categories = Vec::new();
 	
-	// Look for "Tags:" text pattern in the HTML
-	let all_elements = html.select("*").array();
-	for element in all_elements {
-		if let Ok(node) = element.as_node() {
-			let text = String::from(node.text().read().trim());
-			
-			// Check if text contains "Tags:" or "Tags :" pattern
-			if text.to_lowercase().contains("tags:") || text.to_lowercase().contains("tags :") {
-				// Extract tags after the colon
-				if let Some(colon_pos) = text.find(':') {
-					let tags_part = &text[colon_pos + 1..];
-					// Split by comma and clean up tags
-					for tag in tags_part.split(',') {
-						let cleaned_tag = String::from(tag.trim());
-						if !cleaned_tag.is_empty() && cleaned_tag.len() > 1 {
-							// Capitalize first letter
-							let formatted_tag = if let Some(first_char) = cleaned_tag.chars().next() {
-								format!("{}{}", first_char.to_uppercase(), &cleaned_tag[1..])
-							} else {
-								cleaned_tag
-							};
-							categories.push(formatted_tag);
-						}
-					}
-					// Break once we find tags
-					if !categories.is_empty() {
-						break;
+	// PoseidonScans-specific tag extraction: target their exact HTML structure
+	let poseidon_tag_selectors = [
+		"a[href*='/series?tags=']",  // Primary: direct tag links
+		"a[href*='tags=']",          // Secondary: any link with tags parameter  
+		"a[class*='text-sm'][class*='px-3'][class*='py-1']" // Tertiary: CSS class pattern
+	];
+	
+	for selector in &poseidon_tag_selectors {
+		for tag_element in html.select(selector).array() {
+			if let Ok(tag_node) = tag_element.as_node() {
+				let tag_text = String::from(tag_node.text().read().trim());
+				
+				// Filter valid tag text
+				if !tag_text.is_empty() && 
+				   tag_text.len() > 1 && 
+				   tag_text.len() < 30 &&
+				   !tag_text.to_lowercase().contains("http") &&
+				   !tag_text.to_lowercase().contains("series") &&
+				   !tag_text.to_lowercase().contains("chapter") {
+					
+					// Avoid duplicates
+					if !categories.iter().any(|existing: &String| existing.to_lowercase() == tag_text.to_lowercase()) {
+						categories.push(tag_text);
 					}
 				}
 			}
 		}
-	}
-	
-	// Alternative approach: look for specific tag elements or containers
-	if categories.is_empty() {
-		let tag_selectors = [
-			".tags",
-			".categories", 
-			".genre",
-			".genres",
-			"[class*='tag']",
-			"[class*='categor']",
-			"[class*='genre']"
-		];
 		
-		for selector in &tag_selectors {
-			for tag_element in html.select(selector).array() {
-				if let Ok(tag_node) = tag_element.as_node() {
-					let tag_text = String::from(tag_node.text().read().trim());
-					if !tag_text.is_empty() && tag_text.len() > 1 && tag_text.len() < 50 {
-						// Skip obvious non-tag content
-						if !tag_text.to_lowercase().contains("tag") && 
-						   !tag_text.to_lowercase().contains("chapter") &&
-						   !tag_text.to_lowercase().contains("description") {
-							categories.push(tag_text);
-						}
-					}
-				}
-			}
-			
-			if !categories.is_empty() {
-				break;
-			}
+		// Stop at first successful selector (performance optimization)
+		if !categories.is_empty() {
+			break;
 		}
 	}
 	
