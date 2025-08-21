@@ -522,6 +522,79 @@ fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
 		.join(" ")
 }
 
+// Extract tags/categories from HTML when JSON extraction fails
+fn extract_tags_from_html(html: &Node) -> Vec<String> {
+	let mut categories = Vec::new();
+	
+	// Look for "Tags:" text pattern in the HTML
+	let all_elements = html.select("*").array();
+	for element in all_elements {
+		if let Ok(node) = element.as_node() {
+			let text = String::from(node.text().read().trim());
+			
+			// Check if text contains "Tags:" or "Tags :" pattern
+			if text.to_lowercase().contains("tags:") || text.to_lowercase().contains("tags :") {
+				// Extract tags after the colon
+				if let Some(colon_pos) = text.find(':') {
+					let tags_part = &text[colon_pos + 1..];
+					// Split by comma and clean up tags
+					for tag in tags_part.split(',') {
+						let cleaned_tag = String::from(tag.trim());
+						if !cleaned_tag.is_empty() && cleaned_tag.len() > 1 {
+							// Capitalize first letter
+							let formatted_tag = if let Some(first_char) = cleaned_tag.chars().next() {
+								format!("{}{}", first_char.to_uppercase(), &cleaned_tag[1..])
+							} else {
+								cleaned_tag
+							};
+							categories.push(formatted_tag);
+						}
+					}
+					// Break once we find tags
+					if !categories.is_empty() {
+						break;
+					}
+				}
+			}
+		}
+	}
+	
+	// Alternative approach: look for specific tag elements or containers
+	if categories.is_empty() {
+		let tag_selectors = [
+			".tags",
+			".categories", 
+			".genre",
+			".genres",
+			"[class*='tag']",
+			"[class*='categor']",
+			"[class*='genre']"
+		];
+		
+		for selector in &tag_selectors {
+			for tag_element in html.select(selector).array() {
+				if let Ok(tag_node) = tag_element.as_node() {
+					let tag_text = String::from(tag_node.text().read().trim());
+					if !tag_text.is_empty() && tag_text.len() > 1 && tag_text.len() < 50 {
+						// Skip obvious non-tag content
+						if !tag_text.to_lowercase().contains("tag") && 
+						   !tag_text.to_lowercase().contains("chapter") &&
+						   !tag_text.to_lowercase().contains("description") {
+							categories.push(tag_text);
+						}
+					}
+				}
+			}
+			
+			if !categories.is_empty() {
+				break;
+			}
+		}
+	}
+	
+	categories
+}
+
 // Extract manga status from HTML when Next.js extraction fails
 fn extract_status_from_html(html: &Node) -> MangaStatus {
 	// Status selectors targeting spans with specific status indicators
@@ -877,6 +950,8 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	
 	// Categories/genres
 	let mut categories = Vec::new();
+	
+	// Try to get categories from JSON
 	if let Ok(categories_array) = manga_obj.get("categories").as_array() {
 		for category in categories_array {
 			if let Ok(cat_obj) = category.as_object() {
@@ -888,6 +963,32 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 				}
 			}
 		}
+	}
+	
+	// Try alternative JSON field "tags" if categories is empty
+	if categories.is_empty() {
+		if let Ok(tags_array) = manga_obj.get("tags").as_array() {
+			for tag in tags_array {
+				if let Ok(tag_obj) = tag.clone().as_object() {
+					if let Ok(name) = tag_obj.get("name").as_string() {
+						let genre = String::from(name.read().trim());
+						if !genre.is_empty() {
+							categories.push(genre);
+						}
+					}
+				} else if let Ok(tag_str) = tag.as_string() {
+					let genre = String::from(tag_str.read().trim());
+					if !genre.is_empty() {
+						categories.push(genre);
+					}
+				}
+			}
+		}
+	}
+	
+	// HTML fallback if no categories found in JSON
+	if categories.is_empty() {
+		categories = extract_tags_from_html(&html);
 	}
 	
 	// Description - try HTML selector first, then JSON fallback
