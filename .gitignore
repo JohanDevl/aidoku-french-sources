@@ -2,7 +2,6 @@
 .build
 *.aix
 
-public/*
 src/**/out
 src/**/public
 

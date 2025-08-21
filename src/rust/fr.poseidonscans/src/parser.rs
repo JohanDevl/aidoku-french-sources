@@ -522,6 +522,47 @@ fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
 		.join(" ")
 }
 
+// Extract tags/categories from HTML when JSON extraction fails
+fn extract_tags_from_html(html: &Node) -> Vec<String> {
+	let mut categories = Vec::new();
+	
+	// PoseidonScans-specific tag extraction: target their exact HTML structure
+	let poseidon_tag_selectors = [
+		"a[href*='/series?tags=']",  // Primary: direct tag links
+		"a[href*='tags=']",          // Secondary: any link with tags parameter  
+		"a[class*='text-sm'][class*='px-3'][class*='py-1']" // Tertiary: CSS class pattern
+	];
+	
+	for selector in &poseidon_tag_selectors {
+		for tag_element in html.select(selector).array() {
+			if let Ok(tag_node) = tag_element.as_node() {
+				let tag_text = String::from(tag_node.text().read().trim());
+				
+				// Filter valid tag text
+				if !tag_text.is_empty() && 
+				   tag_text.len() > 1 && 
+				   tag_text.len() < 30 &&
+				   !tag_text.to_lowercase().contains("http") &&
+				   !tag_text.to_lowercase().contains("series") &&
+				   !tag_text.to_lowercase().contains("chapter") {
+					
+					// Avoid duplicates
+					if !categories.iter().any(|existing: &String| existing.to_lowercase() == tag_text.to_lowercase()) {
+						categories.push(tag_text);
+					}
+				}
+			}
+		}
+		
+		// Stop at first successful selector (performance optimization)
+		if !categories.is_empty() {
+			break;
+		}
+	}
+	
+	categories
+}
+
 // Extract manga status from HTML when Next.js extraction fails
 fn extract_status_from_html(html: &Node) -> MangaStatus {
 	// Status selectors targeting spans with specific status indicators
@@ -877,6 +918,8 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	
 	// Categories/genres
 	let mut categories = Vec::new();
+	
+	// Try to get categories from JSON
 	if let Ok(categories_array) = manga_obj.get("categories").as_array() {
 		for category in categories_array {
 			if let Ok(cat_obj) = category.as_object() {
@@ -888,6 +931,32 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 				}
 			}
 		}
+	}
+	
+	// Try alternative JSON field "tags" if categories is empty
+	if categories.is_empty() {
+		if let Ok(tags_array) = manga_obj.get("tags").as_array() {
+			for tag in tags_array {
+				if let Ok(tag_obj) = tag.clone().as_object() {
+					if let Ok(name) = tag_obj.get("name").as_string() {
+						let genre = String::from(name.read().trim());
+						if !genre.is_empty() {
+							categories.push(genre);
+						}
+					}
+				} else if let Ok(tag_str) = tag.as_string() {
+					let genre = String::from(tag_str.read().trim());
+					if !genre.is_empty() {
+						categories.push(genre);
+					}
+				}
+			}
+		}
+	}
+	
+	// HTML fallback if no categories found in JSON
+	if categories.is_empty() {
+		categories = extract_tags_from_html(&html);
 	}
 	
 	// Description - try HTML selector first, then JSON fallback

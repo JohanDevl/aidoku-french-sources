@@ -6,6 +6,7 @@ on:
       - develop
     paths:
       - "src/**"
+      - "public/**"
       - ".github/workflows/build.yaml"
 
 concurrency:
@@ -20,191 +21,139 @@ jobs:
       SCCACHE_VERSION: 0.3.0
     runs-on: ubuntu-latest
     steps:
-    -
-      uses: actions/checkout@v4
-    -
-      uses: google/wireit@setup-github-actions-caching/v1
-    -
-      name: Cache rust stuff
-      uses: actions/cache@v4
-      with:
-        path: |
-         ~/.cargo/registry/index
-         ~/.cargo/registry/cache
-         ~/.cargo/git/db
-         ~/.cargo/bin
-         src/rust/**/target/
-        key: ${{ runner.os }}-cargo3-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo3-
-    -
-      name: sccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/sccache
-        key: ${{ runner.os }}-sccache-${{ github.sha }}
-        restore-keys: ${{ runner.os }}-sccache-
-    -
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        override: true
-        target: wasm32-unknown-unknown
-    -
-      name: Install build dependencies
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        sudo ln -s $(which wasm-ld-13 || which wasm-ld-12 || which wasm-ld-11 || which wasm-ld-10) /usr/bin/wasm-ld
-        
-        AIDOKU_CLI_VER=$(gh api repos/Aidoku/aidoku-cli/releases -q '.[0].tag_name')
-        gh release download -R Aidoku/aidoku-cli "$AIDOKU_CLI_VER" -p *_amd64.deb
-        sudo dpkg -i "aidoku-cli_${AIDOKU_CLI_VER:1}_linux_amd64.deb"
+      - uses: actions/checkout@v4
+      - uses: google/wireit@setup-github-actions-caching/v1
+      - name: Cache rust stuff
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin
+            src/rust/**/target/
+          key: ${{ runner.os }}-cargo3-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo3-
+      - name: sccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-sccache-
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          target: wasm32-unknown-unknown
+      - name: Install build dependencies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo ln -s $(which wasm-ld-13 || which wasm-ld-12 || which wasm-ld-11 || which wasm-ld-10) /usr/bin/wasm-ld
 
-        SCCACHE_FILE=sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl
-        curl -L https://github.com/mozilla/sccache/releases/download/v$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz | tar -xz
-        sudo mv -f $SCCACHE_FILE/sccache /usr/local/bin/sccache
-        sudo chmod +x /usr/local/bin/sccache
-    -
-      name: Build Rust sources
-      run: |
-        # Build individual sources (fr.* directories)
-        echo "=== Building Individual Sources ==="
-        for src in ./src/rust/fr.*; do
-          if [ -d "$src" ]; then
-            SOURCE_NAME=$(basename "$src")
-            echo "Found source directory: $SOURCE_NAME"
-            
-            if [ -f "$src/build.sh" ]; then
-              echo "✓ Building individual source: $SOURCE_NAME"
-              (
-                cd "$src" || exit 1
-                chmod +x build.sh
-                ./build.sh
-              ) || {
-                echo "✗ Failed to build $SOURCE_NAME, continuing with others..."
-                continue
-              }
-              echo "✓ Successfully built $SOURCE_NAME"
-            else
-              echo "✗ No build.sh found in $SOURCE_NAME, skipping..."
-            fi
-          fi
-        done
-        
-        echo "=== Building Template Sources ==="
-        # Build template sources (non-fr.* directories) 
-        for src in ./src/rust/*; do
-          if [ -d "$src" ] && [[ ! "$(basename "$src")" =~ ^fr\. ]]; then
-            TEMPLATE_NAME=$(basename "$src")
-            echo "Found template directory: $TEMPLATE_NAME"
-            
-            if [ -f "$src/build.sh" ]; then
-              echo "✓ Building template: $TEMPLATE_NAME"
-              (
-                cd "$src" || exit 1
-                chmod +x build.sh
-                ./build.sh -a
-              ) || {
-                echo "✗ Failed to build template $TEMPLATE_NAME, continuing with others..."
-                continue
-              }
-              echo "✓ Successfully built template $TEMPLATE_NAME"
-            else
-              echo "✗ No build.sh found in template $TEMPLATE_NAME, skipping..."
-            fi
-          fi
-        done
-        
-        echo "=== Build Summary ==="
-        ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
-    -
-      name: Building source list
-      run: |
-        aidoku build ./**/*.aix
-    -
-      name: Collecting icons
-      run: |
-        mkdir -p public/icons
-        
-        # Function to extract info from source.json
-        extract_source_info() {
-          local source_json="$1"
-          if [ -f "$source_json" ]; then
-            local id=$(jq -r '.info.id' "$source_json" 2>/dev/null || echo "")
-            local version=$(jq -r '.info.version' "$source_json" 2>/dev/null || echo "")
-            echo "$id:$version"
-          fi
-        }
-        
-        # Collect icons from individual sources (fr.*)
-        for src in ./src/rust/fr.*; do
-          if [ -d "$src/res" ]; then
-            source_info=$(extract_source_info "$src/res/source.json")
-            if [ -n "$source_info" ] && [ "$source_info" != ":" ]; then
-              id=$(echo "$source_info" | cut -d':' -f1)
-              version=$(echo "$source_info" | cut -d':' -f2)
-              if [ -f "$src/res/Icon.png" ] && [ -n "$id" ] && [ -n "$version" ]; then
-                echo "Copying icon for $id version $version"
-                cp "$src/res/Icon.png" "public/icons/${id}-v${version}.png"
+          AIDOKU_CLI_VER=$(gh api repos/Aidoku/aidoku-cli/releases -q '.[0].tag_name')
+          gh release download -R Aidoku/aidoku-cli "$AIDOKU_CLI_VER" -p *_amd64.deb
+          sudo dpkg -i "aidoku-cli_${AIDOKU_CLI_VER:1}_linux_amd64.deb"
+
+          SCCACHE_FILE=sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl
+          curl -L https://github.com/mozilla/sccache/releases/download/v$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz | tar -xz
+          sudo mv -f $SCCACHE_FILE/sccache /usr/local/bin/sccache
+          sudo chmod +x /usr/local/bin/sccache
+      - name: Build Rust sources
+        run: |
+          # Build individual sources (fr.* directories)
+          echo "=== Building Individual Sources ==="
+          for src in ./src/rust/fr.*; do
+            if [ -d "$src" ]; then
+              SOURCE_NAME=$(basename "$src")
+              echo "Found source directory: $SOURCE_NAME"
+              
+              if [ -f "$src/build.sh" ]; then
+                echo "✓ Building individual source: $SOURCE_NAME"
+                (
+                  cd "$src" || exit 1
+                  chmod +x build.sh
+                  ./build.sh
+                ) || {
+                  echo "✗ Failed to build $SOURCE_NAME, continuing with others..."
+                  continue
+                }
+                echo "✓ Successfully built $SOURCE_NAME"
+              else
+                echo "✗ No build.sh found in $SOURCE_NAME, skipping..."
               fi
             fi
-          fi
-        done
-        
-        # Collect icons from template sources
-        for template in ./src/rust/*/sources/*; do
-          if [ -d "$template/res" ]; then
-            source_info=$(extract_source_info "$template/res/source.json")
-            if [ -n "$source_info" ] && [ "$source_info" != ":" ]; then
-              id=$(echo "$source_info" | cut -d':' -f1)
-              version=$(echo "$source_info" | cut -d':' -f2)
-              if [ -f "$template/res/Icon.png" ] && [ -n "$id" ] && [ -n "$version" ]; then
-                echo "Copying icon for $id version $version"
-                cp "$template/res/Icon.png" "public/icons/${id}-v${version}.png"
+          done
+
+          echo "=== Building Template Sources ==="
+          # Build template sources (non-fr.* directories) 
+          for src in ./src/rust/*; do
+            if [ -d "$src" ] && [[ ! "$(basename "$src")" =~ ^fr\. ]]; then
+              TEMPLATE_NAME=$(basename "$src")
+              echo "Found template directory: $TEMPLATE_NAME"
+              
+              if [ -f "$src/build.sh" ]; then
+                echo "✓ Building template: $TEMPLATE_NAME"
+                (
+                  cd "$src" || exit 1
+                  chmod +x build.sh
+                  ./build.sh -a
+                ) || {
+                  echo "✗ Failed to build template $TEMPLATE_NAME, continuing with others..."
+                  continue
+                }
+                echo "✓ Successfully built template $TEMPLATE_NAME"
+              else
+                echo "✗ No build.sh found in template $TEMPLATE_NAME, skipping..."
               fi
             fi
-          fi
-        done
-        
-        echo "Icons collected:"
-        ls -la public/icons/ || echo "No icons found"
-    -
-      name: Deploy to GitHub Pages (main -> sources)
-      uses: JamesIves/github-pages-deploy-action@v4.7.2
-      if: ${{ github.ref == 'refs/heads/main' }}
-      with:
-        branch: sources
-        folder: public
-        git-config-name: GitHub Actions
-        git-config-email: github-actions[bot]@users.noreply.github.com
-        commit-message: Update source list
-        single-commit: true
-    -
-      name: Deploy to GitHub Pages (develop -> sources-develop)
-      uses: JamesIves/github-pages-deploy-action@v4.7.2
-      if: ${{ github.ref == 'refs/heads/develop' }}
-      with:
-        branch: sources-develop
-        folder: public
-        git-config-name: GitHub Actions
-        git-config-email: github-actions[bot]@users.noreply.github.com
-        commit-message: Update source list
-        single-commit: true
-    - 
-      name: Uploading packages as artifact
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: packages
-        path: public/sources/*.aix
-        if-no-files-found: ignore
-    -
-      name: Uploading gh-pages deployment as artifact
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: gh-pages
-        path: public
-        if-no-files-found: ignore
+          done
 
+          echo "=== Build Summary ==="
+          ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
+      - name: Building source list
+        run: |
+          # Build sources to temporary directory
+          mkdir -p build_output
+          aidoku build ./**/*.aix -o build_output
+
+          # Copy aidoku build output to public directory (preserving website files)
+          cp -r build_output/* public/
+
+          echo "Final public directory contents:"
+          ls -la public/
+      - name: Deploy to GitHub Pages (main -> sources)
+        uses: JamesIves/github-pages-deploy-action@v4.7.2
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          branch: sources
+          folder: public
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Update source list
+          single-commit: true
+      - name: Deploy to GitHub Pages (develop -> sources-develop)
+        uses: JamesIves/github-pages-deploy-action@v4.7.2
+        if: ${{ github.ref == 'refs/heads/develop' }}
+        with:
+          branch: sources-develop
+          folder: public
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Update source list
+          single-commit: true
+      - name: Uploading packages as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packages
+          path: public/sources/*.aix
+          if-no-files-found: ignore
+      - name: Uploading gh-pages deployment as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gh-pages
+          path: public
+          if-no-files-found: ignore
