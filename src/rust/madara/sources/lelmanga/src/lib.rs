@@ -382,6 +382,26 @@ fn extract_chapter_number(chapter_id: &str, title: &str) -> f32 {
 		}
 	}
 	
+	// New logic for lelmanga format: manga-name-XXX-Y where XXX is chapter number and Y is version/part
+	// Split by '-' and look for the pattern where we have a large number followed by a small number
+	let parts: Vec<&str> = chapter_id.split('-').collect();
+	if parts.len() >= 2 {
+		let last_part = parts[parts.len() - 1];
+		let second_last_part = parts[parts.len() - 2];
+		
+		// Try to parse both parts as numbers
+		if let (Ok(last_num), Ok(second_last_num)) = (last_part.parse::<f32>(), second_last_part.parse::<f32>()) {
+			// If last number is small (likely a version/part) and second last is larger (likely chapter number)
+			if last_num <= 10.0 && second_last_num > 10.0 {
+				return second_last_num;
+			}
+			// If only one big number, prefer the larger one
+			if second_last_num > last_num && second_last_num > 10.0 {
+				return second_last_num;
+			}
+		}
+	}
+	
 	// Fallback: try to extract from the last segment of URL (original behavior)
 	if let Some(num_str) = chapter_id.split('-').last() {
 		if let Ok(num) = num_str.parse::<f32>() {
