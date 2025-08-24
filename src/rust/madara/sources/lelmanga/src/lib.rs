@@ -281,7 +281,7 @@ fn get_manga_details(id: String) -> Result<Manga> {
 		author,
 		artist,
 		description,
-		url: String::new(),
+		url,
 		categories,
 		status,
 		nsfw,
@@ -360,7 +360,29 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 }
 
 fn extract_chapter_number(chapter_id: &str, title: &str) -> f32 {
-	// First try to extract from URL ID
+	// First try to extract from URL ID by looking for "chapitre-XXX" or "chapter-XXX" pattern
+	let chapter_id_lower = chapter_id.to_lowercase();
+	
+	// Look for the pattern "chapitre-" or "chapter-" followed by a number
+	if let Some(chapitre_pos) = chapter_id_lower.find("chapitre-") {
+		let after_chapitre = &chapter_id[chapitre_pos + 9..]; // 9 is length of "chapitre-"
+		if let Some(num_str) = after_chapitre.split('-').next() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return num;
+			}
+		}
+	}
+	
+	if let Some(chapter_pos) = chapter_id_lower.find("chapter-") {
+		let after_chapter = &chapter_id[chapter_pos + 8..]; // 8 is length of "chapter-"
+		if let Some(num_str) = after_chapter.split('-').next() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return num;
+			}
+		}
+	}
+	
+	// Fallback: try to extract from the last segment of URL (original behavior)
 	if let Some(num_str) = chapter_id.split('-').last() {
 		if let Ok(num) = num_str.parse::<f32>() {
 			return num;
