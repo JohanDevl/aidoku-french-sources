@@ -344,6 +344,15 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 		let date_str = obj.select(".chapterdate").text().read();
 		let date_updated = parse_chapter_date(&date_str);
 		
+		// Ensure URL is absolute
+		let full_url = if href.starts_with("http") {
+			href  // Already absolute
+		} else if href.starts_with("/") {
+			format!("{}{}", data.base_url, href)  // Relative with /
+		} else {
+			format!("{}/{}", data.base_url, href)  // Relative without /
+		};
+		
 		chapters.push(Chapter {
 			id: chapter_id,
 			title,
@@ -351,7 +360,7 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 			chapter: chapter_num,
 			date_updated,
 			scanlator: String::new(),
-			url: href,
+			url: full_url,
 			lang: data.lang.clone(),
 		});
 	}
