@@ -281,7 +281,7 @@ fn get_manga_details(id: String) -> Result<Manga> {
 		author,
 		artist,
 		description,
-		url: String::new(),
+		url,
 		categories,
 		status,
 		nsfw,
@@ -344,6 +344,15 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 		let date_str = obj.select(".chapterdate").text().read();
 		let date_updated = parse_chapter_date(&date_str);
 		
+		// Ensure URL is absolute
+		let full_url = if href.starts_with("http") {
+			href  // Already absolute
+		} else if href.starts_with("/") {
+			format!("{}{}", data.base_url, href)  // Relative with /
+		} else {
+			format!("{}/{}", data.base_url, href)  // Relative without /
+		};
+		
 		chapters.push(Chapter {
 			id: chapter_id,
 			title,
@@ -351,7 +360,7 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 			chapter: chapter_num,
 			date_updated,
 			scanlator: String::new(),
-			url: String::new(),
+			url: full_url,
 			lang: data.lang.clone(),
 		});
 	}
@@ -360,7 +369,46 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 }
 
 fn extract_chapter_number(chapter_id: &str, title: &str) -> f32 {
-	// First try to extract from URL ID
+	// First try to extract from URL ID by looking for "chapitre-XXX" or "chapter-XXX" pattern
+	let chapter_id_lower = chapter_id.to_lowercase();
+	
+	// Look for the pattern "chapitre-" or "chapter-" followed by a number
+	if let Some(chapitre_pos) = chapter_id_lower.find("chapitre-") {
+		let after_chapitre = &chapter_id[chapitre_pos + 9..]; // 9 is length of "chapitre-"
+		if let Some(num_str) = after_chapitre.split('-').next() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return num;
+			}
+		}
+	}
+	
+	if let Some(chapter_pos) = chapter_id_lower.find("chapter-") {
+		let after_chapter = &chapter_id[chapter_pos + 8..]; // 8 is length of "chapter-"
+		if let Some(num_str) = after_chapter.split('-').next() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return num;
+			}
+		}
+	}
+	
+	// New logic for lelmanga format: manga-name-XXX-Y where XXX is chapter number and Y is version/part
+	// Split by '-' and look for the pattern where we have a chapter number followed by a small suffix
+	let parts: Vec<&str> = chapter_id.split('-').collect();
+	if parts.len() >= 2 {
+		let last_part = parts[parts.len() - 1];
+		let second_last_part = parts[parts.len() - 2];
+		
+		// Try to parse both parts as numbers
+		if let (Ok(last_num), Ok(second_last_num)) = (last_part.parse::<f32>(), second_last_part.parse::<f32>()) {
+			// If last number is small (likely a version/part) and second last is >= last (likely chapter number)
+			// Use more flexible logic: if last number ≤ 20 and second_last ≥ last, prefer second_last
+			if last_num <= 20.0 && second_last_num >= last_num {
+				return second_last_num;
+			}
+		}
+	}
+	
+	// Fallback: try to extract from the last segment of URL (original behavior)
 	if let Some(num_str) = chapter_id.split('-').last() {
 		if let Ok(num) = num_str.parse::<f32>() {
 			return num;
