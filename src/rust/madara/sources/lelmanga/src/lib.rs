@@ -351,7 +351,7 @@ fn get_chapter_list(id: String) -> Result<Vec<Chapter>> {
 			chapter: chapter_num,
 			date_updated,
 			scanlator: String::new(),
-			url: String::new(),
+			url: href,
 			lang: data.lang.clone(),
 		});
 	}
