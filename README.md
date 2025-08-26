@@ -91,24 +91,31 @@ src/rust/
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (latest stable version)
+- [Rust](https://rustup.rs/) (latest stable version with nightly toolchain)
 - [Git](https://git-scm.com/)
+- [Aidoku CLI](https://github.com/Aidoku/aidoku-rs): `cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli`
 
 ### Local Installation
 
 ```bash
 git clone https://github.com/JohanDevl/aidoku-french-sources.git
 cd aidoku-french-sources
+
+# Install nightly Rust with WASM target
+rustup install nightly
+rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
 
 ### Building a Source
 
 ```bash
-# For a Madara source
-cd src/rust/madara && ./build.sh
+# For template-based sources (Madara, MangaStream, MMRCMS)
+cd src/rust/madara/sources/lelmanga && RUSTUP_TOOLCHAIN=nightly aidoku package
+cd src/rust/mangastream/sources/sushiscans && RUSTUP_TOOLCHAIN=nightly aidoku package
 
-# For a custom source
-cd src/rust/fr.lelscanfr && ./build.sh
+# For custom sources
+cd src/rust/fr.lelscanfr && RUSTUP_TOOLCHAIN=nightly aidoku package
+cd src/rust/fr.phenixscans && RUSTUP_TOOLCHAIN=nightly aidoku package
 ```
 
 ### Adding a New Source
