@@ -9,9 +9,8 @@ use crate::API_URL;
 
 pub fn parse_manga_listing(json: ObjectRef, listing_type: &str) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	let mut has_more = false;
 
-	if listing_type == "Populaire" {
+	let has_more = if listing_type == "Populaire" {
 		// For the "top" section, the structure is: { "top": [...] }
 		for item in json.get("top").as_array()? {
 			let manga = item.as_object()?;
@@ -39,7 +38,7 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str) -> Result<MangaP
 			});
 		}
 		// Top section has no pagination
-		has_more = false;
+		false
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		for item in json.get("latest").as_array()? {
@@ -71,8 +70,8 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str) -> Result<MangaP
 		let pagination = json.get("pagination").as_object()?;
 		let current_page = pagination.get("currentPage").as_int()?;
 		let total_pages = pagination.get("totalPages").as_int()?;
-		has_more = current_page < total_pages;
-	}
+		current_page < total_pages
+	};
 
 	Ok(MangaPageResult {
 		manga: mangas,
@@ -277,7 +276,7 @@ pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapt
 		}
 		
 		let title = format!("Chapter {}", chapter_number);
-		let url = format!("{}/{}", manga_id, chapter_number);
+		let url = format!("{}/manga/{}/chapter/{}", String::from(BASE_URL), manga_id, chapter_number);
 
 		chapters.push(Chapter{
 			id,
