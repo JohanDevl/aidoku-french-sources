@@ -144,7 +144,7 @@ jobs:
         run: |
           # Build sources to temporary directory
           mkdir -p build_output
-          aidoku build ./**/*.aix -o build_output --name "JohanDevl's French Sources"
+          aidoku build ./**/*.aix -o build_output -n "JohanDevl's French Sources"
 
           # Copy aidoku build output to public directory (preserving website files)
           cp -r build_output/* public/
