@@ -231,7 +231,16 @@ jobs:
           done
           
           echo "Found .aix files: $AIX_FILES"
-          aidoku build $AIX_FILES -o build_output --name "$SOURCE_NAME"
+          echo "Running: aidoku build $AIX_FILES -o build_output --name \"$SOURCE_NAME\""
+          aidoku build $AIX_FILES -o build_output --name "$SOURCE_NAME" 2>&1 || { echo "aidoku build failed with exit code $?"; exit 1; }
+          echo "aidoku build completed. Checking output..."
+          ls -la build_output/ || echo "build_output directory not found"
+          if [ -f build_output/index.json ]; then
+            echo "Generated index.json content:"
+            cat build_output/index.json
+          else
+            echo "No index.json generated!"
+          fi
 
           # Copy aidoku build output to public directory (preserving website files)
           cp -r build_output/* public/
