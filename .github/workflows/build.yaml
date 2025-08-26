@@ -82,7 +82,25 @@ jobs:
                 if [ -f "package.aix" ]; then
                   echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
                   # Test package structure
-                  echo "   Package structure:"
+                  echo "   Package structure BEFORE repackaging:"
+                  unzip -l package.aix | head -10
+                  
+                  # Repackage to remove Payload/ structure
+                  echo "   Repackaging to remove Payload/ structure..."
+                  mkdir -p temp_repack
+                  unzip -q package.aix -d temp_repack
+                  rm -f package.aix
+                  cd temp_repack
+                  if [ -d "Payload" ]; then
+                    mv Payload/* . 2>/dev/null || true
+                    rmdir Payload 2>/dev/null || true
+                    echo "   Moved files from Payload/ to root"
+                  fi
+                  zip -q -r ../package.aix *
+                  cd ..
+                  rm -rf temp_repack
+                  
+                  echo "   Package structure AFTER repackaging:"
                   unzip -l package.aix | head -10
                 fi
               ) && {
@@ -114,14 +132,34 @@ jobs:
                     # Debug and properly move package
                     if [ -f "package.aix" ]; then
                       echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
-                      # Ensure template directory exists and move package
-                      cp package.aix "$template_dir/$SOURCE_NAME.aix"
-                      echo "   Moved to $template_dir/$SOURCE_NAME.aix"
+                      
+                      # Repackage to remove Payload/ structure
+                      echo "   Repackaging to remove Payload/ structure..."
+                      mkdir -p temp_repack
+                      unzip -q package.aix -d temp_repack
+                      rm -f package.aix
+                      cd temp_repack
+                      if [ -d "Payload" ]; then
+                        mv Payload/* . 2>/dev/null || true
+                        rmdir Payload 2>/dev/null || true
+                        echo "   Moved files from Payload/ to root"
+                      fi
+                      zip -q -r ../package.aix *
+                      cd ..
+                      rm -rf temp_repack
+                      
+                      echo "   Package structure AFTER repackaging:"
+                      unzip -l package.aix | head -10
+                      
+                      # Use correct path to move package (relative to workspace root)
+                      TARGET_PATH="../../../$template_dir/$SOURCE_NAME.aix"
+                      cp package.aix "$TARGET_PATH"
+                      echo "   Moved to $TARGET_PATH"
                       # Verify it was moved
-                      if [ -f "$template_dir/$SOURCE_NAME.aix" ]; then
-                        echo "   ✓ Package successfully placed at $template_dir/$SOURCE_NAME.aix"
+                      if [ -f "$TARGET_PATH" ]; then
+                        echo "   ✓ Package successfully placed at $TARGET_PATH"
                       else
-                        echo "   ✗ Failed to move package to $template_dir/$SOURCE_NAME.aix"
+                        echo "   ✗ Failed to move package to $TARGET_PATH"
                       fi
                     else
                       echo "   ✗ No package.aix was created"
