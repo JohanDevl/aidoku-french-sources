@@ -80,7 +80,7 @@ function createSourceCard(source, offlineSources, sourceTypes, index) {
   card.className = "source-card";
   card.style.setProperty("--index", index);
 
-  const iconPath = `./icons/${source.icon}`;
+  const iconPath = source.iconURL || `./icons/${source.id}.png`;
 
   card.innerHTML = `
         <div class="source-header">
