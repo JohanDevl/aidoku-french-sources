@@ -151,8 +151,8 @@ jobs:
                       echo "   Package structure AFTER repackaging:"
                       unzip -l package.aix | head -10
                       
-                      # Use correct path to move package (relative to workspace root)
-                      TARGET_PATH="../../../$template_dir/$SOURCE_NAME.aix"
+                      # Use correct path to move package (relative to sources/astralmanga -> madara/)
+                      TARGET_PATH="../../$SOURCE_NAME.aix"
                       cp package.aix "$TARGET_PATH"
                       echo "   Moved to $TARGET_PATH"
                       # Verify it was moved
