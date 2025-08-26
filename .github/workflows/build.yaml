@@ -259,6 +259,24 @@ jobs:
           done
           echo ""
           
+          echo "=== aidoku CLI Information ==="
+          aidoku --version || echo "aidoku version command failed"
+          echo ""
+          
+          echo "=== Testing file content extraction ==="
+          if [ -f "./src/rust/fr.phenixscans/package.aix" ]; then
+            echo "Extracting fr.phenixscans source.json for inspection:"
+            mkdir -p temp_inspect
+            unzip -q "./src/rust/fr.phenixscans/package.aix" -d temp_inspect
+            echo "Content of source.json:"
+            cat temp_inspect/source.json | sed 's/^/  /'
+            echo ""
+            echo "Content of filters.json (first 10 lines):"
+            head -10 temp_inspect/filters.json | sed 's/^/  /'
+            rm -rf temp_inspect
+          fi
+          echo ""
+          
           echo "Running: aidoku build $AIX_FILES -o build_output --name \"$SOURCE_NAME\""
           aidoku build $AIX_FILES -o build_output --name "$SOURCE_NAME" 2>&1 || { echo "aidoku build failed with exit code $?"; exit 1; }
           echo "aidoku build completed. Checking output..."
