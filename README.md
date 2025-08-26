@@ -26,6 +26,16 @@ Click this link from your iOS device with Aidoku installed:
 4. Paste this URL: `https://johandev.com/aidoku-french-sources/index.min.json`
 5. Tap **Add**
 
+### Method 3: Development Branch (Latest)
+
+To test the latest development sources and features:
+
+**[🧪 Add development sources](https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources-develop/index.min.json)**
+
+Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources-develop/index.min.json`
+
+> ⚠️ **Note**: Development sources may be unstable and contain experimental features.
+
 ## 📖 Available Sources
 
 |        Name        |                        URL                        |     Status     |     Type      | Description                   |
