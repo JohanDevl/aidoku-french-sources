@@ -77,37 +77,6 @@ jobs:
                 cd "$src" || exit 1
                 rm -f package.aix
                 RUSTUP_TOOLCHAIN=nightly aidoku package
-                
-                # Debug: Check what aidoku package created
-                if [ -f "package.aix" ]; then
-                  echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
-                  # Test package structure
-                  echo "   Package structure BEFORE repackaging:"
-                  unzip -l package.aix | head -10
-                  
-                  # Repackage to remove Payload/ structure
-                  echo "   Repackaging to remove Payload/ structure..."
-                  mkdir -p temp_repack
-                  unzip -q package.aix -d temp_repack
-                  rm -f package.aix
-                  cd temp_repack
-                  if [ -d "Payload" ]; then
-                    mv Payload/* . 2>/dev/null || true
-                    rmdir Payload 2>/dev/null || true
-                    echo "   Moved files from Payload/ to root"
-                  fi
-                  # Fix icon case sensitivity (Icon.png -> icon.png)
-                  if [ -f "Icon.png" ]; then
-                    mv Icon.png icon.png
-                    echo "   Renamed Icon.png to icon.png"
-                  fi
-                  zip -q -r ../package.aix *
-                  cd ..
-                  rm -rf temp_repack
-                  
-                  echo "   Package structure AFTER repackaging:"
-                  unzip -l package.aix | head -10
-                fi
               ) && {
                 echo "✅ Successfully built $SOURCE_NAME"
                 INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
@@ -118,12 +87,13 @@ jobs:
             fi
           done
           
-          # Build template sources
+          # Build template sources  
           echo "=== Building Template Sources with aidoku package ==="
           for template_dir in ./src/rust/madara ./src/rust/mangastream ./src/rust/mmrcms; do
             if [ -d "$template_dir/sources" ]; then
               TEMPLATE_NAME=$(basename "$template_dir")
               echo "📦 Processing template: $TEMPLATE_NAME"
+              TEMPLATE_COUNT=0
               
               for source_dir in "$template_dir/sources"/*; do
                 if [ -d "$source_dir" ]; then
@@ -133,53 +103,16 @@ jobs:
                     cd "$source_dir" || exit 1
                     rm -f package.aix
                     RUSTUP_TOOLCHAIN=nightly aidoku package
-                    
-                    # Debug and properly move package
+                    # Move package to template root for aidoku build
                     if [ -f "package.aix" ]; then
-                      echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
-                      
-                      # Repackage to remove Payload/ structure
-                      echo "   Repackaging to remove Payload/ structure..."
-                      mkdir -p temp_repack
-                      unzip -q package.aix -d temp_repack
-                      rm -f package.aix
-                      cd temp_repack
-                      if [ -d "Payload" ]; then
-                        mv Payload/* . 2>/dev/null || true
-                        rmdir Payload 2>/dev/null || true
-                        echo "   Moved files from Payload/ to root"
-                      fi
-                      # Fix icon case sensitivity (Icon.png -> icon.png)
-                      if [ -f "Icon.png" ]; then
-                        mv Icon.png icon.png
-                        echo "   Renamed Icon.png to icon.png"
-                      fi
-                      zip -q -r ../package.aix *
-                      cd ..
-                      rm -rf temp_repack
-                      
-                      echo "   Package structure AFTER repackaging:"
-                      unzip -l package.aix | head -10
-                      
-                      # Use correct path to move package (relative to sources/astralmanga -> madara/)
-                      TARGET_PATH="../../$SOURCE_NAME.aix"
-                      cp package.aix "$TARGET_PATH"
-                      echo "   Moved to $TARGET_PATH"
-                      # Verify it was moved
-                      if [ -f "$TARGET_PATH" ]; then
-                        echo "   ✓ Package successfully placed at $TARGET_PATH"
-                      else
-                        echo "   ✗ Failed to move package to $TARGET_PATH"
-                      fi
-                    else
-                      echo "   ✗ No package.aix was created"
+                      cp package.aix "../../$SOURCE_NAME.aix"
                     fi
-                  )
+                  ) && {
+                    TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
+                  }
                 fi
               done
               
-              # Count template packages
-              TEMPLATE_COUNT=$(find "$template_dir" -maxdepth 1 -name "*.aix" -type f | wc -l)
               if [ $TEMPLATE_COUNT -gt 0 ]; then
                 echo "✅ Built $TEMPLATE_COUNT sources for template $TEMPLATE_NAME"
                 TEMPLATE_SUCCESS=$((TEMPLATE_SUCCESS + 1))
@@ -198,13 +131,6 @@ jobs:
           ls -la ./src/rust/mangastream/*.aix 2>/dev/null || echo "  No mangastream packages found"  
           ls -la ./src/rust/mmrcms/*.aix 2>/dev/null || echo "  No mmrcms packages found"
           
-          echo "=== Testing aidoku build compatibility ==="
-          # Test one package to see the actual error
-          if [ -f "./src/rust/fr.lelscanfr/package.aix" ]; then
-            echo "Testing fr.lelscanfr/package.aix:"
-            aidoku build ./src/rust/fr.lelscanfr/package.aix -o test_build --name "Test" 2>&1 || true
-          fi
-          
           # Export variables for next steps
           echo "INDIVIDUAL_SUCCESS=$INDIVIDUAL_SUCCESS" >> $GITHUB_ENV
           echo "INDIVIDUAL_FAIL=$INDIVIDUAL_FAIL" >> $GITHUB_ENV
@@ -212,9 +138,6 @@ jobs:
           echo "TEMPLATE_FAIL=$TEMPLATE_FAIL" >> $GITHUB_ENV
       - name: Building source list
         run: |
-          # Build sources to temporary directory
-          mkdir -p build_output
-          
           # Set source list name based on branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             SOURCE_NAME="JohanDevl's French Sources"
@@ -222,76 +145,14 @@ jobs:
             SOURCE_NAME="JohanDevl's French Sources (Development)"
           fi
           
-          # Collect all .aix files
-          AIX_FILES=""
-          for file in ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
-            if [ -f "$file" ]; then
-              AIX_FILES="$AIX_FILES $file"
-            fi
-          done
-          
-          echo "Found .aix files: $AIX_FILES"
-          
-          # Test individual packages first
-          echo "=== Testing individual packages for validation ==="
-          for file in ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
-            if [ -f "$file" ]; then
-              echo "Testing: $file"
-              echo "  Package structure:"
-              unzip -l "$file" | head -10 | sed 's/^/    /'
-              
-              aidoku build "$file" -o "test_$(basename "$file" .aix)" --name "Test" 2>&1 || echo "  ❌ Failed"
-              if [ -f "test_$(basename "$file" .aix)/index.json" ]; then
-                echo "  Generated index.json:"
-                cat "test_$(basename "$file" .aix)/index.json" | sed 's/^/    /'
-                sources_count=$(cat "test_$(basename "$file" .aix)/index.json" | grep -o '"sources":\s*\[' | wc -l)
-                if [ $sources_count -gt 0 ]; then
-                  echo "  ✅ Valid ($(cat "test_$(basename "$file" .aix)/index.json" | grep -o '"id":' | wc -l | tr -d ' ') sources)"
-                else
-                  echo "  ⚠️  Empty sources array"
-                fi
-              else
-                echo "  ❌ No index.json generated"
-              fi
-              rm -rf "test_$(basename "$file" .aix)" 2>/dev/null || true
-              echo ""
-            fi
-          done
-          echo ""
-          
-          echo "=== aidoku CLI Information ==="
-          aidoku --version || echo "aidoku version command failed"
-          echo ""
-          
-          echo "=== Testing file content extraction ==="
-          if [ -f "./src/rust/fr.phenixscans/package.aix" ]; then
-            echo "Extracting fr.phenixscans source.json for inspection:"
-            mkdir -p temp_inspect
-            unzip -q "./src/rust/fr.phenixscans/package.aix" -d temp_inspect
-            echo "Content of source.json:"
-            cat temp_inspect/source.json | sed 's/^/  /'
-            echo ""
-            echo "Content of filters.json (first 10 lines):"
-            head -10 temp_inspect/filters.json | sed 's/^/  /'
-            rm -rf temp_inspect
-          fi
-          echo ""
-          
-          echo "Running: aidoku build $AIX_FILES -o build_output --name \"$SOURCE_NAME\""
-          aidoku build $AIX_FILES -o build_output --name "$SOURCE_NAME" 2>&1 || { echo "aidoku build failed with exit code $?"; exit 1; }
-          echo "aidoku build completed. Checking output..."
-          ls -la build_output/ || echo "build_output directory not found"
-          if [ -f build_output/index.json ]; then
-            echo "Generated index.json content:"
-            cat build_output/index.json
-          else
-            echo "No index.json generated!"
-          fi
+          # Build source list from all packages
+          echo "Building source list: $SOURCE_NAME"
+          aidoku build ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
 
-          # Copy aidoku build output to public directory (preserving website files)
+          # Copy output to public directory (preserving existing website files)
           cp -r build_output/* public/
 
-          echo "Final public directory contents:"
+          echo "Build completed. Generated files:"
           ls -la public/
       - name: Deploy to GitHub Pages (main -> sources)
         uses: JamesIves/github-pages-deploy-action@v4.7.2
