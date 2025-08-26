@@ -8,6 +8,7 @@ on:
       - "src/**"
       - "public/**"
       - ".github/workflows/build.yaml"
+  workflow_dispatch:  # Permet de déclencher manuellement le workflow
 
 concurrency:
   group: ${{ github.workflow }}
@@ -151,8 +152,26 @@ jobs:
               echo "📦 Repackaging $SOURCE_NAME"
               (
                 cd "$src"
+                # Backup original package
+                cp package.aix package.aix.bak
                 rm -f package.aix
-                RUSTUP_TOOLCHAIN=nightly aidoku package
+                
+                # Run aidoku package with verbose output
+                echo "   Running: RUSTUP_TOOLCHAIN=nightly aidoku package"
+                RUSTUP_TOOLCHAIN=nightly aidoku package 2>&1 | tee package.log
+                
+                # Check if new package was created
+                if [ -f "package.aix" ]; then
+                  echo "✅ Successfully repackaged $SOURCE_NAME"
+                  # Test if package is valid
+                  unzip -t package.aix >/dev/null 2>&1 && echo "✓ Package is valid ZIP" || echo "✗ Package is invalid ZIP"
+                  # Check internal structure
+                  unzip -l package.aix 2>/dev/null | grep -E "(source.json|main.wasm)" && echo "✓ Has required files" || echo "✗ Missing required files"
+                else
+                  echo "❌ Failed to repackage $SOURCE_NAME - restoring original"
+                  # Restore original if failed
+                  mv package.aix.bak package.aix
+                fi
               )
             fi
           done
@@ -164,16 +183,52 @@ jobs:
                 if [ -f "$aix" ]; then
                   SOURCE_NAME=$(basename "$aix" .aix)
                   echo "📦 Repackaging template $SOURCE_NAME"
+                  # Try to find source directory
+                  SOURCE_DIR=""
+                  if [ -d "$template_dir/sources/$SOURCE_NAME" ]; then
+                    SOURCE_DIR="$template_dir/sources/$SOURCE_NAME"
+                  elif [ -d "$template_dir/$SOURCE_NAME" ]; then
+                    SOURCE_DIR="$template_dir/$SOURCE_NAME"
+                  else
+                    echo "❌ Cannot find source directory for $SOURCE_NAME"
+                    continue
+                  fi
+                  
                   (
-                    cd "$template_dir/sources/$SOURCE_NAME" 2>/dev/null || cd "$template_dir/$SOURCE_NAME" 2>/dev/null
-                    if [ $? -eq 0 ]; then
-                      rm -f *.aix
-                      RUSTUP_TOOLCHAIN=nightly aidoku package
-                      mv *.aix "$template_dir/" 2>/dev/null || true
+                    cd "$SOURCE_DIR"
+                    echo "   Working in: $PWD"
+                    echo "   Running: RUSTUP_TOOLCHAIN=nightly aidoku package"
+                    RUSTUP_TOOLCHAIN=nightly aidoku package 2>&1 | tee package.log
+                    
+                    if [ -f "package.aix" ]; then
+                      echo "✅ Successfully repackaged template $SOURCE_NAME"
+                      unzip -t package.aix >/dev/null 2>&1 && echo "✓ Package is valid ZIP" || echo "✗ Package is invalid ZIP"
+                      mv package.aix "$template_dir/$SOURCE_NAME.aix" 2>/dev/null || true
+                    else
+                      echo "❌ Failed to repackage template $SOURCE_NAME"
                     fi
                   )
                 fi
               done
+            fi
+          done
+          
+          echo "=== Testing aidoku build locally ==="
+          # Test if aidoku build can read a few packages
+          TEST_COUNT=0
+          for aix in $(find ./src/rust -name "*.aix" | head -3); do
+            echo "Testing: $aix"
+            aidoku build "$aix" -o test_output_$(basename "$aix" .aix) --name "Test" 2>&1 | head -5
+            TEST_COUNT=$((TEST_COUNT + 1))
+          done
+          
+          echo "=== Package structure analysis ==="
+          for aix in $(find ./src/rust -name "*.aix"); do
+            echo -n "$(basename "$aix"): "
+            if unzip -l "$aix" 2>/dev/null | grep -q "source.json"; then
+              echo "✓ has source.json"
+            else
+              echo "✗ missing source.json"
             fi
           done
           
