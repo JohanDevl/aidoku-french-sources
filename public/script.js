@@ -16,7 +16,8 @@ async function loadSources() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const sources = await response.json();
+    const data = await response.json();
+    const sources = data.sources || data; // Handle both new object format and legacy array format
 
     // Clear loading state
     sourcesContainer.innerHTML = "";
