@@ -149,6 +149,31 @@ jobs:
           echo "Building source list: $SOURCE_NAME"
           aidoku build ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
 
+          # Extract icons from all packages manually
+          echo "Extracting icons from packages..."
+          mkdir -p build_output/icons
+          
+          # Extract from individual custom sources
+          for package in ./src/rust/fr.*/package.aix; do
+            if [ -f "$package" ]; then
+              SOURCE_NAME=$(basename "$(dirname "$package")")
+              echo "Extracting icon from $SOURCE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${SOURCE_NAME}.png" 2>/dev/null || true
+            fi
+          done
+          
+          # Extract from template sources
+          for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
+            if [ -f "$package" ]; then
+              SOURCE_NAME=$(basename "$package" .aix)
+              echo "Extracting icon from $SOURCE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${SOURCE_NAME}.png" 2>/dev/null || true
+            fi
+          done
+          
+          echo "Icons extracted. Contents of icons directory:"
+          ls -la build_output/icons/
+
           # Copy output to public directory (preserving existing website files)
           cp -r build_output/* public/
 
