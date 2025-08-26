@@ -96,6 +96,11 @@ jobs:
                     rmdir Payload 2>/dev/null || true
                     echo "   Moved files from Payload/ to root"
                   fi
+                  # Fix icon case sensitivity (Icon.png -> icon.png)
+                  if [ -f "Icon.png" ]; then
+                    mv Icon.png icon.png
+                    echo "   Renamed Icon.png to icon.png"
+                  fi
                   zip -q -r ../package.aix *
                   cd ..
                   rm -rf temp_repack
@@ -143,6 +148,11 @@ jobs:
                         mv Payload/* . 2>/dev/null || true
                         rmdir Payload 2>/dev/null || true
                         echo "   Moved files from Payload/ to root"
+                      fi
+                      # Fix icon case sensitivity (Icon.png -> icon.png)
+                      if [ -f "Icon.png" ]; then
+                        mv Icon.png icon.png
+                        echo "   Renamed Icon.png to icon.png"
                       fi
                       zip -q -r ../package.aix *
                       cd ..
