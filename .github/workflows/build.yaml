@@ -8,6 +8,7 @@ on:
       - "src/**"
       - "public/**"
       - ".github/workflows/build.yaml"
+  workflow_dispatch:  # Permet de déclencher manuellement le workflow
 
 concurrency:
   group: ${{ github.workflow }}
@@ -50,106 +51,108 @@ jobs:
         run: |
           sudo ln -s $(which wasm-ld-13 || which wasm-ld-12 || which wasm-ld-11 || which wasm-ld-10) /usr/bin/wasm-ld
 
-          AIDOKU_CLI_VER=$(gh api repos/Aidoku/aidoku-cli/releases -q '.[0].tag_name')
-          gh release download -R Aidoku/aidoku-cli "$AIDOKU_CLI_VER" -p *_amd64.deb
-          sudo dpkg -i "aidoku-cli_${AIDOKU_CLI_VER:1}_linux_amd64.deb"
-
+          # Install sccache first (required by RUSTC_WRAPPER)
           SCCACHE_FILE=sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl
           curl -L https://github.com/mozilla/sccache/releases/download/v$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz | tar -xz
           sudo mv -f $SCCACHE_FILE/sccache /usr/local/bin/sccache
           sudo chmod +x /usr/local/bin/sccache
-      - name: Build Rust sources
+
+          # Install aidoku-cli from git source (includes --name flag support)
+          cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
+      - name: Build Rust sources with aidoku package
         run: |
           # Initialize counters
           INDIVIDUAL_SUCCESS=0
           INDIVIDUAL_FAIL=0
           TEMPLATE_SUCCESS=0
           TEMPLATE_FAIL=0
-          INDIVIDUAL_BUILT=""
-          INDIVIDUAL_FAILED=""
-          TEMPLATE_BUILT=""
-          TEMPLATE_FAILED=""
-
-          # Build individual sources (fr.* directories)
-          echo "=== Building Individual Sources ==="
+          
+          # Build individual sources with aidoku package
+          echo "=== Building Individual Sources with aidoku package ==="
           for src in ./src/rust/fr.*; do
-            if [ -d "$src" ]; then
+            if [ -d "$src" ] && [ -f "$src/Cargo.toml" ]; then
               SOURCE_NAME=$(basename "$src")
-              echo "📦 Found source directory: $SOURCE_NAME"
+              echo "📦 Building individual source: $SOURCE_NAME"
+              (
+                cd "$src" || exit 1
+                rm -f package.aix
+                RUSTUP_TOOLCHAIN=nightly aidoku package
+              ) && {
+                echo "✅ Successfully built $SOURCE_NAME"
+                INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
+              } || {
+                echo "❌ Failed to build $SOURCE_NAME"
+                INDIVIDUAL_FAIL=$((INDIVIDUAL_FAIL + 1))
+              }
+            fi
+          done
+          
+          # Build template sources  
+          echo "=== Building Template Sources with aidoku package ==="
+          for template_dir in ./src/rust/madara ./src/rust/mangastream ./src/rust/mmrcms; do
+            if [ -d "$template_dir/sources" ]; then
+              TEMPLATE_NAME=$(basename "$template_dir")
+              echo "📦 Processing template: $TEMPLATE_NAME"
+              TEMPLATE_COUNT=0
               
-              if [ -f "$src/build.sh" ]; then
-                echo "🔨 Building individual source: $SOURCE_NAME"
-                (
-                  cd "$src" || exit 1
-                  chmod +x build.sh
-                  ./build.sh
-                ) && {
-                  echo "✅ Successfully built $SOURCE_NAME"
-                  INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
-                  INDIVIDUAL_BUILT="$INDIVIDUAL_BUILT$SOURCE_NAME "
-                } || {
-                  echo "❌ Failed to build $SOURCE_NAME"
-                  INDIVIDUAL_FAIL=$((INDIVIDUAL_FAIL + 1))
-                  INDIVIDUAL_FAILED="$INDIVIDUAL_FAILED$SOURCE_NAME "
-                }
+              for source_dir in "$template_dir/sources"/*; do
+                if [ -d "$source_dir" ]; then
+                  SOURCE_NAME=$(basename "$source_dir")
+                  echo "🔨 Building template source: $TEMPLATE_NAME/$SOURCE_NAME"
+                  (
+                    cd "$source_dir" || exit 1
+                    rm -f package.aix
+                    RUSTUP_TOOLCHAIN=nightly aidoku package
+                    # Move package to template root for aidoku build
+                    if [ -f "package.aix" ]; then
+                      cp package.aix "../../$SOURCE_NAME.aix"
+                    fi
+                  ) && {
+                    TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
+                  }
+                fi
+              done
+              
+              if [ $TEMPLATE_COUNT -gt 0 ]; then
+                echo "✅ Built $TEMPLATE_COUNT sources for template $TEMPLATE_NAME"
+                TEMPLATE_SUCCESS=$((TEMPLATE_SUCCESS + 1))
               else
-                echo "⚠️  No build.sh found in $SOURCE_NAME, skipping..."
+                echo "❌ No sources built for template $TEMPLATE_NAME"
+                TEMPLATE_FAIL=$((TEMPLATE_FAIL + 1))
               fi
             fi
           done
-
-          echo "=== Building Template Sources ==="
-          # Build template sources (non-fr.* directories) 
-          for src in ./src/rust/*; do
-            if [ -d "$src" ] && [[ ! "$(basename "$src")" =~ ^fr\. ]]; then
-              TEMPLATE_NAME=$(basename "$src")
-              echo "📦 Found template directory: $TEMPLATE_NAME"
-              
-              if [ -f "$src/build.sh" ]; then
-                echo "🔨 Building template: $TEMPLATE_NAME"
-                (
-                  cd "$src" || exit 1
-                  chmod +x build.sh
-                  ./build.sh -a
-                ) && {
-                  echo "✅ Successfully built template $TEMPLATE_NAME"
-                  TEMPLATE_SUCCESS=$((TEMPLATE_SUCCESS + 1))
-                  TEMPLATE_BUILT="$TEMPLATE_BUILT$TEMPLATE_NAME "
-                } || {
-                  echo "❌ Failed to build template $TEMPLATE_NAME"
-                  TEMPLATE_FAIL=$((TEMPLATE_FAIL + 1))
-                  TEMPLATE_FAILED="$TEMPLATE_FAILED$TEMPLATE_NAME "
-                }
-              else
-                echo "⚠️  No build.sh found in template $TEMPLATE_NAME, skipping..."
-              fi
-            fi
-          done
-
+          
+          echo "=== All packages created ==="
+          echo "Individual packages:"
+          ls -la ./src/rust/fr.*/package.aix 2>/dev/null || echo "  No individual packages found"
+          echo "Template packages:"
+          ls -la ./src/rust/madara/*.aix 2>/dev/null || echo "  No madara packages found"
+          ls -la ./src/rust/mangastream/*.aix 2>/dev/null || echo "  No mangastream packages found"  
+          ls -la ./src/rust/mmrcms/*.aix 2>/dev/null || echo "  No mmrcms packages found"
+          
           # Export variables for next steps
           echo "INDIVIDUAL_SUCCESS=$INDIVIDUAL_SUCCESS" >> $GITHUB_ENV
           echo "INDIVIDUAL_FAIL=$INDIVIDUAL_FAIL" >> $GITHUB_ENV
           echo "TEMPLATE_SUCCESS=$TEMPLATE_SUCCESS" >> $GITHUB_ENV
           echo "TEMPLATE_FAIL=$TEMPLATE_FAIL" >> $GITHUB_ENV
-          echo "INDIVIDUAL_BUILT=$INDIVIDUAL_BUILT" >> $GITHUB_ENV
-          echo "INDIVIDUAL_FAILED=$INDIVIDUAL_FAILED" >> $GITHUB_ENV
-          echo "TEMPLATE_BUILT=$TEMPLATE_BUILT" >> $GITHUB_ENV
-          echo "TEMPLATE_FAILED=$TEMPLATE_FAILED" >> $GITHUB_ENV
-
-          echo "=== Quick Summary ==="
-          echo "📊 Individual sources: $INDIVIDUAL_SUCCESS built, $INDIVIDUAL_FAIL failed"
-          echo "📊 Templates: $TEMPLATE_SUCCESS built, $TEMPLATE_FAIL failed"
-          ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
       - name: Building source list
         run: |
-          # Build sources to temporary directory
-          mkdir -p build_output
-          aidoku build ./**/*.aix -o build_output
+          # Set source list name based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            SOURCE_NAME="JohanDevl's French Sources"
+          else
+            SOURCE_NAME="JohanDevl's French Sources (Development)"
+          fi
+          
+          # Build source list from all packages
+          echo "Building source list: $SOURCE_NAME"
+          aidoku build ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
 
-          # Copy aidoku build output to public directory (preserving website files)
+          # Copy output to public directory (preserving existing website files)
           cp -r build_output/* public/
 
-          echo "Final public directory contents:"
+          echo "Build completed. Generated files:"
           ls -la public/
       - name: Deploy to GitHub Pages (main -> sources)
         uses: JamesIves/github-pages-deploy-action@v4.7.2

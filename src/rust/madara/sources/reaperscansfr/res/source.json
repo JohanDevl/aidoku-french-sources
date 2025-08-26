@@ -1,18 +1,22 @@
 {
-	"info": {
-		"id": "fr.reaperscans",
-		"lang": "fr",
-		"name": "Reaper Scans FR",
-		"version": 5,
-		"url": "https://reaperscans.fr",
-		"nsfw": 0
-	},
-	"listings": [
-		{
-			"name": "Tendance"
-		},
-		{
-			"name": "Populaire"
-		}
-	]
+  "info": {
+    "id": "fr.reaperscans",
+    "name": "Reaper Scans FR",
+    "version": 5,
+    "url": "https://reaperscans.fr",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
+  },
+  "listings": [
+    {
+      "name": "Tendance",
+      "id": "tendance"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
 }

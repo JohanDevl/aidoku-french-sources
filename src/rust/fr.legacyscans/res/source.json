@@ -1,23 +1,30 @@
 {
-	"info": {
-		"id": "fr.legacyscans",
-		"lang": "fr",
-		"name": "LegacyScans",
-		"version": 1,
-		"url": "https://legacy-scans.com/"
-	},
-	"listings": [
-		{
-			"name": "Dernières Sorties"
-		},
-		{
-			"name": "Populaire (Jour)"
-		},
-		{
-			"name": "Populaire (Mois)"
-		},
-		{
-			"name": "Populaire (Tous)"
-		}
-	]
+  "info": {
+    "id": "fr.legacyscans",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ],
+    "name": "LegacyScans",
+    "version": 1,
+    "url": "https://legacy-scans.com/"
+  },
+  "listings": [
+    {
+      "name": "Dernières Sorties",
+      "id": "dernières-sorties"
+    },
+    {
+      "name": "Populaire (Jour)",
+      "id": "populaire-jour"
+    },
+    {
+      "name": "Populaire (Mois)",
+      "id": "populaire-mois"
+    },
+    {
+      "name": "Populaire (Tous)",
+      "id": "populaire-tous"
+    }
+  ]
 }
