@@ -75,8 +75,16 @@ jobs:
               echo "📦 Building individual source: $SOURCE_NAME"
               (
                 cd "$src" || exit 1
-                rm -f package.aix
+                rm -f package.aix *.aix
                 RUSTUP_TOOLCHAIN=nightly aidoku package
+                # Get version and source ID for proper naming
+                VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
+                SOURCE_ID=$(basename "$src")
+                # Rename package with version
+                if [ -f "package.aix" ]; then
+                  mv "package.aix" "${SOURCE_ID}-v${VERSION}.aix"
+                  echo "  Renamed to ${SOURCE_ID}-v${VERSION}.aix"
+                fi
               ) && {
                 echo "✅ Successfully built $SOURCE_NAME"
                 INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
@@ -103,9 +111,13 @@ jobs:
                     cd "$source_dir" || exit 1
                     rm -f package.aix
                     RUSTUP_TOOLCHAIN=nightly aidoku package
-                    # Move package to template root for aidoku build
+                    # Get version and source ID for proper naming
+                    VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
+                    SOURCE_ID=$(grep -o '"id": *"[^"]*"' res/source.json | head -1 | cut -d'"' -f4)
+                    # Copy package to template root with proper naming
                     if [ -f "package.aix" ]; then
-                      cp package.aix "../../$SOURCE_NAME.aix"
+                      cp "package.aix" "../../${SOURCE_ID}-v${VERSION}.aix"
+                      echo "    Created ${SOURCE_ID}-v${VERSION}.aix"
                     fi
                   ) && {
                     TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
@@ -125,7 +137,7 @@ jobs:
           
           echo "=== All packages created ==="
           echo "Individual packages:"
-          ls -la ./src/rust/fr.*/package.aix 2>/dev/null || echo "  No individual packages found"
+          ls -la ./src/rust/fr.*/*.aix 2>/dev/null || echo "  No individual packages found"
           echo "Template packages:"
           ls -la ./src/rust/madara/*.aix 2>/dev/null || echo "  No madara packages found"
           ls -la ./src/rust/mangastream/*.aix 2>/dev/null || echo "  No mangastream packages found"  
@@ -147,7 +159,32 @@ jobs:
           
           # Build source list from all packages
           echo "Building source list: $SOURCE_NAME"
-          aidoku build ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
+          aidoku build ./src/rust/fr.*/*.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
+
+          # Extract icons from all packages manually
+          echo "Extracting icons from packages..."
+          mkdir -p build_output/icons
+          
+          # Extract from individual custom sources
+          for package in ./src/rust/fr.*/*.aix; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package" .aix)
+              echo "Extracting icon from package: $PACKAGE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
+            fi
+          done
+          
+          # Extract from template sources
+          for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
+            if [ -f "$package" ]; then
+              PACKAGE_NAME=$(basename "$package" .aix)
+              echo "Extracting icon from package: $PACKAGE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
+            fi
+          done
+          
+          echo "Icons extracted. Contents of icons directory:"
+          ls -la build_output/icons/
 
           # Copy output to public directory (preserving existing website files)
           cp -r build_output/* public/
