@@ -11,11 +11,12 @@ use aidoku::{
 	Chapter, DeepLink, Filter, FilterType, Manga, MangaContentRating, MangaPageResult, MangaStatus,
 	MangaViewer, Page,
 };
+use spin::Mutex;
 
 use crate::helper::{append_protocol, extract_f32_from_string};
 
-pub static mut CACHED_MANGA: Option<Node> = None;
-static mut CACHED_MANGA_ID: Option<String> = None;
+pub static CACHED_MANGA: Mutex<Option<Node>> = Mutex::new(None);
+static CACHED_MANGA_ID: Mutex<Option<String>> = Mutex::new(None);
 
 /// Internal attribute to control if the source should fall
 /// back to self searching after failing to use the search
@@ -23,19 +24,21 @@ static mut CACHED_MANGA_ID: Option<String> = None;
 ///
 /// Strikes a balance between control and reliability (and also
 /// not spamming sources with useless requests)
-static mut INTERNAL_USE_SEARCH_ENGINE: bool = true;
+static INTERNAL_USE_SEARCH_ENGINE: Mutex<bool> = Mutex::new(true);
 
 pub fn cache_manga_page(url: &str) {
-	unsafe {
-		if CACHED_MANGA.is_some() && CACHED_MANGA_ID.clone().unwrap_or_default() == url {
+	{
+		let cached_manga = CACHED_MANGA.lock();
+		let cached_manga_id = CACHED_MANGA_ID.lock();
+		if cached_manga.is_some() && cached_manga_id.clone().unwrap_or_default() == url {
 			return;
 		}
+	}
 
-		if let Ok(html) = Request::new(url, HttpMethod::Get).html() {
-			decode_cfemail(&html);
-			CACHED_MANGA = Some(html);
-			CACHED_MANGA_ID = Some(String::from(url));
-		}
+	if let Ok(html) = Request::new(url, HttpMethod::Get).html() {
+		decode_cfemail(&html);
+		*CACHED_MANGA.lock() = Some(html);
+		*CACHED_MANGA_ID.lock() = Some(String::from(url));
 	}
 }
 
@@ -225,7 +228,7 @@ impl<'a> MMRCMSSource<'a> {
 			}
 		}
 		if !title.is_empty() {
-			if self.use_search_engine && unsafe { INTERNAL_USE_SEARCH_ENGINE } {
+			if self.use_search_engine && *INTERNAL_USE_SEARCH_ENGINE.lock() {
 				let url = format!("{}/search?query={}", self.base_url, title);
 				if let Ok(obj) = Request::new(&url, HttpMethod::Get).json()
 				   && let Ok(json) = obj.as_object()
@@ -248,7 +251,7 @@ impl<'a> MMRCMSSource<'a> {
 						has_more: false,
 					})
 				} else {
-					unsafe { INTERNAL_USE_SEARCH_ENGINE = false };
+					*INTERNAL_USE_SEARCH_ENGINE.lock() = false;
 					self.self_search(title)
 				}
 			} else {
@@ -302,7 +305,7 @@ impl<'a> MMRCMSSource<'a> {
 	pub fn get_manga_details(&self, id: String) -> Result<Manga> {
 		let url = format!("{}/{}/{}", self.base_url, self.manga_path, id);
 		cache_manga_page(&url);
-		let html = unsafe { CACHED_MANGA.clone().unwrap() };
+		let html = CACHED_MANGA.lock().clone().unwrap();
 		let cover = append_protocol(html.select("img[class^=img-]").attr("abs:src").read());
 		let title = html
 			.select("h2.widget-title, h1.widget-title, .listmanga-header, div.panel-heading")
@@ -366,7 +369,7 @@ impl<'a> MMRCMSSource<'a> {
 	pub fn get_chapter_list(&self, id: String) -> Result<Vec<Chapter>> {
 		let url = format!("{}/{}/{}", self.base_url, self.manga_path, id);
 		cache_manga_page(&url);
-		let html = unsafe { CACHED_MANGA.clone().unwrap() };
+		let html = CACHED_MANGA.lock().clone().unwrap();
 		let node = html.select("li:has(.chapter-title-rtl)");
 		let elems = node.array();
 		let title = html
