@@ -16,93 +16,9 @@ struct PageImageData {
 
 
 
-// Find the start of JSON array that contains a pattern
-fn find_json_array_start(content: &str, pattern_pos: usize) -> Option<usize> {
-	// Find the '[' that starts the array containing this pattern
-	let mut i = pattern_pos;
-	let mut brace_count = 0;
-	
-	while i > 0 {
-		i -= 1;
-		match content.chars().nth(i)? {
-			']' => brace_count += 1,
-			'[' => {
-				if brace_count == 0 {
-					return Some(i);
-				}
-				brace_count -= 1;
-			}
-			_ => {}
-		}
-	}
-	None
-}
 
-// Extract complete JSON array from start position
-fn extract_json_array(content: &str, start_pos: usize) -> Option<String> {
-	let chars: Vec<char> = content.chars().collect();
-	if start_pos >= chars.len() || chars[start_pos] != '[' {
-		return None;
-	}
-	
-	let mut bracket_count = 0;
-	let mut in_string = false;
-	let mut escape = false;
-	
-	for (i, &ch) in chars[start_pos..].iter().enumerate() {
-		if escape {
-			escape = false;
-			continue;
-		}
-		
-		match ch {
-			'\\' if in_string => escape = true,
-			'"' => in_string = !in_string,
-			'[' if !in_string => bracket_count += 1,
-			']' if !in_string => {
-				bracket_count -= 1;
-				if bracket_count == 0 {
-					let end_pos = start_pos + i + 1;
-					return Some(String::from(&content[start_pos..end_pos]));
-				}
-			}
-			_ => {}
-		}
-	}
-	None
-}
 
-// Parse JSON string containing manga array
-fn parse_json_manga_array(json_str: &str) -> Result<Vec<Manga>> {
-	use aidoku::std::json::parse;
-	
-	if let Ok(parsed) = parse(json_str) {
-		if let Ok(array_ref) = parsed.as_array() {
-			// return parse_manga_array(array_ref);
-			return Ok(Vec::new());
-		}
-	}
-	Ok(Vec::new())
-}
 
-// Extract mangas from initialData object
-fn extract_mangas_from_initialdata(json_str: &str) -> Result<Vec<Manga>> {
-	use aidoku::std::json::parse;
-	
-	if let Ok(parsed) = parse(json_str) {
-		if let Ok(obj_ref) = parsed.as_object() {
-			// Try different paths for manga arrays in initialData
-			if let Ok(mangas_array) = obj_ref.get("mangas").as_array() {
-				// return parse_manga_array(mangas_array);
-				return Ok(Vec::new());
-			} else if let Ok(series_array) = obj_ref.get("series").as_array() {
-				// return parse_manga_array(series_array);
-				return Ok(Vec::new());
-			}
-		}
-	}
-	Ok(Vec::new())
-}
 
 // Extract Next.js manga details data from manga detail page
 fn extract_nextjs_manga_details(html: &Node) -> Result<ObjectRef> {
@@ -442,38 +358,6 @@ fn parse_manga_status(status: &str) -> MangaStatus {
 	}
 }
 
-// Parse ISO date string with special prefix handling
-fn parse_iso_date(date_string: &str) -> i64 {
-	if date_string.is_empty() {
-		return 0;
-	}
-	
-	// Clean up date string - remove special prefixes used by PoseidonScans
-	let cleaned_date = if date_string.starts_with("\"$D") {
-		date_string.strip_prefix("\"$D").unwrap_or(date_string).strip_suffix("\"").unwrap_or(date_string)
-	} else if date_string.starts_with("$D") {
-		date_string.strip_prefix("$D").unwrap_or(date_string)
-	} else if date_string.starts_with('"') && date_string.ends_with('"') && date_string.len() > 2 {
-		&date_string[1..date_string.len()-1]
-	} else {
-		date_string
-	};
-	
-	// Try to parse ISO 8601 format: 2024-01-15T10:30:00.000Z
-	if let Ok(timestamp) = parse_date_iso(cleaned_date) {
-		timestamp
-	} else {
-		0
-	}
-}
-
-// Simple ISO 8601 date parser (basic implementation)
-fn parse_date_iso(_date_str: &str) -> Result<i64> {
-	// For now, return 0 to avoid compilation errors
-	// TODO: Implement proper ISO 8601 parsing
-	// This would parse dates like "2024-01-15T10:30:00.000Z"
-	Ok(0)
-}
 
 // Extract title from HTML selectors as fallback
 fn extract_title_from_html(html: &Node, manga_id: &str) -> String {
@@ -614,187 +498,7 @@ fn extract_status_from_html(html: &Node) -> MangaStatus {
 	MangaStatus::Unknown
 }
 
-// Extract a title from a description (first sentence or meaningful part)
-fn extract_title_from_description(description: &str) -> String {
-	// Try to find a title-like pattern (first sentence ending with .)
-	if let Some(first_sentence_end) = description.find('.') {
-		let first_sentence = description[..first_sentence_end].trim();
-		if first_sentence.len() > 10 && first_sentence.len() < 80 {
-			return String::from(first_sentence);
-		}
-	}
-	
-	// Fallback: take first meaningful chunk (up to first major punctuation)
-	let chunk_end = description.find(['.', '!', '?', ','])
-		.unwrap_or_else(|| description.len().min(60));
-	
-	let title_chunk = description[..chunk_end].trim();
-	if title_chunk.len() > 5 {
-		String::from(title_chunk)
-	} else {
-		// Ultimate fallback: generic title with ID indication
-		String::from("Manga série disponible")
-	}
-}
 
-// Parse search results with client-side filtering on /series page
-pub fn parse_search_manga(search_query: String, html: Node) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
-	let query_lower = search_query.to_lowercase();
-	
-	// Parse all manga from series page - try Next.js data first, fallback to HTML
-	/*
-	if let Ok(nextjs_mangas) = extract_nextjs_series_data(&html) {
-		// Use Next.js extracted data for better accuracy
-		for manga in nextjs_mangas {
-			// Client-side search filtering
-			if query_lower.trim().is_empty() {
-				mangas.push(manga);
-			} else {
-				let title_lower = manga.title.to_lowercase();
-				let description_lower = manga.description.to_lowercase();
-				let id_lower = manga.id.to_lowercase();
-				
-				if title_lower.contains(&query_lower) || 
-				   description_lower.contains(&query_lower) || 
-				   id_lower.contains(&query_lower) {
-					mangas.push(manga);
-				}
-			}
-			
-			// Limit results
-			if mangas.len() >= 30 {
-				break;
-			}
-		}
-	} else */
-	{
-		// Enhanced fallback to HTML parsing with PoseidonScans-specific selectors
-		let link_selectors = [
-			"a[href*='/serie/']",
-			"a[href^='/serie/']",
-			".manga-item a",
-			".series-item a",
-			".grid a[href]",
-			"main a[href*='serie']"
-		];
-		
-		for selector in &link_selectors {
-			for link in html.select(selector).array() {
-				let link = link.as_node()?;
-				let href = link.attr("href").read();
-				
-				// Extract slug from href
-				let slug = if href.contains("/serie/") {
-					if let Some(slug_start) = href.rfind('/') {
-						String::from(&href[slug_start + 1..])
-					} else if let Some(serie_pos) = href.find("/serie/") {
-						let start = serie_pos + 7; // "/serie/".len()
-						if let Some(end) = href[start..].find('/') {
-							String::from(&href[start..start + end])
-						} else {
-							String::from(&href[start..])
-						}
-					} else {
-						continue;
-					}
-				} else {
-					continue;
-				};
-				
-				if slug == "unknown" || slug.is_empty() || slug.len() < 2 {
-					continue;
-				}
-				
-				// Enhanced title extraction with multiple fallbacks
-				let title_selectors = [
-					"h3.text-sm.sm\\:text-base",  // PoseidonScans specific
-					".title", ".manga-title", "h3", ".name", ".entry-title",
-					"h2", "h1", ".series-title", ".card-title"
-				];
-				
-				let mut title = String::new();
-				for title_sel in &title_selectors {
-					let title_element = link.select(title_sel).first();
-					if !title_element.html().is_empty() {
-						let extracted_text = title_element.text().read();
-						let extracted_title = extracted_text.trim();
-						if !extracted_title.is_empty() && extracted_title.len() > 2 {
-							title = String::from(extracted_title);
-							break;
-						}
-					}
-				}
-				
-				// Ultimate fallback: format slug as title
-				if title.is_empty() {
-					title = slug.replace("-", " ").replace("_", " ")
-						.split_whitespace()
-						.map(|word| {
-							if word.len() > 0 {
-								let mut chars = word.chars();
-								match chars.next() {
-									None => String::new(),
-									Some(first) => first.to_uppercase().collect::<String>() + chars.as_str()
-								}
-							} else {
-								String::new()
-							}
-						})
-						.collect::<Vec<_>>()
-						.join(" ");
-				}
-				
-				// Client-side search filtering
-				if !query_lower.trim().is_empty() {
-					let title_lower = title.to_lowercase();
-					let slug_lower = slug.to_lowercase();
-					
-					if !title_lower.contains(&query_lower) && !slug_lower.contains(&query_lower) {
-						continue;
-					}
-				}
-				
-				// Avoid duplicates by checking if slug already exists
-				if mangas.iter().any(|m| m.id == slug) {
-					continue;
-				}
-				
-				let cover = format!("{}/api/covers/{}.webp", String::from(BASE_URL), slug);
-				let url = format!("{}/serie/{}", String::from(BASE_URL), slug);
-				
-				mangas.push(Manga {
-					id: slug,
-					cover,
-					title,
-					author: String::new(),
-					artist: String::new(),
-					description: String::new(),
-					url,
-					categories: Vec::new(),
-					status: MangaStatus::Unknown,
-					nsfw: MangaContentRating::Safe,
-					viewer: MangaViewer::Scroll
-				});
-				
-				if mangas.len() >= 30 {
-					break;
-				}
-			}
-			
-			// Break out of selector loop if we have enough results
-			if mangas.len() >= 30 {
-				break;
-			}
-		}
-	}
-	
-	let has_more = false; // Only one page available from Next.js data
-	Ok(MangaPageResult {
-		manga: mangas,
-		has_more,
-	})
-}
 
 // Parse latest manga from API response  
 pub fn parse_latest_manga(json: ObjectRef) -> Result<MangaPageResult> {
@@ -1507,7 +1211,7 @@ fn parse_iso_date_string(date_str: &str) -> Option<i64> {
 }
 
 // Parse page list with Next.js data extraction and hierarchical image search
-pub fn parse_page_list(html: Node, chapter_url: String) -> Result<Vec<Page>> {
+pub fn parse_page_list(html: Node, _chapter_url: String) -> Result<Vec<Page>> {
 	// Extract Next.js page data from chapter page
 	let page_data = extract_nextjs_chapter_data(&html)?;
 	
