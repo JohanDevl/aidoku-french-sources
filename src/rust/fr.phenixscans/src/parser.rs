@@ -276,7 +276,7 @@ pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapt
 		}
 		
 		let title = format!("Chapter {}", chapter_number);
-		let url = format!("{}/manga/{}/chapter/{}", String::from(BASE_URL), manga_id, chapter_number);
+		let url = format!("{}/manga/{}/chapitre/{}", String::from(BASE_URL), manga_id, chapter_number);
 
 		chapters.push(Chapter{
 			id,
