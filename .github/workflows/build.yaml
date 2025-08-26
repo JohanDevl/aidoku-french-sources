@@ -212,7 +212,7 @@ jobs:
             SOURCE_NAME="JohanDevl's French Sources (Development)"
           fi
           
-          aidoku build ./src/rust/**/*.aix -o build_output --name "$SOURCE_NAME"
+          aidoku build ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
 
           # Copy aidoku build output to public directory (preserving website files)
           cp -r build_output/* public/
