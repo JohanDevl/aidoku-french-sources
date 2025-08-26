@@ -144,7 +144,15 @@ jobs:
         run: |
           # Build sources to temporary directory
           mkdir -p build_output
-          aidoku build ./src/rust/**/*.aix -o build_output --name "JohanDevl's French Sources"
+          
+          # Set source list name based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            SOURCE_NAME="JohanDevl's French Sources"
+          else
+            SOURCE_NAME="JohanDevl's French Sources (Development)"
+          fi
+          
+          aidoku build ./src/rust/**/*.aix -o build_output --name "$SOURCE_NAME"
 
           # Copy aidoku build output to public directory (preserving website files)
           cp -r build_output/* public/
