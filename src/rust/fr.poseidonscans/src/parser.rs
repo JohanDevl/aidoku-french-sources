@@ -798,7 +798,7 @@ pub fn parse_chapter_list(manga_id: String, html: Node) -> Result<Vec<Chapter>> 
 			} else {
 				format!("{}", chapter_number)
 			};
-			let url = format!("/serie/{}/chapter/{}", manga_id, chapter_id);
+			let url = format!("{}/serie/{}/chapter/{}", String::from(BASE_URL), manga_id, chapter_id);
 			
 			chapters.push(Chapter {
 				id: chapter_id,
@@ -856,7 +856,7 @@ fn parse_chapter_list_from_jsonld(manga_id: String, html: Node) -> Result<Vec<Ch
 												let title = format!("Chapter {}", issue_num);
 												
 												// Build chapter URL
-												let url = format!("/serie/{}/chapter/{}", manga_id, issue_num);
+												let url = format!("{}/serie/{}/chapter/{}", String::from(BASE_URL), manga_id, issue_num);
 												
 												chapters.push(Chapter {
 													id: format!("{}", issue_num),
