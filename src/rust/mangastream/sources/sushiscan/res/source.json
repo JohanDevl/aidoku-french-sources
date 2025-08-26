@@ -1,20 +1,26 @@
 {
   "info": {
     "id": "fr.sushiscan",
-    "lang": "fr",
     "name": "SushiScan",
     "version": 4,
-    "url": "https://sushiscan.net/"
+    "url": "https://sushiscan.net/",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
   },
   "listings": [
     {
-      "name": "Populaire"
+      "name": "Populaire",
+      "id": "populaire"
     },
     {
-      "name": "Dernières"
+      "name": "Dernières",
+      "id": "dernières"
     },
     {
-      "name": "Nouveau"
+      "name": "Nouveau",
+      "id": "nouveau"
     }
   ]
 }

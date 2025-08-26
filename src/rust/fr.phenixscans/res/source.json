@@ -1,17 +1,22 @@
 {
   "info": {
     "id": "fr.phenixscans",
-    "lang": "fr",
     "name": "Phenix Scans",
     "version": 10,
-    "url": "https://phenix-scans.com/"
+    "url": "https://phenix-scans.com/",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
   },
   "listings": [
     {
-      "name": "Dernières Sorties"
+      "name": "Dernières Sorties",
+      "id": "dernières-sorties"
     },
     {
-      "name": "Populaire"
+      "name": "Populaire",
+      "id": "populaire"
     }
   ]
 }

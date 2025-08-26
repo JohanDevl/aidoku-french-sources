@@ -1,18 +1,22 @@
 {
   "info": {
     "id": "fr.lelmanga",
-    "lang": "fr",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ],
     "name": "LelManga",
     "version": 3,
-    "url": "https://www.lelmanga.com",
-    "nsfw": 0
+    "url": "https://www.lelmanga.com"
   },
   "listings": [
     {
-      "name": "Tendance"
+      "name": "Tendance",
+      "id": "tendance"
     },
     {
-      "name": "Populaire"
+      "name": "Populaire",
+      "id": "populaire"
     }
   ]
 }

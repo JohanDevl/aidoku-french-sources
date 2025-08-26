@@ -1,20 +1,26 @@
 {
-	"info": {
-		"id": "fr.sushiscans",
-		"lang": "fr",
-		"name": "Sushi Scans",
-		"version": 5,
-		"url": "https://sushiscan.fr/"
-	},
-	"listings": [
-		{
-			"name": "Populaire"
-		},
-		{
-			"name": "Dernières"
-		},
-		{
-			"name": "Nouveau"
-		}
-	]
+  "info": {
+    "id": "fr.sushiscans",
+    "name": "Sushi Scans",
+    "version": 5,
+    "url": "https://sushiscan.fr/",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
+  },
+  "listings": [
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    },
+    {
+      "name": "Dernières",
+      "id": "dernières"
+    },
+    {
+      "name": "Nouveau",
+      "id": "nouveau"
+    }
+  ]
 }

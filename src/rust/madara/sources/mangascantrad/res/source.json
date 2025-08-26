@@ -1,18 +1,22 @@
 {
-	"info": {
-		"id": "fr.mangascantrad",
-		"lang": "fr",
-		"name": "Manga Scantrad",
-		"version": 12,
-		"url": "https://manga-scantrad.io",
-		"nsfw": 1
-	},
-	"listings": [
-		{
-			"name": "Tendance"
-		},
-		{
-			"name": "Populaire"
-		}
-	]
+  "info": {
+    "id": "fr.mangascantrad",
+    "name": "Manga Scantrad",
+    "version": 12,
+    "url": "https://manga-scantrad.io",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
+  },
+  "listings": [
+    {
+      "name": "Tendance",
+      "id": "tendance"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
 }
