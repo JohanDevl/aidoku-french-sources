@@ -66,50 +66,41 @@ jobs:
           INDIVIDUAL_FAIL=0
           TEMPLATE_SUCCESS=0
           TEMPLATE_FAIL=0
-          INDIVIDUAL_BUILT=""
-          INDIVIDUAL_FAILED=""
-          TEMPLATE_BUILT=""
-          TEMPLATE_FAILED=""
-
+          
           # Build individual sources with aidoku package
           echo "=== Building Individual Sources with aidoku package ==="
           for src in ./src/rust/fr.*; do
-            if [ -d "$src" ]; then
+            if [ -d "$src" ] && [ -f "$src/Cargo.toml" ]; then
               SOURCE_NAME=$(basename "$src")
-              echo "📦 Found source directory: $SOURCE_NAME"
-              
-              # Check if it has proper Rust project structure
-              if [ -f "$src/Cargo.toml" ]; then
-                echo "🔨 Building individual source: $SOURCE_NAME"
-                (
-                  cd "$src" || exit 1
-                  # Remove any existing package.aix to ensure clean build
-                  rm -f package.aix
-                  RUSTUP_TOOLCHAIN=nightly aidoku package
-                ) && {
-                  echo "✅ Successfully built $SOURCE_NAME"
-                  INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
-                  INDIVIDUAL_BUILT="$INDIVIDUAL_BUILT$SOURCE_NAME "
-                } || {
-                  echo "❌ Failed to build $SOURCE_NAME"
-                  INDIVIDUAL_FAIL=$((INDIVIDUAL_FAIL + 1))
-                  INDIVIDUAL_FAILED="$INDIVIDUAL_FAILED$SOURCE_NAME "
-                }
-              else
-                echo "⚠️  No Cargo.toml found in $SOURCE_NAME, skipping..."
-              fi
+              echo "📦 Building individual source: $SOURCE_NAME"
+              (
+                cd "$src" || exit 1
+                rm -f package.aix
+                RUSTUP_TOOLCHAIN=nightly aidoku package
+                
+                # Debug: Check what aidoku package created
+                if [ -f "package.aix" ]; then
+                  echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
+                  # Test package structure
+                  echo "   Package structure:"
+                  unzip -l package.aix | head -10
+                fi
+              ) && {
+                echo "✅ Successfully built $SOURCE_NAME"
+                INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
+              } || {
+                echo "❌ Failed to build $SOURCE_NAME"
+                INDIVIDUAL_FAIL=$((INDIVIDUAL_FAIL + 1))
+              }
             fi
           done
-
-          # Build template sources with aidoku package
+          
+          # Build template sources
           echo "=== Building Template Sources with aidoku package ==="
           for template_dir in ./src/rust/madara ./src/rust/mangastream ./src/rust/mmrcms; do
             if [ -d "$template_dir/sources" ]; then
               TEMPLATE_NAME=$(basename "$template_dir")
-              echo "📦 Found template directory: $TEMPLATE_NAME"
-              
-              TEMPLATE_SOURCES_SUCCESS=0
-              TEMPLATE_SOURCES_FAIL=0
+              echo "📦 Processing template: $TEMPLATE_NAME"
               
               for source_dir in "$template_dir/sources"/*; do
                 if [ -d "$source_dir" ]; then
@@ -117,64 +108,60 @@ jobs:
                   echo "🔨 Building template source: $TEMPLATE_NAME/$SOURCE_NAME"
                   (
                     cd "$source_dir" || exit 1
-                    # Remove any existing package.aix to ensure clean build
                     rm -f package.aix
                     RUSTUP_TOOLCHAIN=nightly aidoku package
-                    # Move package to template directory with proper name
-                    mv package.aix "$template_dir/$SOURCE_NAME.aix" 2>/dev/null || true
-                  ) && {
-                    echo "✅ Successfully built $TEMPLATE_NAME/$SOURCE_NAME"
-                    TEMPLATE_SOURCES_SUCCESS=$((TEMPLATE_SOURCES_SUCCESS + 1))
-                  } || {
-                    echo "❌ Failed to build $TEMPLATE_NAME/$SOURCE_NAME"
-                    TEMPLATE_SOURCES_FAIL=$((TEMPLATE_SOURCES_FAIL + 1))
-                  }
+                    
+                    # Debug and properly move package
+                    if [ -f "package.aix" ]; then
+                      echo "   Created package.aix ($(stat -f%z package.aix 2>/dev/null || stat -c%s package.aix) bytes)"
+                      # Ensure template directory exists and move package
+                      cp package.aix "$template_dir/$SOURCE_NAME.aix"
+                      echo "   Moved to $template_dir/$SOURCE_NAME.aix"
+                      # Verify it was moved
+                      if [ -f "$template_dir/$SOURCE_NAME.aix" ]; then
+                        echo "   ✓ Package successfully placed at $template_dir/$SOURCE_NAME.aix"
+                      else
+                        echo "   ✗ Failed to move package to $template_dir/$SOURCE_NAME.aix"
+                      fi
+                    else
+                      echo "   ✗ No package.aix was created"
+                    fi
+                  )
                 fi
               done
               
-              if [ $TEMPLATE_SOURCES_SUCCESS -gt 0 ]; then
-                echo "✅ Successfully built template $TEMPLATE_NAME ($TEMPLATE_SOURCES_SUCCESS sources)"
+              # Count template packages
+              TEMPLATE_COUNT=$(find "$template_dir" -maxdepth 1 -name "*.aix" -type f | wc -l)
+              if [ $TEMPLATE_COUNT -gt 0 ]; then
+                echo "✅ Built $TEMPLATE_COUNT sources for template $TEMPLATE_NAME"
                 TEMPLATE_SUCCESS=$((TEMPLATE_SUCCESS + 1))
-                TEMPLATE_BUILT="$TEMPLATE_BUILT$TEMPLATE_NAME "
               else
-                echo "❌ Failed to build any sources for template $TEMPLATE_NAME"
+                echo "❌ No sources built for template $TEMPLATE_NAME"
                 TEMPLATE_FAIL=$((TEMPLATE_FAIL + 1))
-                TEMPLATE_FAILED="$TEMPLATE_FAILED$TEMPLATE_NAME "
               fi
-            else
-              echo "⚠️  No sources directory found in template $(basename "$template_dir"), skipping..."
             fi
           done
-
+          
+          echo "=== All packages created ==="
+          echo "Individual packages:"
+          ls -la ./src/rust/fr.*/package.aix 2>/dev/null || echo "  No individual packages found"
+          echo "Template packages:"
+          ls -la ./src/rust/madara/*.aix 2>/dev/null || echo "  No madara packages found"
+          ls -la ./src/rust/mangastream/*.aix 2>/dev/null || echo "  No mangastream packages found"  
+          ls -la ./src/rust/mmrcms/*.aix 2>/dev/null || echo "  No mmrcms packages found"
+          
+          echo "=== Testing aidoku build compatibility ==="
+          # Test one package to see the actual error
+          if [ -f "./src/rust/fr.lelscanfr/package.aix" ]; then
+            echo "Testing fr.lelscanfr/package.aix:"
+            aidoku build ./src/rust/fr.lelscanfr/package.aix -o test_build --name "Test" 2>&1 || true
+          fi
+          
           # Export variables for next steps
           echo "INDIVIDUAL_SUCCESS=$INDIVIDUAL_SUCCESS" >> $GITHUB_ENV
           echo "INDIVIDUAL_FAIL=$INDIVIDUAL_FAIL" >> $GITHUB_ENV
           echo "TEMPLATE_SUCCESS=$TEMPLATE_SUCCESS" >> $GITHUB_ENV
           echo "TEMPLATE_FAIL=$TEMPLATE_FAIL" >> $GITHUB_ENV
-          echo "INDIVIDUAL_BUILT=$INDIVIDUAL_BUILT" >> $GITHUB_ENV
-          echo "INDIVIDUAL_FAILED=$INDIVIDUAL_FAILED" >> $GITHUB_ENV
-          echo "TEMPLATE_BUILT=$TEMPLATE_BUILT" >> $GITHUB_ENV
-          echo "TEMPLATE_FAILED=$TEMPLATE_FAILED" >> $GITHUB_ENV
-
-          echo "=== Quick Summary ==="
-          echo "📊 Individual sources: $INDIVIDUAL_SUCCESS built, $INDIVIDUAL_FAIL failed"
-          echo "📊 Templates: $TEMPLATE_SUCCESS built, $TEMPLATE_FAIL failed"
-          ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
-          
-          echo "=== Package validation ==="
-          # Validate packages are properly created
-          for aix in $(find ./src/rust -name "*.aix"); do
-            echo -n "$(basename "$aix"): "
-            if unzip -t "$aix" >/dev/null 2>&1; then
-              if unzip -l "$aix" 2>/dev/null | grep -q "^.*source\.json$"; then
-                echo "✓ valid package"
-              else
-                echo "✗ missing source.json at root"
-              fi
-            else
-              echo "✗ invalid ZIP"
-            fi
-          done
       - name: Building source list
         run: |
           # Build sources to temporary directory
