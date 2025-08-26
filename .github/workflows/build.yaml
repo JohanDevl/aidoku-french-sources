@@ -156,18 +156,18 @@ jobs:
           # Extract from individual custom sources
           for package in ./src/rust/fr.*/package.aix; do
             if [ -f "$package" ]; then
-              SOURCE_NAME=$(basename "$(dirname "$package")")
-              echo "Extracting icon from $SOURCE_NAME"
-              unzip -p "$package" Payload/Icon.png > "build_output/icons/${SOURCE_NAME}.png" 2>/dev/null || true
+              PACKAGE_NAME=$(basename "$package" .aix)
+              echo "Extracting icon from package: $PACKAGE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
             fi
           done
           
           # Extract from template sources
           for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
             if [ -f "$package" ]; then
-              SOURCE_NAME=$(basename "$package" .aix)
-              echo "Extracting icon from $SOURCE_NAME"
-              unzip -p "$package" Payload/Icon.png > "build_output/icons/${SOURCE_NAME}.png" 2>/dev/null || true
+              PACKAGE_NAME=$(basename "$package" .aix)
+              echo "Extracting icon from package: $PACKAGE_NAME"
+              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
             fi
           done
           
