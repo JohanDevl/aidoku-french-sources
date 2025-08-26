@@ -140,6 +140,45 @@ jobs:
           echo "📊 Individual sources: $INDIVIDUAL_SUCCESS built, $INDIVIDUAL_FAIL failed"
           echo "📊 Templates: $TEMPLATE_SUCCESS built, $TEMPLATE_FAIL failed"
           ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found"
+      - name: Repackage sources with aidoku
+        run: |
+          echo "=== Repackaging sources with aidoku package ==="
+          
+          # Repackage individual sources
+          for src in ./src/rust/fr.*; do
+            if [ -d "$src" ] && [ -f "$src/package.aix" ]; then
+              SOURCE_NAME=$(basename "$src")
+              echo "📦 Repackaging $SOURCE_NAME"
+              (
+                cd "$src"
+                rm -f package.aix
+                RUSTUP_TOOLCHAIN=nightly aidoku package
+              )
+            fi
+          done
+          
+          # Repackage template sources  
+          for template_dir in ./src/rust/madara ./src/rust/mangastream ./src/rust/mmrcms; do
+            if [ -d "$template_dir" ]; then
+              for aix in "$template_dir"/*.aix; do
+                if [ -f "$aix" ]; then
+                  SOURCE_NAME=$(basename "$aix" .aix)
+                  echo "📦 Repackaging template $SOURCE_NAME"
+                  (
+                    cd "$template_dir/sources/$SOURCE_NAME" 2>/dev/null || cd "$template_dir/$SOURCE_NAME" 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                      rm -f *.aix
+                      RUSTUP_TOOLCHAIN=nightly aidoku package
+                      mv *.aix "$template_dir/" 2>/dev/null || true
+                    fi
+                  )
+                fi
+              done
+            fi
+          done
+          
+          echo "=== Repackaging complete ==="
+          ls -la ./src/rust/*/package.aix ./src/rust/*/*.aix 2>/dev/null || echo "No .aix packages found after repackaging"
       - name: Building source list
         run: |
           # Build sources to temporary directory
