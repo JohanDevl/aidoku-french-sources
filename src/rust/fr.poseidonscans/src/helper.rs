@@ -3,7 +3,7 @@ use aidoku::std::{
 	Vec
 };
 
-pub fn urlencode(string: String) -> String {
+pub fn _urlencode(string: String) -> String {
 	let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
 	let hex = "0123456789abcdef".as_bytes();
 	let bytes = string.as_bytes();
