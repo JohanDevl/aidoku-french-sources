@@ -1,6 +1,6 @@
 use aidoku::{
 	error::Result, prelude::*, std::{
-		current_date, html::Node, net::{Request, HttpMethod}, String, Vec
+		html::Node, net::{Request, HttpMethod}, String, Vec
 	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
 };
 use core::cmp::Ordering;
@@ -258,7 +258,6 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 
 pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	let mut has_more = false;
 	
 	if listing_type == "Dernières Sorties" {
 		// Pour les dernières sorties, utiliser le conteneur spécial de la page d'accueil
@@ -294,7 +293,6 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 		}
 		
 		// Les dernières sorties de la page d'accueil n'ont généralement pas de pagination
-		has_more = false;
 	} else {
 		// Pour le populaire, utiliser le même parsing que la liste générale
 		return parse_manga_list(html);
@@ -302,7 +300,7 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 	
 	Ok(MangaPageResult {
 		manga: mangas,
-		has_more
+		has_more: false
 	})
 }
 
@@ -429,7 +427,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 
 
 // Nouvelle fonction pour récupérer les chapitres depuis l'API AnimeSama
-fn get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
+fn _get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
 	// Construire l'URL de l'API
 	let encoded_title = helper::urlencode(manga_title);
 	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
@@ -601,7 +599,7 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _reque
 }
 
 // Fonction pour parser episodes.js (méthode Tachiyomi)
-fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
+fn _parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 	// Extraire le titre du manga depuis l'élément titreOeuvre
 	let manga_title = html.select("#titreOeuvre").text().read();
 	if manga_title.is_empty() {
@@ -622,19 +620,19 @@ fn parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 	// Faire la requête vers episodes.js
 	match aidoku::std::net::Request::new(&episodes_url, aidoku::std::net::HttpMethod::Get).string() {
 		Ok(js_content) => {
-			parse_episodes_content(&js_content, manga_id)
+			_parse_episodes_content(&js_content, manga_id)
 		}
 		Err(_) => Ok(Vec::new()) // Échec de la requête
 	}
 }
 
 // Fonction pour parser directement le select HTML (méthode prioritaire)
-fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
+fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// NOUVEAU: Parser directement le HTML brut au lieu d'utiliser les sélecteurs CSS
 	let html_content = html.html().read();
-	let regex_chapters = parse_options_from_raw_html(&html_content);
+	let regex_chapters = _parse_options_from_raw_html(&html_content);
 	
 	if !regex_chapters.is_empty() {
 		// Vérifier si ce sont des vraies valeurs ou des codes debug négatifs
@@ -787,11 +785,11 @@ fn parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 }
 
 // Nouvelle fonction pour parser les options directement depuis le HTML brut
-fn parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
+fn _parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
 	let mut chapters: Vec<i32> = Vec::new();
 	
 	// DEBUG: Ajouter un chapitre avec un extrait du HTML pour voir ce qu'on reçoit vraiment
-	let html_excerpt = if html_content.len() > 500 {
+	let _html_excerpt = if html_content.len() > 500 {
 		&html_content[..500]
 	} else {
 		html_content
@@ -854,7 +852,7 @@ fn parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
 }
 
 // Parser le contenu JavaScript d'episodes.js
-fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
+fn _parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Extraire tous les numéros d'épisodes avec regex eps(\d+)
@@ -896,7 +894,7 @@ fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapte
 	// Créer une série continue de chapitres de min_episode à max_episode
 	if max_episode > 0 {
 		// Calculer le nombre total de chapitres
-		let total_chapters = max_episode - min_episode + 1;
+		let _total_chapters = max_episode - min_episode + 1;
 		
 		for episode_num in min_episode..=max_episode {
 			chapters.push(Chapter {
@@ -917,7 +915,7 @@ fn parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapte
 }
 
 // Helper pour parser les numéros de chapitre depuis les messages de la page
-fn parse_chapter_from_message(html_content: &str) -> i32 {
+fn _parse_chapter_from_message(html_content: &str) -> i32 {
 	// Chercher des patterns dans les messages comme "chapitre 314"
 	let chapter_patterns = [
 		"chapitre ",
@@ -958,7 +956,7 @@ fn parse_chapter_from_message(html_content: &str) -> i32 {
 }
 
 // Parser les commandes JavaScript dans la page HTML (méthode principale)
-fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
+fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Chercher resetListe() pour confirmer qu'il y a des scripts actifs
@@ -1050,7 +1048,7 @@ fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<C
 	// 4. Si finirListe() trouvé, essayer de déterminer la fin via episodes.js
 	if finir_liste_start > 0 {
 		// Essayer d'obtenir le maximum depuis episodes.js
-		if let Ok(episodes_max) = get_max_episode_from_js(manga_id) {
+		if let Ok(episodes_max) = _get_max_episode_from_js(manga_id) {
 			if episodes_max > finir_liste_start {
 				// Continuer de finir_liste_start jusqu'à episodes_max
 				for i in finir_liste_start..=episodes_max {
@@ -1073,7 +1071,7 @@ fn parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<C
 }
 
 // Helper pour obtenir le maximum d'épisode depuis episodes.js
-fn get_max_episode_from_js(manga_id: &str) -> Result<i32> {
+fn _get_max_episode_from_js(manga_id: &str) -> Result<i32> {
 	// Essayer de récupérer episodes.js rapidement juste pour le maximum
 	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
@@ -1118,7 +1116,7 @@ fn get_max_episode_from_js(manga_id: &str) -> Result<i32> {
 	}
 }
 
-pub fn parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
+pub fn _parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Défaut simple : 50 chapitres

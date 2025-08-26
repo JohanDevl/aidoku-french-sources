@@ -1,4 +1,4 @@
-use aidoku::{prelude::*, std::{String, Vec, current_date, net::{Request, HttpMethod}}, error::Result};
+use aidoku::{prelude::*, std::{String, Vec, net::{Request, HttpMethod}}, error::Result};
 
 pub fn urlencode(text: &str) -> String {
 	let mut result = String::new();
@@ -46,7 +46,7 @@ pub fn i32_to_string(num: i32) -> String {
 	result
 }
 
-pub fn extract_number_from_url(url: &str, param: &str) -> Option<i32> {
+pub fn _extract_number_from_url(url: &str, param: &str) -> Option<i32> {
 	if let Some(start) = url.find(&format!("{}=", param)) {
 		let start = start + param.len() + 1;
 		if let Some(end) = url[start..].find('&') {
@@ -60,18 +60,18 @@ pub fn extract_number_from_url(url: &str, param: &str) -> Option<i32> {
 	None
 }
 
-pub fn clean_text(text: &str) -> String {
+pub fn _clean_text(text: &str) -> String {
 	String::from(text.trim().replace('\n', " ").replace('\t', " ")
 		.replace("  ", " "))
 }
 
-pub fn parse_date_string(_date_str: &str) -> f64 {
-	// Pour l'instant, retourner la date actuelle
+pub fn _parse_date_string(_date_str: &str) -> f64 {
+	// Pour l'instant, retourner une valeur par défaut
 	// Une implémentation plus sophistiquée serait nécessaire pour parser les dates françaises
-	current_date()
+	-1.0
 }
 
-pub fn urldecode(text: &str) -> String {
+pub fn _urldecode(text: &str) -> String {
 	let mut result = String::new();
 	let mut chars = text.chars();
 	
@@ -100,7 +100,7 @@ pub fn urldecode(text: &str) -> String {
 	result
 }
 
-pub fn request_text(url: &str) -> Result<String> {
+pub fn _request_text(url: &str) -> Result<String> {
 	let response = Request::new(url, HttpMethod::Get).string()?;
 	Ok(response)
 }
