@@ -231,6 +231,28 @@ jobs:
           done
           
           echo "Found .aix files: $AIX_FILES"
+          
+          # Test individual packages first
+          echo "=== Testing individual packages for validation ==="
+          for file in ./src/rust/fr.*/package.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
+            if [ -f "$file" ]; then
+              echo "Testing: $file"
+              aidoku build "$file" -o "test_$(basename "$file" .aix)" --name "Test" 2>&1 || echo "  ❌ Failed"
+              if [ -f "test_$(basename "$file" .aix)/index.json" ]; then
+                sources_count=$(cat "test_$(basename "$file" .aix)/index.json" | grep -o '"sources":\s*\[' | wc -l)
+                if [ $sources_count -gt 0 ]; then
+                  echo "  ✅ Valid ($(cat "test_$(basename "$file" .aix)/index.json" | grep -o '"id":' | wc -l | tr -d ' ') sources)"
+                else
+                  echo "  ⚠️  Empty sources array"
+                fi
+              else
+                echo "  ❌ No index.json generated"
+              fi
+              rm -rf "test_$(basename "$file" .aix)" 2>/dev/null || true
+            fi
+          done
+          echo ""
+          
           echo "Running: aidoku build $AIX_FILES -o build_output --name \"$SOURCE_NAME\""
           aidoku build $AIX_FILES -o build_output --name "$SOURCE_NAME" 2>&1 || { echo "aidoku build failed with exit code $?"; exit 1; }
           echo "aidoku build completed. Checking output..."
