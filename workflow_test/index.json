@@ -1,0 +1,161 @@
+{
+  "name": "JohanDevl's French Sources (Development)",
+  "sources": [
+    {
+      "id": "fr.animesama",
+      "name": "AnimeSama",
+      "version": 3,
+      "iconURL": "icons/fr.animesama-v3.png",
+      "downloadURL": "sources/fr.animesama-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://anime-sama.fr/"
+    },
+    {
+      "id": "fr.astralmanga",
+      "name": "Astral Manga",
+      "version": 5,
+      "iconURL": "icons/fr.astralmanga-v5.png",
+      "downloadURL": "sources/fr.astralmanga-v5.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://astral-manga.fr"
+    },
+    {
+      "id": "fr.legacyscans",
+      "name": "LegacyScans",
+      "version": 1,
+      "iconURL": "icons/fr.legacyscans-v1.png",
+      "downloadURL": "sources/fr.legacyscans-v1.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://legacy-scans.com/"
+    },
+    {
+      "id": "fr.lelmanga",
+      "name": "LelManga",
+      "version": 3,
+      "iconURL": "icons/fr.lelmanga-v3.png",
+      "downloadURL": "sources/fr.lelmanga-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.lelmanga.com"
+    },
+    {
+      "id": "fr.lelscanfr",
+      "name": "LelscanFR",
+      "version": 3,
+      "iconURL": "icons/fr.lelscanfr-v3.png",
+      "downloadURL": "sources/fr.lelscanfr-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://lelscanfr.com"
+    },
+    {
+      "id": "fr.mangascan",
+      "name": "Manga Scan",
+      "version": 1,
+      "iconURL": "icons/fr.mangascan-v1.png",
+      "downloadURL": "sources/fr.mangascan-v1.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangascan-fr.com"
+    },
+    {
+      "id": "fr.mangascantrad",
+      "name": "Manga Scantrad",
+      "version": 12,
+      "iconURL": "icons/fr.mangascantrad-v12.png",
+      "downloadURL": "sources/fr.mangascantrad-v12.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manga-scantrad.io"
+    },
+    {
+      "id": "fr.mangasorigines",
+      "name": "Mangas Origines",
+      "version": 7,
+      "iconURL": "icons/fr.mangasorigines-v7.png",
+      "downloadURL": "sources/fr.mangasorigines-v7.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangas-origines.fr"
+    },
+    {
+      "id": "fr.phenixscans",
+      "name": "Phenix Scans",
+      "version": 10,
+      "iconURL": "icons/fr.phenixscans-v10.png",
+      "downloadURL": "sources/fr.phenixscans-v10.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://phenix-scans.com/"
+    },
+    {
+      "id": "fr.poseidonscans",
+      "name": "Poseidon Scans",
+      "version": 3,
+      "iconURL": "icons/fr.poseidonscans-v3.png",
+      "downloadURL": "sources/fr.poseidonscans-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://poseidonscans.com/"
+    },
+    {
+      "id": "fr.reaperscans",
+      "name": "Reaper Scans FR",
+      "version": 5,
+      "iconURL": "icons/fr.reaperscans-v5.png",
+      "downloadURL": "sources/fr.reaperscans-v5.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://reaperscans.fr"
+    },
+    {
+      "id": "fr.sushiscan",
+      "name": "SushiScan",
+      "version": 4,
+      "iconURL": "icons/fr.sushiscan-v4.png",
+      "downloadURL": "sources/fr.sushiscan-v4.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://sushiscan.net/"
+    },
+    {
+      "id": "fr.sushiscans",
+      "name": "Sushi Scans",
+      "version": 5,
+      "iconURL": "icons/fr.sushiscans-v5.png",
+      "downloadURL": "sources/fr.sushiscans-v5.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://sushiscan.fr/"
+    }
+  ]
+}
