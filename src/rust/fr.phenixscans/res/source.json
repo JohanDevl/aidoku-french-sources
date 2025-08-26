@@ -2,12 +2,10 @@
   "info": {
     "id": "fr.phenixscans",
     "name": "Phenix Scans",
-    "version": 11,
+    "version": 7,
     "url": "https://phenix-scans.com/",
     "contentRating": 1,
-    "languages": [
-      "fr"
-    ]
+    "languages": ["fr"]
   },
   "listings": [
     {
