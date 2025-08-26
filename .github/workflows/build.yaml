@@ -192,6 +192,8 @@ jobs:
           TOTAL_SUCCESS=$((INDIVIDUAL_SUCCESS + TEMPLATE_SUCCESS))
           TOTAL_FAIL=$((INDIVIDUAL_FAIL + TEMPLATE_FAIL))
           TOTAL_ATTEMPTED=$((TOTAL_SUCCESS + TOTAL_FAIL))
+          INDIVIDUAL_TOTAL=$((INDIVIDUAL_SUCCESS + INDIVIDUAL_FAIL))
+          TEMPLATE_TOTAL=$((TEMPLATE_SUCCESS + TEMPLATE_FAIL))
 
           # Count packages created
           PACKAGE_COUNT=$(find . -name "*.aix" -type f | wc -l)
@@ -214,8 +216,8 @@ jobs:
 
           | Category | ✅ Success | ❌ Failed | 📦 Total |
           |----------|------------|-----------|----------|
-          | **Individual Sources (fr.*)** | ${{ env.INDIVIDUAL_SUCCESS }} | ${{ env.INDIVIDUAL_FAIL }} | ${{ env.INDIVIDUAL_SUCCESS + env.INDIVIDUAL_FAIL }} |
-          | **Template Sources** | ${{ env.TEMPLATE_SUCCESS }} | ${{ env.TEMPLATE_FAIL }} | ${{ env.TEMPLATE_SUCCESS + env.TEMPLATE_FAIL }} |
+          | **Individual Sources (fr.*)** | %INDIVIDUAL_SUCCESS% | %INDIVIDUAL_FAIL% | %INDIVIDUAL_TOTAL% |
+          | **Template Sources** | %TEMPLATE_SUCCESS% | %TEMPLATE_FAIL% | %TEMPLATE_TOTAL% |
           | **🎯 Total** | **%TOTAL_SUCCESS%** | **%TOTAL_FAIL%** | **%TOTAL_ATTEMPTED%** |
 
           ## ✅ Successfully Built Sources
@@ -287,6 +289,12 @@ jobs:
           EOF
 
           # Replace placeholders
+          sed -i "s/%INDIVIDUAL_SUCCESS%/$INDIVIDUAL_SUCCESS/g" $GITHUB_STEP_SUMMARY
+          sed -i "s/%INDIVIDUAL_FAIL%/$INDIVIDUAL_FAIL/g" $GITHUB_STEP_SUMMARY
+          sed -i "s/%INDIVIDUAL_TOTAL%/$INDIVIDUAL_TOTAL/g" $GITHUB_STEP_SUMMARY
+          sed -i "s/%TEMPLATE_SUCCESS%/$TEMPLATE_SUCCESS/g" $GITHUB_STEP_SUMMARY
+          sed -i "s/%TEMPLATE_FAIL%/$TEMPLATE_FAIL/g" $GITHUB_STEP_SUMMARY
+          sed -i "s/%TEMPLATE_TOTAL%/$TEMPLATE_TOTAL/g" $GITHUB_STEP_SUMMARY
           sed -i "s/%TOTAL_SUCCESS%/$TOTAL_SUCCESS/g" $GITHUB_STEP_SUMMARY
           sed -i "s/%TOTAL_FAIL%/$TOTAL_FAIL/g" $GITHUB_STEP_SUMMARY  
           sed -i "s/%TOTAL_ATTEMPTED%/$TOTAL_ATTEMPTED/g" $GITHUB_STEP_SUMMARY
