@@ -1,4 +1,4 @@
-name: Build sources
+name: Build sources test
 on:
   push:
     branches:
@@ -7,7 +7,8 @@ on:
     paths:
       - "sources/**"
       - "templates/**"
-      - ".github/workflows/build.yaml"
+      - "public/**"
+      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}
