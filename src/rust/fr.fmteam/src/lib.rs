@@ -16,7 +16,7 @@ pub static BASE_URL: &str = "https://fmteam.fr";
 pub static API_URL: &str = "https://fmteam.fr/api";
 
 #[get_manga_list]
-fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
+fn get_manga_list(filters: Vec<Filter>, _page: i32) -> Result<MangaPageResult> {
 	let mut query = String::new();
 	let mut search_query = String::new();
 	
@@ -58,7 +58,8 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_search_list(json)
 	} else {
-		let url = format!("{}/comics?page={}&limit=20{}", String::from(API_URL), helper::i32_to_string(page), query);
+		// FMTeam API returns all comics without pagination parameters
+		let url = format!("{}/comics", String::from(API_URL));
 		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 		parser::parse_manga_list(json)
 	}
@@ -66,37 +67,45 @@ fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
 
 #[get_manga_listing]
 fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
-	let url = if listing.name == "Dernières Sorties" {
-		// Get all comics and filter for those with latest chapters
-		format!("{}/comics", String::from(API_URL))
-	} else if listing.name == "Populaire" {
-		// Get all comics (popular will be handled in parser)
-		format!("{}/comics", String::from(API_URL))
-	} else {
-		format!("{}/comics", String::from(API_URL))
-	};
-	
+	// FMTeam API returns all comics, filtering is done in parser
+	let url = format!("{}/comics", String::from(API_URL));
 	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
 	parser::parse_manga_listing(json, &listing.name, page)
 }
 
 #[get_manga_details]
 fn get_manga_details(manga_id: String) -> Result<Manga> {
-	let url = format!("{}/comics/{}", String::from(API_URL), manga_id);
-	let json = Request::new(url, HttpMethod::Get).json()?.as_object()?;
+	// Use direct comic access with real slug
+	let comic_url = format!("{}/comics/{}", String::from(API_URL), manga_id);
+	let json = Request::new(comic_url, HttpMethod::Get).json()?.as_object()?;
 	parser::parse_manga_details(manga_id, json)
 }
 
 #[get_chapter_list]
 fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	let url = format!("{}/comics/{}", String::from(API_URL), manga_id);
-	let json = Request::new(url, HttpMethod::Get).json()?.as_object()?;
+	// Use direct comic access to get complete chapter list
+	let comic_url = format!("{}/comics/{}", String::from(API_URL), manga_id);
+	let json = Request::new(comic_url, HttpMethod::Get).json()?.as_object()?;
 	parser::parse_chapter_list(manga_id, json)
 }
 
 #[get_page_list]
 fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-	let url = format!("{}/comics/{}/chapters/{}", String::from(API_URL), manga_id, chapter_id);
-	let json = Request::new(url, HttpMethod::Get).json()?.as_object()?;
-	parser::parse_page_list(json)
+	// FMTeam API endpoints for individual pages are not publicly accessible
+	// The /read/ and /download/ endpoints require authentication or have Cloudflare protection
+	// This is a placeholder implementation that creates a single page indicating
+	// that manual reading on the website is required
+	
+	// Create a placeholder page with instructions
+	let mut pages: Vec<Page> = Vec::new();
+	let read_url = format!("{}/read/{}/fr/ch/{}", String::from(BASE_URL), manga_id, chapter_id);
+	
+	pages.push(Page {
+		index: 0,
+		url: read_url,
+		base64: String::new(),
+		text: format!("Chapter {} - Read on FMTeam website", chapter_id),
+	});
+
+	Ok(pages)
 }
