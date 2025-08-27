@@ -162,8 +162,8 @@ pub fn parse_search_list(json: ObjectRef) -> Result<MangaPageResult> {
 }
 
 pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {	
-	// Direct /comics/[slug] endpoint returns comic object directly
-	let comic = json;
+	// /comics/[slug] endpoint returns {"comic": {...}} structure
+	let comic = json.get("comic").as_object()?;
 	
 	// Get cover image using thumbnail field
 	let cover = if comic.get("thumbnail").is_some() {
@@ -240,8 +240,8 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Direct /comics/[slug] endpoint returns comic with full chapter list
-	let comic = json;
+	// /comics/[slug] endpoint returns {"comic": {...}} structure
+	let comic = json.get("comic").as_object()?;
 	
 	// Parse complete chapters array instead of just last_chapter
 	if comic.get("chapters").is_some() {
