@@ -5,10 +5,11 @@ on:
       - main
       - develop
     paths:
-      - "src/**"
+      - "sources/**"
+      - "templates/**"
       - "public/**"
       - ".github/workflows/build.yaml"
-  workflow_dispatch:  # Permet de déclencher manuellement le workflow
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
@@ -32,7 +33,8 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             ~/.cargo/bin
-            src/rust/**/target/
+            sources/**/target/
+            templates/**/target/
           key: ${{ runner.os }}-cargo3-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo3-
@@ -42,7 +44,7 @@ jobs:
           path: ~/.cache/sccache
           key: ${{ runner.os }}-sccache-${{ github.sha }}
           restore-keys: ${{ runner.os }}-sccache-
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-unknown-unknown
       - name: Install build dependencies
@@ -57,98 +59,49 @@ jobs:
           sudo mv -f $SCCACHE_FILE/sccache /usr/local/bin/sccache
           sudo chmod +x /usr/local/bin/sccache
 
-          # Install aidoku-cli from git source (includes --name flag support)
+          # Install aidoku-cli from git source
           cargo install --force --git https://github.com/Aidoku/aidoku-rs aidoku-cli
-      - name: Build Rust sources with aidoku package
+      - name: Build sources
         run: |
           # Initialize counters
-          INDIVIDUAL_SUCCESS=0
-          INDIVIDUAL_FAIL=0
-          TEMPLATE_SUCCESS=0
-          TEMPLATE_FAIL=0
+          SUCCESS=0
+          FAIL=0
           
-          # Build individual sources with aidoku package
-          echo "=== Building Individual Sources with aidoku package ==="
-          for src in ./src/rust/fr.*; do
+          echo "=== Building All Sources ==="
+          for src in ./sources/*; do
             if [ -d "$src" ] && [ -f "$src/Cargo.toml" ]; then
               SOURCE_NAME=$(basename "$src")
-              echo "📦 Building individual source: $SOURCE_NAME"
+              echo "📦 Building source: $SOURCE_NAME"
               (
                 cd "$src" || exit 1
                 rm -f package.aix *.aix
                 aidoku package
-                # Get version and source ID for proper naming
+                # Get version for proper naming
                 VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
-                SOURCE_ID=$(basename "$src")
                 # Rename package with version
                 if [ -f "package.aix" ]; then
-                  mv "package.aix" "${SOURCE_ID}-v${VERSION}.aix"
-                  echo "  Renamed to ${SOURCE_ID}-v${VERSION}.aix"
+                  mv "package.aix" "${SOURCE_NAME}-v${VERSION}.aix"
+                  echo "  ✅ Created ${SOURCE_NAME}-v${VERSION}.aix"
                 fi
               ) && {
-                echo "✅ Successfully built $SOURCE_NAME"
-                INDIVIDUAL_SUCCESS=$((INDIVIDUAL_SUCCESS + 1))
+                SUCCESS=$((SUCCESS + 1))
               } || {
-                echo "❌ Failed to build $SOURCE_NAME"
-                INDIVIDUAL_FAIL=$((INDIVIDUAL_FAIL + 1))
+                echo "  ❌ Failed to build $SOURCE_NAME"
+                FAIL=$((FAIL + 1))
               }
             fi
           done
           
-          # Build template sources  
-          echo "=== Building Template Sources with aidoku package ==="
-          for template_dir in ./src/rust/madara ./src/rust/mangastream ./src/rust/mmrcms; do
-            if [ -d "$template_dir/sources" ]; then
-              TEMPLATE_NAME=$(basename "$template_dir")
-              echo "📦 Processing template: $TEMPLATE_NAME"
-              TEMPLATE_COUNT=0
-              
-              for source_dir in "$template_dir/sources"/*; do
-                if [ -d "$source_dir" ]; then
-                  SOURCE_NAME=$(basename "$source_dir")
-                  echo "🔨 Building template source: $TEMPLATE_NAME/$SOURCE_NAME"
-                  (
-                    cd "$source_dir" || exit 1
-                    rm -f package.aix
-                    aidoku package
-                    # Get version and source ID for proper naming
-                    VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
-                    SOURCE_ID=$(grep -o '"id": *"[^"]*"' res/source.json | head -1 | cut -d'"' -f4)
-                    # Copy package to template root with proper naming
-                    if [ -f "package.aix" ]; then
-                      cp "package.aix" "../../${SOURCE_ID}-v${VERSION}.aix"
-                      echo "    Created ${SOURCE_ID}-v${VERSION}.aix"
-                    fi
-                  ) && {
-                    TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
-                  }
-                fi
-              done
-              
-              if [ $TEMPLATE_COUNT -gt 0 ]; then
-                echo "✅ Built $TEMPLATE_COUNT sources for template $TEMPLATE_NAME"
-                TEMPLATE_SUCCESS=$((TEMPLATE_SUCCESS + 1))
-              else
-                echo "❌ No sources built for template $TEMPLATE_NAME"
-                TEMPLATE_FAIL=$((TEMPLATE_FAIL + 1))
-              fi
-            fi
+          echo "=== Build Summary ==="
+          echo "✅ $SUCCESS sources built successfully"
+          echo "❌ $FAIL sources failed"
+          
+          # List all generated packages
+          echo "=== Generated Packages ==="
+          find ./sources -name "*.aix" -type f | while read package; do
+            echo "  $(basename "$package")"
           done
-          
-          echo "=== All packages created ==="
-          echo "Individual packages:"
-          ls -la ./src/rust/fr.*/*.aix 2>/dev/null || echo "  No individual packages found"
-          echo "Template packages:"
-          ls -la ./src/rust/madara/*.aix 2>/dev/null || echo "  No madara packages found"
-          ls -la ./src/rust/mangastream/*.aix 2>/dev/null || echo "  No mangastream packages found"  
-          ls -la ./src/rust/mmrcms/*.aix 2>/dev/null || echo "  No mmrcms packages found"
-          
-          # Export variables for next steps
-          echo "INDIVIDUAL_SUCCESS=$INDIVIDUAL_SUCCESS" >> $GITHUB_ENV
-          echo "INDIVIDUAL_FAIL=$INDIVIDUAL_FAIL" >> $GITHUB_ENV
-          echo "TEMPLATE_SUCCESS=$TEMPLATE_SUCCESS" >> $GITHUB_ENV
-          echo "TEMPLATE_FAIL=$TEMPLATE_FAIL" >> $GITHUB_ENV
-      - name: Building source list
+      - name: Build source list
         run: |
           # Set source list name based on branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -157,62 +110,24 @@ jobs:
             SOURCE_NAME="JohanDevl's French Sources (Development)"
           fi
           
-          # Build source list from all packages
           echo "Building source list: $SOURCE_NAME"
-          aidoku build ./src/rust/fr.*/*.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
+          aidoku build sources/*/*.aix -o build_output --name "$SOURCE_NAME"
 
-          # Copy all packages to build_output/sources (this was missing!)
-          echo "Copying packages to build_output/sources..."
-          mkdir -p build_output/sources
-          
-          # Copy from individual custom sources
-          for package in ./src/rust/fr.*/*.aix; do
-            if [ -f "$package" ]; then
-              echo "  Copying $(basename "$package")"
-              cp "$package" build_output/sources/
-            fi
-          done
-          
-          # Copy from template sources
-          for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
-            if [ -f "$package" ]; then
-              echo "  Copying $(basename "$package")"
-              cp "$package" build_output/sources/
-            fi
-          done
-          
-          echo "All packages copied. Contents of build_output/sources:"
-          ls -la build_output/sources/
-
-          # Extract icons from all packages manually
-          echo "Extracting icons from packages..."
+          # Extract icons from packages
+          echo "Extracting icons..."
           mkdir -p build_output/icons
-          
-          # Extract from individual custom sources
-          for package in ./src/rust/fr.*/*.aix; do
+          for package in ./sources/*/*.aix; do
             if [ -f "$package" ]; then
               PACKAGE_NAME=$(basename "$package" .aix)
-              echo "Extracting icon from package: $PACKAGE_NAME"
-              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
+              echo "  Extracting icon from $PACKAGE_NAME"
+              unzip -p "$package" Payload/icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
             fi
           done
           
-          # Extract from template sources
-          for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
-            if [ -f "$package" ]; then
-              PACKAGE_NAME=$(basename "$package" .aix)
-              echo "Extracting icon from package: $PACKAGE_NAME"
-              unzip -p "$package" Payload/Icon.png > "build_output/icons/${PACKAGE_NAME}.png" 2>/dev/null || true
-            fi
-          done
-          
-          echo "Icons extracted. Contents of icons directory:"
-          ls -la build_output/icons/
-
-          # Copy output to public directory (preserving existing website files)
+          # Copy to public directory
           cp -r build_output/* public/
-
-          echo "Build completed. Generated files:"
+          
+          echo "=== Deployment Ready ==="
           ls -la public/
       - name: Deploy to GitHub Pages (main -> sources)
         uses: JamesIves/github-pages-deploy-action@v4.7.2
@@ -234,137 +149,17 @@ jobs:
           git-config-email: github-actions[bot]@users.noreply.github.com
           commit-message: Update source list
           single-commit: true
-      - name: Uploading packages as artifact
+      - name: Upload packages as artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: packages
           path: public/sources/*.aix
           if-no-files-found: ignore
-      - name: Uploading gh-pages deployment as artifact
+      - name: Upload deployment as artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gh-pages
           path: public
           if-no-files-found: ignore
-      - name: Build Summary Report
-        if: always()
-        run: |
-          # Calculate totals
-          TOTAL_SUCCESS=$((INDIVIDUAL_SUCCESS + TEMPLATE_SUCCESS))
-          TOTAL_FAIL=$((INDIVIDUAL_FAIL + TEMPLATE_FAIL))
-          TOTAL_ATTEMPTED=$((TOTAL_SUCCESS + TOTAL_FAIL))
-          INDIVIDUAL_TOTAL=$((INDIVIDUAL_SUCCESS + INDIVIDUAL_FAIL))
-          TEMPLATE_TOTAL=$((TEMPLATE_SUCCESS + TEMPLATE_FAIL))
-
-          # Count packages created
-          PACKAGE_COUNT=$(find . -name "*.aix" -type f | wc -l)
-          TOTAL_SIZE=$(find . -name "*.aix" -type f -exec du -ch {} + | grep total$ | cut -f1 || echo "0")
-
-          # Determine deployment branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            DEPLOY_BRANCH="sources"
-          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            DEPLOY_BRANCH="sources-develop"
-          else
-            DEPLOY_BRANCH="none (not main or develop)"
-          fi
-
-          # Create GitHub Job Summary
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          # 🏗️ Build Summary Report
-
-          ## 📊 Build Statistics
-
-          | Category | ✅ Success | ❌ Failed | 📦 Total |
-          |----------|------------|-----------|----------|
-          | **Individual Sources (fr.*)** | %INDIVIDUAL_SUCCESS% | %INDIVIDUAL_FAIL% | %INDIVIDUAL_TOTAL% |
-          | **Template Sources** | %TEMPLATE_SUCCESS% | %TEMPLATE_FAIL% | %TEMPLATE_TOTAL% |
-          | **🎯 Total** | **%TOTAL_SUCCESS%** | **%TOTAL_FAIL%** | **%TOTAL_ATTEMPTED%** |
-
-          ## ✅ Successfully Built Sources
-
-          ### Individual Sources
-          EOF
-          
-          # Add individual sources
-          if [ -n "$INDIVIDUAL_BUILT" ]; then
-            for source in $INDIVIDUAL_BUILT; do
-              echo "- ✅ **$source**" >> $GITHUB_STEP_SUMMARY
-            done
-          else
-            echo "- ℹ️ *No individual sources built*" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-
-          ### Template Sources
-          EOF
-
-          # Add template sources
-          if [ -n "$TEMPLATE_BUILT" ]; then
-            for template in $TEMPLATE_BUILT; do
-              echo "- ✅ **$template**" >> $GITHUB_STEP_SUMMARY
-            done
-          else
-            echo "- ℹ️ *No template sources built*" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Add failed sources if any
-          if [ $TOTAL_FAIL -gt 0 ]; then
-            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-
-          ## ❌ Failed Sources
-          EOF
-            if [ -n "$INDIVIDUAL_FAILED" ]; then
-              echo "### Individual Sources" >> $GITHUB_STEP_SUMMARY
-              for source in $INDIVIDUAL_FAILED; do
-                echo "- ❌ **$source**" >> $GITHUB_STEP_SUMMARY
-              done
-            fi
-            if [ -n "$TEMPLATE_FAILED" ]; then
-              echo "### Template Sources" >> $GITHUB_STEP_SUMMARY
-              for template in $TEMPLATE_FAILED; do
-                echo "- ❌ **$template**" >> $GITHUB_STEP_SUMMARY
-              done
-            fi
-          fi
-
-          # Add package information
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-
-          ## 📦 Package Information
-
-          - **Total .aix packages**: $PACKAGE_COUNT
-          - **Total size**: $TOTAL_SIZE
-          - **Deployment branch**: \`$DEPLOY_BRANCH\`
-          - **Artifacts uploaded**: packages, gh-pages
-
-          ## 🔗 Useful Links
-
-          - [📁 View Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [🌐 Deployed Sources](https://github.com/${{ github.repository }}/tree/$DEPLOY_BRANCH)
-          - [📋 Source Repository](https://github.com/${{ github.repository }})
-
-          ---
-          *Build completed on $(date -u '+%Y-%m-%d %H:%M:%S UTC') • Commit: [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})*
-          EOF
-
-          # Replace placeholders
-          sed -i "s/%INDIVIDUAL_SUCCESS%/$INDIVIDUAL_SUCCESS/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%INDIVIDUAL_FAIL%/$INDIVIDUAL_FAIL/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%INDIVIDUAL_TOTAL%/$INDIVIDUAL_TOTAL/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%TEMPLATE_SUCCESS%/$TEMPLATE_SUCCESS/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%TEMPLATE_FAIL%/$TEMPLATE_FAIL/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%TEMPLATE_TOTAL%/$TEMPLATE_TOTAL/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%TOTAL_SUCCESS%/$TOTAL_SUCCESS/g" $GITHUB_STEP_SUMMARY
-          sed -i "s/%TOTAL_FAIL%/$TOTAL_FAIL/g" $GITHUB_STEP_SUMMARY  
-          sed -i "s/%TOTAL_ATTEMPTED%/$TOTAL_ATTEMPTED/g" $GITHUB_STEP_SUMMARY
-
-          # Console output summary
-          echo "🎉 Build Summary:"
-          echo "   ✅ $TOTAL_SUCCESS sources built successfully"
-          echo "   ❌ $TOTAL_FAIL sources failed"
-          echo "   📦 $PACKAGE_COUNT .aix packages created ($TOTAL_SIZE)"
-          echo "   🚀 Deployed to branch: $DEPLOY_BRANCH"

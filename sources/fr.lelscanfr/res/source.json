@@ -1,0 +1,12 @@
+{
+  "info": {
+    "id": "fr.lelscanfr",
+    "name": "LelscanFR",
+    "version": 3,
+    "url": "https://lelscanfr.com",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
+  }
+}
