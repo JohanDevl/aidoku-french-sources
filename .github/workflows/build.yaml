@@ -161,6 +161,29 @@ jobs:
           echo "Building source list: $SOURCE_NAME"
           aidoku build ./src/rust/fr.*/*.aix ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix -o build_output --name "$SOURCE_NAME"
 
+          # Copy all packages to build_output/sources (this was missing!)
+          echo "Copying packages to build_output/sources..."
+          mkdir -p build_output/sources
+          
+          # Copy from individual custom sources
+          for package in ./src/rust/fr.*/*.aix; do
+            if [ -f "$package" ]; then
+              echo "  Copying $(basename "$package")"
+              cp "$package" build_output/sources/
+            fi
+          done
+          
+          # Copy from template sources
+          for package in ./src/rust/madara/*.aix ./src/rust/mangastream/*.aix ./src/rust/mmrcms/*.aix; do
+            if [ -f "$package" ]; then
+              echo "  Copying $(basename "$package")"
+              cp "$package" build_output/sources/
+            fi
+          done
+          
+          echo "All packages copied. Contents of build_output/sources:"
+          ls -la build_output/sources/
+
           # Extract icons from all packages manually
           echo "Extracting icons from packages..."
           mkdir -p build_output/icons
