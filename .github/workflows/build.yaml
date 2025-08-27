@@ -58,7 +58,7 @@ jobs:
           sudo chmod +x /usr/local/bin/sccache
 
           # Install aidoku-cli from git source (includes --name flag support)
-          cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
+          cargo install --force --git https://github.com/Aidoku/aidoku-rs aidoku-cli
       - name: Build Rust sources with aidoku package
         run: |
           # Initialize counters
