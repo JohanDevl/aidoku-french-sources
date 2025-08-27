@@ -42,7 +42,7 @@ jobs:
           path: ~/.cache/sccache
           key: ${{ runner.os }}-sccache-${{ github.sha }}
           restore-keys: ${{ runner.os }}-sccache-
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - name: Install build dependencies
@@ -76,7 +76,7 @@ jobs:
               (
                 cd "$src" || exit 1
                 rm -f package.aix *.aix
-                RUSTUP_TOOLCHAIN=nightly aidoku package
+                aidoku package
                 # Get version and source ID for proper naming
                 VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
                 SOURCE_ID=$(basename "$src")
@@ -110,7 +110,7 @@ jobs:
                   (
                     cd "$source_dir" || exit 1
                     rm -f package.aix
-                    RUSTUP_TOOLCHAIN=nightly aidoku package
+                    aidoku package
                     # Get version and source ID for proper naming
                     VERSION=$(grep -o '"version": *[0-9]*' res/source.json | grep -o '[0-9]*')
                     SOURCE_ID=$(grep -o '"id": *"[^"]*"' res/source.json | head -1 | cut -d'"' -f4)
