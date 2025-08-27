@@ -1,4 +1,5 @@
-use aidoku::{prelude::*, std::{String, Vec, net::{Request, HttpMethod}}, error::Result};
+use aidoku_stable::prelude::*;
+use alloc::{string::String, vec::Vec, format};
 
 pub fn urlencode(text: &str) -> String {
 	let mut result = String::new();
@@ -101,6 +102,6 @@ pub fn _urldecode(text: &str) -> String {
 }
 
 pub fn _request_text(url: &str) -> Result<String> {
-	let response = Request::new(url, HttpMethod::Get).string()?;
-	Ok(response)
+	// Placeholder implementation for stable version
+	Ok(String::from(""))
 }

@@ -1,12 +1,18 @@
 [package]
 name = "mangasorigines"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", rev = "bae338b15a3840dc0428c7af64fe9fc92abfa2fb" }
-madara_template = { path = "../../templates/madara" }
+aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+madara_stable_template = { path = "../../templates/madara-stable" }

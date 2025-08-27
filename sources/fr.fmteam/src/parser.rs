@@ -1,7 +1,6 @@
 use aidoku::{
-	error::Result, prelude::*, std::{
-		current_date, ObjectRef, String, StringRef, Vec
-	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer
+	prelude::*, std::{ObjectRef, String, StringRef, Vec, current_date},
+	Manga, MangaPageResult, Chapter, MangaContentRating, MangaStatus, MangaViewer
 };
 
 use crate::BASE_URL;
@@ -34,7 +33,11 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str, page: i32) -> Re
 		// Take only a subset for pagination simulation
 		let start_index = ((page - 1) * 20) as usize;
 		let end_index = (start_index + 20).min(filtered_comics.len());
-		filtered_comics = filtered_comics[start_index..end_index].to_vec();
+		if start_index < filtered_comics.len() {
+			filtered_comics = filtered_comics[start_index..end_index].to_vec();
+		} else {
+			filtered_comics.clear();
+		}
 	}
 
 	for comic in filtered_comics {
@@ -51,12 +54,12 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str, page: i32) -> Re
 			let thumbnail_url = comic.get("thumbnail").as_string()?.read();
 			// Use full URL if it starts with http, otherwise prepend base URL
 			if thumbnail_url.starts_with("http") {
-				thumbnail_url
+				Some(thumbnail_url)
 			} else {
-				format!("{}{}", String::from(BASE_URL), thumbnail_url)
+				Some(format!("{}{}", BASE_URL, thumbnail_url))
 			}
 		} else {
-			String::from("")
+			None
 		};
 
 		// Parse status from Italian/French/English
@@ -70,21 +73,17 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str, page: i32) -> Re
 
 		mangas.push(Manga {
 			id,
-			cover,
 			title,
-			author: String::new(),
-			artist: String::new(),
-			description: String::new(),
-			url: String::new(),
-			categories: Vec::new(),
+			cover,
 			status,
 			nsfw: MangaContentRating::Safe,
-			viewer: MangaViewer::Scroll
+			viewer: MangaViewer::Scroll,
+			..Default::default()
 		});
 	}
 
 	// Simple pagination simulation
-	let has_more = if listing_type == "Populaire" {
+	let has_next_page = if listing_type == "Populaire" {
 		false  // Popular shows only top results
 	} else {
 		mangas.len() == 20  // Has more if we got a full page
@@ -92,7 +91,7 @@ pub fn parse_manga_listing(json: ObjectRef, listing_type: &str, page: i32) -> Re
 
 	Ok(MangaPageResult {
 		manga: mangas,
-		has_more,
+		has_more: has_next_page,
 	})
 }
 
@@ -117,12 +116,12 @@ pub fn parse_manga_list(json: ObjectRef) -> Result<MangaPageResult> {
 			let thumbnail_url = comic_obj.get("thumbnail").as_string()?.read();
 			// Use full URL if it starts with http, otherwise prepend base URL
 			if thumbnail_url.starts_with("http") {
-				thumbnail_url
+				Some(thumbnail_url)
 			} else {
-				format!("{}{}", String::from(BASE_URL), thumbnail_url)
+				Some(format!("{}{}", BASE_URL, thumbnail_url))
 			}
 		} else {
-			String::from("")
+			None
 		};
 
 		// Parse status 
@@ -136,16 +135,12 @@ pub fn parse_manga_list(json: ObjectRef) -> Result<MangaPageResult> {
 
 		mangas.push(Manga {
 			id,
-			cover,
 			title,
-			author: String::new(),
-			artist: String::new(),
-			description: String::new(),
-			url: String::new(),
-			categories: Vec::new(),
+			cover,
 			status,
 			nsfw: MangaContentRating::Safe,
-			viewer: MangaViewer::Scroll
+			viewer: MangaViewer::Scroll,
+			..Default::default()
 		});
 	}
 
@@ -169,12 +164,12 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 	let cover = if comic.get("thumbnail").is_some() {
 		let thumbnail_url = comic.get("thumbnail").as_string()?.read();
 		if thumbnail_url.starts_with("http") {
-			thumbnail_url
+			Some(thumbnail_url)
 		} else {
-			format!("{}{}", String::from(BASE_URL), thumbnail_url)
+			Some(format!("{}{}", BASE_URL, thumbnail_url))
 		}
 	} else {
-		String::from("")
+		None
 	};
 	
 	// Get title
@@ -182,13 +177,13 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 
 	// Get description
 	let description = if comic.get("description").is_some() && !comic.get("description").as_string()?.read().is_empty() {
-		comic.get("description").as_string()?.read()
+		Some(comic.get("description").as_string()?.read())
 	} else {
-		String::from("Aucune description disponible.")
+		Some("Aucune description disponible.".into())
 	};
 
 	// Get URL
-	let url = format!("{}/comics/{}", String::from(BASE_URL), manga_id);
+	let url = Some(format!("{}/comics/{}", BASE_URL, manga_id));
 
 	// Get manga status
 	let status_str = comic.get("status").as_string()?.read();
@@ -199,7 +194,7 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 		_ => MangaStatus::Unknown,
 	};
 
-	// Get categories (genres)
+	// Get categories (genres) - now called categories
 	let mut categories: Vec<String> = Vec::new();
 	if comic.get("genres").is_some() {
 		for item in comic.get("genres").as_array()? {
@@ -210,30 +205,31 @@ pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {
 
 	// Get author if available
 	let author = if comic.get("author").is_some() {
-		comic.get("author").as_string()?.read()
+		Some(comic.get("author").as_string()?.read())
 	} else {
-		String::new()
+		None
 	};
 
 	// Get artist if available  
 	let artist = if comic.get("artist").is_some() {
-		comic.get("artist").as_string()?.read()
+		Some(comic.get("artist").as_string()?.read())
 	} else {
-		String::new()
+		None
 	};
 
 	Ok(Manga {
 		id: manga_id,
-		cover,
 		title,
+		cover,
 		author,
 		artist,
 		description,
 		url,
-		categories,
+		categories: if categories.is_empty() { None } else { Some(categories) },
 		status,
 		nsfw: MangaContentRating::Safe,
-		viewer: MangaViewer::Scroll
+		viewer: MangaViewer::Scroll,
+		..Default::default()
 	})
 }
 
@@ -250,32 +246,32 @@ pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapt
 			
 			// Get chapter number
 			let chapter_num = if chapter_obj.get("chapter").as_int().is_ok() {
-				chapter_obj.get("chapter").as_int()? as f32
+				Some(chapter_obj.get("chapter").as_int()? as f32)
 			} else if chapter_obj.get("chapter").as_float().is_ok() {
-				chapter_obj.get("chapter").as_float()? as f32
+				Some(chapter_obj.get("chapter").as_float()? as f32)
 			} else {
-				1.0  // Default if no chapter number
+				Some(1.0)  // Default if no chapter number
 			};
 			
-			// Use chapter number as ID for now
-			let id = format!("{}", chapter_num as i32);
+			// Create chapter key from manga_id and chapter number
+			let id = format!("{}/{}", manga_id, chapter_num.unwrap_or(1.0) as i32);
 			
 			// Get chapter title
-			let chapter_title = if chapter_obj.get("title").is_some() && !chapter_obj.get("title").as_string()?.read().is_empty() {
-				chapter_obj.get("title").as_string()?.read()
+			let title = if chapter_obj.get("title").is_some() && !chapter_obj.get("title").as_string()?.read().is_empty() {
+				Some(chapter_obj.get("title").as_string()?.read())
 			} else {
-				format!("Chapter {}", chapter_num)
+				Some(format!("Chapter {}", chapter_num.unwrap_or(1.0)))
 			};
 			
 			// Parse date if available
 			let date_updated = if chapter_obj.get("date").is_some() {
 				let date_str = chapter_obj.get("date").as_string()?.read();
-				StringRef::from(&date_str)
+				Some(StringRef::from(&date_str)
 					.0
 					.as_date("yyyy-MM-dd'T'HH:mm:ss", Some("fr"), None)
-					.unwrap_or(current_date())
+					.unwrap_or(current_date()))
 			} else {
-				current_date()
+				Some(current_date())
 			};
 			
 			// Get teams if available
@@ -288,29 +284,29 @@ pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapt
 					}
 				}
 				if !team_names.is_empty() {
-					team_names.join(", ")
+					Some(team_names.join(", "))
 				} else {
-					String::from("FMTeam")
+					Some("FMTeam".into())
 				}
 			} else {
-				String::from("FMTeam")
+				Some("FMTeam".into())
 			};
 			
-			let chapter_url = format!("{}/read/{}/fr/ch/{}", String::from(BASE_URL), manga_id, chapter_num as i32);
+			let chapter_url = Some(format!("{}/read/{}/fr/ch/{}", BASE_URL, manga_id, chapter_num.unwrap_or(1.0) as i32));
 
 			chapters.push(Chapter{
 				id,
-				title: chapter_title,
-				volume: -1.0,
+				title,
+				volume: None, // No volume info available
 				chapter: chapter_num,
 				date_updated,
 				scanlator,
 				url: chapter_url,
-				lang: String::from("fr"),
+				lang: "fr".into(),
+				..Default::default()
 			});
 		}
 	}
 
 	Ok(chapters)
 }
-

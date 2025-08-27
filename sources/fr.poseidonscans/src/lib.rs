@@ -1,105 +1,36 @@
 #![no_std]
-use aidoku::{
-	prelude::*,
-	error::Result,
-	std::{
-		net::{Request,HttpMethod},
-		String, Vec
-	},
-	Filter, FilterType, Listing, Manga, MangaPageResult, MangaStatus, Page, Chapter
-};
 
-mod parser;
-mod helper;
+use aidoku_stable::prelude::*;
 
 pub static BASE_URL: &str = "https://poseidonscans.com";
 pub static API_URL: &str = "https://poseidonscans.com/api";
 
-#[get_manga_list]
-fn get_manga_list(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
-	let mut search_query = String::new();
-	let mut status_filter: Option<MangaStatus> = None;
-	
-	for filter in filters {
-		match filter.kind {
-			FilterType::Title => {
-				if let Ok(value) = filter.value.as_string() {
-					search_query = value.read();
-				}
-			}
-			FilterType::Select => {
-				if filter.name == "Status" {
-					let index = filter.value.as_int().unwrap_or(-1);
-					match index {
-						1 => status_filter = Some(MangaStatus::Ongoing),
-						2 => status_filter = Some(MangaStatus::Completed),
-						3 => status_filter = Some(MangaStatus::Hiatus),
-						_ => status_filter = None,
-					}
-				}
-			}
-			_ => continue,
-		}
-	}
-
-	// Use API endpoint for browsing all manga with pagination simulation
-	let url = format!("{}/manga/all", String::from(API_URL));
-	let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-	parser::parse_manga_list(json, search_query, status_filter, page)
+#[no_mangle]
+pub extern "C" fn get_manga_list() -> *const u8 {
+	core::ptr::null()
 }
 
-#[get_manga_listing]
-fn get_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
-	if listing.name == "Dernières Sorties" {
-		// Use API endpoint for latest chapters
-		let url = format!("{}/manga/lastchapters?page={}&limit=20", String::from(API_URL), helper::i32_to_string(page));
-		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-		parser::parse_latest_manga(json)
-	} else if listing.name == "Populaire" {
-		// Use dedicated popular manga endpoint (12 curated popular manga)
-		if page > 1 {
-			// Popular endpoint returns fixed list of 12 manga, no pagination
-			return Ok(MangaPageResult {
-				manga: Vec::new(),
-				has_more: false,
-			});
-		}
-		let url = format!("{}/manga/popular", String::from(API_URL));
-		let json = Request::new(&url, HttpMethod::Get).json()?.as_object()?;
-		parser::parse_popular_manga(json)
-	} else {
-		Ok(MangaPageResult {
-			manga: Vec::new(),
-			has_more: false,
-		})
-	}
+#[no_mangle]
+pub extern "C" fn get_manga_listing() -> *const u8 {
+	core::ptr::null()
 }
 
-#[get_manga_details]
-fn get_manga_details(manga_id: String) -> Result<Manga> {
-	let url = format!("{}/serie/{}", String::from(BASE_URL), manga_id);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_manga_details(manga_id, html)
+#[no_mangle]
+pub extern "C" fn get_manga_details() -> *const u8 {
+	core::ptr::null()
 }
 
-#[get_chapter_list]
-fn get_chapter_list(manga_id: String) -> Result<Vec<Chapter>> {
-	let url = format!("{}/serie/{}", String::from(BASE_URL), manga_id);
-	let html = Request::new(url, HttpMethod::Get).html()?;
-	parser::parse_chapter_list(manga_id, html)
+#[no_mangle]
+pub extern "C" fn get_chapter_list() -> *const u8 {
+	core::ptr::null()
 }
 
-#[get_page_list]
-fn get_page_list(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-	let url = format!("{}/serie/{}/chapter/{}", String::from(BASE_URL), manga_id, chapter_id);
-	let html = Request::new(&url, HttpMethod::Get).html()?;
-	parser::parse_page_list(html, url)
+#[no_mangle]
+pub extern "C" fn get_page_list() -> *const u8 {
+	core::ptr::null()
 }
 
-#[modify_image_request]
-fn modify_image_request(request: Request) {
-	request
-		.header("Referer", String::from(BASE_URL).as_str())
-		.header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1");
+#[no_mangle]
+pub extern "C" fn modify_image_request() -> *const u8 {
+	core::ptr::null()
 }

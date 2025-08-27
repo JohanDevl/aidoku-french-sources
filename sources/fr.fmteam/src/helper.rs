@@ -1,4 +1,4 @@
-use aidoku::std::{
+use aidoku::alloc::{
 	String,
 	Vec
 };

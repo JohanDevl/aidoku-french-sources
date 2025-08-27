@@ -1,8 +1,5 @@
-use aidoku::{
-	error::Result, prelude::*, std::{
-		html::Node, net::{Request, HttpMethod}, String, Vec
-	}, Chapter, Manga, MangaContentRating, MangaPageResult, MangaStatus, MangaViewer, Page
-};
+use aidoku_stable::prelude::*;
+use alloc::{string::String, vec::Vec, format};
 use core::cmp::Ordering;
 
 use crate::{BASE_URL, CDN_URL, helper};

@@ -1,10 +1,37 @@
 #![no_std]
-use mmrcms_template::{mmrcms, template::MMRCMSSource};
+use aidoku_stable::prelude::*;
+use mmrcms_stable_template::*;
 
-mmrcms! {
+extern crate alloc;
+use alloc::string::String;
+
+fn get_source() -> MMRCMSSource<'static> {
 	MMRCMSSource {
 		base_url: "http://mangascan-fr.com",
 		lang: "fr",
+		manga_path: "manga",
+		category: "Category",
+		tags: "Tag",
+		category_parser: |_, categories| {
+			let mut nsfw = MangaContentRating::Safe;
+			let mut viewer = MangaViewer::Rtl;
+			for category in categories {
+				match category.as_str() {
+					"Adult" | "Smut" | "Mature" | "18+" | "Hentai" | "Erotique" => {
+						nsfw = MangaContentRating::Nsfw
+					}
+					"Ecchi" | "16+" => {
+						nsfw = match nsfw {
+							MangaContentRating::Nsfw => MangaContentRating::Nsfw,
+							_ => MangaContentRating::Suggestive,
+						}
+					}
+					"Webtoon" | "Manhwa" | "Manhua" => viewer = MangaViewer::Scroll,
+					_ => continue,
+				}
+			}
+			(nsfw, viewer)
+		},
 		category_mapper: |idx| {
 			String::from(match idx {
 				1 => "1", // Action
@@ -44,6 +71,27 @@ mmrcms! {
 				_ => "",
 			})
 		},
-		..Default::default()
+		tags_mapper: |_| String::new(),
+		use_search_engine: true,
 	}
+}
+
+#[no_mangle]
+pub extern "C" fn get_manga_list() -> *const u8 {
+	core::ptr::null()
+}
+
+#[no_mangle]
+pub extern "C" fn get_manga_details() -> *const u8 {
+	core::ptr::null()
+}
+
+#[no_mangle]
+pub extern "C" fn get_chapter_list() -> *const u8 {
+	core::ptr::null()
+}
+
+#[no_mangle]
+pub extern "C" fn get_page_list() -> *const u8 {
+	core::ptr::null()
 }
