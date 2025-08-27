@@ -1,5 +1,92 @@
 [
-	{
-		"type": "title"
-	}
+  {
+    "type": "title"
+  },
+  {
+    "type": "select",
+    "name": "Status",
+    "options": [
+      "Tous les statuts",
+      "En cours",
+      "Terminé",
+      "En pause",
+      "Abandonné"
+    ]
+  },
+  {
+    "type": "select",
+    "name": "Type",
+    "options": ["Tous les types", "Manga", "Manhwa", "Manhua", "Novel"]
+  },
+  {
+    "type": "group",
+    "name": "Genres",
+    "filters": [
+      {
+        "type": "genre",
+        "name": "Action",
+        "id": "action"
+      },
+      {
+        "type": "genre",
+        "name": "Aventure",
+        "id": "adventure"
+      },
+      {
+        "type": "genre",
+        "name": "Comédie",
+        "id": "comedy"
+      },
+      {
+        "type": "genre",
+        "name": "Drame",
+        "id": "drama"
+      },
+      {
+        "type": "genre",
+        "name": "Fantaisie",
+        "id": "fantasy"
+      },
+      {
+        "type": "genre",
+        "name": "Isekai",
+        "id": "isekai"
+      },
+      {
+        "type": "genre",
+        "name": "Romance",
+        "id": "romance"
+      },
+      {
+        "type": "genre",
+        "name": "Arts martiaux",
+        "id": "martial-arts"
+      },
+      {
+        "type": "genre",
+        "name": "Surnaturel",
+        "id": "supernatural"
+      },
+      {
+        "type": "genre",
+        "name": "Shounen",
+        "id": "shounen"
+      },
+      {
+        "type": "genre",
+        "name": "Seinen",
+        "id": "seinen"
+      },
+      {
+        "type": "genre",
+        "name": "Shoujo",
+        "id": "shoujo"
+      },
+      {
+        "type": "genre",
+        "name": "Josei",
+        "id": "josei"
+      }
+    ]
+  }
 ]

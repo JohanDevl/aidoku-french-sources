@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.fmteam",
     "name": "FMTeam",
-    "version": 1,
+    "version": 2,
     "url": "https://fmteam.fr/",
     "contentRating": 1,
     "languages": ["fr"]
@@ -13,7 +13,7 @@
       "id": "dernières-sorties"
     },
     {
-      "name": "Populaire", 
+      "name": "Populaire",
       "id": "populaire"
     }
   ]
