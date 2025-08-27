@@ -10,11 +10,11 @@
   "listings": [
     {
       "name": "Dernières Sorties",
-      "id": "latest"
+      "id": "dernières-sorties"
     },
     {
       "name": "Populaire", 
-      "id": "popular"
+      "id": "populaire"
     }
   ]
 }
