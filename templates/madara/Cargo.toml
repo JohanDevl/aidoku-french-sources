@@ -5,5 +5,5 @@ edition = "2021"
 publish = false
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs/" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", rev = "bae338b15a3840dc0428c7af64fe9fc92abfa2fb" }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }

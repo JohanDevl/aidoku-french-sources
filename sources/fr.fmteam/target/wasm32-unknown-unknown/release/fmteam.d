@@ -1,0 +1,1 @@
+/Users/johan/Developer/GitStore/aidoku-french-sources/sources/fr.fmteam/target/wasm32-unknown-unknown/release/fmteam.wasm: /Users/johan/Developer/GitStore/aidoku-french-sources/sources/fr.fmteam/src/helper.rs /Users/johan/Developer/GitStore/aidoku-french-sources/sources/fr.fmteam/src/lib.rs /Users/johan/Developer/GitStore/aidoku-french-sources/sources/fr.fmteam/src/parser.rs

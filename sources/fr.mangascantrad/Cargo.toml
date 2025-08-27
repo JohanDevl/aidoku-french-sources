@@ -8,5 +8,5 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs/" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", rev = "bae338b15a3840dc0428c7af64fe9fc92abfa2fb" }
 madara_template = { path = "../../templates/madara" }
