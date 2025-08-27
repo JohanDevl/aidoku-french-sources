@@ -69,9 +69,9 @@ jobs:
           aidoku build sources/*/package.aix --name "JohanDevl's French Sources (Development)"
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.7.2
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref == 'refs/heads/develop' }}
         with:
-          branch: gh-pages
+          branch: sources-develop
           folder: public
           git-config-name: GitHub Actions
           git-config-email: github-actions[bot]@users.noreply.github.com
