@@ -223,13 +223,12 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 	// Extraire les genres - logique exacte de l'ancienne version adaptée
 	let mut tags: Vec<String> = Vec::new();
 	
-	// Méthode 1: Essayer de récupérer les liens après h2:contains(Genres) - comme l'ancienne version
-	if let Some(genre_links) = html.select("#sousBlocMiddle a") {
-		// Chercher dans tous les liens de sousBlocMiddle qui sont des genres
-		for link in genre_links {
-			if let Some(genre_text) = link.text() {
+	// Méthode 1: Essayer de récupérer les liens individuellement après h2:contains(Genres) - exactement comme l'ancienne version
+	if let Some(genre_elements) = html.select("#sousBlocMiddle h2:contains(Genres) + a") {
+		for genre_elem in genre_elements {
+			if let Some(genre_text) = genre_elem.text() {
 				let genre_raw = genre_text.trim();
-				if !genre_raw.is_empty() && genre_raw.len() < 50 && !genre_raw.contains("http") {
+				if !genre_raw.is_empty() {
 					// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
 					if genre_raw.contains(',') {
 						// Diviser par les virgules et ajouter chaque genre individuellement
@@ -248,22 +247,17 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		}
 	}
 	
-	// Méthode 2: Si pas de genres trouvés, parser le texte complet - exactement comme l'ancienne version
+	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres - exactement comme l'ancienne version
 	if tags.is_empty() {
-		// Chercher le texte complet de sousBlocMiddle
-		if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
+		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
+		if let Some(genres_text) = html.select("#sousBlocMiddle").and_then(|el| el.text()) {
 			// Chercher la section GENRES dans le texte
-			if let Some(genres_start) = full_text.find("GENRES") {
-				let genres_section = &full_text[genres_start..];
+			if let Some(genres_start) = genres_text.find("GENRES") {
+				let genres_section = &genres_text[genres_start..];
 				
 				// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
 				if let Some(first_line_end) = genres_section.find('\n') {
-					let genres_line = if genres_section.len() > 7 {
-						&genres_section[7..first_line_end] // Skip "GENRES\n"
-					} else {
-						""
-					};
-					let genres_line = genres_line.trim();
+					let genres_line = &genres_section[7..first_line_end].trim(); // Skip "GENRES\n"
 					
 					// Diviser par les virgules et nettoyer chaque genre
 					for genre in genres_line.split(',') {
@@ -277,7 +271,7 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		}
 	}
 	
-	// Ajouter "Manga" par défaut si aucun genre trouvé - exactement comme l'ancienne version
+	// Ajouter "Manga" par défaut si aucun genre trouvé
 	if tags.is_empty() {
 		tags.push("Manga".to_string());
 	}
