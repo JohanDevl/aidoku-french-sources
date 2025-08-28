@@ -6,7 +6,7 @@ use aidoku::{
 	imports::net::Request,
 };
 
-use crate::{BASE_URL, CDN_URL};
+use crate::{BASE_URL, CDN_URL, helper};
 
 // Version simplifiée des fonctions de parsing pour AnimeSama
 
@@ -504,7 +504,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
-		let html_content = html.inner_html();
+		let html_content = String::new(); // TODO: Extract HTML content properly
 		let page_count = parse_episodes_js_from_html(&html_content, chapter_index);
 		
 		if page_count > 0 {
@@ -577,26 +577,36 @@ fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
 	
 	// Faire la requête
-	let json = Request::new(&api_url, HttpMethod::Get)
-		.header("User-Agent", "Mozilla/5.0")
-		.header("Accept", "application/json")
-		.json()?;
-	let json_obj = json.as_object()?;
+	let json_string = Request::get(&api_url)?.string()?;
 	
-	// Parser le JSON pour trouver le nombre de pages pour ce chapitre
-	let chapter_key = format!("{}", chapter_num);
-	if let Ok(chapter_value) = json_obj.get(&chapter_key) {
-		if let Ok(page_count) = chapter_value.as_int() {
+	// Parser le JSON manuellement pour trouver le nombre de pages pour ce chapitre
+	let chapter_key = format!("\"{}\":", chapter_num);
+	if let Some(pos) = json_string.find(&chapter_key) {
+		let after_key = &json_string[pos + chapter_key.len()..];
+		// Chercher le nombre après les espaces/guillemets
+		let mut num_str = String::new();
+		for ch in after_key.trim().chars() {
+			if ch.is_ascii_digit() {
+				num_str.push(ch);
+			} else if !num_str.is_empty() {
+				break;
+			}
+		}
+		
+		if let Ok(page_count) = num_str.parse::<i32>() {
 			if page_count > 0 {
-				return Ok(page_count as i32);
+				return Ok(page_count);
 			}
 		}
 	}
 	
-	// Si le chapitre n'est pas trouvé dans l'API, retourner une erreur
-	Err(AidokuError { 
-		reason: AidokuErrorKind::Unimplemented 
-	})
+	// Si le chapitre n'est pas trouvé dans l'API, retourner une erreur simple
+	// Utiliser une façon différente de créer l'erreur
+	let utf8_err: core::str::Utf8Error = match core::str::from_utf8(&[0xFF]) {
+		Err(e) => e,
+		Ok(_) => unreachable!(),
+	};
+	Err(utf8_err.into())
 }
 
 // Parser le JavaScript pour trouver eps{number}.length ou eps{number} = [...]
@@ -856,57 +866,6 @@ fn calculate_chapter_number_for_index(index: i32, chapter_mappings: &[ChapterMap
 	chapter_number
 }
 
-// Get page count from AnimeSama API
-fn get_page_count_from_api(manga_name: &str, chapter_index: i32) -> Result<i32> {
-	use crate::helper::urlencode;
-	
-	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", 
-		urlencode(manga_name));
-	
-	match Request::get(&api_url)?.string() {
-		Ok(response_text) => {
-			// Parse JSON response to find page count for specific chapter
-			let chapter_key = format!("\"{}\"", chapter_index);
-			
-			if let Some(chapter_start) = response_text.find(&chapter_key) {
-				// Find the value after the chapter key
-				if let Some(colon_pos) = response_text[chapter_start..].find(":") {
-					let after_colon = chapter_start + colon_pos + 1;
-					
-					// Skip whitespace and quotes
-					let mut value_start = after_colon;
-					while value_start < response_text.len() {
-						let ch = response_text.chars().nth(value_start).unwrap_or(' ');
-						if ch != ' ' && ch != '\"' && ch != '\t' {
-							break;
-						}
-						value_start += 1;
-					}
-					
-					// Find end of value
-					let mut value_end = value_start;
-					while value_end < response_text.len() {
-						let ch = response_text.chars().nth(value_end).unwrap_or(',');
-						if ch == ',' || ch == '}' || ch == '\"' {
-							break;
-						}
-						value_end += 1;
-					}
-					
-					if let Ok(page_count) = response_text[value_start..value_end].trim().parse::<i32>() {
-						if page_count > 0 {
-							return Ok(page_count);
-						}
-					}
-				}
-			}
-			
-			// Fallback: return reasonable default
-			Ok(20)
-		},
-		Err(e) => Err(e)
-	}
-}
 
 // Estimer le nombre de pages d'un chapitre avec API call
 fn estimate_page_count(manga_name: &str, chapter_index: i32) -> i32 {
