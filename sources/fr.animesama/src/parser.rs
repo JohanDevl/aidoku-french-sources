@@ -30,7 +30,11 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 					authors: None,
 					artists: None,
 					description: None,
-					url: Some(format!("{}{}", BASE_URL, relative_url)),
+					url: Some(if relative_url.starts_with("http") {
+						relative_url.clone()
+					} else {
+						format!("{}{}", BASE_URL, relative_url)
+					}),
 					tags: Some(Vec::new()),
 					status: MangaStatus::Unknown,
 					content_rating: ContentRating::Safe,
@@ -72,7 +76,11 @@ pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPa
 						authors: None,
 						artists: None,
 						description: None,
-						url: Some(format!("{}{}", BASE_URL, relative_url)),
+						url: Some(if relative_url.starts_with("http") {
+							relative_url.clone()
+						} else {
+							format!("{}{}", BASE_URL, relative_url)
+						}),
 						tags: Some(Vec::new()),
 						status: MangaStatus::Unknown,
 						content_rating: ContentRating::Safe,
@@ -256,7 +264,11 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		authors: None,
 		artists: None,
 		description,
-		url: Some(format!("{}{}", BASE_URL, manga_key)),
+		url: Some(if manga_key.starts_with("http") {
+			manga_key.clone()
+		} else {
+			format!("{}{}", BASE_URL, manga_key)
+		}),
 		cover,
 		tags: Some(tags),
 		status,
