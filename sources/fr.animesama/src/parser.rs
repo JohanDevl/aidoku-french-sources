@@ -229,10 +229,11 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 			if let Some(genre_text) = genre_elem.text() {
 				let genre_raw = genre_text.trim();
 				if !genre_raw.is_empty() {
-					// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
-					if genre_raw.contains(',') {
-						// Diviser par les virgules et ajouter chaque genre individuellement
-						for genre in genre_raw.split(',') {
+					// Vérifier si ce genre contient des séparateurs (virgules ou tirets)
+					if genre_raw.contains(',') || genre_raw.contains(" - ") {
+						// Diviser par les virgules ou tirets et ajouter chaque genre individuellement
+						let separator = if genre_raw.contains(',') { "," } else { " - " };
+						for genre in genre_raw.split(separator) {
 							let cleaned_genre = genre.trim();
 							if !cleaned_genre.is_empty() {
 								tags.push(cleaned_genre.to_string());
@@ -259,8 +260,9 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 				if let Some(first_line_end) = genres_section.find('\n') {
 					let genres_line = &genres_section[7..first_line_end].trim(); // Skip "GENRES\n"
 					
-					// Diviser par les virgules et nettoyer chaque genre
-					for genre in genres_line.split(',') {
+					// Diviser par les virgules ou tirets et nettoyer chaque genre
+					let separator = if genres_line.contains(',') { "," } else { " - " };
+					for genre in genres_line.split(separator) {
 						let cleaned_genre = genre.trim();
 						if !cleaned_genre.is_empty() {
 							tags.push(cleaned_genre.to_string());
