@@ -220,74 +220,50 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 			}
 		});
 	
-	// Extraire les genres - avec filtrage strict pour éliminer les faux genres
+	// Extraire les genres - retour à la logique simple de l'ancienne version
 	let mut tags: Vec<String> = Vec::new();
 	
-	// Fonction pour vérifier si un texte est un vrai genre
-	let is_valid_genre = |text: &str| -> bool {
-		let lower = text.to_lowercase();
-		// Exclure les textes qui ne sont pas des genres
-		if lower.contains("episode") || lower.contains("chapitre") || lower.contains("->") 
-			|| lower.contains("saison") || lower.contains("scan") || lower.contains("vf")
-			|| text.len() > 30 || text.chars().any(|c| c.is_ascii_digit())
-			|| lower.contains("lire") || lower.contains("manga") || lower.contains("anime") {
-			false
-		} else {
-			// Doit être un mot simple ou deux mots maximum
-			text.split_whitespace().count() <= 2 && text.len() >= 3 && text.len() <= 20
-		}
-	};
-	
-	// Chercher spécifiquement après h2 contenant "Genres"
-	if let Some(h2_elements) = html.select("#sousBlocMiddle h2") {
-		for h2 in h2_elements {
-			if let Some(h2_text) = h2.text() {
-				if h2_text.to_lowercase().contains("genres") {
-					// Chercher les liens suivant ce h2 spécifique
-					if let Some(parent) = h2.parent() {
-						if let Some(genre_links) = parent.select("a") {
-							for link in genre_links {
-								if let Some(genre_text) = link.text() {
-									let genre_raw = genre_text.trim();
-									if !genre_raw.is_empty() {
-										// Vérifier si c'est un vrai genre
-										if is_valid_genre(genre_raw) {
-											// Vérifier si ce genre contient des virgules
-											if genre_raw.contains(',') {
-												// Diviser par les virgules
-												for genre in genre_raw.split(',') {
-													let cleaned_genre = genre.trim();
-													if !cleaned_genre.is_empty() && is_valid_genre(cleaned_genre) {
-														tags.push(cleaned_genre.to_string());
-													}
-												}
-											} else {
-												// Genre unique valide
-												tags.push(genre_raw.to_string());
-											}
-										}
-									}
-								}
+	// Méthode 1: Essayer de récupérer les liens après h2:contains(Genres)
+	if let Some(genre_links) = html.select("#sousBlocMiddle h2:contains(Genres) + a") {
+		for link in genre_links {
+			if let Some(genre_text) = link.text() {
+				let genre_raw = genre_text.trim();
+				if !genre_raw.is_empty() && genre_raw.len() < 50 {
+					// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
+					if genre_raw.contains(',') {
+						// Diviser par les virgules et ajouter chaque genre individuellement
+						for genre in genre_raw.split(',') {
+							let cleaned_genre = genre.trim();
+							if !cleaned_genre.is_empty() {
+								tags.push(cleaned_genre.to_string());
 							}
 						}
+					} else {
+						// Genre unique, l'ajouter directement
+						tags.push(genre_raw.to_string());
 					}
-					break; // Sortir une fois qu'on a trouvé la section Genres
 				}
 			}
 		}
 	}
 	
-	// Fallback: chercher dans le texte complet si pas de liens trouvés
+	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres
 	if tags.is_empty() {
+		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
 		if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
+			// Chercher la section GENRES dans le texte
 			if let Some(genres_start) = full_text.find("GENRES") {
 				let genres_section = &full_text[genres_start..];
+				
+				// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
 				if let Some(first_line_end) = genres_section.find('\n') {
-					let genres_line = &genres_section[7..first_line_end].trim();
+					let genres_line = &genres_section[7..first_line_end]; // Skip "GENRES\n"
+					let genres_line = genres_line.trim();
 					
+					// Diviser par les virgules et nettoyer chaque genre
 					for genre in genres_line.split(',') {
 						let cleaned_genre = genre.trim();
-						if !cleaned_genre.is_empty() && is_valid_genre(cleaned_genre) {
+						if !cleaned_genre.is_empty() {
 							tags.push(cleaned_genre.to_string());
 						}
 					}
