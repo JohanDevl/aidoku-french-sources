@@ -142,43 +142,59 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		})
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
 	
-	// Extraire la description depuis le synopsis - méthode exacte de l'ancienne version
+	// Extraire la description - utiliser le sélecteur exact de l'ancienne version
 	let description = {
-		// Chercher tous les h2 dans sousBlocMiddle
-		if let Some(h2_elements) = html.select("#sousBlocMiddle h2") {
-			let mut synopsis_found = false;
-			let mut synopsis_text = String::new();
-			
-			for h2 in h2_elements {
-				if let Some(h2_text) = h2.text() {
-					if h2_text.to_lowercase().contains("synopsis") {
-						synopsis_found = true;
-						// Chercher le paragraphe suivant ce h2
-						if let Some(parent) = h2.parent() {
-							if let Some(all_p) = parent.select("p") {
-								for p in all_p {
-									if let Some(p_text) = p.text() {
-										let trimmed = p_text.trim();
-										if !trimmed.is_empty() && trimmed.len() > 10 {
-											synopsis_text = trimmed.to_string();
-											break;
-										}
-									}
-								}
-							}
-						}
-						break;
+		// Méthode 1: Sélecteur direct comme l'ancienne version
+		if let Some(synopsis_p) = html.select("#sousBlocMiddle h2:contains(Synopsis) + p") {
+			if let Some(first_p) = synopsis_p.first() {
+				if let Some(desc_text) = first_p.text() {
+					let trimmed = desc_text.trim();
+					if !trimmed.is_empty() && trimmed.len() > 10 {
+						trimmed.to_string()
+					} else {
+						"Manga disponible sur AnimeSama".to_string()
 					}
+				} else {
+					"Manga disponible sur AnimeSama".to_string()
 				}
-			}
-			
-			if synopsis_found && !synopsis_text.is_empty() {
-				synopsis_text
 			} else {
 				"Manga disponible sur AnimeSama".to_string()
 			}
 		} else {
-			"Manga disponible sur AnimeSama".to_string()
+			// Fallback: chercher manuellement dans tout le sousBlocMiddle
+			if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
+				// Chercher après le mot "Synopsis" dans le texte complet
+				if let Some(synopsis_pos) = full_text.to_uppercase().find("SYNOPSIS") {
+					let after_synopsis = &full_text[synopsis_pos + 8..]; // Skip "SYNOPSIS"
+					// Prendre les prochaines lignes jusqu'à GENRES ou autre section
+					if let Some(end_pos) = after_synopsis.to_uppercase().find("GENRES") {
+						let desc_section = &after_synopsis[..end_pos];
+						let cleaned = desc_section.trim();
+						if !cleaned.is_empty() && cleaned.len() > 20 {
+							cleaned.to_string()
+						} else {
+							"Manga disponible sur AnimeSama".to_string()
+						}
+					} else {
+						// Prendre les premiers 500 caractères après Synopsis
+						let desc_section = if after_synopsis.len() > 500 {
+							&after_synopsis[..500]
+						} else {
+							after_synopsis
+						};
+						let cleaned = desc_section.trim();
+						if !cleaned.is_empty() && cleaned.len() > 20 {
+							cleaned.to_string()
+						} else {
+							"Manga disponible sur AnimeSama".to_string()
+						}
+					}
+				} else {
+					"Manga disponible sur AnimeSama".to_string()
+				}
+			} else {
+				"Manga disponible sur AnimeSama".to_string()
+			}
 		}
 	};
 	
@@ -204,43 +220,58 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 			}
 		});
 	
-	// Extraire les genres - méthode exacte de l'ancienne version
+	// Extraire les genres - avec filtrage strict pour éliminer les faux genres
 	let mut tags: Vec<String> = Vec::new();
 	
-	// Chercher tous les h2 dans sousBlocMiddle pour trouver "Genres"
+	// Fonction pour vérifier si un texte est un vrai genre
+	let is_valid_genre = |text: &str| -> bool {
+		let lower = text.to_lowercase();
+		// Exclure les textes qui ne sont pas des genres
+		if lower.contains("episode") || lower.contains("chapitre") || lower.contains("->") 
+			|| lower.contains("saison") || lower.contains("scan") || lower.contains("vf")
+			|| text.len() > 30 || text.chars().any(|c| c.is_ascii_digit())
+			|| lower.contains("lire") || lower.contains("manga") || lower.contains("anime") {
+			false
+		} else {
+			// Doit être un mot simple ou deux mots maximum
+			text.split_whitespace().count() <= 2 && text.len() >= 3 && text.len() <= 20
+		}
+	};
+	
+	// Chercher spécifiquement après h2 contenant "Genres"
 	if let Some(h2_elements) = html.select("#sousBlocMiddle h2") {
-		let mut genres_found = false;
-		
 		for h2 in h2_elements {
 			if let Some(h2_text) = h2.text() {
 				if h2_text.to_lowercase().contains("genres") {
-					genres_found = true;
-					// Chercher les liens suivant ce h2
+					// Chercher les liens suivant ce h2 spécifique
 					if let Some(parent) = h2.parent() {
 						if let Some(genre_links) = parent.select("a") {
 							for link in genre_links {
 								if let Some(genre_text) = link.text() {
 									let genre_raw = genre_text.trim();
 									if !genre_raw.is_empty() {
-										// Vérifier si ce genre contient des virgules
-										if genre_raw.contains(',') {
-											// Diviser par les virgules
-											for genre in genre_raw.split(',') {
-												let cleaned_genre = genre.trim();
-												if !cleaned_genre.is_empty() {
-													tags.push(cleaned_genre.to_string());
+										// Vérifier si c'est un vrai genre
+										if is_valid_genre(genre_raw) {
+											// Vérifier si ce genre contient des virgules
+											if genre_raw.contains(',') {
+												// Diviser par les virgules
+												for genre in genre_raw.split(',') {
+													let cleaned_genre = genre.trim();
+													if !cleaned_genre.is_empty() && is_valid_genre(cleaned_genre) {
+														tags.push(cleaned_genre.to_string());
+													}
 												}
+											} else {
+												// Genre unique valide
+												tags.push(genre_raw.to_string());
 											}
-										} else {
-											// Genre unique
-											tags.push(genre_raw.to_string());
 										}
 									}
 								}
 							}
 						}
 					}
-					break;
+					break; // Sortir une fois qu'on a trouvé la section Genres
 				}
 			}
 		}
@@ -256,7 +287,7 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 					
 					for genre in genres_line.split(',') {
 						let cleaned_genre = genre.trim();
-						if !cleaned_genre.is_empty() {
+						if !cleaned_genre.is_empty() && is_valid_genre(cleaned_genre) {
 							tags.push(cleaned_genre.to_string());
 						}
 					}
