@@ -1,8 +1,8 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, ContentRating, FilterValue, Manga, MangaPageResult, MangaStatus, Page, PageContent,
-	Result, Source, Viewer,
+	Chapter, ContentRating, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
+	MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, vec},
 	imports::std::send_partial_result,
 	prelude::*,
@@ -160,4 +160,78 @@ impl Source for AnimeSama {
 	}
 }
 
-register_source!(AnimeSama);
+impl ListingProvider for AnimeSama {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		match listing.id.as_str() {
+			"dernières-sorties" => {
+				// Simuler les dernières sorties avec nos mangas de test
+				let entries = vec![
+					Manga {
+						key: "/catalogue/one-piece".into(),
+						title: "One Piece".into(),
+						authors: Some(vec!["Eiichiro Oda".into()]),
+						artists: Some(vec!["Eiichiro Oda".into()]),
+						description: Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy.".into()),
+						url: Some(format!("{}/catalogue/one-piece", BASE_URL)),
+						cover: Some("https://anime-sama.fr/images/one-piece.jpg".into()),
+						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
+						status: MangaStatus::Ongoing,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::RightToLeft,
+						..Default::default()
+					},
+				];
+				Ok(MangaPageResult {
+					entries,
+					has_next_page: page < 2,
+				})
+			},
+			"populaire" => {
+				// Simuler les mangas populaires avec nos mangas de test
+				let entries = vec![
+					Manga {
+						key: "/catalogue/naruto".into(),
+						title: "Naruto".into(),
+						authors: Some(vec!["Masashi Kishimoto".into()]),
+						artists: Some(vec!["Masashi Kishimoto".into()]),
+						description: Some("L'histoire de Naruto Uzumaki, un jeune ninja.".into()),
+						url: Some(format!("{}/catalogue/naruto", BASE_URL)),
+						cover: Some("https://anime-sama.fr/images/naruto.jpg".into()),
+						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
+						status: MangaStatus::Completed,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::RightToLeft,
+						..Default::default()
+					},
+					Manga {
+						key: "/catalogue/one-piece".into(),
+						title: "One Piece".into(),
+						authors: Some(vec!["Eiichiro Oda".into()]),
+						artists: Some(vec!["Eiichiro Oda".into()]),
+						description: Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy.".into()),
+						url: Some(format!("{}/catalogue/one-piece", BASE_URL)),
+						cover: Some("https://anime-sama.fr/images/one-piece.jpg".into()),
+						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
+						status: MangaStatus::Ongoing,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::RightToLeft,
+						..Default::default()
+					},
+				];
+				Ok(MangaPageResult {
+					entries,
+					has_next_page: page < 2,
+				})
+			},
+			_ => {
+				// Listing ID non reconnu, retourner résultat vide
+				Ok(MangaPageResult {
+					entries: vec![],
+					has_next_page: false,
+				})
+			}
+		}
+	}
+}
+
+register_source!(AnimeSama, ListingProvider);
