@@ -24,17 +24,29 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 				let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
 				
+				// Nettoyer l'URL pour enlever /scan/vf/ et obtenir l'URL de base du manga
+				let clean_url = if relative_url.contains("/scan/vf/") || relative_url.contains("/scan_noir-et-blanc/vf/") {
+					let parts: Vec<&str> = relative_url.split("/scan").collect();
+					if parts.len() > 1 {
+						parts[0].to_string()
+					} else {
+						relative_url.clone()
+					}
+				} else {
+					relative_url.clone()
+				};
+				
 				mangas.push(Manga {
-					key: relative_url.clone(),
+					key: clean_url.clone(),
 					cover: if !cover_url.is_empty() { Some(cover_url) } else { None },
 					title,
 					authors: None,
 					artists: None,
 					description: None,
-					url: Some(if relative_url.starts_with("http") {
-						relative_url.clone()
+					url: Some(if clean_url.starts_with("http") {
+						clean_url.clone()
 					} else {
-						format!("{}{}", BASE_URL, relative_url)
+						format!("{}{}", BASE_URL, clean_url)
 					}),
 					tags: Some(Vec::new()),
 					status: MangaStatus::Unknown,
@@ -70,17 +82,29 @@ pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPa
 					let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 					let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
 					
+					// Nettoyer l'URL pour enlever /scan/vf/ et obtenir l'URL de base du manga
+					let clean_url = if relative_url.contains("/scan/vf/") || relative_url.contains("/scan_noir-et-blanc/vf/") {
+						let parts: Vec<&str> = relative_url.split("/scan").collect();
+						if parts.len() > 1 {
+							parts[0].to_string()
+						} else {
+							relative_url.clone()
+						}
+					} else {
+						relative_url.clone()
+					};
+					
 					mangas.push(Manga {
-						key: relative_url.clone(),
+						key: clean_url.clone(),
 						cover: if !cover_url.is_empty() { Some(cover_url) } else { None },
 						title,
 						authors: None,
 						artists: None,
 						description: None,
-						url: Some(if relative_url.starts_with("http") {
-							relative_url.clone()
+						url: Some(if clean_url.starts_with("http") {
+							clean_url.clone()
 						} else {
-							format!("{}{}", BASE_URL, relative_url)
+							format!("{}{}", BASE_URL, clean_url)
 						}),
 						tags: Some(Vec::new()),
 						status: MangaStatus::Unknown,
@@ -390,14 +414,14 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	}
 	
-	// Sort chapters by chapter number (most recent first for AnimeSama)
+	// Sort chapters by chapter number (oldest first as default)
 	chapters.sort_by(|a, b| {
 		let a_num = a.chapter_number.unwrap_or(0.0);
 		let b_num = b.chapter_number.unwrap_or(0.0);
-		if b_num > a_num {
-			core::cmp::Ordering::Less
-		} else if b_num < a_num {
+		if a_num > b_num {
 			core::cmp::Ordering::Greater
+		} else if a_num < b_num {
+			core::cmp::Ordering::Less
 		} else {
 			core::cmp::Ordering::Equal
 		}
