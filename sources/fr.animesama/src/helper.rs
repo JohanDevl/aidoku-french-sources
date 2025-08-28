@@ -1,8 +1,5 @@
 use aidoku::{
-	Result, AidokuError,
 	alloc::{String, Vec, format},
-	imports::net::Request,
-	prelude::*,
 };
 
 pub fn urlencode(text: &str) -> String {
@@ -105,7 +102,3 @@ pub fn _urldecode(text: &str) -> String {
 	result
 }
 
-pub fn _request_text(url: &str) -> Result<String> {
-	// Placeholder implementation for stable version
-	Ok(String::from(""))
-}
