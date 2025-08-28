@@ -3,7 +3,7 @@
 use aidoku::{
 	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
 	Page, Result, Source,
-	alloc::{String, Vec, vec},
+	alloc::{String, Vec, vec, string::ToString},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
@@ -50,15 +50,38 @@ impl Source for AnimeSama {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_url = if manga.key.starts_with("http") {
-			manga.key.clone()
+		// Construire l'URL de base du manga (sans /scan/vf/) pour les détails
+		let base_manga_url = if manga.key.starts_with("http") {
+			// Si c'est une URL complète, s'assurer qu'elle ne contient pas /scan/vf/
+			if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
+				// Retirer la partie /scan.../vf/... pour avoir l'URL de base
+				let parts: Vec<&str> = manga.key.split("/scan").collect();
+				if parts.len() > 1 {
+					parts[0].to_string()
+				} else {
+					manga.key.clone()
+				}
+			} else {
+				manga.key.clone()
+			}
 		} else {
-			format!("{}{}", BASE_URL, manga.key)
+			// S'assurer que manga.key ne contient pas /scan/vf/
+			let clean_key = if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
+				let parts: Vec<&str> = manga.key.split("/scan").collect();
+				if parts.len() > 1 {
+					parts[0]
+				} else {
+					&manga.key
+				}
+			} else {
+				&manga.key
+			};
+			format!("{}{}", BASE_URL, clean_key)
 		};
 		
 		if needs_details {
-			// Faire une requête pour récupérer les détails du manga
-			let html = Request::get(&manga_url)?.html()?;
+			// Faire une requête pour récupérer les détails du manga (URL de base)
+			let html = Request::get(&base_manga_url)?.html()?;
 			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
@@ -79,8 +102,8 @@ impl Source for AnimeSama {
 		}
 
 		if needs_chapters {
-			// Faire une requête pour récupérer la liste des chapitres
-			let html = Request::get(&manga_url)?.html()?;
+			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
+			let html = Request::get(&base_manga_url)?.html()?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
@@ -91,10 +114,39 @@ impl Source for AnimeSama {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		// Construire l'URL du chapitre si elle n'existe pas
 		let chapter_url = chapter.url.unwrap_or_else(|| {
-			if manga.key.starts_with("http") {
-				format!("{}/scan/vf/{}", manga.key, chapter.key)
+			// Nettoyer manga.key pour s'assurer qu'il ne contient pas déjà /scan/vf/
+			let clean_manga_key = if manga.key.starts_with("http") {
+				if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
+					let parts: Vec<&str> = manga.key.split("/scan").collect();
+					if parts.len() > 1 {
+						parts[0].to_string()
+					} else {
+						manga.key.clone()
+					}
+				} else {
+					manga.key.clone()
+				}
 			} else {
-				format!("{}{}/scan/vf/{}", BASE_URL, manga.key, chapter.key)
+				if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
+					let parts: Vec<&str> = manga.key.split("/scan").collect();
+					if parts.len() > 1 {
+						parts[0].to_string()
+					} else {
+						manga.key.clone()
+					}
+				} else {
+					manga.key.clone()
+				}
+			};
+			
+			// Déterminer le scan path (One Piece special case)
+			let is_one_piece = clean_manga_key.contains("one-piece") || clean_manga_key.contains("one_piece");
+			let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+			
+			if clean_manga_key.starts_with("http") {
+				format!("{}{}{}", clean_manga_key, scan_path, chapter.key)
+			} else {
+				format!("{}{}{}{}", BASE_URL, clean_manga_key, scan_path, chapter.key)
 			}
 		});
 		
