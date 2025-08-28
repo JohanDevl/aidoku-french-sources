@@ -4,15 +4,14 @@ use aidoku::{
 	Chapter, ContentRating, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
 	MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, vec},
-	imports::std::send_partial_result,
+	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
 
 
 // Modules contenant la logique de parsing sophistiquée d'AnimeSama
-// TODO: Réactiver quand les API seront adaptées pour aidoku
-// pub mod parser;
-// pub mod helper;
+pub mod parser;
+pub mod helper;
 
 pub const BASE_URL: &str = "https://anime-sama.fr";
 pub const CDN_URL: &str = "https://anime-sama.fr/s2/scans";
@@ -30,51 +29,19 @@ impl Source for AnimeSama {
 		page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		// Test avec des mangas hardcodés pour vérifier que l'interface fonctionne
-		let mut entries = vec![
-			Manga {
-				key: "/catalogue/one-piece".into(),
-				title: "One Piece".into(),
-				authors: Some(vec!["Eiichiro Oda".into()]),
-				artists: Some(vec!["Eiichiro Oda".into()]),
-				description: Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy.".into()),
-				url: Some(format!("{}/catalogue/one-piece", BASE_URL)),
-				cover: Some("https://anime-sama.fr/images/one-piece.jpg".into()),
-				tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
-				status: MangaStatus::Ongoing,
-				content_rating: ContentRating::Safe,
-				viewer: Viewer::RightToLeft,
-				..Default::default()
-			},
-			Manga {
-				key: "/catalogue/naruto".into(),
-				title: "Naruto".into(),
-				authors: Some(vec!["Masashi Kishimoto".into()]),
-				artists: Some(vec!["Masashi Kishimoto".into()]),
-				description: Some("L'histoire de Naruto Uzumaki, un jeune ninja.".into()),
-				url: Some(format!("{}/catalogue/naruto", BASE_URL)),
-				cover: Some("https://anime-sama.fr/images/naruto.jpg".into()),
-				tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
-				status: MangaStatus::Completed,
-				content_rating: ContentRating::Safe,
-				viewer: Viewer::RightToLeft,
-				..Default::default()
-			},
-		];
-
-		// Si une query est fournie, filtrer les résultats
+		// Construire l'URL de recherche pour anime-sama.fr
+		let mut url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
+		
+		// Ajouter la query de recherche si fournie
 		if let Some(search_query) = query {
-			let search_lower = search_query.to_lowercase();
-			entries = entries
-				.into_iter()
-				.filter(|manga| manga.title.to_lowercase().contains(&search_lower))
-				.collect();
+			url.push_str(&format!("&search={}", helper::urlencode(&search_query)));
 		}
-
-		Ok(MangaPageResult {
-			entries,
-			has_next_page: page < 2, // Simuler la pagination
-		})
+		
+		// Faire la requête HTTP
+		let html = Request::get(&url)?.html()?;
+		
+		// Parser les résultats
+		parser::parse_manga_list(html)
 	}
 
 	fn get_manga_update(
@@ -83,18 +50,24 @@ impl Source for AnimeSama {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		// Test avec des données hardcodées pour One Piece
+		let manga_url = format!("{}{}", BASE_URL, manga.key);
+		
 		if needs_details {
-			manga.title = "One Piece".into();
-			manga.authors = Some(vec!["Eiichiro Oda".into()]);
-			manga.artists = Some(vec!["Eiichiro Oda".into()]);
-			manga.description = Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy, un jeune homme dont le corps a acquis les propriétés du caoutchouc après avoir mangé un fruit du démon. Avec son équipage de pirates, il explore Grand Line à la recherche du trésor ultime connu sous le nom de 'One Piece'.".into());
-			manga.url = Some(format!("{}{}", BASE_URL, manga.key));
-			manga.cover = Some("https://anime-sama.fr/images/one-piece-cover.jpg".into());
-			manga.tags = Some(vec!["Action".into(), "Aventure".into(), "Comédie".into(), "Shonen".into()]);
-			manga.status = MangaStatus::Ongoing;
-			manga.content_rating = ContentRating::Safe;
-			manga.viewer = Viewer::RightToLeft;
+			// Faire une requête pour récupérer les détails du manga
+			let html = Request::get(&manga_url)?.html()?;
+			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
+			
+			// Mettre à jour les champs du manga avec les détails récupérés
+			manga.title = detailed_manga.title;
+			manga.authors = detailed_manga.authors;
+			manga.artists = detailed_manga.artists;
+			manga.description = detailed_manga.description;
+			manga.url = detailed_manga.url;
+			manga.cover = detailed_manga.cover;
+			manga.tags = detailed_manga.tags;
+			manga.status = detailed_manga.status;
+			manga.content_rating = detailed_manga.content_rating;
+			manga.viewer = detailed_manga.viewer;
 
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -102,61 +75,26 @@ impl Source for AnimeSama {
 		}
 
 		if needs_chapters {
-			// Test avec quelques chapitres de One Piece
-			manga.chapters = Some(vec![
-				Chapter {
-					key: "1".into(),
-					title: Some("Romance Dawn".into()),
-					chapter_number: Some(1.0),
-					volume_number: Some(1.0),
-					date_uploaded: Some(1640995200),
-					scanlators: Some(vec!["AnimeSama".into()]),
-					url: Some(format!("{}/catalogue/one-piece/scan/vf/1", BASE_URL)),
-					..Default::default()
-				},
-				Chapter {
-					key: "2".into(),
-					title: Some("L'homme au chapeau de paille".into()),
-					chapter_number: Some(2.0),
-					volume_number: Some(1.0),
-					date_uploaded: Some(1640995200),
-					scanlators: Some(vec!["AnimeSama".into()]),
-					url: Some(format!("{}/catalogue/one-piece/scan/vf/2", BASE_URL)),
-					..Default::default()
-				},
-				Chapter {
-					key: "3".into(),
-					title: Some("Entrez : Pirate Hunter Roronoa Zoro".into()),
-					chapter_number: Some(3.0),
-					volume_number: Some(1.0),
-					date_uploaded: Some(1640995200),
-					scanlators: Some(vec!["AnimeSama".into()]),
-					url: Some(format!("{}/catalogue/one-piece/scan/vf/3", BASE_URL)),
-					..Default::default()
-				},
-			]);
+			// Faire une requête pour récupérer la liste des chapitres
+			let html = Request::get(&manga_url)?.html()?;
+			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
+			manga.chapters = Some(chapters);
 		}
 
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		// Test avec des pages de One Piece chapitre 1
-		let chapter_num = chapter.key.parse::<i32>().unwrap_or(1);
-		let mut pages = Vec::new();
-
-		// Générer 5 pages de test
-		for i in 1..=5 {
-			let page_url = format!("{}/s2/scans/one_piece/{}/{:03}.jpg", CDN_URL, chapter_num, i);
-			pages.push(Page {
-				content: PageContent::url(page_url),
-				has_description: false,
-				description: None,
-				thumbnail: None,
-			});
-		}
-
-		Ok(pages)
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		// Construire l'URL du chapitre si elle n'existe pas
+		let chapter_url = chapter.url.unwrap_or_else(|| {
+			format!("{}{}/scan/vf/{}", BASE_URL, manga.key, chapter.key)
+		});
+		
+		// Faire une requête pour récupérer la page du chapitre
+		let html = Request::get(&chapter_url)?.html()?;
+		
+		// Parser les pages depuis le HTML ou utiliser la logique CDN
+		parser::parse_page_list(html, manga.key, chapter.key)
 	}
 }
 
@@ -164,64 +102,15 @@ impl ListingProvider for AnimeSama {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
-				// Simuler les dernières sorties avec nos mangas de test
-				let entries = vec![
-					Manga {
-						key: "/catalogue/one-piece".into(),
-						title: "One Piece".into(),
-						authors: Some(vec!["Eiichiro Oda".into()]),
-						artists: Some(vec!["Eiichiro Oda".into()]),
-						description: Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy.".into()),
-						url: Some(format!("{}/catalogue/one-piece", BASE_URL)),
-						cover: Some("https://anime-sama.fr/images/one-piece.jpg".into()),
-						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
-						status: MangaStatus::Ongoing,
-						content_rating: ContentRating::Safe,
-						viewer: Viewer::RightToLeft,
-						..Default::default()
-					},
-				];
-				Ok(MangaPageResult {
-					entries,
-					has_next_page: page < 2,
-				})
+				// Faire une requête vers la page d'accueil pour les dernières sorties
+				let html = Request::get(BASE_URL)?.html()?;
+				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
-				// Simuler les mangas populaires avec nos mangas de test
-				let entries = vec![
-					Manga {
-						key: "/catalogue/naruto".into(),
-						title: "Naruto".into(),
-						authors: Some(vec!["Masashi Kishimoto".into()]),
-						artists: Some(vec!["Masashi Kishimoto".into()]),
-						description: Some("L'histoire de Naruto Uzumaki, un jeune ninja.".into()),
-						url: Some(format!("{}/catalogue/naruto", BASE_URL)),
-						cover: Some("https://anime-sama.fr/images/naruto.jpg".into()),
-						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
-						status: MangaStatus::Completed,
-						content_rating: ContentRating::Safe,
-						viewer: Viewer::RightToLeft,
-						..Default::default()
-					},
-					Manga {
-						key: "/catalogue/one-piece".into(),
-						title: "One Piece".into(),
-						authors: Some(vec!["Eiichiro Oda".into()]),
-						artists: Some(vec!["Eiichiro Oda".into()]),
-						description: Some("L'histoire de One Piece suit les aventures de Monkey D. Luffy.".into()),
-						url: Some(format!("{}/catalogue/one-piece", BASE_URL)),
-						cover: Some("https://anime-sama.fr/images/one-piece.jpg".into()),
-						tags: Some(vec!["Action".into(), "Aventure".into(), "Shonen".into()]),
-						status: MangaStatus::Ongoing,
-						content_rating: ContentRating::Safe,
-						viewer: Viewer::RightToLeft,
-						..Default::default()
-					},
-				];
-				Ok(MangaPageResult {
-					entries,
-					has_next_page: page < 2,
-				})
+				// Faire une requête vers le catalogue pour les mangas populaires
+				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
+				let html = Request::get(&url)?.html()?;
+				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {
 				// Listing ID non reconnu, retourner résultat vide
