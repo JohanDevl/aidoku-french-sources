@@ -22,3 +22,5 @@ wasm-ld
 .claude/
 CLAUDE.md
 .mcp.json
+
+src/

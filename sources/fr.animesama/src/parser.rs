@@ -24,14 +24,12 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 				let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
 				
-				// Nettoyer l'URL pour enlever /scan/vf/ et obtenir l'URL de base du manga
-				let clean_url = if relative_url.contains("/scan/vf/") || relative_url.contains("/scan_noir-et-blanc/vf/") {
-					let parts: Vec<&str> = relative_url.split("/scan").collect();
-					if parts.len() > 1 {
-						parts[0].to_string()
-					} else {
-						relative_url.clone()
-					}
+				// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
+				// Exactement comme dans l'ancienne version
+				let clean_url = if relative_url.contains("/scan/vf/") {
+					relative_url.replace("/scan/vf/", "")
+				} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
+					relative_url.replace("/scan_noir-et-blanc/vf/", "")
 				} else {
 					relative_url.clone()
 				};
@@ -82,14 +80,12 @@ pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPa
 					let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 					let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
 					
-					// Nettoyer l'URL pour enlever /scan/vf/ et obtenir l'URL de base du manga
-					let clean_url = if relative_url.contains("/scan/vf/") || relative_url.contains("/scan_noir-et-blanc/vf/") {
-						let parts: Vec<&str> = relative_url.split("/scan").collect();
-						if parts.len() > 1 {
-							parts[0].to_string()
-						} else {
-							relative_url.clone()
-						}
+					// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
+					// Exactement comme dans l'ancienne version
+					let clean_url = if relative_url.contains("/scan/vf/") {
+						relative_url.replace("/scan/vf/", "")
+					} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
+						relative_url.replace("/scan_noir-et-blanc/vf/", "")
 					} else {
 						relative_url.clone()
 					};
@@ -146,81 +142,48 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		})
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
 	
-	// Parser la description/synopsis avec la méthode AnimeSama précise
-	let description = html.select("#sousBlocMiddle h2")
-		.and_then(|h2_elements| {
-			// Chercher le h2 qui contient "Synopsis"
-			for h2 in h2_elements {
-				if let Some(h2_text) = h2.text() {
-					if h2_text.to_lowercase().contains("synopsis") {
-						// Trouver le prochain élément p après ce h2
-						if let Some(parent) = h2.parent() {
-							if let Some(siblings) = parent.select("p") {
-								for p in siblings {
-									if let Some(p_text) = p.text() {
-										let trimmed = p_text.trim();
-										if !trimmed.is_empty() && trimmed.len() > 10 {
-											return Some(trimmed.to_string());
-										}
-									}
-								}
+	// Extraire la description depuis le synopsis (h2:contains(Synopsis)+p)
+	// Exactement comme dans l'ancienne version
+	let description = if let Some(synopsis_elements) = html.select("#sousBlocMiddle p") {
+		// Chercher le premier paragraphe qui suit un h2 contenant "Synopsis"
+		let mut found_synopsis = false;
+		let full_text = html.select("#sousBlocMiddle").and_then(|els| els.text()).unwrap_or_default();
+		
+		if full_text.to_uppercase().contains("SYNOPSIS") {
+			// Trouver le paragraphe après Synopsis
+			for para in synopsis_elements {
+				if let Some(para_text) = para.text() {
+					let trimmed = para_text.trim();
+					if !trimmed.is_empty() && trimmed.len() > 20 && !trimmed.to_uppercase().contains("GENRES") {
+						found_synopsis = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		if found_synopsis {
+			// Récupérer le premier paragraphe substantiel
+			html.select("#sousBlocMiddle p")
+				.and_then(|paras| {
+					for para in paras {
+						if let Some(text) = para.text() {
+							let trimmed = text.trim();
+							if !trimmed.is_empty() && trimmed.len() > 20 {
+								return Some(trimmed.to_string());
 							}
 						}
 					}
-				}
-			}
+					None
+				})
+		} else {
 			None
-		})
-		.or_else(|| {
-			// Fallback 1: Chercher directement dans sousBlocMiddle p (version moins restrictive)
-			html.select("#sousBlocMiddle p").and_then(|paras| {
-				for para in paras {
-					if let Some(text) = para.text() {
-						let trimmed = text.trim();
-						// Plus permissif: au moins 20 caractères, éviter les métadonnées courtes
-						if trimmed.len() > 20 
-							&& !trimmed.to_uppercase().contains("GENRES") 
-							&& !trimmed.to_uppercase().contains("TYPE")
-							&& !trimmed.to_uppercase().contains("AUTEUR")
-							&& !trimmed.contains("http") {
-							return Some(trimmed.to_string());
-						}
-					}
-				}
-				None
-			})
-		})
-		.or_else(|| {
-			// Fallback 2: Autres sélecteurs de description
-			let selectors = vec![".synopsis", ".description", ".manga-description", "#synopsis p", ".manga-synopsis"];
-			for selector in selectors {
-				if let Some(desc) = html.select(selector).and_then(|els| els.text()) {
-					let trimmed = desc.trim();
-					if !trimmed.is_empty() && trimmed.len() > 20 {
-						return Some(trimmed.to_string());
-					}
-				}
-			}
-			None
-		})
-		.or_else(|| {
-			// Fallback 3: Paragraphe substantiel quelque part sur la page
-			html.select("p").and_then(|paras| {
-				for para in paras {
-					if let Some(text) = para.text() {
-						let trimmed = text.trim();
-						if trimmed.len() > 80 
-							&& !trimmed.contains("http") 
-							&& !trimmed.to_uppercase().contains("COOKIE")
-							&& !trimmed.to_uppercase().contains("NAVIGATION") {
-							return Some(trimmed.to_string());
-						}
-					}
-				}
-				None
-			})
-		})
-		.unwrap_or_else(|| "Manga disponible sur AnimeSama".to_string());
+		}
+	} else {
+		None
+	};
+	
+	let description = description.unwrap_or_else(|| "Manga disponible sur AnimeSama".to_string());
 	
 	// Parser la couverture avec fallback
 	let cover = html.select("#coverOeuvre")
@@ -244,79 +207,66 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 			}
 		});
 	
-	// Parser les genres avec méthodes multiples
-	let mut tags = Vec::new();
+	// Extraire les genres depuis les liens après h2:contains(Genres)
+	// Exactement comme dans l'ancienne version
+	let mut tags: Vec<String> = Vec::new();
 	
-	// Méthode 1: liens dans sousBlocMiddle
+	// Méthode 1: Essayer de récupérer les liens de genres individuellement
 	if let Some(genre_links) = html.select("#sousBlocMiddle a") {
 		for link in genre_links {
 			if let Some(genre_text) = link.text() {
-				let text = genre_text.trim();
-				if !text.is_empty() && text.len() < 30 && !text.contains("http") {
-					tags.push(text.to_string());
-				}
-			}
-		}
-	}
-	
-	// Méthode 2: chercher dans le texte de la page
-	if tags.is_empty() {
-		if let Some(page_text) = html.select("body").and_then(|els| els.text()) {
-			if let Some(genres_pos) = page_text.find("GENRES") {
-				let after_genres = &page_text[genres_pos..];
-				if let Some(colon_pos) = after_genres.find(':') {
-					let genres_section = &after_genres[colon_pos + 1..];
-					if let Some(end_pos) = genres_section.find('\n') {
-						let genres_line = &genres_section[..end_pos];
-						for genre in genres_line.split(',') {
-							let trimmed = genre.trim().replace("\"", "").replace("'", "");
-							if !trimmed.is_empty() && trimmed.len() < 30 {
-								tags.push(trimmed);
+				let genre_raw = genre_text.trim();
+				if !genre_raw.is_empty() && genre_raw.len() < 50 {
+					// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
+					if genre_raw.contains(',') {
+						// Diviser par les virgules et ajouter chaque genre individuellement
+						for genre in genre_raw.split(',') {
+							let cleaned_genre = genre.trim();
+							if !cleaned_genre.is_empty() {
+								tags.push(cleaned_genre.to_string());
 							}
 						}
+					} else {
+						// Genre unique, l'ajouter directement
+						tags.push(genre_raw.to_string());
 					}
 				}
 			}
 		}
 	}
 	
-	// Méthode 3: sélecteurs standards pour genres
+	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres
 	if tags.is_empty() {
-		let selectors = vec![".genres a", ".tags a", ".genre", ".tag"];
-		for selector in selectors {
-			if let Some(genre_elements) = html.select(selector) {
-				for element in genre_elements {
-					if let Some(text) = element.text() {
-						let trimmed = text.trim();
-						if !trimmed.is_empty() && trimmed.len() < 30 {
-							tags.push(trimmed.to_string());
+		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
+		if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
+			// Chercher la section GENRES dans le texte
+			if let Some(genres_start) = full_text.find("GENRES") {
+				let genres_section = &full_text[genres_start..];
+				
+				// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
+				if let Some(first_line_end) = genres_section.find('\n') {
+					let genres_line = &genres_section[7..first_line_end]; // Skip "GENRES\n"
+					let genres_line = genres_line.trim();
+					
+					// Diviser par les virgules et nettoyer chaque genre
+					for genre in genres_line.split(',') {
+						let cleaned_genre = genre.trim();
+						if !cleaned_genre.is_empty() {
+							tags.push(cleaned_genre.to_string());
 						}
 					}
 				}
-				if !tags.is_empty() {
-					break;
-				}
 			}
 		}
 	}
 	
-	// Parser le statut si possible
-	let status = if let Some(status_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
-		if status_text.contains("Terminé") || status_text.contains("Fini") {
-			MangaStatus::Completed
-		} else if status_text.contains("En cours") || status_text.contains("Ongoing") {
-			MangaStatus::Ongoing
-		} else {
-			MangaStatus::Unknown
-		}
-	} else {
-		MangaStatus::Ongoing // Défaut pour AnimeSama
-	};
-	
-	// Si aucun genre trouvé, ajouter des genres par défaut
+	// Ajouter "Manga" par défaut si aucun genre trouvé
 	if tags.is_empty() {
 		tags.push("Manga".to_string());
 	}
+	
+	// Parser le statut - exactement comme dans l'ancienne version
+	let status = MangaStatus::Unknown;
 	
 	Ok(Manga {
 		key: manga_key.clone(),
@@ -414,14 +364,15 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	}
 	
-	// Sort chapters by chapter number (oldest first as default)
+	// Tri par numéro de chapitre (du plus récent au plus ancien)
+	// Exactement comme dans l'ancienne version
 	chapters.sort_by(|a, b| {
 		let a_num = a.chapter_number.unwrap_or(0.0);
 		let b_num = b.chapter_number.unwrap_or(0.0);
-		if a_num > b_num {
-			core::cmp::Ordering::Greater
-		} else if a_num < b_num {
+		if b_num > a_num {
 			core::cmp::Ordering::Less
+		} else if b_num < a_num {
+			core::cmp::Ordering::Greater
 		} else {
 			core::cmp::Ordering::Equal
 		}
