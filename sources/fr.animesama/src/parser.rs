@@ -392,17 +392,16 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
-	// Récupérer le contenu JavaScript pour chercher les variables eps
-	let html_content = html.select("script").and_then(|scripts| {
+	// Récupérer le contenu JavaScript complet pour chercher les variables eps
+	let mut html_content = String::new();
+	if let Some(scripts) = html.select("script") {
 		for script in scripts {
 			if let Some(script_text) = script.text() {
-				if script_text.contains("eps") && script_text.contains(&chapter_key) {
-					return Some(script_text);
-				}
+				html_content.push_str(&script_text);
+				html_content.push('\n');
 			}
 		}
-		None
-	}).unwrap_or_default();
+	}
 	
 	// Méthode 1: Chercher les variables d'épisode JavaScript (ex: eps1, eps2)
 	let episode_pattern = format!("eps{}", chapter_key);
@@ -504,7 +503,6 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
-		let html_content = String::new(); // TODO: Extract HTML content properly
 		let page_count = parse_episodes_js_from_html(&html_content, chapter_index);
 		
 		if page_count > 0 {
@@ -766,9 +764,9 @@ fn build_chapter_url(manga_key: &str, chapter_index: i32) -> String {
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
 	
 	if manga_key.starts_with("http") {
-		format!("{}{}{}", manga_key, scan_path, chapter_index)
+		format!("{}{}?id={}", manga_key, scan_path, chapter_index)
 	} else {
-		format!("{}{}{}{}", BASE_URL, manga_key, scan_path, chapter_index)
+		format!("{}{}{}?id={}", BASE_URL, manga_key, scan_path, chapter_index)
 	}
 }
 

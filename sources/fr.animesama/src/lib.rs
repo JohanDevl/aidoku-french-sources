@@ -144,9 +144,9 @@ impl Source for AnimeSama {
 			let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
 			
 			if clean_manga_key.starts_with("http") {
-				format!("{}{}{}", clean_manga_key, scan_path, chapter.key)
+				format!("{}{}?id={}", clean_manga_key, scan_path, chapter.key)
 			} else {
-				format!("{}{}{}{}", BASE_URL, clean_manga_key, scan_path, chapter.key)
+				format!("{}{}{}?id={}", BASE_URL, clean_manga_key, scan_path, chapter.key)
 			}
 		});
 		
