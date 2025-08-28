@@ -1,5 +1,9 @@
-use aidoku_stable::prelude::*;
-use alloc::{string::String, vec::Vec, format};
+use aidoku::{
+	Result, AidokuError,
+	alloc::{String, Vec, format},
+	imports::net::Request,
+	prelude::*,
+};
 
 pub fn urlencode(text: &str) -> String {
 	let mut result = String::new();

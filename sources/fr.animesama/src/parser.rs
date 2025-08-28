@@ -1,5 +1,10 @@
-use aidoku_stable::prelude::*;
-use alloc::{string::String, vec::Vec, format};
+use aidoku::{
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
+	Viewer, AidokuError,
+	alloc::{String, Vec, format, vec},
+	imports::{html::Element, net::Request},
+	prelude::*,
+};
 use core::cmp::Ordering;
 
 use crate::{BASE_URL, CDN_URL, helper};
@@ -113,7 +118,7 @@ fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
 	if default_max_chapter > 0 {
 		Ok(default_max_chapter)
 	} else {
-		Err(AidokuError::new("No chapters found"))
+		Err(AidokuError::message("No chapters found"))
 	}
 }
 
@@ -162,7 +167,7 @@ fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -
 }
 
 // Helper pour construire l'URL correctement
-fn build_chapter_url(manga_id: &str) -> String {
+fn build_chapter_url(manga_key: &str) -> String {
 	// Cas spécial pour One Piece qui utilise scan_noir-et-blanc
 	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
@@ -187,7 +192,7 @@ fn build_manga_url(manga_id_or_url: &str) -> String {
 	}
 }
 
-pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
+pub fn parse_manga_list(html: Element) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
 	// Sélecteur pour les éléments manga dans le catalogue
@@ -203,7 +208,7 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 		let cover_url = element.select("img").attr("src").read();
 		
 		mangas.push(Manga {
-			id: relative_url.clone(),
+			key: relative_url.clone(),
 			cover: Some(cover_url),
 			title,
 			author: None,
@@ -226,7 +231,7 @@ pub fn parse_manga_list(html: Node) -> Result<MangaPageResult> {
 	})
 }
 
-pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageResult> {
+pub fn parse_manga_listing(html: Element, listing_type: &str) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
 	if listing_type == "Dernières Sorties" {
@@ -248,7 +253,7 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 			let cover_url = element.select("img").attr("src").read();
 			
 			mangas.push(Manga {
-				id: relative_url.clone(),
+				key: relative_url.clone(),
 				cover: Some(cover_url),
 				title,
 				author: None,
@@ -274,7 +279,7 @@ pub fn parse_manga_listing(html: Node, listing_type: &str) -> Result<MangaPageRe
 	})
 }
 
-pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
+pub fn parse_manga_details(manga_key: String, html: Element) -> Result<Manga> {
 	// Extraire le titre depuis l'élément #titreOeuvre
 	let manga_title = if !html.select("#titreOeuvre").text().read().trim().is_empty() {
 		String::from(html.select("#titreOeuvre").text().read().trim())
@@ -371,7 +376,7 @@ pub fn parse_manga_details(manga_id: String, html: Node) -> Result<Manga> {
 	};
 	
 	Ok(Manga {
-		id: manga_id.clone(),
+		key: manga_id.clone(),
 		cover: Some(cover),
 		title: manga_title,
 		author: None,
@@ -400,7 +405,7 @@ fn _get_chapters_from_api(manga_title: &str) -> Result<Vec<i32>> {
 	chapters.sort_unstable();
 	
 	if chapters.is_empty() {
-		return Err(AidokuError::new("No chapters found"));
+		return Err(AidokuError::message("No chapters found"));
 	}
 	
 	Ok(chapters)
@@ -419,11 +424,11 @@ fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 	if default_page_count > 0 {
 		Ok(default_page_count)
 	} else {
-		Err(AidokuError::new("No pages found for chapter"))
+		Err(AidokuError::message("No pages found for chapter"))
 	}
 }
 
-pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _request_url: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_dynamic_with_debug(manga_key: String, html: Element, _request_url: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Extraire le titre du manga depuis le HTML
@@ -470,30 +475,28 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 		if let Some(mapping) = chapter_mappings.iter().find(|m| m.index == index) {
 			// Utiliser le mapping JavaScript
 			chapters.push(Chapter {
-				id: format!("{}", mapping.index),
+				key: format!("{}", mapping.index),
 				title: Some(mapping.title.clone()),
-				volume: None,
-				chapter: Some(mapping.chapter_number),
-				date_updated: None,
-				scanlator: None,
+				volume_number: None,
+				chapter_number: Some(mapping.chapter_number),
+				date_uploaded: None,
+				scanlators: None,
 				url: None,
-				lang: String::from("fr")
-			});
+				});
 		} else {
 			// Pas de mapping, utiliser numérotation normale
 			// MAIS ajuster pour les chapitres spéciaux qui "décalent" la numérotation
 			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings);
 			
 			chapters.push(Chapter {
-				id: format!("{}", index),
+				key: format!("{}", index),
 				title: Some(format!("Chapitre {}", chapter_number as i32)),
-				volume: None,
-				chapter: Some(chapter_number),
-				date_updated: None,
-				scanlator: None,
+				volume_number: None,
+				chapter_number: Some(chapter_number),
+				date_uploaded: None,
+				scanlators: None,
 				url: None,
-				lang: String::from("fr")
-			});
+				});
 		}
 	}
 	
@@ -502,7 +505,7 @@ pub fn parse_chapter_list_dynamic_with_debug(manga_id: String, html: Node, _requ
 	Ok(chapters)
 }
 
-pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_with_debug(manga_key: String, _dummy_html: Element, _request_url: String, _error_info: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Défaut simple : 50 chapitres
@@ -511,14 +514,13 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _reque
 	// Générer les chapitres avec le count adapté
 	for i in 1..=chapter_count {
 		chapters.push(Chapter {
-			id: format!("{}", i),
+			key: format!("{}", i),
 			title: Some(format!("Chapitre {}", i)),
-			volume: None,
-			chapter: Some(i as f32),
-			date_updated: None,
-			scanlator: None,
+			volume_number: None,
+			chapter_number: Some(i as f32),
+			date_uploaded: None,
+			scanlators: None,
 			url: Some(build_chapter_url(&manga_id)),
-			lang: String::from("fr")
 		});
 	}
 	
@@ -529,7 +531,7 @@ pub fn parse_chapter_list_with_debug(manga_id: String, _dummy_html: Node, _reque
 }
 
 // Fonction pour parser episodes.js (méthode Tachiyomi)
-fn _parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
+fn _parse_episodes_js(manga_key: &str, html: &Element) -> Result<Vec<Chapter>> {
 	// Extraire le titre du manga depuis l'élément titreOeuvre
 	let manga_title = html.select("#titreOeuvre").text().read();
 	if manga_title.is_empty() {
@@ -558,7 +560,7 @@ fn _parse_episodes_js(manga_id: &str, html: &Node) -> Result<Vec<Chapter>> {
 }
 
 // Fonction pour parser directement le select HTML (méthode prioritaire)
-fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
+fn _parse_chapter_list_from_select(html: &Element) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// NOUVEAU: Parser directement le HTML brut au lieu d'utiliser les sélecteurs CSS
@@ -576,28 +578,26 @@ fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			// Succès avec parsing HTML brut
 			for chapter_num in &regex_chapters {
 				chapters.push(Chapter {
-					id: format!("{}", chapter_num),
+					key: format!("{}", chapter_num),
 					title: Some(format!("Chapitre {}", chapter_num)),
-					volume: None,
-					chapter: Some(*chapter_num as f32),
-					date_updated: None,
-					scanlator: None,
+					volume_number: None,
+					chapter_number: Some(*chapter_num as f32),
+					date_uploaded: None,
+					scanlators: None,
 					url: None, // Sera rempli plus tard par build_chapter_url
-					lang: String::from("fr")
-				});
+						});
 			}
 			
 			// Debug pour confirmer le succès
 			chapters.push(Chapter {
-				id: String::from("debug_regex_success"),
+				key: String::from("debug_regex_success"),
 				title: Some(format!("DEBUG: PARSING HTML BRUT RÉUSSI - {} chapitres (min: {}, max: {})", chapter_count, min_ch, max_ch)),
-				volume: None,
-				chapter: None,
-				date_updated: None,
+				volume_number: None,
+				chapter_number: None,
+				date_uploaded: None,
 				scanlator: Some(String::from("AnimeSama Debug")),
 				url: None,
-				lang: String::from("fr")
-			});
+				});
 			
 			return Ok(chapters);
 		} else {
@@ -611,15 +611,14 @@ fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 			};
 			
 			chapters.push(Chapter {
-				id: String::from("debug_html_analysis"),
+				key: String::from("debug_html_analysis"),
 				title: Some(format!("DEBUG: HTML ANALYSIS - {}", debug_msg)),
-				volume: None,
-				chapter: None,
-				date_updated: None,
+				volume_number: None,
+				chapter_number: None,
+				date_uploaded: None,
 				scanlator: Some(String::from("AnimeSama Debug")),
 				url: None,
-				lang: String::from("fr")
-			});
+				});
 			
 			// Continuer vers les fallbacks
 		}
@@ -644,14 +643,13 @@ fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	
 	// Ajouter debug pour voir ce qu'on trouve exactement
 	chapters.push(Chapter {
-		id: String::from("debug_select_info"),
+		key: String::from("debug_select_info"),
 		title: Some(format!("DEBUG: HTML brut échoué, CSS: {} options trouvées", options_count)),
-		volume: None,
-		chapter: None,
-		date_updated: None,
+		volume_number: None,
+		chapter_number: None,
+		date_uploaded: None,
 		scanlator: Some(String::from("AnimeSama Debug")),
 		url: None,
-		lang: String::from("fr")
 	});
 	
 	if options_count == 0 {
@@ -683,15 +681,14 @@ fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 					}
 					
 					chapters.push(Chapter {
-						id: format!("{}", chapter_num),
+						key: format!("{}", chapter_num),
 						title: Some(format!("Chapitre {}", chapter_num)),
-						volume: None,
-						chapter: Some(chapter_num as f32),
-						date_updated: None,
-						scanlator: None,
+						volume_number: None,
+						chapter_number: Some(chapter_num as f32),
+						date_uploaded: None,
+						scanlators: None,
 						url: None, // Sera rempli plus tard par build_chapter_url
-						lang: String::from("fr")
-					});
+								});
 				}
 			}
 		}
@@ -705,14 +702,13 @@ fn _parse_chapter_list_from_select(html: &Node) -> Result<Vec<Chapter>> {
 	};
 	
 	chapters.push(Chapter {
-		id: String::from("debug_options_content"),
+		key: String::from("debug_options_content"),
 		title: Some(format!("DEBUG: {}", debug_text)),
-		volume: None,
-		chapter: None,
-		date_updated: None,
+		volume_number: None,
+		chapter_number: None,
+		date_uploaded: None,
 		scanlator: Some(String::from("AnimeSama Debug")),
 		url: None,
-		lang: String::from("fr")
 	});
 	
 	Ok(chapters)
@@ -786,7 +782,7 @@ fn _parse_options_from_raw_html(html_content: &str) -> Vec<i32> {
 }
 
 // Parser le contenu JavaScript d'episodes.js
-fn _parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
+fn _parse_episodes_content(js_content: &str, manga_key: &str) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Extraire tous les numéros d'épisodes avec regex eps(\d+)
@@ -832,15 +828,14 @@ fn _parse_episodes_content(js_content: &str, manga_id: &str) -> Result<Vec<Chapt
 		
 		for episode_num in min_episode..=max_episode {
 			chapters.push(Chapter {
-				id: format!("{}", episode_num),
+				key: format!("{}", episode_num),
 				title: Some(format!("Chapitre {}", episode_num)),
-				volume: None,
-				chapter: Some(episode_num as f32),
-				date_updated: None,
-				scanlator: None,
+				volume_number: None,
+				chapter_number: Some(episode_num as f32),
+				date_uploaded: None,
+				scanlators: None,
 				url: Some(build_chapter_url(manga_id)),
-				lang: String::from("fr")
-			});
+				});
 		}
 		
 	}
@@ -890,7 +885,7 @@ fn _parse_chapter_from_message(html_content: &str) -> i32 {
 }
 
 // Parser les commandes JavaScript dans la page HTML (méthode principale)
-fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<Chapter>> {
+fn _parse_javascript_commands(html_content: &str, manga_key: &str) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Chercher resetListe() pour confirmer qu'il y a des scripts actifs
@@ -919,15 +914,14 @@ fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<
 					// Ajouter les chapitres de start à end
 					for i in start_num..=end_num {
 						chapters.push(Chapter {
-							id: format!("{}", i),
+							key: format!("{}", i),
 							title: Some(format!("Chapitre {}", i)),
-							volume: None,
-							chapter: Some(i as f32),
-							date_updated: None,
-							scanlator: None,
+							volume_number: None,
+							chapter_number: Some(i as f32),
+							date_uploaded: None,
+							scanlators: None,
 							url: Some(build_chapter_url(manga_id)),
-							lang: String::from("fr")
-						});
+										});
 					}
 					chapter_counter = end_num + 1; // Préparer pour les suivants
 				}
@@ -949,15 +943,14 @@ fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<
 			if param.starts_with('"') && param.ends_with('"') {
 				let special_title = &param[1..param.len()-1]; // Enlever les quotes
 				chapters.push(Chapter {
-					id: format!("special_{}", chapter_counter),
+					key: format!("special_{}", chapter_counter),
 					title: Some(format!("Chapitre {}", special_title)),
-					volume: None,
-					chapter: Some(chapter_counter as f32),
-					date_updated: None,
-					scanlator: None,
+					volume_number: None,
+					chapter_number: Some(chapter_counter as f32),
+					date_uploaded: None,
+					scanlators: None,
 					url: Some(build_chapter_url(manga_id)),
-					lang: String::from("fr")
-				});
+						});
 				chapter_counter += 1;
 			}
 		}
@@ -987,15 +980,14 @@ fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<
 				// Continuer de finir_liste_start jusqu'à episodes_max
 				for i in finir_liste_start..=episodes_max {
 					chapters.push(Chapter {
-						id: format!("{}", i),
+						key: format!("{}", i),
 						title: Some(format!("Chapitre {}", i)),
-						volume: None,
-						chapter: Some(i as f32),
-						date_updated: None,
-						scanlator: None,
+						volume_number: None,
+						chapter_number: Some(i as f32),
+						date_uploaded: None,
+						scanlators: None,
 						url: Some(build_chapter_url(manga_id)),
-						lang: String::from("fr")
-					});
+								});
 				}
 			}
 		}
@@ -1005,7 +997,7 @@ fn _parse_javascript_commands(html_content: &str, manga_id: &str) -> Result<Vec<
 }
 
 // Helper pour obtenir le maximum d'épisode depuis episodes.js
-fn _get_max_episode_from_js(manga_id: &str) -> Result<i32> {
+fn _get_max_episode_from_js(manga_key: &str) -> Result<i32> {
 	// Essayer de récupérer episodes.js rapidement juste pour le maximum
 	let is_one_piece = manga_id.contains("one-piece") || manga_id.contains("one_piece");
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
@@ -1046,24 +1038,23 @@ fn _get_max_episode_from_js(manga_id: &str) -> Result<i32> {
 			
 			Ok(max_episode)
 		}
-		Err(_) => Err(AidokuError::new("Failed to get max episode"))
+		Err(_) => Err(AidokuError::message("Failed to get max episode"))
 	}
 }
 
-pub fn _parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
+pub fn _parse_chapter_list_simple(manga_key: String) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Défaut simple : 50 chapitres
 	for i in 1..=50 {
 		chapters.push(Chapter {
-			id: format!("{}", i),
+			key: format!("{}", i),
 			title: Some(format!("Chapitre {}", i)),
-			volume: None,
-			chapter: Some(i as f32),
-			date_updated: None,
-			scanlator: None,
+			volume_number: None,
+			chapter_number: Some(i as f32),
+			date_uploaded: None,
+			scanlators: None,
 			url: Some(build_chapter_url(&manga_id)),
-			lang: String::from("fr")
 		});
 	}
 	
@@ -1074,7 +1065,7 @@ pub fn _parse_chapter_list_simple(manga_id: String) -> Result<Vec<Chapter>> {
 }
 
 
-pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
+pub fn parse_page_list(html: Element, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
 	// chapter_id est l'indice API à utiliser directement dans les URLs
@@ -1146,7 +1137,8 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 			pages.push(Page {
 				content: PageContent::url(page_url),
 				has_description: false,
-				description: None
+				description: None,
+				thumbnail: None,
 			});
 		}
 		return Ok(pages);
@@ -1165,7 +1157,8 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 				pages.push(Page {
 					content: PageContent::url(page_url),
 					has_description: false,
-					description: None
+					description: None,
+					thumbnail: None,
 				});
 			}
 			return Ok(pages);
@@ -1186,7 +1179,8 @@ pub fn parse_page_list(html: Node, manga_id: String, chapter_id: String) -> Resu
 		pages.push(Page {
 			content: PageContent::url(page_url),
 			has_description: false,
-			description: None
+			description: None,
+			thumbnail: None,
 		});
 	}
 	
