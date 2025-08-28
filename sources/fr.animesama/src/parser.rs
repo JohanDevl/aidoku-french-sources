@@ -142,48 +142,45 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		})
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
 	
-	// Extraire la description depuis le synopsis (h2:contains(Synopsis)+p)
-	// Exactement comme dans l'ancienne version
-	let description = if let Some(synopsis_elements) = html.select("#sousBlocMiddle p") {
-		// Chercher le premier paragraphe qui suit un h2 contenant "Synopsis"
-		let mut found_synopsis = false;
-		let full_text = html.select("#sousBlocMiddle").and_then(|els| els.text()).unwrap_or_default();
-		
-		if full_text.to_uppercase().contains("SYNOPSIS") {
-			// Trouver le paragraphe après Synopsis
-			for para in synopsis_elements {
-				if let Some(para_text) = para.text() {
-					let trimmed = para_text.trim();
-					if !trimmed.is_empty() && trimmed.len() > 20 && !trimmed.to_uppercase().contains("GENRES") {
-						found_synopsis = true;
+	// Extraire la description depuis le synopsis - méthode exacte de l'ancienne version
+	let description = {
+		// Chercher tous les h2 dans sousBlocMiddle
+		if let Some(h2_elements) = html.select("#sousBlocMiddle h2") {
+			let mut synopsis_found = false;
+			let mut synopsis_text = String::new();
+			
+			for h2 in h2_elements {
+				if let Some(h2_text) = h2.text() {
+					if h2_text.to_lowercase().contains("synopsis") {
+						synopsis_found = true;
+						// Chercher le paragraphe suivant ce h2
+						if let Some(parent) = h2.parent() {
+							if let Some(all_p) = parent.select("p") {
+								for p in all_p {
+									if let Some(p_text) = p.text() {
+										let trimmed = p_text.trim();
+										if !trimmed.is_empty() && trimmed.len() > 10 {
+											synopsis_text = trimmed.to_string();
+											break;
+										}
+									}
+								}
+							}
+						}
 						break;
 					}
 				}
 			}
-		}
-		
-		if found_synopsis {
-			// Récupérer le premier paragraphe substantiel
-			html.select("#sousBlocMiddle p")
-				.and_then(|paras| {
-					for para in paras {
-						if let Some(text) = para.text() {
-							let trimmed = text.trim();
-							if !trimmed.is_empty() && trimmed.len() > 20 {
-								return Some(trimmed.to_string());
-							}
-						}
-					}
-					None
-				})
+			
+			if synopsis_found && !synopsis_text.is_empty() {
+				synopsis_text
+			} else {
+				"Manga disponible sur AnimeSama".to_string()
+			}
 		} else {
-			None
+			"Manga disponible sur AnimeSama".to_string()
 		}
-	} else {
-		None
 	};
-	
-	let description = description.unwrap_or_else(|| "Manga disponible sur AnimeSama".to_string());
 	
 	// Parser la couverture avec fallback
 	let cover = html.select("#coverOeuvre")
@@ -207,48 +204,56 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 			}
 		});
 	
-	// Extraire les genres depuis les liens après h2:contains(Genres)
-	// Exactement comme dans l'ancienne version
+	// Extraire les genres - méthode exacte de l'ancienne version
 	let mut tags: Vec<String> = Vec::new();
 	
-	// Méthode 1: Essayer de récupérer les liens de genres individuellement
-	if let Some(genre_links) = html.select("#sousBlocMiddle a") {
-		for link in genre_links {
-			if let Some(genre_text) = link.text() {
-				let genre_raw = genre_text.trim();
-				if !genre_raw.is_empty() && genre_raw.len() < 50 {
-					// Vérifier si ce genre contient des virgules (ex: "Action, Drame, Psychologique")
-					if genre_raw.contains(',') {
-						// Diviser par les virgules et ajouter chaque genre individuellement
-						for genre in genre_raw.split(',') {
-							let cleaned_genre = genre.trim();
-							if !cleaned_genre.is_empty() {
-								tags.push(cleaned_genre.to_string());
+	// Chercher tous les h2 dans sousBlocMiddle pour trouver "Genres"
+	if let Some(h2_elements) = html.select("#sousBlocMiddle h2") {
+		let mut genres_found = false;
+		
+		for h2 in h2_elements {
+			if let Some(h2_text) = h2.text() {
+				if h2_text.to_lowercase().contains("genres") {
+					genres_found = true;
+					// Chercher les liens suivant ce h2
+					if let Some(parent) = h2.parent() {
+						if let Some(genre_links) = parent.select("a") {
+							for link in genre_links {
+								if let Some(genre_text) = link.text() {
+									let genre_raw = genre_text.trim();
+									if !genre_raw.is_empty() {
+										// Vérifier si ce genre contient des virgules
+										if genre_raw.contains(',') {
+											// Diviser par les virgules
+											for genre in genre_raw.split(',') {
+												let cleaned_genre = genre.trim();
+												if !cleaned_genre.is_empty() {
+													tags.push(cleaned_genre.to_string());
+												}
+											}
+										} else {
+											// Genre unique
+											tags.push(genre_raw.to_string());
+										}
+									}
+								}
 							}
 						}
-					} else {
-						// Genre unique, l'ajouter directement
-						tags.push(genre_raw.to_string());
 					}
+					break;
 				}
 			}
 		}
 	}
 	
-	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres
+	// Fallback: chercher dans le texte complet si pas de liens trouvés
 	if tags.is_empty() {
-		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
 		if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
-			// Chercher la section GENRES dans le texte
 			if let Some(genres_start) = full_text.find("GENRES") {
 				let genres_section = &full_text[genres_start..];
-				
-				// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
 				if let Some(first_line_end) = genres_section.find('\n') {
-					let genres_line = &genres_section[7..first_line_end]; // Skip "GENRES\n"
-					let genres_line = genres_line.trim();
+					let genres_line = &genres_section[7..first_line_end].trim();
 					
-					// Diviser par les virgules et nettoyer chaque genre
 					for genre in genres_line.split(',') {
 						let cleaned_genre = genre.trim();
 						if !cleaned_genre.is_empty() {
@@ -343,7 +348,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				chapter_number: Some(mapping.chapter_number),
 				volume_number: None,
 				date_uploaded: None,
-				scanlators: Some(vec!["AnimeSama".into()]),
+				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
 				url: Some(build_chapter_url(&manga_key, mapping.index)),
 				..Default::default()
 			});
@@ -357,7 +362,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				chapter_number: Some(chapter_number),
 				volume_number: None,
 				date_uploaded: None,
-				scanlators: Some(vec!["AnimeSama".into()]),
+				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
 				url: Some(build_chapter_url(&manga_key, index)),
 				..Default::default()
 			});
@@ -365,17 +370,12 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	}
 	
 	// Tri par numéro de chapitre (du plus récent au plus ancien)
-	// Exactement comme dans l'ancienne version
+	// Exactement comme dans l'ancienne version: b.chapter > a.chapter
 	chapters.sort_by(|a, b| {
 		let a_num = a.chapter_number.unwrap_or(0.0);
 		let b_num = b.chapter_number.unwrap_or(0.0);
-		if b_num > a_num {
-			core::cmp::Ordering::Less
-		} else if b_num < a_num {
-			core::cmp::Ordering::Greater
-		} else {
-			core::cmp::Ordering::Equal
-		}
+		// Plus simple: utiliser la comparaison directe comme l'ancienne version
+		b_num.partial_cmp(&a_num).unwrap_or(core::cmp::Ordering::Equal)
 	});
 	
 	Ok(chapters)
