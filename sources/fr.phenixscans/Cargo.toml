@@ -14,4 +14,4 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs/" }
