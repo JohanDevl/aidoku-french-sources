@@ -598,12 +598,11 @@ fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 		}
 	}
 	
-	// Si le chapitre n'est pas trouvé dans l'API, retourner une erreur simple
-	// Utiliser une façon différente de créer l'erreur
-	let utf8_err: core::str::Utf8Error = match core::str::from_utf8(&[0xFF]) {
-		Err(e) => e,
-		Ok(_) => unreachable!(),
-	};
+	// Si le chapitre n'est pas trouvé dans l'API, créer une erreur UTF-8
+	// Créer dynamiquement un byte array invalide pour éviter le warning sur les littéraux
+	let mut invalid_bytes = Vec::new();
+	invalid_bytes.push(0xFF); // Byte invalide en UTF-8
+	let utf8_err = core::str::from_utf8(&invalid_bytes).unwrap_err();
 	Err(utf8_err.into())
 }
 
@@ -770,14 +769,6 @@ fn build_chapter_url(manga_key: &str, chapter_index: i32) -> String {
 	}
 }
 
-// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
-fn extract_manga_title_for_cdn(manga_key: &str) -> String {
-	// Version simplifiée : utiliser le dernier segment du manga_key
-	let title = manga_key.split('/').last().unwrap_or("manga");
-	
-	// Nettoyer et formatter le titre pour les URLs CDN
-	title.replace("-", "_").to_lowercase()
-}
 
 // Convertir manga_key en titre formaté
 fn manga_key_to_title(manga_key: &str) -> String {
@@ -865,10 +856,3 @@ fn calculate_chapter_number_for_index(index: i32, chapter_mappings: &[ChapterMap
 }
 
 
-// Estimer le nombre de pages d'un chapitre avec API call
-fn estimate_page_count(manga_name: &str, chapter_index: i32) -> i32 {
-	match get_page_count_from_api(manga_name, chapter_index) {
-		Ok(count) => count,
-		Err(_) => 20 // Fallback default
-	}
-}
