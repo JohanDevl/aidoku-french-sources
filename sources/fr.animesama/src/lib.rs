@@ -50,7 +50,11 @@ impl Source for AnimeSama {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_url = format!("{}{}", BASE_URL, manga.key);
+		let manga_url = if manga.key.starts_with("http") {
+			manga.key.clone()
+		} else {
+			format!("{}{}", BASE_URL, manga.key)
+		};
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga
@@ -87,7 +91,11 @@ impl Source for AnimeSama {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		// Construire l'URL du chapitre si elle n'existe pas
 		let chapter_url = chapter.url.unwrap_or_else(|| {
-			format!("{}{}/scan/vf/{}", BASE_URL, manga.key, chapter.key)
+			if manga.key.starts_with("http") {
+				format!("{}/scan/vf/{}", manga.key, chapter.key)
+			} else {
+				format!("{}{}/scan/vf/{}", BASE_URL, manga.key, chapter.key)
+			}
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
