@@ -67,7 +67,17 @@ jobs:
       - name: Build source list
         run: |
           aidoku build sources/*/package.aix --name "JohanDevl's French Sources (Development)"
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (main -> sources)
+        uses: JamesIves/github-pages-deploy-action@v4.7.2
+        if: ${{ github.ref == 'refs/heads/main' }}
+        with:
+          branch: sources
+          folder: public
+          git-config-name: GitHub Actions
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Update source list
+          single-commit: true
+      - name: Deploy to GitHub Pages (develop -> sources-develop)
         uses: JamesIves/github-pages-deploy-action@v4.7.2
         if: ${{ github.ref == 'refs/heads/develop' }}
         with:
