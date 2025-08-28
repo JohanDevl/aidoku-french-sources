@@ -439,34 +439,125 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 	}
 	
-	// Méthode 2: Utiliser le CDN AnimeSama si pas d'épisodes JavaScript trouvés
+	// Si toujours vide, utiliser les méthodes de l'ancienne version
 	if pages.is_empty() {
-		// Extraire et encoder le nom du manga
-		let manga_title = extract_manga_title_for_cdn(&manga_key);
 		let chapter_index = chapter_key.parse::<i32>().unwrap_or(1);
 		
-		// Essayer d'obtenir le nombre de pages depuis une API ou estimer
-		let page_count = estimate_page_count(&manga_title, chapter_index);
+		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+		let manga_slug = manga_key.split('/').last().unwrap_or("manga");
 		
-		// Générer les URLs des pages
-		for i in 1..=page_count {
-			let page_url = format!("{}/{}/{}/{:03}.jpg", CDN_URL, manga_title, chapter_index, i);
-			pages.push(Page {
-				content: PageContent::url(page_url),
-				thumbnail: None,
-				has_description: false,
-				description: None,
-			});
+		// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
+		let mut manga_title = String::new();
+		
+		// Méthode 1: Chercher #titreOeuvre (page principale manga)
+		if let Some(title_elem) = html.select("#titreOeuvre").and_then(|els| els.first()) {
+			if let Some(title_text) = title_elem.text() {
+				if !title_text.trim().is_empty() {
+					manga_title = title_text.trim().to_string();
+				}
+			}
 		}
-	}
-	
-	// Fallback: au moins quelques pages par défaut
-	if pages.is_empty() {
-		let manga_title = extract_manga_title_for_cdn(&manga_key);
-		let chapter_num = chapter_key.parse::<i32>().unwrap_or(1);
 		
-		for i in 1i32..=20 {
-			let page_url = format!("{}/{}/{}/{:03}.jpg", CDN_URL, manga_title, chapter_num, i);
+		// Méthode 2: Extraire depuis le <title> de la page (ex: "Kaiju N°8 - Scans")
+		if manga_title.is_empty() {
+			if let Some(title_elem) = html.select("title").and_then(|els| els.first()) {
+				if let Some(page_title) = title_elem.text() {
+					let page_title = page_title.trim();
+					if !page_title.is_empty() && page_title.contains(" - ") {
+						// Extraire la partie avant " - Scans" ou " - "
+						manga_title = page_title.split(" - ").next().unwrap_or("").trim().to_string();
+					}
+				}
+			}
+		}
+		
+		// Méthode 3: Chercher dans les éléments h1 qui peuvent contenir le titre
+		if manga_title.is_empty() {
+			if let Some(h1_elem) = html.select("h1").and_then(|els| els.first()) {
+				if let Some(h1_text) = h1_elem.text() {
+					if !h1_text.trim().is_empty() {
+						manga_title = h1_text.trim().to_string();
+					}
+				}
+			}
+		}
+		
+		// Fallback final: convertir le slug en titre avec gestion des cas spéciaux
+		if manga_title.is_empty() {
+			manga_title = match manga_slug {
+				"kaiju-n8" => "Kaiju N°8".to_string(), // Cas spécial avec symbole degré
+				_ => {
+					// Conversion générique: slug -> Title Case
+					manga_slug.replace('-', " ")
+						.split_whitespace()
+						.map(|word| {
+							let mut chars = word.chars();
+							match chars.next() {
+								None => String::new(),
+								Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+							}
+						})
+						.collect::<Vec<String>>()
+						.join(" ")
+				}
+			};
+		}
+		
+		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
+		let html_content = html.inner_html();
+		let page_count = parse_episodes_js_from_html(&html_content, chapter_index);
+		
+		if page_count > 0 {
+			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
+			for i in 1..=page_count {
+				let page_url = format!("{}/{}/{}/{}.jpg", 
+					CDN_URL, 
+					helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+					chapter_index, 
+					i
+				);
+				pages.push(Page {
+					content: PageContent::url(page_url),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			}
+			return Ok(pages);
+		}
+		
+		// PRIORITÉ 2 : Fallback avec l'API AnimeSama
+		match get_page_count_from_api(&manga_title, chapter_index) {
+			Ok(api_page_count) => {
+				for i in 1..=api_page_count {
+					let page_url = format!("{}/{}/{}/{}.jpg", 
+						CDN_URL, 
+						helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+						chapter_index, 
+						i
+					);
+					pages.push(Page {
+						content: PageContent::url(page_url),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
+				}
+				return Ok(pages);
+			}
+			Err(_) => {
+				// L'API a aussi échoué
+			}
+		}
+		
+		// PRIORITÉ 3 : Fallback ultime - 20 pages par défaut
+		for i in 1..=20 {
+			let page_url = format!("{}/{}/{}/{}.jpg", 
+				CDN_URL, 
+				helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+				chapter_index, 
+				i
+			);
 			pages.push(Page {
 				content: PageContent::url(page_url),
 				thumbnail: None,
@@ -477,6 +568,89 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 	}
 	
 	Ok(pages)
+}
+
+// Fonction pour obtenir le nombre de pages depuis l'API AnimeSama
+fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
+	// Construire l'URL de l'API
+	let encoded_title = helper::urlencode(manga_name);
+	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
+	
+	// Faire la requête
+	let json = Request::new(&api_url, HttpMethod::Get)
+		.header("User-Agent", "Mozilla/5.0")
+		.header("Accept", "application/json")
+		.json()?;
+	let json_obj = json.as_object()?;
+	
+	// Parser le JSON pour trouver le nombre de pages pour ce chapitre
+	let chapter_key = format!("{}", chapter_num);
+	if let Ok(chapter_value) = json_obj.get(&chapter_key) {
+		if let Ok(page_count) = chapter_value.as_int() {
+			if page_count > 0 {
+				return Ok(page_count as i32);
+			}
+		}
+	}
+	
+	// Si le chapitre n'est pas trouvé dans l'API, retourner une erreur
+	Err(AidokuError { 
+		reason: AidokuErrorKind::Unimplemented 
+	})
+}
+
+// Parser le JavaScript pour trouver eps{number}.length ou eps{number} = [...]
+fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
+	// Regex inspirée de Tachiyomi : eps(\d+)\s*(?:=\s*\[(.*?)]|\.length\s*=\s*(\d+))
+	let mut start_pos = 0;
+	let eps_pattern = format!("eps{}", chapter_num);
+	
+	// Chercher le pattern eps{chapter_num} dans le HTML
+	while let Some(pos) = html_content[start_pos..].find(&eps_pattern) {
+		start_pos += pos + eps_pattern.len();
+		let remaining = &html_content[start_pos..];
+		
+		// Cas 1: eps123.length = 15
+		if remaining.starts_with(".length") {
+			if let Some(eq_pos) = remaining[7..].find('=') {
+				let after_eq = &remaining[7 + eq_pos + 1..];
+				let mut number_str = String::new();
+				
+				for ch in after_eq.trim().chars() {
+					if ch.is_ascii_digit() {
+						number_str.push(ch);
+					} else {
+						break;
+					}
+				}
+				
+				if let Ok(length) = number_str.parse::<i32>() {
+					if length > 0 {
+						return length;
+					}
+				}
+			}
+		}
+		
+		// Cas 2: eps123 = [...]
+		if let Some(eq_pos) = remaining.find('=') {
+			let after_eq = &remaining[eq_pos + 1..].trim_start();
+			if after_eq.starts_with('[') {
+				// Compter les éléments du tableau
+				if let Some(bracket_end) = after_eq.find(']') {
+					let array_content = &after_eq[1..bracket_end];
+					
+					// Compter les virgules + 1 (approximation simple)
+					let comma_count = array_content.matches(',').count();
+					if comma_count > 0 {
+						return (comma_count + 1) as i32;
+					}
+				}
+			}
+		}
+	}
+	
+	0 // Aucun pattern trouvé
 }
 
 // Structure pour stocker le mapping indice -> numéro de chapitre
