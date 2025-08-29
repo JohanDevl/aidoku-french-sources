@@ -2,7 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString, vec},
-	imports::{html::Document, std::current_date},
+	imports::html::Document,
 	serde::Deserialize,
 };
 use core::cmp::Ordering;
@@ -377,78 +377,142 @@ fn extract_chapters_from_nextjs_data(html: &Document, manga_key: &str) -> Result
 	Err(aidoku::AidokuError::message("No Next.js data found"))
 }
 
-// Parse complex self.__next_f.push() data structures
+// Parse complex self.__next_f.push() data structures like the original implementation
 fn parse_nextjs_push_data(content: &str, manga_key: &str) -> Option<Vec<Chapter>> {
-	// Look for JSON data within self.__next_f.push calls
-	let mut start_idx = 0;
-	while let Some(push_pos) = content[start_idx..].find("self.__next_f.push(") {
-		let absolute_pos = start_idx + push_pos;
-		let after_push = &content[absolute_pos + 19..]; // 19 = len("self.__next_f.push(")
+	// Look for self.__next_f.push([1, "..."])  patterns like original implementation
+	let mut start_pos = 0;
+	while let Some(push_start) = content[start_pos..].find("self.__next_f.push([1,") {
+		let actual_start = start_pos + push_start;
+		start_pos = actual_start + 1;
 		
-		// Find the JSON array start
-		if let Some(json_start) = after_push.find('[') {
-			let json_content = &after_push[json_start..];
+		// Find the quoted string after [1,
+		if let Some(quote_start) = content[actual_start..].find('"') {
+			let string_start = actual_start + quote_start + 1;
 			
-			// Find matching closing bracket - need to count brackets
-			let mut bracket_count = 0;
-			let mut json_end = 0;
-			for (i, ch) in json_content.char_indices() {
-				match ch {
-					'[' | '{' => bracket_count += 1,
-					']' | '}' => {
-						bracket_count -= 1;
-						if bracket_count == 0 {
-							json_end = i + 1;
-							break;
-						}
-					}
-					_ => {}
-				}
-			}
-			
-			if json_end > 0 {
-				let json_str = &json_content[..json_end];
-				if let Ok(push_data) = serde_json::from_str::<serde_json::Value>(json_str) {
-					if let Some(chapters) = extract_chapters_from_push_value(&push_data, manga_key) {
-						if !chapters.is_empty() {
-							return Some(chapters);
+			// Find the closing quote and bracket
+			if let Some(quote_end) = find_closing_quote(&content[string_start..]) {
+				let string_end = string_start + quote_end;
+				let escaped_json = &content[string_start..string_end];
+				
+				// Unescape the JSON string
+				let unescaped_json = unescape_json_string(escaped_json);
+				
+				// Look for manga data patterns in unescaped JSON
+				let patterns = ["\"manga\":{", "\"initialData\":{", "\"chapter\":{", "\"chapters\":["];
+				for pattern in &patterns {
+					if let Some(pattern_pos) = unescaped_json.find(pattern) {
+						// Find the start of the JSON object containing this pattern
+						if let Some(obj_start) = find_json_object_start(&unescaped_json, pattern_pos) {
+							if let Some(json_obj_str) = extract_json_object(&unescaped_json, obj_start) {
+								// Try to parse this JSON object
+								if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_obj_str) {
+									// Look for chapters in this parsed data
+									if let Some(chapters) = extract_chapters_from_nextjs_value(&parsed, manga_key) {
+										if !chapters.is_empty() {
+											return Some(chapters);
+										}
+									}
+								}
+							}
 						}
 					}
 				}
 			}
 		}
-		
-		start_idx = absolute_pos + 20;
 	}
 	
 	None
 }
 
-fn extract_chapters_from_push_value(data: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
-	// Handle array of push values
-	if let Some(array) = data.as_array() {
-		for item in array {
-			if let Some(chapters) = extract_chapters_from_nextjs_value(item, manga_key) {
-				if !chapters.is_empty() {
-					return Some(chapters);
+// Find closing quote, handling escaped quotes
+fn find_closing_quote(content: &str) -> Option<usize> {
+	let mut i = 0;
+	let chars: Vec<char> = content.chars().collect();
+	
+	while i < chars.len() {
+		if chars[i] == '\\' && i + 1 < chars.len() {
+			// Skip escaped character
+			i += 2;
+		} else if chars[i] == '"' {
+			return Some(i);
+		} else {
+			i += 1;
+		}
+	}
+	None
+}
+
+// Unescape JSON string (basic implementation)
+fn unescape_json_string(escaped: &str) -> String {
+	escaped
+		.replace("\\\"", "\"")
+		.replace("\\\\", "\\")
+		.replace("\\n", "\n")
+		.replace("\\r", "\r")
+		.replace("\\t", "\t")
+}
+
+// Find the start of JSON object before a pattern position
+fn find_json_object_start(content: &str, pattern_pos: usize) -> Option<usize> {
+	let mut pos = pattern_pos;
+	let chars: Vec<char> = content.chars().collect();
+	
+	// Go backwards to find the opening brace
+	while pos > 0 {
+		pos -= 1;
+		if chars[pos] == '{' {
+			// Check that this is likely the start of our object
+			return Some(pos);
+		}
+		// Stop if we hit another closing brace (wrong object)
+		if chars[pos] == '}' {
+			break;
+		}
+	}
+	None
+}
+
+// Extract JSON object from position to matching closing brace
+fn extract_json_object(content: &str, start_pos: usize) -> Option<String> {
+	let chars: Vec<char> = content.chars().collect();
+	let mut brace_count = 0;
+	let mut end_pos = start_pos;
+	
+	for i in start_pos..chars.len() {
+		match chars[i] {
+			'{' => brace_count += 1,
+			'}' => {
+				brace_count -= 1;
+				if brace_count == 0 {
+					end_pos = i + 1;
+					break;
 				}
-			}
+			},
+			_ => {}
 		}
 	}
 	
-	// Handle direct object
-	extract_chapters_from_nextjs_value(data, manga_key)
+	if brace_count == 0 && end_pos > start_pos {
+		Some(content[start_pos..end_pos].to_string())
+	} else {
+		None
+	}
 }
+
 
 fn extract_chapters_from_nextjs_value(data: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 
-	// Try multiple paths to find chapters data
+	// Try multiple paths to find chapters data - expanded like original implementation
 	let possible_paths: Vec<&[&str]> = vec![
 		&["props", "pageProps", "manga", "chapters"],
+		&["props", "pageProps", "initialData", "manga", "chapters"],  
 		&["props", "pageProps", "initialData", "chapters"],
+		&["props", "pageProps", "series", "chapters"],
 		&["manga", "chapters"],
-		&["initialData", "chapters"],
+		&["initialData", "manga", "chapters"],
+		&["initialData", "chapters"], 
+		&["series", "chapters"],
 		&["chapters"],
 	];
 
@@ -467,6 +531,13 @@ fn extract_chapters_from_nextjs_value(data: &serde_json::Value, manga_key: &str)
 		}
 	}
 
+	// Also try direct search in the entire JSON if no structured path worked
+	if chapters.is_empty() {
+		if let Some(found_chapters) = search_chapters_recursively(data, manga_key) {
+			chapters.extend(found_chapters);
+		}
+	}
+
 	if chapters.is_empty() {
 		None
 	} else {
@@ -481,6 +552,43 @@ fn extract_chapters_from_nextjs_value(data: &serde_json::Value, manga_key: &str)
 		});
 		Some(chapters)
 	}
+}
+
+// Recursively search for chapters array in any part of the JSON
+fn search_chapters_recursively(value: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
+	match value {
+		serde_json::Value::Object(obj) => {
+			// Check if this object has a "chapters" key with array
+			if let Some(serde_json::Value::Array(chapters_array)) = obj.get("chapters") {
+				let mut chapters = Vec::new();
+				for chapter_value in chapters_array {
+					if let Some(chapter) = parse_nextjs_chapter(chapter_value, manga_key) {
+						chapters.push(chapter);
+					}
+				}
+				if !chapters.is_empty() {
+					return Some(chapters);
+				}
+			}
+			
+			// Recursively search in all values of this object
+			for (_, v) in obj {
+				if let Some(found) = search_chapters_recursively(v, manga_key) {
+					return Some(found);
+				}
+			}
+		},
+		serde_json::Value::Array(arr) => {
+			// Recursively search in array elements
+			for item in arr {
+				if let Some(found) = search_chapters_recursively(item, manga_key) {
+					return Some(found);
+				}
+			}
+		},
+		_ => {}
+	}
+	None
 }
 
 fn get_nested_value<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&'a serde_json::Value> {
@@ -569,11 +677,12 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let mut seen_chapter_ids: Vec<String> = Vec::new();
 
-	// Try more specific selectors first, then fallback to general ones
+	// Updated selectors based on modern PoseidonScans structure
 	let chapter_selectors = [
-		".chapter-list a[href*='/chapter/']",
-		".chapters a[href*='/chapter/']", 
-		"a[href*='/chapter/']",
+		"a[href*='/chapter/']",  // General chapter links
+		".chapter-item a",       // Styled chapter items
+		"*[href*='/chapter/']",  // Any element with chapter href
+		"div a[href*='/serie/'][href*='/chapter/']", // Full serie + chapter path
 	];
 
 	for selector in &chapter_selectors {
@@ -599,29 +708,18 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 						};
 
 						let url = if href_str.starts_with("http") {
-							href_str
+							href_str.to_string()
 						} else {
 							format!("{}{}", BASE_URL, href_str)
 						};
 
-						// Estimate date based on chapter number for better sorting
-						let date_uploaded = {
-							let base_date = current_date() as i64;
-							if let Some(ch_num) = chapter_number {
-								// Assume chapters are released weekly, subtract weeks based on chapter number
-								let estimated_days_ago = (200.0 - ch_num.min(200.0)) as i64 * 7;
-								base_date - (estimated_days_ago * 24 * 60 * 60)
-							} else {
-								base_date
-							}
-						};
-
+						// Use None for date_uploaded - will be filled by HTML date extraction later
 						chapters.push(Chapter {
 							key: chapter_id,
 							title: Some(title),
 							volume_number: None,
 							chapter_number,
-							date_uploaded: Some(date_uploaded),
+							date_uploaded: None,
 							scanlators: None,
 							url: Some(url),
 							language: Some("fr".to_string()),
@@ -632,12 +730,12 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 				}
 			}
 
-			// If we found chapters with this selector, stop trying others
-			if !chapters.is_empty() {
-				break;
-			}
+			// Continue trying all selectors to get as many chapters as possible
 		}
 	}
+
+	// Remove duplicates by key (in case multiple selectors found the same chapter)
+	chapters.dedup_by(|a, b| a.key == b.key);
 
 	// Sort chapters by chapter number (descending - newest first)
 	chapters.sort_by(|a, b| {
