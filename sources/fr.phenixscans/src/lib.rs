@@ -3,7 +3,7 @@
 use aidoku::{
 	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
 	Page, Result, Source,
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
 };
