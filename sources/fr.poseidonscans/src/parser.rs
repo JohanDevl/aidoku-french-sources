@@ -294,61 +294,159 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	})
 }
 
-pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// Get ALL available Next.js data - more permissive approach
-	let manga_data = extract_nextjs_manga_details(&html)?;
+// SIMPLE extraction with serde_json (corrected version)
+fn extract_nextjs_manga_details_simple(html: &Document) -> Result<serde_json::Value> {
+	println!("🔥 DEBUG: SIMPLE extraction approach!");
 	
-	// DEBUG: Log the structure we found
-	println!("🔍 DEBUG: Manga data structure found for {}", manga_key);
-	if manga_data.get("chapters").is_some() {
-		println!("   ✅ Found direct 'chapters' key");
-	}
-	if manga_data.get("manga").is_some() {
-		println!("   ✅ Found 'manga' key");
-		if manga_data.get("manga").and_then(|m| m.get("chapters")).is_some() {
-			println!("   ✅ Found 'manga.chapters' key");
-		}
-	}
-	if manga_data.get("initialData").is_some() {
-		println!("   ✅ Found 'initialData' key");
-		if manga_data.get("initialData").and_then(|d| d.get("manga")).and_then(|m| m.get("chapters")).is_some() {
-			println!("   ✅ Found 'initialData.manga.chapters' key");
-		}
-	}
-	if manga_data.get("pageProps").is_some() {
-		println!("   ✅ Found 'pageProps' key");
-	}
-	
-	// Comprehensive search for chapters - try ALL possible locations
-	let mut chapters = find_chapters_in_json(&manga_data, &manga_key);
-	
-	// DEBUG: Log extraction results
-	println!("📊 DEBUG: Chapter extraction results:");
-	println!("   📖 Chapters found from JSON: {}", chapters.len());
-	if !chapters.is_empty() {
-		let chapter_numbers: Vec<String> = chapters.iter()
-			.filter_map(|c| c.chapter_number)
-			.map(|n| if n == (n as i32) as f32 { format!("{}", n as i32) } else { format!("{}", n) })
-			.collect();
-		println!("   📋 Chapter numbers: {:?}", chapter_numbers);
+	// Try different ways to get the script content
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		println!("📜 DEBUG: Found __NEXT_DATA__ script tag");
 		
-		// Show range
-		let chapter_nums: Vec<f32> = chapters.iter().filter_map(|c| c.chapter_number).collect();
-		if !chapter_nums.is_empty() {
-			let min = chapter_nums.iter().fold(f32::INFINITY, |a, &b| a.min(b));
-			let max = chapter_nums.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-			println!("   📊 Range: Chapter {} to Chapter {}", min as i32, max as i32);
+		for script in script_elements {
+			// Try different methods to get content
+			println!("🔍 DEBUG: Trying different content extraction methods...");
+			
+			// Method 1: script.text()
+			if let Some(text_content) = script.text() {
+				println!("📄 DEBUG: Method 1 - text() length: {}", text_content.len());
+				if !text_content.trim().is_empty() {
+					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text_content) {
+						println!("✅ DEBUG: SUCCESS with text() method!");
+						return Ok(parsed);
+					}
+				}
+			}
+			
+			// Method 2: script.html()
+			if let Some(html_content) = script.html() {
+				println!("📄 DEBUG: Method 2 - html() length: {}", html_content.len());
+				if !html_content.trim().is_empty() {
+					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&html_content) {
+						println!("✅ DEBUG: SUCCESS with html() method!");
+						return Ok(parsed);
+					}
+				}
+			}
+			
+			// Method 3: script.own_text()
+			if let Some(inner_content) = script.own_text() {
+				println!("📄 DEBUG: Method 3 - own_text() length: {}", inner_content.len());
+				if !inner_content.trim().is_empty() {
+					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&inner_content) {
+						println!("✅ DEBUG: SUCCESS with own_text() method!");
+						return Ok(parsed);
+					}
+				}
+			}
+			
+			println!("❌ DEBUG: All content extraction methods failed for this script");
+		}
+	} else {
+		println!("❌ DEBUG: No __NEXT_DATA__ script tag found");
+	}
+	
+	// Return empty object if all fails
+	println!("💥 DEBUG: All extraction failed - returning empty object");
+	Ok(serde_json::json!({}))
+}
+
+pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
+	// Use the PROVEN logic from the old implementation that worked!
+	println!("🔄 DEBUG: Using old implementation logic that worked!");
+	
+	// Extract Next.js page data using simple approach that WORKS
+	let manga_data = extract_nextjs_manga_details_simple(html)?;
+	
+	// Simple direct extraction like the old version but with serde_json
+	let chapters_array = if let Some(chapters) = manga_data.get("chapters").and_then(|c| c.as_array()) {
+		println!("✅ DEBUG: Found {} chapters directly!", chapters.len());
+		chapters
+	} else if let Some(manga_obj) = manga_data.get("manga") {
+		if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
+			println!("✅ DEBUG: Found {} chapters in manga object!", chapters.len());
+			chapters
+		} else {
+			println!("⚠️  DEBUG: No chapters in manga object, using HTML fallback");
+			return Ok(parse_chapter_list_from_html(html)?);
+		}
+	} else if let Some(props) = manga_data.get("props") {
+		if let Some(page_props) = props.get("pageProps") {
+			if let Some(initial_data) = page_props.get("initialData") {
+				if let Some(manga_obj) = initial_data.get("manga") {
+					if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
+						println!("✅ DEBUG: Found {} chapters in props.pageProps.initialData.manga!", chapters.len());
+						chapters
+					} else {
+						println!("⚠️  DEBUG: No chapters in nested structure, using HTML fallback");
+						return Ok(parse_chapter_list_from_html(html)?);
+					}
+				} else {
+					println!("⚠️  DEBUG: No manga in initialData, using HTML fallback");
+					return Ok(parse_chapter_list_from_html(html)?);
+				}
+			} else {
+				println!("⚠️  DEBUG: No initialData in pageProps, using HTML fallback");
+				return Ok(parse_chapter_list_from_html(html)?);
+			}
+		} else {
+			println!("⚠️  DEBUG: No pageProps in props, using HTML fallback");
+			return Ok(parse_chapter_list_from_html(html)?);
+		}
+	} else {
+		println!("⚠️  DEBUG: No expected JSON structure found, using HTML fallback");
+		return Ok(parse_chapter_list_from_html(html)?);
+	};
+	
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Parse each chapter from JSON (simple serde_json approach)
+	for chapter_value in chapters_array {
+		if let Some(chapter_obj) = chapter_value.as_object() {
+			// Extract chapter number
+			let chapter_number = if let Some(num) = chapter_obj.get("number") {
+				if let Some(n) = num.as_f64() {
+					n as f32
+				} else if let Some(n) = num.as_i64() {
+					n as f32
+				} else {
+					continue;
+				}
+			} else {
+				continue;
+			};
+			
+			// Check if premium but DON'T filter out - mark as locked
+			let is_premium = chapter_obj.get("isPremium")
+				.and_then(|v| v.as_bool())
+				.unwrap_or(false);
+			
+			// Extract chapter title - clean format: "Chapitre X"
+			let chapter_title = format!("Chapitre {}", chapter_number);
+			
+			// Build chapter URL
+			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
+				format!("{}", chapter_number as i32)
+			} else {
+				format!("{}", chapter_number)
+			};
+			let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga_key, chapter_id);
+			
+			chapters.push(Chapter {
+				key: chapter_id,
+				title: Some(chapter_title),
+				volume_number: None,
+				chapter_number: Some(chapter_number),
+				date_uploaded: None, // Will be extracted from HTML
+				scanlators: None,
+				url: Some(url),
+				language: Some("fr".to_string()),
+				thumbnail: None,
+				locked: is_premium, // Keep premium chapters but mark as locked
+			});
 		}
 	}
 	
-	// If we still don't have chapters, try HTML fallback
-	if chapters.is_empty() {
-		println!("⚠️  DEBUG: No chapters from JSON, trying HTML fallback...");
-		chapters = parse_chapter_list_from_html(html)?;
-		println!("📖 DEBUG: Chapters found from HTML: {}", chapters.len());
-	}
-	
-	// Extract chapter dates from HTML (for accurate relative dates)
+	// Extract chapter dates from HTML (like old implementation)
 	extract_chapter_dates_from_html(&html, &mut chapters);
 	
 	// Sort chapters by number in descending order (latest first)
@@ -362,10 +460,9 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	});
 	
 	// DEBUG: Final results
-	println!("🎯 DEBUG: FINAL RESULT for {}:", manga_key);
-	println!("   📚 Total chapters returned: {}", chapters.len());
+	println!("🎯 DEBUG: OLD LOGIC RESULT for {}:", manga_key);
+	println!("   📚 Total chapters: {}", chapters.len());
 	println!("   🔒 Premium chapters: {}", chapters.iter().filter(|c| c.locked).count());
-	println!("   🆓 Free chapters: {}", chapters.iter().filter(|c| !c.locked).count());
 	
 	Ok(chapters)
 }
