@@ -3,7 +3,7 @@
 use aidoku::{
 	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
 	Page, Result, Source,
-	alloc::{String, Vec, vec, string::ToString},
+	alloc::{String, Vec, string::ToString},
 	imports::net::Request,
 	prelude::*,
 };
@@ -37,16 +37,12 @@ impl Source for PhenixScans {
 		if let Some(search_query) = query {
 			let url = format!("{}/front/manga/search?query={}", API_URL, helper::urlencode(&search_query));
 			let response = Request::get(&url)?.string()?;
-			let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-			let json = json_value.as_object()?;
-			parser::parse_search_list(json)
+			parser::parse_search_list(response)
 		} else {
 			let genres_query_str = genres_query.join(",");
 			let url = format!("{}/front/manga?{}&genre={}&page={}&limit=20", API_URL, query_params, genres_query_str, page);
 			let response = Request::get(&url)?.string()?;
-			let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-			let json = json_value.as_object()?;
-			parser::parse_manga_list(json)
+			parser::parse_manga_list(response)
 		}
 	}
 
@@ -59,9 +55,7 @@ impl Source for PhenixScans {
 		if needs_details {
 			let url = format!("{}/front/manga/{}", API_URL, manga.key);
 			let response = Request::get(&url)?.string()?;
-			let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-			let json = json_value.as_object()?;
-			let detailed_manga = parser::parse_manga_details(manga.key.clone(), json)?;
+			let detailed_manga = parser::parse_manga_details(manga.key.clone(), response)?;
 			
 			manga.title = detailed_manga.title;
 			manga.authors = detailed_manga.authors;
@@ -78,9 +72,7 @@ impl Source for PhenixScans {
 		if needs_chapters {
 			let url = format!("{}/front/manga/{}", API_URL, manga.key);
 			let response = Request::get(&url)?.string()?;
-			let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-			let json = json_value.as_object()?;
-			let chapters = parser::parse_chapter_list(manga.key.clone(), json)?;
+			let chapters = parser::parse_chapter_list(manga.key.clone(), response)?;
 			manga.chapters = Some(chapters);
 		}
 
@@ -90,9 +82,7 @@ impl Source for PhenixScans {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{}/front/manga/{}/chapter/{}", API_URL, manga.key, chapter.key);
 		let response = Request::get(&url)?.string()?;
-		let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-		let json = json_value.as_object()?;
-		parser::parse_page_list(json)
+		parser::parse_page_list(response)
 	}
 }
 
@@ -111,8 +101,8 @@ impl ListingProvider for PhenixScans {
 		};
 		
 		let response = Request::get(&url)?.string()?;
-		let json_value = aidoku::prelude::ValueRef::new_string(&response)?.json()?;
-		let json = json_value.as_object()?;
-		parser::parse_manga_listing(json, &listing.name)
+		parser::parse_manga_listing(response, &listing.name)
 	}
 }
+
+register_source!(PhenixScans, ListingProvider);
