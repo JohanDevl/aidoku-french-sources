@@ -1,7 +1,4 @@
-use aidoku::std::{
-	String,
-	Vec
-};
+use aidoku::alloc::{String, Vec};
 
 pub fn _urlencode(string: String) -> String {
 	let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
