@@ -37,7 +37,18 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 			let mut in_string = false;
 			let mut escape_next = false;
 			
+			// TEMP DEBUG: Show content start for array parsing
+			let content_preview = if content.len() > 100 { 
+				format!("{}...", &content[..100])
+			} else { 
+				content.to_string()
+			};
+			
 			for (i, c) in content.chars().enumerate() {
+				if i < 10 {
+					// TEMP DEBUG: Show first few iterations
+				}
+				
 				if escape_next {
 					escape_next = false;
 				} else if c == '\\' {
@@ -48,18 +59,29 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				
 				if !in_string {
 					match c {
-						'[' => bracket_count += 1,
+						'[' => {
+							bracket_count += 1;
+							if i < 10 {
+								// TEMP DEBUG: First bracket tracking
+							}
+						},
 						']' => {
 							bracket_count -= 1;
 							if bracket_count == 0 {
 								end_pos = i + 1;
-								break;
+								// TEMP DEBUG: Found end position
+								panic!("DEBUG extract_json_value ARRAY - Found closing bracket at position {}. Content was: {}", i, content_preview);
 							}
 						},
 						_ => {}
 					}
 				}
 			}
+			
+			// TEMP DEBUG: If we reach here, no closing bracket found
+			panic!("DEBUG extract_json_value ARRAY FAIL - No closing bracket found. bracket_count: {}, content: {}", bracket_count, content_preview);
+			
+			#[allow(unreachable_code)]
 			if end_pos > 0 {
 				return content.get(0..end_pos).map(|s| s.to_string());
 			}
