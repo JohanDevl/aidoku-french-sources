@@ -176,87 +176,44 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		update_strategy: UpdateStrategy::Never,
 	});
 
+	// DEBUG: Afficher les infos de parsing  
+	let debug_msg = format!("DEBUG PARSING - Type: {} | Response length: {} | First 200 chars: {}", 
+		listing_type, response.len(), 
+		if response.len() > 200 { &response[..200] } else { &response });
+	
 	let has_more = if listing_type == "Populaire" {
 		// For the "top" section, the structure is: { "top": [...] }
 		let items = extract_json_array(&response, "top");
-		for item in items {
-			if let Some(slug) = extract_json_value(&item, "slug") {
-				if slug == "unknown" { continue; }
-				
-				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
-				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
-				let cover = if !cover_image.is_empty() {
-					Some(format!("{}/{}", API_URL, cover_image))
-				} else {
-					None
-				};
-
-				mangas.push(Manga {
-					key: slug,
-					title,
-					cover,
-					authors: None,
-					artists: None,
-					description: None,
-					url: None,
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::default(),
-					chapters: None,
-					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
-				});
-			}
-		}
-		// Top section has no pagination
-		false
+		let debug_items = format!("DEBUG TOP - Items found: {} | First item: {}", 
+			items.len(), 
+			if !items.is_empty() { 
+				if items[0].len() > 100 { &items[0][..100] } else { &items[0] }
+			} else { "NONE" });
+		
+		// Return debug info temporarily
+		return Err(aidoku::AidokuError::message(&format!("{} | {}", debug_msg, debug_items)));
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		let items = extract_json_array(&response, "latest");
-		for item in items {
-			if let Some(slug) = extract_json_value(&item, "slug") {
-				if slug == "unknown" { continue; }
-				
-				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
-				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
-				let cover = if !cover_image.is_empty() {
-					Some(format!("{}/{}", API_URL, cover_image))
-				} else {
-					None
-				};
-
-				mangas.push(Manga {
-					key: slug,
-					title,
-					cover,
-					authors: None,
-					artists: None,
-					description: None,
-					url: None,
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::default(),
-					chapters: None,
-					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
-				});
-			}
-		}
+		let debug_items = format!("DEBUG LATEST - Items found: {} | First item: {}", 
+			items.len(), 
+			if !items.is_empty() { 
+				if items[0].len() > 100 { &items[0][..100] } else { &items[0] }
+			} else { "NONE" });
 		
-		// Check if there are more pages
-		if let Some(pagination_str) = extract_json_value(&response, "pagination") {
-			let current_page = extract_json_value(&pagination_str, "currentPage")
-				.and_then(|s| s.parse::<i32>().ok())
-				.unwrap_or(1);
-			let total_pages = extract_json_value(&pagination_str, "totalPages")
-				.and_then(|s| s.parse::<i32>().ok())
-				.unwrap_or(1);
-			current_page < total_pages
+		// Test extraction on first item if exists
+		let debug_values = if !items.is_empty() {
+			let first_item = &items[0];
+			let slug = extract_json_value(first_item, "slug").unwrap_or_else(|| "NOT_FOUND".to_string());
+			let title = extract_json_value(first_item, "title").unwrap_or_else(|| "NOT_FOUND".to_string());
+			let cover = extract_json_value(first_item, "coverImage").unwrap_or_else(|| "NOT_FOUND".to_string());
+			format!(" | VALUES: slug='{}' title='{}' cover='{}'", slug, title, cover)
 		} else {
-			false
-		}
+			String::new()
+		};
+		
+		// Return debug info temporarily
+		return Err(aidoku::AidokuError::message(&format!("{} | {}{}", debug_msg, debug_items, debug_values)));
 	};
 
 	Ok(MangaPageResult {
