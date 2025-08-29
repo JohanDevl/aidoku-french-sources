@@ -109,11 +109,35 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 	None
 }
 
-// Extract array of objects from JSON
+// Extract array of objects from JSON - WITH DEBUG
 fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 	if let Some(array_str) = extract_json_value(json, key) {
+		// DEBUG 1: Vérifier la valeur retournée par extract_json_value
+		let preview = if array_str.len() > 200 { 
+			format!("{}...", &array_str[..200])
+		} else { 
+			array_str.clone()
+		};
+		panic!("DEBUG extract_json_array STEP 1 - extract_json_value returned for '{}': length={}, starts_with=[={}, ends_with_]={}, preview: {}", 
+			key, 
+			array_str.len(),
+			array_str.starts_with('['),
+			array_str.ends_with(']'),
+			preview
+		);
+		
 		if array_str.starts_with('[') && array_str.ends_with(']') {
 			let content = &array_str[1..array_str.len()-1]; // Remove brackets
+			
+			// DEBUG 2: Vérifier le contenu après suppression des crochets
+			let content_preview = if content.len() > 200 { 
+				format!("{}...", &content[..200])
+			} else { 
+				content.to_string()
+			};
+			panic!("DEBUG extract_json_array STEP 2 - content after bracket removal: length={}, preview: {}", 
+				content.len(), content_preview);
+			
 			let mut objects = Vec::new();
 			let mut current_object = String::new();
 			let mut brace_count = 0;
@@ -160,9 +184,19 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 			}
 			
 			return objects;
+		} else {
+			// DEBUG 3: Problème avec les crochets
+			let value_preview = if array_str.len() > 100 { 
+				format!("{}...", &array_str[..100])
+			} else { 
+				array_str.clone()
+			};
+			panic!("DEBUG extract_json_array STEP 3 FAIL - Array does not start with [ or end with ]. Value: {}", value_preview);
 		}
+	} else {
+		// DEBUG 4: extract_json_value a échoué
+		panic!("DEBUG extract_json_array STEP 4 FAIL - extract_json_value returned None for key '{}'", key);
 	}
-	Vec::new()
 }
 
 fn parse_manga_status(status_str: &str) -> MangaStatus {
