@@ -109,18 +109,36 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 	None
 }
 
-// Extract array of objects from JSON
+// Extract array of objects from JSON - WITH DETAILED DEBUG
 fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 	if let Some(array_str) = extract_json_value(json, key) {
+		// DEBUG: Vérifier ce qu'on reçoit
+		panic!("DEBUG extract_json_array STEP 1 - Got array_str: length={}, starts_with_bracket={}, ends_with_bracket={}, first_100_chars: {}", 
+			array_str.len(),
+			array_str.starts_with('['),
+			array_str.ends_with(']'),
+			if array_str.len() > 100 { &array_str[..100] } else { &array_str }
+		);
+		
 		if array_str.starts_with('[') && array_str.ends_with(']') {
 			let content = &array_str[1..array_str.len()-1]; // Remove brackets
-			let mut objects = Vec::new();
+			
+			// DEBUG: Vérifier le contenu après suppression des brackets
+			panic!("DEBUG extract_json_array STEP 2 - Content after bracket removal: length={}, first_200_chars: {}", 
+				content.len(),
+				if content.len() > 200 { &format!("{}...", &content[..200]) } else { content }
+			);
+			
+			let mut objects: Vec<String> = Vec::new();
 			let mut current_object = String::new();
 			let mut brace_count = 0;
 			let mut in_string = false;
 			let mut escape_next = false;
+			let mut char_processed = 0;
 			
 			for c in content.chars() {
+				char_processed += 1;
+				
 				if escape_next {
 					escape_next = false;
 				} else if c == '\\' {
@@ -131,20 +149,31 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 				
 				if !in_string {
 					match c {
-						'{' => brace_count += 1,
+						'{' => {
+							brace_count += 1;
+							if char_processed <= 50 {
+								// DEBUG pour les premiers caractères
+							}
+						},
 						'}' => {
 							brace_count -= 1;
 							if brace_count == 0 {
 								if !current_object.trim().is_empty() {
-									objects.push(current_object.trim().to_string());
-									current_object.clear();
+									// DEBUG: Montrer qu'on a trouvé un objet
+									panic!("DEBUG extract_json_array STEP 3 SUCCESS - Found object #{} at char {}! Object preview (first 150 chars): {}", 
+										objects.len() + 1,
+										char_processed,
+										if current_object.len() > 150 { &format!("{}...", &current_object[..150]) } else { &current_object }
+									);
 								}
 							}
 						},
 						',' if brace_count == 0 => {
 							if !current_object.trim().is_empty() {
-								objects.push(current_object.trim().to_string());
-								current_object.clear();
+								// DEBUG: Objet trouvé via virgule
+								panic!("DEBUG extract_json_array STEP 4 SUCCESS - Found object via comma! Object: {}", 
+									if current_object.len() > 150 { &format!("{}...", &current_object[..150]) } else { &current_object }
+								);
 							}
 							continue;
 						},
@@ -155,14 +184,20 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 				current_object.push(c);
 			}
 			
-			if !current_object.trim().is_empty() {
-				objects.push(current_object.trim().to_string());
-			}
+			// DEBUG: Si on arrive ici sans avoir trouvé d'objets
+			panic!("DEBUG extract_json_array STEP 5 FAIL - Processed {} chars but found 0 complete objects. Final brace_count={}, current_object length={}, current_object preview: {}", 
+				char_processed,
+				brace_count,
+				current_object.len(),
+				if current_object.len() > 200 { &format!("{}...", &current_object[..200]) } else { &current_object }
+			);
 			
-			return objects;
+		} else {
+			panic!("DEBUG extract_json_array STEP 1 FAIL - Array string invalid format");
 		}
+	} else {
+		panic!("DEBUG extract_json_array STEP 0 FAIL - extract_json_value returned None");
 	}
-	Vec::new()
 }
 
 fn parse_manga_status(status_str: &str) -> MangaStatus {
