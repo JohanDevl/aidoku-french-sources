@@ -208,12 +208,23 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		let items = extract_json_array(&response, "latest");
-		for item in items {
-			if let Some(slug) = extract_json_value(&item, "slug") {
+		
+		// TEMP DEBUG: Show what we got
+		if items.len() == 0 {
+			return Err(aidoku::AidokuError::message(&format!("DEBUG: No items found in latest array. Response start: {}", 
+				if response.len() > 100 { &response[..100] } else { &response })));
+		}
+		
+		let mut processed_count = 0;
+		for item in &items {
+			let slug_result = extract_json_value(item, "slug");
+			let title_result = extract_json_value(item, "title");
+			
+			if let Some(slug) = slug_result {
 				if slug == "unknown" { continue; }
 				
-				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
-				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+				let title = title_result.unwrap_or_else(|| "Unknown Title".to_string());
+				let cover_image = extract_json_value(item, "coverImage").unwrap_or_else(|| "".to_string());
 				let cover = if !cover_image.is_empty() {
 					Some(format!("{}/{}", API_URL, cover_image))
 				} else {
@@ -236,7 +247,18 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 					next_update_time: None,
 					update_strategy: UpdateStrategy::Never,
 				});
+				processed_count += 1;
+			} else {
+				// Show why this item failed
+				return Err(aidoku::AidokuError::message(&format!("DEBUG: Item failed parsing. Items found: {}, First item preview: {}", 
+					items.len(), 
+					if item.len() > 200 { &item[..200] } else { item })));
 			}
+		}
+		
+		// DEBUG: Show results
+		if processed_count == 0 {
+			return Err(aidoku::AidokuError::message(&format!("DEBUG: {} items found but none processed successfully", items.len())));
 		}
 		
 		// Check if there are more pages
