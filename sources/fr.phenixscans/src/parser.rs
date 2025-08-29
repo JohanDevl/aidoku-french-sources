@@ -69,8 +69,7 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 							bracket_count -= 1;
 							if bracket_count == 0 {
 								end_pos = i + 1;
-								// TEMP DEBUG: Found end position
-								panic!("DEBUG extract_json_value ARRAY - Found closing bracket at position {}. Content was: {}", i, content_preview);
+								break; // Exit loop when we find the matching bracket
 							}
 						},
 						_ => {}
@@ -78,12 +77,22 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				}
 			}
 			
-			// TEMP DEBUG: If we reach here, no closing bracket found
-			panic!("DEBUG extract_json_value ARRAY FAIL - No closing bracket found. bracket_count: {}, content: {}", bracket_count, content_preview);
-			
-			#[allow(unreachable_code)]
 			if end_pos > 0 {
-				return content.get(0..end_pos).map(|s| s.to_string());
+				let result = content.get(0..end_pos).map(|s| s.to_string());
+				// TEMP DEBUG: Show what we're actually returning
+				if let Some(ref returned_value) = result {
+					let preview = if returned_value.len() > 200 { 
+						format!("{}...", &returned_value[..200])
+					} else { 
+						returned_value.clone()
+					};
+					panic!("DEBUG extract_json_value SUCCESS - Returning array of length {} chars. Preview: {}", returned_value.len(), preview);
+				} else {
+					panic!("DEBUG extract_json_value FAIL - content.get() returned None for range 0..{}", end_pos);
+				}
+			} else {
+				// TEMP DEBUG: If we reach here, no closing bracket found
+				panic!("DEBUG extract_json_value FAIL - end_pos is 0, no closing bracket found. bracket_count: {}, content preview: {}", bracket_count, content_preview);
 			}
 		} else if content.starts_with('{') {
 			// Object value - find matching brace (handle strings properly)
