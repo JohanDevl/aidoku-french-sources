@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult,
+    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     Page, PageContext, Result, Source,
     alloc::{String, Vec},
     imports::net::Request,
@@ -76,29 +76,6 @@ impl Source for PoseidonScans {
         parser::parse_page_list(&html, url)
     }
 
-    fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-        // Special handling for API image URLs that require proper headers
-        if url.contains("/api/chapters/") {
-            Ok(Request::get(url)?
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .header("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("Referer", BASE_URL)
-                .header("Origin", BASE_URL)
-                .header("Sec-Fetch-Dest", "image")
-                .header("Sec-Fetch-Mode", "no-cors")
-                .header("Sec-Fetch-Site", "same-origin")
-            )
-        } else {
-            // Fallback for other image URLs
-            Ok(Request::get(url)?
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .header("Referer", BASE_URL)
-            )
-        }
-    }
-
 }
 
 impl ListingProvider for PoseidonScans {
@@ -148,4 +125,29 @@ impl ListingProvider for PoseidonScans {
     }
 }
 
-register_source!(PoseidonScans, ListingProvider);
+impl ImageRequestProvider for PoseidonScans {
+    fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+        // Special handling for API image URLs that require proper headers
+        if url.contains("/api/chapters/") {
+            Ok(Request::get(url)?
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Referer", BASE_URL)
+                .header("Origin", BASE_URL)
+                .header("Sec-Fetch-Dest", "image")
+                .header("Sec-Fetch-Mode", "no-cors")
+                .header("Sec-Fetch-Site", "same-origin")
+            )
+        } else {
+            // Fallback for other image URLs
+            Ok(Request::get(url)?
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("Referer", BASE_URL)
+            )
+        }
+    }
+}
+
+register_source!(PoseidonScans, ListingProvider, ImageRequestProvider);
