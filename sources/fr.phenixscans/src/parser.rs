@@ -207,6 +207,25 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		false
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
+		
+		// TEMP DEBUG: Test what extract_json_value returns for "latest"
+		if let Some(latest_value) = extract_json_value(&response, "latest") {
+			let display_value = if latest_value.len() > 150 { 
+				format!("{}...", &latest_value[..150])
+			} else { 
+				latest_value.clone()
+			};
+			return Err(aidoku::AidokuError::message(&format!("DEBUG: extract_json_value found 'latest': {}", display_value)));
+		} else {
+			return Err(aidoku::AidokuError::message(&format!("DEBUG: extract_json_value could NOT find 'latest' key. Context: {}", 
+				if let Some(pos) = response.find("\"latest\"") {
+					let start = pos.saturating_sub(20);
+					let end = (pos + 100).min(response.len());
+					&response[start..end]
+				} else { "latest key not found in response" })));
+		}
+		
+		/*
 		let items = extract_json_array(&response, "latest");
 		
 		// TEMP DEBUG: Show what we got
@@ -224,7 +243,9 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 					if response.len() > 200 { &response[..200] } else { &response })));
 			}
 		}
+		*/
 		
+		/*
 		let mut processed_count = 0;
 		for item in &items {
 			let slug_result = extract_json_value(item, "slug");
@@ -257,20 +278,25 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 					next_update_time: None,
 					update_strategy: UpdateStrategy::Never,
 				});
-				processed_count += 1;
+				// processed_count += 1;
 			} else {
 				// Show why this item failed
-				return Err(aidoku::AidokuError::message(&format!("DEBUG: Item failed parsing. Items found: {}, First item preview: {}", 
-					items.len(), 
-					if item.len() > 200 { &item[..200] } else { item })));
+				// return Err(aidoku::AidokuError::message(&format!("DEBUG: Item failed parsing. Items found: {}, First item preview: {}", 
+				//	items.len(), 
+				//	if item.len() > 200 { &item[..200] } else { item })));
 			}
 		}
 		
 		// DEBUG: Show results
-		if processed_count == 0 {
-			return Err(aidoku::AidokuError::message(&format!("DEBUG: {} items found but none processed successfully", items.len())));
-		}
+		// if processed_count == 0 {
+		//	return Err(aidoku::AidokuError::message(&format!("DEBUG: {} items found but none processed successfully", items.len())));
+		// }
+		*/
 		
+		// TEMP: Return false for now during debug
+		false
+		
+		/*
 		// Check if there are more pages
 		if let Some(pagination_str) = extract_json_value(&response, "pagination") {
 			let current_page = extract_json_value(&pagination_str, "currentPage")
@@ -283,6 +309,7 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		} else {
 			false
 		}
+		*/
 	};
 
 	Ok(MangaPageResult {
