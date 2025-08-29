@@ -31,13 +31,23 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				return content.get(1..end + 1).map(|s| s.to_string());
 			}
 		} else if content.starts_with('[') {
-			// Array value - find matching bracket (handle strings properly)
+			// Array value - find matching bracket (handle strings properly)  
 			let mut bracket_count = 0;
 			let mut end_pos = 0;
 			let mut in_string = false;
 			let mut escape_next = false;
 			
+			// DEBUG: Add detailed bracket matching debug
+			let mut debug_info = String::new();
+			let mut first_10_chars = String::new();
+			
 			for (i, c) in content.chars().enumerate() {
+				// Collect debug info for first 20 characters
+				if i < 20 {
+					first_10_chars.push(c);
+					debug_info.push_str(&format!("i={} c='{}' bracket_count={} in_string={} | ", i, c, bracket_count, in_string));
+				}
+				
 				if escape_next {
 					escape_next = false;
 				} else if c == '\\' {
@@ -48,12 +58,22 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				
 				if !in_string {
 					match c {
-						'[' => bracket_count += 1,
+						'[' => {
+							bracket_count += 1;
+							if i < 20 {
+								debug_info.push_str(&format!("OPEN_BRACKET! new_count={} | ", bracket_count));
+							}
+						},
 						']' => {
 							bracket_count -= 1;
+							if i < 20 {
+								debug_info.push_str(&format!("CLOSE_BRACKET! new_count={} ", bracket_count));
+							}
 							if bracket_count == 0 {
 								end_pos = i + 1;
-								break;
+								// TEMP DEBUG: Show where we found the end
+								panic!("DEBUG extract_json_value BRACKET MATCH SUCCESS - Found closing bracket at position {}. Total content length: {}. First 20 chars debug: {} | First chars: {}", 
+									i, content.len(), debug_info, first_10_chars);
 							}
 						},
 						_ => {}
@@ -61,6 +81,11 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				}
 			}
 			
+			// TEMP DEBUG: If we reach here, no matching bracket was found
+			panic!("DEBUG extract_json_value BRACKET MATCH FAIL - No matching bracket found. Final bracket_count: {}, content length: {}, first 20 chars debug: {} | First chars: {}", 
+				bracket_count, content.len(), debug_info, first_10_chars);
+			
+			#[allow(unreachable_code)]
 			if end_pos > 0 {
 				return content.get(0..end_pos).map(|s| s.to_string());
 			}
