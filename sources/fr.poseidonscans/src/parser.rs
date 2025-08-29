@@ -2,7 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy, println,
 	alloc::{String, Vec, format, string::ToString, vec},
-	imports::html::Document,
+	imports::html::{Document, Element},
 	serde::Deserialize,
 };
 use core::cmp::Ordering;
@@ -356,25 +356,8 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 		return Ok(parse_chapter_list_from_html(html)?);
 	};
 	
-	// Find the highest chapter number to identify premium chapters
-	let max_chapter_number = chapters_array
-		.iter()
-		.filter_map(|chapter_value| {
-			chapter_value.as_object()
-				.and_then(|obj| obj.get("issueNumber"))
-				.and_then(|num| {
-					if let Some(n) = num.as_f64() {
-						Some(n as f32)
-					} else if let Some(n) = num.as_i64() {
-						Some(n as f32)
-					} else {
-						None
-					}
-				})
-		})
-		.fold(0.0_f32, |acc, num| acc.max(num));
-	
-	println!("🔍 DEBUG: Highest chapter number found: {}", max_chapter_number);
+	// Note: Premium chapter detection is now handled in HTML parsing
+	// No assumptions about which chapters are premium based on numbers
 	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
@@ -403,13 +386,8 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 				continue;
 			};
 			
-			// Le chapitre avec le numéro le plus élevé est premium sur PoseidonScans
-			let is_premium = chapter_number >= max_chapter_number && max_chapter_number > 0.0;
-			
-			if is_premium {
-				println!("🔒 DEBUG: Skipping premium chapter {}", chapter_number);
-				continue; // Skip premium chapters entirely
-			}
+			// Note: Premium detection is handled in HTML parsing with real indicators
+			// JSON-LD does not contain premium status information
 			
 			// Extract chapter title - clean format: "Chapitre X"
 			let chapter_title = format!("Chapitre {}", chapter_number);
@@ -456,9 +434,9 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	});
 	
 	// DEBUG: Final results
-	println!("🎯 DEBUG: OLD LOGIC RESULT for {}:", manga_key);
+	println!("🎯 DEBUG: JSON-LD RESULT for {}:", manga_key);
 	println!("   📚 Total chapters: {}", chapters.len());
-	println!("   🔒 Premium chapters: excluded from listing");
+	println!("   ℹ️  Premium filtering: handled in HTML parsing");
 	
 	Ok(chapters)
 }
@@ -1140,60 +1118,60 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let mut seen_chapter_ids: Vec<String> = Vec::new();
 
-	// Updated selectors based on modern PoseidonScans structure
-	let chapter_selectors = [
-		"a[href*='/chapter/']",  // General chapter links
-		".chapter-item a",       // Styled chapter items
-		"*[href*='/chapter/']",  // Any element with chapter href
-		"div a[href*='/serie/'][href*='/chapter/']", // Full serie + chapter path
-	];
-
-	for selector in &chapter_selectors {
-		if let Some(chapter_elements) = html.select(selector) {
-			for chapter_element in chapter_elements {
-				if let Some(href_str) = chapter_element.attr("href") {
-					// Extract chapter ID from URL
-					if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-						// Skip duplicates
-						if seen_chapter_ids.contains(&chapter_id) {
-							continue;
-						}
-						seen_chapter_ids.push(chapter_id.clone());
-
-						// Extract chapter number from URL or ID first
-						let chapter_number = extract_chapter_number_from_id(&chapter_id);
-
-						// Generate clean title: "Chapitre X"
-						let title = if let Some(ch_num) = chapter_number {
-							format!("Chapitre {}", ch_num)
-						} else {
-							format!("Chapitre {}", chapter_id)
-						};
-
-						let url = if href_str.starts_with("http") {
-							href_str.to_string()
-						} else {
-							format!("{}{}", BASE_URL, href_str)
-						};
-
-						// Use None for date_uploaded - will be filled by HTML date extraction later
-						chapters.push(Chapter {
-							key: chapter_id,
-							title: Some(title),
-							volume_number: None,
-							chapter_number,
-							date_uploaded: None,
-							scanlators: None,
-							url: Some(url),
-							language: Some("fr".to_string()),
-							thumbnail: None,
-							locked: false,
-						});
+	// Use the specific PoseidonScans chapter list structure
+	// Chapters are in <a> elements with href containing /chapter/
+	let chapter_selector = "a[href*='/chapter/']";
+	
+	if let Some(chapter_elements) = html.select(chapter_selector) {
+		for chapter_element in chapter_elements {
+			if let Some(href_str) = chapter_element.attr("href") {
+				// Extract chapter ID from URL
+				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
+					// Skip duplicates
+					if seen_chapter_ids.contains(&chapter_id) {
+						continue;
 					}
+					seen_chapter_ids.push(chapter_id.clone());
+
+					// Check if this chapter is premium by looking for indicators in the HTML
+					let is_premium = is_chapter_premium(&chapter_element, html, &href_str);
+					
+					if is_premium {
+						println!("🔒 DEBUG: Skipping premium chapter found in HTML: {}", chapter_id);
+						continue; // Skip premium chapters entirely
+					}
+
+					// Extract chapter number from URL or ID first
+					let chapter_number = extract_chapter_number_from_id(&chapter_id);
+
+					// Generate clean title: "Chapitre X"
+					let title = if let Some(ch_num) = chapter_number {
+						format!("Chapitre {}", ch_num)
+					} else {
+						format!("Chapitre {}", chapter_id)
+					};
+
+					let url = if href_str.starts_with("http") {
+						href_str.to_string()
+					} else {
+						format!("{}{}", BASE_URL, href_str)
+					};
+
+					// Use None for date_uploaded - will be filled by HTML date extraction later
+					chapters.push(Chapter {
+						key: chapter_id,
+						title: Some(title),
+						volume_number: None,
+						chapter_number,
+						date_uploaded: None,
+						scanlators: None,
+						url: Some(url),
+						language: Some("fr".to_string()),
+						thumbnail: None,
+						locked: false,
+					});
 				}
 			}
-
-			// Continue trying all selectors to get as many chapters as possible
 		}
 	}
 
@@ -1211,6 +1189,59 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	});
 
 	Ok(chapters)
+}
+
+// Detect if a chapter is premium based on HTML indicators
+fn is_chapter_premium(chapter_element: &Element, html: &Document, href: &str) -> bool {
+	// Method 1: Check if the chapter element itself contains premium indicators
+	if let Some(element_html) = chapter_element.html() {
+		if element_html.contains("PREMIUM") || element_html.contains("amber-500") {
+			return true;
+		}
+	}
+	
+	// Method 2: Look for the chapter in the HTML structure and check its parent container
+	// The premium chapter has specific classes like "border-amber-500/30"
+	if let Some(chapter_containers) = html.select("a[href*='/chapter/']") {
+		for container in chapter_containers {
+			if let Some(container_href) = container.attr("href") {
+				if container_href == href {
+					// Get container HTML
+					let container_html = container.html().unwrap_or_default();
+					
+					// Get parent HTML
+					let parent_html = if let Some(parent) = container.parent() {
+						parent.html().unwrap_or_default()
+					} else {
+						String::new()
+					};
+					
+					// Check for premium indicators:
+					// 1. PREMIUM badge
+					if container_html.contains("PREMIUM") || parent_html.contains("PREMIUM") {
+						return true;
+					}
+					
+					// 2. Amber border (premium chapters have amber-500 border)
+					if container_html.contains("border-amber-500") || parent_html.contains("border-amber-500") {
+						return true;
+					}
+					
+					// 3. Early access text
+					if container_html.contains("Accès anticipé") || parent_html.contains("Accès anticipé") {
+						return true;
+					}
+					
+					// 4. Amber background elements
+					if container_html.contains("bg-amber-500") || parent_html.contains("bg-amber-500") {
+						return true;
+					}
+				}
+			}
+		}
+	}
+	
+	false
 }
 
 // Extract chapter dates from HTML and associate them with chapters (ported from original implementation)
