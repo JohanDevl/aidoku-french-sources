@@ -43,12 +43,7 @@ impl Source for PhenixScans {
 				.header("Origin", "https://phenix-scans.com")
 				.string()?;
 			
-			// Debug: afficher les premiers 500 caractères de la réponse
-			let debug_msg = format!("SEARCH DEBUG - URL: {} | Response (first 500 chars): {}", url, 
-				if response.len() > 500 { &response[..500] } else { &response });
-			return Err(aidoku::AidokuError::message(&debug_msg));
-			
-			// parser::parse_search_list(response)
+			parser::parse_search_list(response)
 		} else {
 			// Endpoint de listing avec headers Cloudflare
 			let url = format!("{}/front/manga?page={}&limit=20", API_URL, page);
@@ -61,12 +56,7 @@ impl Source for PhenixScans {
 				.header("Origin", "https://phenix-scans.com")
 				.string()?;
 			
-			// Debug: afficher les premiers 500 caractères de la réponse
-			let debug_msg = format!("LIST DEBUG - URL: {} | Response (first 500 chars): {}", url, 
-				if response.len() > 500 { &response[..500] } else { &response });
-			return Err(aidoku::AidokuError::message(&debug_msg));
-			
-			// parser::parse_manga_list(response)
+			parser::parse_manga_list(response)
 		}
 	}
 
@@ -145,12 +135,7 @@ impl ListingProvider for PhenixScans {
 			.header("Referer", "https://phenix-scans.com/")
 			.string()?;
 		
-		// Debug: afficher les premiers 500 caractères de la réponse
-		let debug_msg = format!("LISTING DEBUG - Type: {} | URL: {} | Response (first 500 chars): {}", 
-			listing.name, url, if response.len() > 500 { &response[..500] } else { &response });
-		return Err(aidoku::AidokuError::message(&debug_msg));
-		
-		// parser::parse_manga_listing(response, &listing.name)
+		parser::parse_manga_listing(response, &listing.name)
 	}
 }
 
