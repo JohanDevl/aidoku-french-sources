@@ -432,57 +432,65 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 		}
 	});
 	
-	// ⚡ SUPER OPTIMIZED: Only check the first 3 chapters for premium status
-	// Premium chapters are almost always the most recent ones (highest numbers)
-	println!("⚡ DEBUG: SUPER OPTIMIZED premium filtering - checking only first 3 chapters");
+	// 🎯 TRUE EARLY EXIT: Stop checking as soon as we find the first non-premium chapter
+	// Since premium chapters are the most recent, once we find a free chapter, all following are free
+	println!("🎯 DEBUG: TRUE EARLY EXIT premium filtering - stop at first non-premium chapter");
 	let mut filtered_chapters: Vec<Chapter> = Vec::new();
 	let original_chapter_count = chapters.len();
-	const MAX_PREMIUM_CHECKS: usize = 3; // Only check the 3 most recent chapters
 	
 	if let Some(chapter_elements) = html.select("a[href*='/chapter/']") {
 		let chapter_elements_vec: Vec<_> = chapter_elements.collect();
-		let mut _premium_count = 0;
+		let mut premium_count = 0;
 		let mut checks_performed = 0;
+		let mut found_first_non_premium = false;
 		
 		for (index, chapter) in chapters.iter().enumerate() {
 			let mut is_premium = false;
 			
-			// Only check premium status for the first MAX_PREMIUM_CHECKS chapters
-			if index < MAX_PREMIUM_CHECKS {
-				// Simple search for this chapter in HTML elements
+			// Only check premium status if we haven't found the "premium boundary" yet
+			if !found_first_non_premium {
+				// Search for this chapter in HTML elements
 				for chapter_element in &chapter_elements_vec {
 					if let Some(href_str) = chapter_element.attr("href") {
 						if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
 							if chapter_id_from_href == chapter.key {
-								println!("🔍 DEBUG: Checking chapter {} for premium status ({}/{})", chapter.key, index + 1, MAX_PREMIUM_CHECKS);
+								println!("🔍 DEBUG: Checking chapter {} for premium status", chapter.key);
 								is_premium = is_chapter_premium(chapter_element, html, &href_str);
 								checks_performed += 1;
+								
+								if !is_premium {
+									println!("🎯 DEBUG: Found first NON-premium chapter: {}. Early exit activated!", chapter.key);
+									println!("⚡ DEBUG: All remaining {} chapters will be included without checking", original_chapter_count - index - 1);
+									found_first_non_premium = true;
+								}
 								break;
 							}
 						}
 					}
 				}
 			} else {
-				// All remaining chapters are assumed to be non-premium (performance optimization)
-				if index == MAX_PREMIUM_CHECKS {
-					println!("⚡ DEBUG: Premium check limit reached. Remaining {} chapters assumed non-premium", 
-						original_chapter_count - MAX_PREMIUM_CHECKS);
-				}
+				// All remaining chapters are automatically non-premium (early exit optimization)
+				is_premium = false;
 			}
 			
 			if is_premium {
 				println!("🔒 DEBUG: EXCLUDING premium chapter {} from results", chapter.key);
-				_premium_count += 1;
+				premium_count += 1;
 			} else {
 				println!("🆓 DEBUG: INCLUDING chapter {}", chapter.key);
 				filtered_chapters.push(chapter.clone());
 			}
 		}
 		
-		println!("⚡ DEBUG: OPTIMIZATION RESULTS - Premium checks: {}/{} chapters ({}% reduction)", 
-			checks_performed, original_chapter_count, 
-			if original_chapter_count > 0 { ((original_chapter_count - checks_performed) * 100) / original_chapter_count } else { 0 }
-		);
+		let efficiency_gain = if original_chapter_count > 0 { 
+			((original_chapter_count - checks_performed) * 100) / original_chapter_count 
+		} else { 0 };
+		
+		println!("🎯 DEBUG: EARLY EXIT RESULTS:");
+		println!("   🔍 Checks performed: {}/{} chapters", checks_performed, original_chapter_count);
+		println!("   ⚡ Efficiency gain: {}% (avoided {} checks)", efficiency_gain, original_chapter_count - checks_performed);
+		println!("   🔒 Premium chapters found: {}", premium_count);
+		println!("   🆓 Free chapters included: {}", filtered_chapters.len());
 	} else {
 		println!("⚠️  DEBUG: No HTML chapter elements found, returning all JSON-LD chapters");
 		filtered_chapters = chapters;
