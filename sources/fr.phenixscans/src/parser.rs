@@ -208,95 +208,61 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		
-		// TEMP DEBUG: Test what extract_json_value returns for "latest"
-		if let Some(latest_value) = extract_json_value(&response, "latest") {
-			let display_value = if latest_value.len() > 150 { 
-				format!("{}...", &latest_value[..150])
-			} else { 
-				latest_value.clone()
-			};
-			return Err(aidoku::AidokuError::message(&format!("DEBUG: extract_json_value found 'latest': {}", display_value)));
-		} else {
-			return Err(aidoku::AidokuError::message(&format!("DEBUG: extract_json_value could NOT find 'latest' key. Context: {}", 
-				if let Some(pos) = response.find("\"latest\"") {
-					let start = pos.saturating_sub(20);
-					let end = (pos + 100).min(response.len());
-					&response[start..end]
-				} else { "latest key not found in response" })));
-		}
-		
-		/*
 		let items = extract_json_array(&response, "latest");
 		
-		// TEMP DEBUG: Show what we got
+		// TEMP DEBUG: Show if extract_json_array works now that we know extract_json_value works
 		if items.len() == 0 {
-			// Debug: check if latest key exists at all
-			if response.contains("\"latest\"") {
-				return Err(aidoku::AidokuError::message(&format!("DEBUG: Found 'latest' in response but extract_json_array failed. Looking around latest key: {}", 
-					if let Some(pos) = response.find("\"latest\"") {
-						let start = pos.saturating_sub(10);
-						let end = (pos + 150).min(response.len());
-						&response[start..end]
-					} else { "NOT FOUND" })));
-			} else {
-				return Err(aidoku::AidokuError::message(&format!("DEBUG: No 'latest' key found in response. Response start: {}", 
-					if response.len() > 200 { &response[..200] } else { &response })));
-			}
+			return Err(aidoku::AidokuError::message("DEBUG: extract_json_array returned 0 items but extract_json_value works - problem in array parsing"));
 		}
-		*/
 		
-		/*
-		let mut processed_count = 0;
 		for item in &items {
-			let slug_result = extract_json_value(item, "slug");
-			let title_result = extract_json_value(item, "title");
+			// Dans le JSON, les objets utilisent "_id" au lieu de "id" et parfois "slug"
+			let id_field = extract_json_value(item, "_id").unwrap_or_else(|| "".to_string());
+			let slug = extract_json_value(item, "slug");
+			let title = extract_json_value(item, "title").unwrap_or_else(|| "Unknown Title".to_string());
 			
-			if let Some(slug) = slug_result {
-				if slug == "unknown" { continue; }
-				
-				let title = title_result.unwrap_or_else(|| "Unknown Title".to_string());
-				let cover_image = extract_json_value(item, "coverImage").unwrap_or_else(|| "".to_string());
-				let cover = if !cover_image.is_empty() {
-					Some(format!("{}/{}", API_URL, cover_image))
-				} else {
-					None
-				};
-
-				mangas.push(Manga {
-					key: slug,
-					title,
-					cover,
-					authors: None,
-					artists: None,
-					description: None,
-					url: None,
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::default(),
-					chapters: None,
-					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
-				});
-				// processed_count += 1;
+			// Utiliser soit slug soit _id comme identifiant
+			let final_id = if let Some(s) = slug {
+				if s != "unknown" { s } else { continue; }
+			} else if !id_field.is_empty() {
+				id_field
 			} else {
-				// Show why this item failed
-				// return Err(aidoku::AidokuError::message(&format!("DEBUG: Item failed parsing. Items found: {}, First item preview: {}", 
-				//	items.len(), 
-				//	if item.len() > 200 { &item[..200] } else { item })));
-			}
+				continue;
+			};
+			
+			let cover_image = extract_json_value(item, "coverImage").unwrap_or_else(|| "".to_string());
+			let cover = if !cover_image.is_empty() {
+				Some(format!("{}/{}", API_URL, cover_image))
+			} else { None };
+
+			let status_str = extract_json_value(item, "status").unwrap_or_else(|| "Unknown".to_string());
+			let status = parse_manga_status(&status_str);
+
+			let manga_type = extract_json_value(item, "type").unwrap_or_else(|| "Unknown".to_string());
+			let viewer = if manga_type == "Manga" {
+				Viewer::RightToLeft
+			} else {
+				Viewer::Vertical
+			};
+
+			mangas.push(Manga {
+				key: final_id,
+				title,
+				cover,
+				authors: None,
+				artists: None,
+				description: None,
+				url: None,
+				tags: None,
+				status,
+				content_rating: ContentRating::Safe,
+				viewer,
+				chapters: None,
+				next_update_time: None,
+				update_strategy: UpdateStrategy::Never,
+			});
 		}
 		
-		// DEBUG: Show results
-		// if processed_count == 0 {
-		//	return Err(aidoku::AidokuError::message(&format!("DEBUG: {} items found but none processed successfully", items.len())));
-		// }
-		*/
-		
-		// TEMP: Return false for now during debug
-		false
-		
-		/*
 		// Check if there are more pages
 		if let Some(pagination_str) = extract_json_value(&response, "pagination") {
 			let current_page = extract_json_value(&pagination_str, "currentPage")
@@ -309,7 +275,6 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		} else {
 			false
 		}
-		*/
 	};
 
 	Ok(MangaPageResult {
