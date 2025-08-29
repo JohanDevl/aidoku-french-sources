@@ -356,6 +356,26 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 		return Ok(parse_chapter_list_from_html(html)?);
 	};
 	
+	// Find the highest chapter number to identify premium chapters
+	let max_chapter_number = chapters_array
+		.iter()
+		.filter_map(|chapter_value| {
+			chapter_value.as_object()
+				.and_then(|obj| obj.get("issueNumber"))
+				.and_then(|num| {
+					if let Some(n) = num.as_f64() {
+						Some(n as f32)
+					} else if let Some(n) = num.as_i64() {
+						Some(n as f32)
+					} else {
+						None
+					}
+				})
+		})
+		.fold(0.0_f32, |acc, num| acc.max(num));
+	
+	println!("🔍 DEBUG: Highest chapter number found: {}", max_chapter_number);
+	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
 	// Parse each ComicIssue from JSON-LD
@@ -383,8 +403,13 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 				continue;
 			};
 			
-			// JSON-LD doesn't have premium info - all chapters are accessible
-			let is_premium = false;
+			// Le chapitre avec le numéro le plus élevé est premium sur PoseidonScans
+			let is_premium = chapter_number >= max_chapter_number && max_chapter_number > 0.0;
+			
+			if is_premium {
+				println!("🔒 DEBUG: Skipping premium chapter {}", chapter_number);
+				continue; // Skip premium chapters entirely
+			}
 			
 			// Extract chapter title - clean format: "Chapitre X"
 			let chapter_title = format!("Chapitre {}", chapter_number);
@@ -412,7 +437,7 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 				url: Some(url),
 				language: Some("fr".to_string()),
 				thumbnail: None,
-				locked: is_premium, // Keep premium chapters but mark as locked
+				locked: false, // Only non-premium chapters are included
 			});
 		}
 	}
@@ -433,7 +458,7 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	// DEBUG: Final results
 	println!("🎯 DEBUG: OLD LOGIC RESULT for {}:", manga_key);
 	println!("   📚 Total chapters: {}", chapters.len());
-	println!("   🔒 Premium chapters: {}", chapters.iter().filter(|c| c.locked).count());
+	println!("   🔒 Premium chapters: excluded from listing");
 	
 	Ok(chapters)
 }
