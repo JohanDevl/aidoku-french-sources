@@ -294,56 +294,49 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	})
 }
 
-// MODERN extraction using element.data() method from working sources  
-fn extract_nextjs_manga_details_modern(html: &Document) -> Result<serde_json::Value> {
-	println!("🔥 DEBUG: Using MODERN extraction approach with element.data()!");
+// JSON-LD extraction - the ACTUAL approach PoseidonScans uses
+fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
+	println!("🔥 DEBUG: Using JSON-LD extraction approach (schema.org)!");
 	
-	// Try __NEXT_DATA__ script tag using modern API like other working sources
-	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
-		println!("📜 DEBUG: Found script elements");
+	// Look for JSON-LD scripts with type="application/ld+json"
+	if let Some(script_elements) = html.select("script[type=\"application/ld+json\"]") {
+		println!("📜 DEBUG: Found JSON-LD script elements");
 		
 		for script in script_elements {
-			// Use element.data() like the working sources (copymanga, etc.)
+			// Use element.data() to get the JSON content
 			if let Some(content) = script.data() {
-				println!("📜 DEBUG: Found __NEXT_DATA__ script tag, content length: {}", content.len());
+				println!("📄 DEBUG: JSON-LD script content length: {}", content.len());
 				
 				if !content.trim().is_empty() {
-					println!("📄 DEBUG: Trying serde_json parse on script.data() content...");
+					println!("🔍 DEBUG: Parsing JSON-LD content...");
 					
-					if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&content) {
-						println!("✅ DEBUG: SUCCESS with element.data() + serde_json parsing!");
-						
-						// Try props.pageProps first (most common structure)
-						if let Some(props) = root_json.get("props") {
-							if let Some(page_props) = props.get("pageProps") {
-								println!("🎯 DEBUG: Found props.pageProps structure");
-								return Ok(page_props.clone());
+					if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+						// Check if this is a ComicSeries (manga) JSON-LD
+						if let Some(type_value) = json_data.get("@type") {
+							if let Some(type_str) = type_value.as_str() {
+								println!("🎯 DEBUG: Found JSON-LD type: {}", type_str);
+								
+								if type_str == "ComicSeries" {
+									println!("✅ DEBUG: SUCCESS! Found ComicSeries JSON-LD!");
+									return Ok(json_data);
+								}
 							}
 						}
-						
-						// Try root level initialData (alternative structure)
-						if let Some(initial_data) = root_json.get("initialData") {
-							println!("🎯 DEBUG: Found root level initialData structure");
-							return Ok(initial_data.clone());
-						}
-						
-						println!("⚠️ DEBUG: Parsed JSON but no expected structure found, returning root");
-						return Ok(root_json);
 					} else {
-						println!("❌ DEBUG: Failed to parse JSON with serde_json");
+						println!("❌ DEBUG: Failed to parse JSON-LD content");
 					}
 				} else {
-					println!("❌ DEBUG: Script data content is empty");
+					println!("❌ DEBUG: JSON-LD content is empty");
 				}
 			} else {
 				println!("❌ DEBUG: script.data() returned None");
 			}
 		}
 	} else {
-		println!("❌ DEBUG: No __NEXT_DATA__ script tag found");
+		println!("❌ DEBUG: No JSON-LD scripts found");
 	}
 	
-	println!("💥 DEBUG: All extraction failed - returning empty object");
+	println!("💥 DEBUG: No ComicSeries JSON-LD found - returning empty object");
 	Ok(serde_json::json!({}))
 }
 
@@ -351,46 +344,34 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	// Use the PROVEN logic from the old implementation that worked!
 	println!("🔄 DEBUG: Using old implementation logic that worked!");
 	
-	// Extract Next.js page data using modern approach that WORKS
-	let manga_data = extract_nextjs_manga_details_modern(html)?;
+	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
+	let manga_data = extract_jsonld_manga_details(html)?;
 	
-	// Simple direct extraction like the old version but with serde_json APIs
-	let chapters_array = if let Some(chapters) = manga_data.get("chapters").and_then(|c| c.as_array()) {
-		println!("✅ DEBUG: Found {} chapters directly!", chapters.len());
-		chapters
-	} else if let Some(manga_obj) = manga_data.get("manga") {
-		if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
-			println!("✅ DEBUG: Found {} chapters in manga object!", chapters.len());
-			chapters
-		} else {
-			println!("⚠️  DEBUG: No chapters in manga object, using HTML fallback");
-			return Ok(parse_chapter_list_from_html(html)?);
-		}
-	} else if let Some(initial_data) = manga_data.get("initialData") {
-		if let Some(manga_obj) = initial_data.get("manga") {
-			if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
-				println!("✅ DEBUG: Found {} chapters in initialData.manga!", chapters.len());
-				chapters
-			} else {
-				println!("⚠️  DEBUG: No chapters in initialData structure, using HTML fallback");
-				return Ok(parse_chapter_list_from_html(html)?);
-			}
-		} else {
-			println!("⚠️  DEBUG: No manga in initialData, using HTML fallback");
-			return Ok(parse_chapter_list_from_html(html)?);
-		}
+	// Extract chapters from JSON-LD "hasPart" array
+	let chapters_array = if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
+		println!("✅ DEBUG: Found {} ComicIssues in hasPart!", has_part.len());
+		has_part
 	} else {
-		println!("⚠️  DEBUG: No expected JSON structure found, using HTML fallback");
+		println!("⚠️  DEBUG: No hasPart found in JSON-LD, using HTML fallback");
 		return Ok(parse_chapter_list_from_html(html)?);
 	};
 	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Parse each chapter from JSON (serde_json approach)
+	// Parse each ComicIssue from JSON-LD
 	for chapter_value in chapters_array {
 		if let Some(chapter_obj) = chapter_value.as_object() {
-			// Extract chapter number
-			let chapter_number = if let Some(num) = chapter_obj.get("number") {
+			// Check if this is a ComicIssue
+			if let Some(type_value) = chapter_obj.get("@type") {
+				if let Some(type_str) = type_value.as_str() {
+					if type_str != "ComicIssue" {
+						continue; // Skip non-ComicIssue entries
+					}
+				}
+			}
+			
+			// Extract chapter number from issueNumber
+			let chapter_number = if let Some(num) = chapter_obj.get("issueNumber") {
 				if let Some(n) = num.as_f64() {
 					n as f32
 				} else if let Some(n) = num.as_i64() {
@@ -402,21 +383,24 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 				continue;
 			};
 			
-			// Check if premium but DON'T filter out - mark as locked
-			let is_premium = chapter_obj.get("isPremium")
-				.and_then(|v| v.as_bool())
-				.unwrap_or(false);
+			// JSON-LD doesn't have premium info - all chapters are accessible
+			let is_premium = false;
 			
 			// Extract chapter title - clean format: "Chapitre X"
 			let chapter_title = format!("Chapitre {}", chapter_number);
 			
-			// Build chapter URL
+			// Extract chapter URL directly from JSON-LD (already complete)
+			let url = chapter_obj.get("url")
+				.and_then(|u| u.as_str())
+				.unwrap_or_default()
+				.to_string();
+			
+			// Extract chapter ID from URL
 			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
 				format!("{}", chapter_number as i32)
 			} else {
 				format!("{}", chapter_number)
 			};
-			let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga_key, chapter_id);
 			
 			chapters.push(Chapter {
 				key: chapter_id,
