@@ -294,58 +294,53 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	})
 }
 
-// SIMPLE extraction with serde_json (corrected version)
-fn extract_nextjs_manga_details_simple(html: &Document) -> Result<serde_json::Value> {
-	println!("🔥 DEBUG: SIMPLE extraction approach!");
+// HYBRID extraction using script.html() method from old implementation with modern APIs
+fn extract_nextjs_manga_details_hybrid(html: &Document) -> Result<serde_json::Value> {
+	println!("🔥 DEBUG: Using HYBRID extraction approach (old method + modern APIs)!");
 	
-	// Try different ways to get the script content
+	// Try __NEXT_DATA__ script tag using the key extraction method from old implementation
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
-		println!("📜 DEBUG: Found __NEXT_DATA__ script tag");
-		
 		for script in script_elements {
-			// Try different methods to get content
-			println!("🔍 DEBUG: Trying different content extraction methods...");
-			
-			// Method 1: script.text()
-			if let Some(text_content) = script.text() {
-				println!("📄 DEBUG: Method 1 - text() length: {}", text_content.len());
-				if !text_content.trim().is_empty() {
-					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text_content) {
-						println!("✅ DEBUG: SUCCESS with text() method!");
-						return Ok(parsed);
+			// Use script.html() like the old implementation (this was the key!)
+			if let Some(content) = script.html() {
+				println!("📜 DEBUG: Found __NEXT_DATA__ script tag, content length: {}", content.len());
+				
+				if !content.trim().is_empty() {
+					println!("📄 DEBUG: Trying serde_json parse on script.html() content...");
+					
+					if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&content) {
+						println!("✅ DEBUG: SUCCESS with script.html() + serde_json parsing!");
+						
+						// Try props.pageProps first (most common structure)
+						if let Some(props) = root_json.get("props") {
+							if let Some(page_props) = props.get("pageProps") {
+								println!("🎯 DEBUG: Found props.pageProps structure");
+								return Ok(page_props.clone());
+							}
+						}
+						
+						// Try root level initialData (alternative structure)
+						if let Some(initial_data) = root_json.get("initialData") {
+							println!("🎯 DEBUG: Found root level initialData structure");
+							return Ok(initial_data.clone());
+						}
+						
+						println!("⚠️ DEBUG: Parsed JSON but no expected structure found, returning root");
+						return Ok(root_json);
+					} else {
+						println!("❌ DEBUG: Failed to parse JSON with serde_json");
 					}
+				} else {
+					println!("❌ DEBUG: Script content is empty");
 				}
+			} else {
+				println!("❌ DEBUG: script.html() returned None");
 			}
-			
-			// Method 2: script.html()
-			if let Some(html_content) = script.html() {
-				println!("📄 DEBUG: Method 2 - html() length: {}", html_content.len());
-				if !html_content.trim().is_empty() {
-					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&html_content) {
-						println!("✅ DEBUG: SUCCESS with html() method!");
-						return Ok(parsed);
-					}
-				}
-			}
-			
-			// Method 3: script.own_text()
-			if let Some(inner_content) = script.own_text() {
-				println!("📄 DEBUG: Method 3 - own_text() length: {}", inner_content.len());
-				if !inner_content.trim().is_empty() {
-					if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&inner_content) {
-						println!("✅ DEBUG: SUCCESS with own_text() method!");
-						return Ok(parsed);
-					}
-				}
-			}
-			
-			println!("❌ DEBUG: All content extraction methods failed for this script");
 		}
 	} else {
 		println!("❌ DEBUG: No __NEXT_DATA__ script tag found");
 	}
 	
-	// Return empty object if all fails
 	println!("💥 DEBUG: All extraction failed - returning empty object");
 	Ok(serde_json::json!({}))
 }
@@ -354,10 +349,10 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	// Use the PROVEN logic from the old implementation that worked!
 	println!("🔄 DEBUG: Using old implementation logic that worked!");
 	
-	// Extract Next.js page data using simple approach that WORKS
-	let manga_data = extract_nextjs_manga_details_simple(html)?;
+	// Extract Next.js page data using hybrid approach that WORKS
+	let manga_data = extract_nextjs_manga_details_hybrid(html)?;
 	
-	// Simple direct extraction like the old version but with serde_json
+	// Simple direct extraction like the old version but with serde_json APIs
 	let chapters_array = if let Some(chapters) = manga_data.get("chapters").and_then(|c| c.as_array()) {
 		println!("✅ DEBUG: Found {} chapters directly!", chapters.len());
 		chapters
@@ -369,27 +364,17 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 			println!("⚠️  DEBUG: No chapters in manga object, using HTML fallback");
 			return Ok(parse_chapter_list_from_html(html)?);
 		}
-	} else if let Some(props) = manga_data.get("props") {
-		if let Some(page_props) = props.get("pageProps") {
-			if let Some(initial_data) = page_props.get("initialData") {
-				if let Some(manga_obj) = initial_data.get("manga") {
-					if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
-						println!("✅ DEBUG: Found {} chapters in props.pageProps.initialData.manga!", chapters.len());
-						chapters
-					} else {
-						println!("⚠️  DEBUG: No chapters in nested structure, using HTML fallback");
-						return Ok(parse_chapter_list_from_html(html)?);
-					}
-				} else {
-					println!("⚠️  DEBUG: No manga in initialData, using HTML fallback");
-					return Ok(parse_chapter_list_from_html(html)?);
-				}
+	} else if let Some(initial_data) = manga_data.get("initialData") {
+		if let Some(manga_obj) = initial_data.get("manga") {
+			if let Some(chapters) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
+				println!("✅ DEBUG: Found {} chapters in initialData.manga!", chapters.len());
+				chapters
 			} else {
-				println!("⚠️  DEBUG: No initialData in pageProps, using HTML fallback");
+				println!("⚠️  DEBUG: No chapters in initialData structure, using HTML fallback");
 				return Ok(parse_chapter_list_from_html(html)?);
 			}
 		} else {
-			println!("⚠️  DEBUG: No pageProps in props, using HTML fallback");
+			println!("⚠️  DEBUG: No manga in initialData, using HTML fallback");
 			return Ok(parse_chapter_list_from_html(html)?);
 		}
 	} else {
@@ -399,7 +384,7 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
-	// Parse each chapter from JSON (simple serde_json approach)
+	// Parse each chapter from JSON (serde_json approach)
 	for chapter_value in chapters_array {
 		if let Some(chapter_obj) = chapter_value.as_object() {
 			// Extract chapter number
