@@ -1496,22 +1496,111 @@ fn parse_iso_date_string(date_str: &str) -> Option<i64> {
 	}
 }
 
-pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page>> {
+pub fn parse_page_list(html: &Document, chapter_url: String) -> Result<Vec<Page>> {
+	println!("🔄 DEBUG: Parsing page list for chapter: {}", chapter_url);
+	
+	// Try JSON-LD extraction first (like for chapters)
+	if let Ok(pages) = extract_pages_from_jsonld(html) {
+		if !pages.is_empty() {
+			println!("✅ DEBUG: Found {} pages from JSON-LD", pages.len());
+			return Ok(pages);
+		}
+	}
+	
+	// Try __NEXT_DATA__ extraction as backup
+	if let Ok(pages) = extract_pages_from_nextdata(html) {
+		if !pages.is_empty() {
+			println!("✅ DEBUG: Found {} pages from __NEXT_DATA__", pages.len());
+			return Ok(pages);
+		}
+	}
+	
+	// Fallback to HTML extraction
+	println!("⚠️ DEBUG: Using HTML fallback for page extraction");
+	extract_pages_from_html(html)
+}
+
+// Extract pages from JSON-LD (schema.org structured data)
+fn extract_pages_from_jsonld(html: &Document) -> Result<Vec<Page>> {
+	println!("🔥 DEBUG: Trying JSON-LD page extraction");
+	
+	if let Some(script_elements) = html.select("script[type=\"application/ld+json\"]") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					// Look for chapter-specific JSON-LD with images
+					if let Some(type_value) = json_data.get("@type") {
+						if let Some(type_str) = type_value.as_str() {
+							if type_str == "ComicIssue" || type_str == "Chapter" {
+								if let Some(images) = json_data.get("images").and_then(|i| i.as_array()) {
+									return parse_images_from_json_array(images);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	Ok(Vec::new())
+}
+
+// Extract pages from __NEXT_DATA__ script tag (backup method)
+fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
+	println!("🔥 DEBUG: Trying __NEXT_DATA__ page extraction");
+	
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					// Navigate through Next.js structure to find images
+					let image_paths: Vec<&[&str]> = vec![
+						&["props", "pageProps", "initialData", "images"],
+						&["props", "pageProps", "images"], 
+						&["props", "pageProps", "chapter", "images"],
+						&["images"],
+						&["chapter", "images"],
+					];
+					
+					for path in &image_paths {
+						if let Some(images) = get_nested_json_value(&json_data, path) {
+							if let Some(images_array) = images.as_array() {
+								let pages = parse_images_from_json_array(images_array)?;
+								if !pages.is_empty() {
+									return Ok(pages);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	Ok(Vec::new())
+}
+
+// Extract pages from HTML as fallback
+fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
+	println!("🔥 DEBUG: Using HTML extraction for pages");
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Extract images from HTML - try multiple selectors
+	// Try multiple selectors to find chapter images
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
-		"img[src*='/chapter/']",
+		"img[src*='/chapter/']", 
 		"img[src*='/images/']",
 		"img[data-src]",
 		"main img",
 		".chapter-content img",
 		".manga-reader img",
+		"img[src*='poseidon']", // PoseidonScans specific
 	];
 
 	for selector in &image_selectors {
 		if let Some(img_elements) = html.select(selector) {
+			let mut _page_index = 1;
 			for img_element in img_elements {
 				// Get image URL from various attributes
 				let image_url = img_element.attr("src")
@@ -1535,6 +1624,7 @@ pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page
 							has_description: false,
 							description: None,
 						});
+						_page_index += 1;
 					}
 				}
 			}
@@ -1542,10 +1632,62 @@ pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page
 
 		// If we found images with this selector, stop trying others
 		if !pages.is_empty() {
+			println!("✅ DEBUG: Found {} pages with selector: {}", pages.len(), selector);
 			break;
 		}
 	}
 
+	Ok(pages)
+}
+
+// Parse images from JSON array (common for both JSON-LD and __NEXT_DATA__)
+fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result<Vec<Page>> {
+	let mut pages: Vec<Page> = Vec::new();
+	
+	for (_index, image_value) in images_array.iter().enumerate() {
+		if let Some(image_obj) = image_value.as_object() {
+			// Try different possible image URL fields
+			let image_url = image_obj.get("url")
+				.or_else(|| image_obj.get("src"))
+				.or_else(|| image_obj.get("original"))
+				.or_else(|| image_obj.get("originalUrl"))
+				.and_then(|u| u.as_str());
+			
+			if let Some(url) = image_url {
+				let absolute_url = if url.starts_with("http") {
+					url.to_string()
+				} else if url.starts_with("/") {
+					format!("{}{}", BASE_URL, url)
+				} else {
+					format!("{}/{}", BASE_URL, url)
+				};
+				
+				pages.push(Page {
+					content: PageContent::url(absolute_url),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			}
+		} else if let Some(url_str) = image_value.as_str() {
+			// Sometimes images are just strings
+			let absolute_url = if url_str.starts_with("http") {
+				url_str.to_string()
+			} else if url_str.starts_with("/") {
+				format!("{}{}", BASE_URL, url_str)
+			} else {
+				format!("{}/{}", BASE_URL, url_str)
+			};
+			
+			pages.push(Page {
+				content: PageContent::url(absolute_url),
+				thumbnail: None,
+				has_description: false,
+				description: None,
+			});
+		}
+	}
+	
 	Ok(pages)
 }
 
