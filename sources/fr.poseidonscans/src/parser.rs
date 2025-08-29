@@ -1584,9 +1584,56 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 // Extract pages from HTML as fallback
 fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	println!("🔥 DEBUG: Using HTML extraction for pages");
-	let mut pages: Vec<Page> = Vec::new();
+	let mut pages: Vec<(usize, Page)> = Vec::new(); // Store with order for sorting
 
-	// Try multiple selectors to find chapter images
+	// First try the new PoseidonScans structure with API endpoints
+	if let Some(img_elements) = html.select("img[src*='/api/chapters']") {
+		println!("📸 DEBUG: Found images with /api/chapters - using new structure");
+		
+		for img_element in img_elements {
+			if let Some(src) = img_element.attr("src") {
+				if !src.is_empty() && !src.contains("placeholder") && !src.contains("loading") {
+					let absolute_url = if src.starts_with("/") {
+						format!("{}{}", BASE_URL, src)
+					} else {
+						src.to_string()
+					};
+
+					// Get order from parent div's data-order attribute
+					let mut order = 0;
+					if let Some(parent) = img_element.parent() {
+						// Look for data-order attribute in parent or parent's parent
+						let parent_order = parent.attr("data-order");
+						if let Some(order_str) = parent_order {
+							order = order_str.parse().unwrap_or(0);
+						} else if let Some(grandparent) = parent.parent() {
+							if let Some(order_str) = grandparent.attr("data-order") {
+								order = order_str.parse().unwrap_or(0);
+							}
+						}
+					}
+
+					pages.push((order, Page {
+						content: PageContent::url(absolute_url),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					}));
+				}
+			}
+		}
+
+		// Sort by order and return
+		if !pages.is_empty() {
+			pages.sort_by(|a, b| a.0.cmp(&b.0));
+			let ordered_pages: Vec<Page> = pages.into_iter().map(|(_, page)| page).collect();
+			println!("✅ DEBUG: Found {} pages with new API structure", ordered_pages.len());
+			return Ok(ordered_pages);
+		}
+	}
+
+	// Fallback to old selectors if new structure not found
+	let mut fallback_pages: Vec<Page> = Vec::new();
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
 		"img[src*='/chapter/']", 
@@ -1618,7 +1665,7 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 							format!("{}/{}", BASE_URL, url)
 						};
 
-						pages.push(Page {
+						fallback_pages.push(Page {
 							content: PageContent::url(absolute_url),
 							thumbnail: None,
 							has_description: false,
@@ -1631,13 +1678,13 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 		}
 
 		// If we found images with this selector, stop trying others
-		if !pages.is_empty() {
-			println!("✅ DEBUG: Found {} pages with selector: {}", pages.len(), selector);
+		if !fallback_pages.is_empty() {
+			println!("✅ DEBUG: Found {} pages with fallback selector: {}", fallback_pages.len(), selector);
 			break;
 		}
 	}
 
-	Ok(pages)
+	Ok(fallback_pages)
 }
 
 // Parse images from JSON array (common for both JSON-LD and __NEXT_DATA__)
