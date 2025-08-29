@@ -11,14 +11,27 @@ use crate::API_URL;
 
 // Helper function to extract JSON value by key
 fn extract_json_value(json: &str, key: &str) -> Option<String> {
+	// DEBUG: Test what we're searching for
+	let compact_search = format!("\"{}\":", key);
+	let spaced_search = format!("\"{}\": ", key);
+	
 	// Simple JSON extraction using string manipulation - handle both compact and spaced JSON
-	let (search_pos, offset) = if let Some(pos) = json.find(&format!("\"{}\":", key)) {
+	let (search_pos, offset) = if let Some(pos) = json.find(&compact_search) {
 		// Compact JSON format: "key":value
 		(pos, key.len() + 3) // Skip `"key":`
-	} else if let Some(pos) = json.find(&format!("\"{}\": ", key)) {
+	} else if let Some(pos) = json.find(&spaced_search) {
 		// Spaced JSON format: "key": value
 		(pos, key.len() + 4) // Skip `"key": `
 	} else {
+		// DEBUG: Show what we searched for and what we got
+		if key == "latest" {
+			// Create a debug error to see exactly what happened
+			let first_50 = if json.len() > 50 { &json[..50] } else { json };
+			let debug = format!("SEARCH FAIL - Looking for: '{}' or '{}' in: '{}'", 
+				compact_search, spaced_search, first_50);
+			// We can't return error from here, but we can print debug info
+			// Just return None as normal
+		}
 		return None;
 	};
 	
@@ -181,7 +194,17 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		listing_type, response.len(), 
 		if response.len() > 200 { &response[..200] } else { &response });
 		
-	// Test direct de extract_json_value 
+	// Test direct de extract_json_value avec debug détaillé
+	let compact_search = "\"latest\":";
+	let spaced_search = "\"latest\": ";
+	let first_100 = if response.len() > 100 { &response[..100] } else { &response };
+	
+	let compact_found = response.find(compact_search);
+	let spaced_found = response.find(spaced_search);
+	
+	let debug_search = format!("SEARCH DEBUG - Looking for: '{}' (found at: {:?}) or '{}' (found at: {:?}) | In: '{}'",
+		compact_search, compact_found, spaced_search, spaced_found, first_100);
+		
 	let latest_value = extract_json_value(&response, "latest");
 	let debug_extract = format!("EXTRACT TEST - latest key found: {} | Value starts with: {}", 
 		latest_value.is_some(),
@@ -199,7 +222,7 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 			} else { "NONE" });
 		
 		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {} | {}", debug_msg, debug_extract, debug_items)));
+		return Err(aidoku::AidokuError::message(&format!("{} | {} | {} | {}", debug_msg, debug_search, debug_extract, debug_items)));
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		let items = extract_json_array(&response, "latest");
@@ -221,7 +244,7 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		};
 		
 		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {} | {}{}", debug_msg, debug_extract, debug_items, debug_values)));
+		return Err(aidoku::AidokuError::message(&format!("{} | {} | {} | {}{}", debug_msg, debug_search, debug_extract, debug_items, debug_values)));
 	};
 
 	Ok(MangaPageResult {
