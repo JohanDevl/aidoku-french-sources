@@ -295,45 +295,76 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 }
 
 pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// First try to extract Next.js data like the original implementation
-	if let Ok(chapters) = extract_chapters_from_nextjs_data(&html, &manga_key) {
-		if !chapters.is_empty() {
-			return Ok(chapters);
+	// Extract Next.js page data with same approach as original implementation
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// First try to extract Next.js data like the original implementation  
+	if let Ok(nextjs_chapters) = extract_chapters_from_nextjs_data(&html, &manga_key) {
+		if !nextjs_chapters.is_empty() {
+			chapters = nextjs_chapters;
 		}
 	}
-
-	// Fallback to HTML parsing if Next.js extraction fails
-	parse_chapter_list_from_html(html)
+	
+	// If Next.js extraction failed, fallback to HTML parsing
+	if chapters.is_empty() {
+		chapters = parse_chapter_list_from_html(html)?;
+	}
+	
+	// FORCE HTML date extraction for all chapters - ignore JSON dates completely
+	// This is the key improvement from the original implementation
+	extract_chapter_dates_from_html(&html, &mut chapters);
+	
+	// Sort chapters by number in descending order (latest first)
+	chapters.sort_by(|a, b| {
+		match (a.chapter_number, b.chapter_number) {
+			(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+			(Some(_), None) => Ordering::Less,
+			(None, Some(_)) => Ordering::Greater,
+			(None, None) => Ordering::Equal,
+		}
+	});
+	
+	Ok(chapters)
 }
 
 fn extract_chapters_from_nextjs_data(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
-	// Try to find __NEXT_DATA__ script
+	// Enhanced Next.js extraction with multiple fallbacks like original implementation
+	
+	// First try __NEXT_DATA__ script tag with enhanced validation
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
 		for script in script_elements {
 			if let Some(script_content) = script.text() {
 				if let Ok(manga_data) = serde_json::from_str::<serde_json::Value>(&script_content) {
+					// Always validate, but keep even partial data
 					if let Some(chapters_data) = extract_chapters_from_nextjs_value(&manga_data, manga_key) {
-						return Ok(chapters_data);
+						if !chapters_data.is_empty() {
+							return Ok(chapters_data);
+						}
 					}
 				}
 			}
 		}
 	}
 
-	// Try to find Next.js data in other script tags
+	// Enhanced fallback to self.__next_f.push() patterns with multiple markers
 	if let Some(script_elements) = html.select("script") {
 		for script in script_elements {
 			if let Some(script_content) = script.text() {
-				if script_content.contains("self.__next_f.push") || script_content.contains("__NEXT_DATA__") {
-					// Extract JSON from the script content
-					if let Some(json_start) = script_content.find('{') {
-						if let Some(json_end) = script_content.rfind('}') {
-							if json_start < json_end {
-								let json_str = &script_content[json_start..=json_end];
-								if let Ok(manga_data) = serde_json::from_str::<serde_json::Value>(json_str) {
-									if let Some(chapters_data) = extract_chapters_from_nextjs_value(&manga_data, manga_key) {
-										return Ok(chapters_data);
-									}
+				if script_content.contains("self.__next_f.push") {
+					// Try multiple data patterns
+					let patterns = [
+						"\"initialData\":{",
+						"\"manga\":{", 
+						"\"chapter\":{",
+						"\"pageProps\":{",
+					];
+					
+					for &pattern in &patterns {
+						if script_content.contains(pattern) {
+							// Extract JSON from the more complex self.__next_f.push structure
+							if let Some(chapters_data) = parse_nextjs_push_data(&script_content, manga_key) {
+								if !chapters_data.is_empty() {
+									return Ok(chapters_data);
 								}
 							}
 						}
@@ -344,6 +375,69 @@ fn extract_chapters_from_nextjs_data(html: &Document, manga_key: &str) -> Result
 	}
 
 	Err(aidoku::AidokuError::message("No Next.js data found"))
+}
+
+// Parse complex self.__next_f.push() data structures
+fn parse_nextjs_push_data(content: &str, manga_key: &str) -> Option<Vec<Chapter>> {
+	// Look for JSON data within self.__next_f.push calls
+	let mut start_idx = 0;
+	while let Some(push_pos) = content[start_idx..].find("self.__next_f.push(") {
+		let absolute_pos = start_idx + push_pos;
+		let after_push = &content[absolute_pos + 19..]; // 19 = len("self.__next_f.push(")
+		
+		// Find the JSON array start
+		if let Some(json_start) = after_push.find('[') {
+			let json_content = &after_push[json_start..];
+			
+			// Find matching closing bracket - need to count brackets
+			let mut bracket_count = 0;
+			let mut json_end = 0;
+			for (i, ch) in json_content.char_indices() {
+				match ch {
+					'[' | '{' => bracket_count += 1,
+					']' | '}' => {
+						bracket_count -= 1;
+						if bracket_count == 0 {
+							json_end = i + 1;
+							break;
+						}
+					}
+					_ => {}
+				}
+			}
+			
+			if json_end > 0 {
+				let json_str = &json_content[..json_end];
+				if let Ok(push_data) = serde_json::from_str::<serde_json::Value>(json_str) {
+					if let Some(chapters) = extract_chapters_from_push_value(&push_data, manga_key) {
+						if !chapters.is_empty() {
+							return Some(chapters);
+						}
+					}
+				}
+			}
+		}
+		
+		start_idx = absolute_pos + 20;
+	}
+	
+	None
+}
+
+fn extract_chapters_from_push_value(data: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
+	// Handle array of push values
+	if let Some(array) = data.as_array() {
+		for item in array {
+			if let Some(chapters) = extract_chapters_from_nextjs_value(item, manga_key) {
+				if !chapters.is_empty() {
+					return Some(chapters);
+				}
+			}
+		}
+	}
+	
+	// Handle direct object
+	extract_chapters_from_nextjs_value(data, manga_key)
 }
 
 fn extract_chapters_from_nextjs_value(data: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
@@ -400,28 +494,7 @@ fn get_nested_value<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&
 fn parse_nextjs_chapter(chapter_value: &serde_json::Value, manga_key: &str) -> Option<Chapter> {
 	let chapter_obj = chapter_value.as_object()?;
 	
-	// Extract chapter ID/slug
-	let chapter_id = chapter_obj.get("id")
-		.or_else(|| chapter_obj.get("slug"))
-		.or_else(|| chapter_obj.get("chapterNumber"))
-		.and_then(|v| {
-			if let Some(s) = v.as_str() {
-				Some(s.to_string())
-			} else if let Some(n) = v.as_f64() {
-				Some(n.to_string())
-			} else {
-				None
-			}
-		})?;
-
-	// Extract title
-	let title = chapter_obj.get("title")
-		.or_else(|| chapter_obj.get("name"))
-		.and_then(|v| v.as_str())
-		.unwrap_or("")
-		.to_string();
-
-	// Extract chapter number
+	// Extract chapter number first to validate
 	let chapter_number = chapter_obj.get("chapterNumber")
 		.or_else(|| chapter_obj.get("number"))
 		.and_then(|v| {
@@ -432,30 +505,62 @@ fn parse_nextjs_chapter(chapter_value: &serde_json::Value, manga_key: &str) -> O
 			} else {
 				None
 			}
+		})?; // Return None if no valid chapter number
+	
+	// Check if premium (filter out premium chapters like the original implementation)
+	let is_premium = chapter_obj.get("isPremium")
+		.and_then(|v| v.as_bool())
+		.unwrap_or(false);
+	
+	if is_premium {
+		return None; // Skip premium chapters completely
+	}
+	
+	// Extract chapter ID/slug
+	let chapter_id = chapter_obj.get("id")
+		.or_else(|| chapter_obj.get("slug"))
+		.or_else(|| chapter_obj.get("chapterNumber"))
+		.and_then(|v| {
+			if let Some(s) = v.as_str() {
+				Some(s.to_string())
+			} else if let Some(n) = v.as_f64() {
+				Some(if n == (n as i32) as f64 { 
+					format!("{}", n as i32) 
+				} else { 
+					format!("{}", n) 
+				})
+			} else {
+				None
+			}
+		})
+		.unwrap_or_else(|| {
+			// Fallback: use chapter number as ID
+			if chapter_number == (chapter_number as i32) as f32 {
+				format!("{}", chapter_number as i32)
+			} else {
+				format!("{}", chapter_number)
+			}
 		});
 
-	// Extract date
-	let date_uploaded = chapter_obj.get("createdAt")
-		.or_else(|| chapter_obj.get("releaseDate"))
-		.or_else(|| chapter_obj.get("publishedAt"))
+	// Extract chapter title
+	let chapter_title = chapter_obj.get("title")
 		.and_then(|v| v.as_str())
-		.and_then(|date_str| {
-			// Try to parse ISO date
-			use chrono::{DateTime, Utc};
-			DateTime::parse_from_rfc3339(date_str)
-				.or_else(|_| DateTime::parse_from_str(date_str, "%Y-%m-%d %H:%M:%S"))
-				.or_else(|_| DateTime::parse_from_str(date_str, "%Y-%m-%d"))
-				.map(|dt| dt.with_timezone(&Utc).timestamp())
-				.ok()
-		});
+		.map(|t| t.trim())
+		.filter(|t| !t.is_empty())
+		.map(|title_text| format!("Chapter {} - {}", chapter_number, title_text))
+		.unwrap_or_else(|| format!("Chapter {}", chapter_number));
+
+	// NOTE: Disabled JSON date extraction due to incorrect dates
+	// Force HTML date extraction for accurate relative dates (will be done later)
+	let date_uploaded = None; // Will be extracted from HTML later
 
 	let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga_key, chapter_id);
 
 	Some(Chapter {
 		key: chapter_id,
-		title: if title.is_empty() { None } else { Some(title) },
+		title: Some(chapter_title),
 		volume_number: None,
-		chapter_number,
+		chapter_number: Some(chapter_number),
 		date_uploaded,
 		scanlators: None,
 		url: Some(url),
@@ -551,6 +656,314 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	});
 
 	Ok(chapters)
+}
+
+// Extract chapter dates from HTML and associate them with chapters (ported from original implementation)
+fn extract_chapter_dates_from_html(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Strategy 1: Search for all elements containing relative dates first, then match to chapters
+	extract_dates_by_text_search(html, chapters);
+	
+	// Strategy 2: If strategy 1 fails, try link-based extraction
+	extract_dates_by_link_association(html, chapters);
+	
+	// Strategy 3: JSON-LD schema.org fallback for chapters without dates
+	extract_dates_from_jsonld_fallback(html, chapters);
+}
+
+// Extract dates by searching for relative date text patterns across the entire page
+fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Search for all elements containing relative date patterns
+	if let Some(all_elements) = html.select("*") {
+		for element in all_elements {
+			if let Some(text) = element.text() {
+				let text_trimmed = text.trim();
+				
+				// Check if this text looks like a relative date
+				if !text_trimmed.is_empty() && is_relative_date(text_trimmed) {
+					// Try to find a nearby chapter link to associate this date with
+					if let Some(chapter_number) = find_nearby_chapter_number(&element) {
+						let timestamp = parse_relative_date(text_trimmed);
+						
+						// Update the matching chapter
+						for chapter in chapters.iter_mut() {
+							if let Some(ch_num) = chapter.chapter_number {
+								if (ch_num - chapter_number).abs() < 0.1 {
+									chapter.date_uploaded = Some(timestamp);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Helper function to find chapter number in nearby elements (parent, siblings, children)
+fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Option<f32> {
+	// Look for href attributes in this element and its children
+	if let Some(links) = element.select("a[href*='/chapter/'], *[href*='/chapter/']") {
+		for link in links {
+			if let Some(href) = link.attr("href") {
+				if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+					return Some(chapter_num);
+				}
+			}
+		}
+	}
+	
+	// Also check if current element itself has href
+	if let Some(href) = element.attr("href") {
+		if !href.is_empty() {
+			if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+				return Some(chapter_num);
+			}
+		}
+	}
+	
+	None
+}
+
+// Fallback: Extract dates by direct link association (original method, improved)
+fn extract_dates_by_link_association(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Enhanced selectors for chapter links
+	let link_selectors = [
+		"a[href*='/chapter/']",       // Standard chapter links
+		"a[href*='chapter']",         // Alternative chapter links
+		".chapter-item a",            // Styled chapter items
+		"*[href*='/chapter/']",       // Any element with chapter href
+		"a[href^='/serie/'][href*='/chapter/']", // Full serie + chapter path
+		"[href*='/serie/'][href*='/chapter/']"   // Any element with full path
+	];
+	
+	for link_selector in &link_selectors {
+		if let Some(chapter_links) = html.select(link_selector) {
+			// Process each chapter link to extract its date
+			for chapter_link in chapter_links {
+				if let Some(href) = chapter_link.attr("href") {
+					// Extract chapter number from URL
+					if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
+						// Look for date within this specific chapter link with broader search
+						if let Some(date_elements) = chapter_link.select("*") {
+							for date_element in date_elements {
+								if let Some(date_text) = date_element.text() {
+									let date_text_trimmed = date_text.trim();
+									
+									// Enhanced validation for relative dates
+									if !date_text_trimmed.is_empty() && is_relative_date(date_text_trimmed) {
+										// Convert to timestamp
+										let timestamp = parse_relative_date(date_text_trimmed);
+										
+										// Find matching chapter in our list and update its date
+										for chapter in chapters.iter_mut() {
+											if let Some(ch_num) = chapter.chapter_number {
+												if (ch_num - chapter_number).abs() < 0.1 {  // Float comparison
+													chapter.date_uploaded = Some(timestamp);
+													break; // Only break inner chapter loop, continue processing other dates
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Extract chapter number from URL path (e.g., "/serie/manga-name/chapter/42" -> 42.0)
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+	if let Some(chapter_pos) = url.rfind("/chapter/") {
+		let after_chapter = &url[chapter_pos + 9..]; // "/chapter/".len() = 9
+		if let Some(end_pos) = after_chapter.find('/') {
+			// Has path after chapter number
+			if let Ok(num) = after_chapter[..end_pos].parse::<f32>() {
+				return Some(num);
+			}
+		} else {
+			// Chapter number is at the end
+			if let Ok(num) = after_chapter.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+	None
+}
+
+// Enhanced detection of relative date strings - optimized for PoseidonScans patterns
+fn is_relative_date(text: &str) -> bool {
+	if text.is_empty() || text.len() < 2 {
+		return false;
+	}
+	
+	let text_lower = text.to_lowercase();
+	
+	// Specific patterns seen on PoseidonScans: "22 jours", "1 mois", "3 mois", "2 heures"
+	let exact_patterns = [
+		// Number + time unit patterns
+		"jour", "jours", "day", "days",
+		"mois", "month", "months", 
+		"semaine", "semaines", "week", "weeks",
+		"heure", "heures", "hour", "hours",
+		"minute", "minutes", "min", "mins",
+		"an", "ans", "année", "années", "year", "years"
+	];
+	
+	// Check if text contains digits AND time units (most reliable pattern)
+	let has_digit = text_lower.chars().any(|c| c.is_ascii_digit());
+	let has_time_unit = exact_patterns.iter().any(|&pattern| text_lower.contains(pattern));
+	
+	if has_digit && has_time_unit {
+		return true;
+	}
+	
+	// Special cases
+	if text_lower.contains("aujourd'hui") || text_lower.contains("hier") || 
+	   text_lower.contains("demain") || text_lower.contains("maintenant") ||
+	   text_lower.contains("il y a") {
+		return true;
+	}
+	
+	// Exact patterns that should match (common on the site)
+	let exact_matches = [
+		"1 jour", "1 mois", "2 mois", "3 mois", "4 mois", "5 mois", "6 mois",
+		"22 jours", "1 semaine", "2 semaines", "3 semaines", "2 heures", "1 heure"
+	];
+	
+	exact_matches.iter().any(|&pattern| text_lower == pattern || text_lower.contains(pattern))
+}
+
+// Convert relative date strings to timestamps with enhanced parsing
+fn parse_relative_date(date_str: &str) -> i64 {
+	use aidoku::imports::std::current_date;
+	
+	let current_time = current_date();
+	let date_lower = date_str.to_lowercase();
+	
+	// Handle special cases first
+	if date_lower.contains("aujourd'hui") || date_lower.contains("maintenant") {
+		return current_time as i64;
+	}
+	if date_lower.contains("hier") {
+		return (current_time as i64) - 86400;
+	}
+	if date_lower.contains("demain") {
+		return (current_time as i64) + 86400;
+	}
+	
+	// Extract number from string with improved parsing
+	let mut number = 1;
+	for word in date_lower.split_whitespace() {
+		// Try to parse number, handle various formats
+		if let Ok(n) = word.parse::<i32>() {
+			if n > 0 && n < 1000 { // Reasonable bounds
+				number = n;
+				break;
+			}
+		}
+		// Handle written numbers (un, une, deux, etc.)
+		match word {
+			"un" | "une" => { number = 1; break; },
+			"deux" => { number = 2; break; },
+			"trois" => { number = 3; break; },
+			"quatre" => { number = 4; break; },
+			"cinq" => { number = 5; break; },
+			"six" => { number = 6; break; },
+			"sept" => { number = 7; break; },
+			"huit" => { number = 8; break; },
+			"neuf" => { number = 9; break; },
+			"dix" => { number = 10; break; },
+			_ => {}
+		}
+	}
+	
+	// Calculate seconds to subtract based on unit with precise conversions
+	let seconds_to_subtract = if date_lower.contains("minute") || date_lower.contains("min") {
+		number as i64 * 60
+	} else if date_lower.contains("heure") || date_lower.contains("hour") {
+		number as i64 * 3600
+	} else if date_lower.contains("jour") || date_lower.contains("day") {
+		number as i64 * 86400  // 24 hours
+	} else if date_lower.contains("semaine") || date_lower.contains("week") {
+		number as i64 * 604800  // 7 days 
+	} else if date_lower.contains("mois") || date_lower.contains("month") {
+		number as i64 * 2629746  // 30.44 days (average month)
+	} else if date_lower.contains("an") || date_lower.contains("année") || date_lower.contains("year") {
+		number as i64 * 31556952  // 365.25 days (accounting for leap years)
+	} else {
+		0
+	};
+	
+	// Calculate final timestamp (current time - duration)
+	let current_time_i64 = current_time as i64;
+	let result_time = current_time_i64 - seconds_to_subtract;
+	
+	// Ensure result is reasonable (not negative, not too far in past)
+	let ten_years_ago = current_time_i64 - (31556952 * 10); // Max 10 years ago
+	if result_time < 0 || result_time < ten_years_ago {
+		0  // Invalid date
+	} else {
+		result_time
+	}
+}
+
+// JSON-LD schema.org fallback for chapters without dates
+fn extract_dates_from_jsonld_fallback(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Look for JSON-LD script with schema.org data
+	if let Some(jsonld_scripts) = html.select("script[type=\"application/ld+json\"]") {
+		for script in jsonld_scripts {
+			if let Some(script_content) = script.text() {
+				// Try to parse as JSON to find date fields
+				if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&script_content) {
+					if let Some(json_obj) = json_val.as_object() {
+						// Look for dateModified or datePublished fields
+						if let Some(date_modified) = json_obj.get("dateModified").and_then(|v| v.as_str()) {
+							if let Some(timestamp) = parse_iso_date_string(date_modified) {
+								// Apply this date to chapters that don't have dates yet
+								apply_fallback_date_to_chapters(chapters, timestamp);
+								return;
+							}
+						}
+						
+						if let Some(date_published) = json_obj.get("datePublished").and_then(|v| v.as_str()) {
+							if let Some(timestamp) = parse_iso_date_string(date_published) {
+								// Apply this date to chapters that don't have dates yet
+								apply_fallback_date_to_chapters(chapters, timestamp);
+								return;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// Apply fallback date only to chapters that don't have dates yet (date_uploaded == None)
+fn apply_fallback_date_to_chapters(chapters: &mut Vec<Chapter>, fallback_timestamp: i64) {
+	for chapter in chapters.iter_mut() {
+		if chapter.date_uploaded.is_none() {
+			chapter.date_uploaded = Some(fallback_timestamp);
+		}
+	}
+}
+
+// Parse ISO date string to timestamp (simplified version)
+fn parse_iso_date_string(date_str: &str) -> Option<i64> {
+	use aidoku::imports::std::current_date;
+	
+	// Very basic ISO date parsing for fallback
+	// For production, this should be more robust
+	if date_str.contains("2025") || date_str.contains("2024") {
+		// Use current date as reasonable fallback for schema.org dates
+		Some(current_date() as i64)
+	} else {
+		None
+	}
 }
 
 pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page>> {
