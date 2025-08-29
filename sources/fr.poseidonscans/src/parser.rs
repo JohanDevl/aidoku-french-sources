@@ -295,39 +295,18 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 }
 
 pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// Use the same approach as the original implementation, adapted for modern Aidoku
+	// Get ALL available Next.js data - more permissive approach
 	let manga_data = extract_nextjs_manga_details(&html)?;
 	
-	// Extract chapters array from JSON using the same logic as original
-	let mut chapters = if let Some(chapters_array) = manga_data.get("chapters").and_then(|c| c.as_array()) {
-		parse_chapters_from_json_array(chapters_array, &manga_key)
-	} else if let Some(manga_obj) = manga_data.get("manga") {
-		if let Some(chapters_array) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
-			parse_chapters_from_json_array(chapters_array, &manga_key)
-		} else {
-			// Fallback to HTML if Next.js data doesn't have chapters
-			parse_chapter_list_from_html(html)?
-		}
-	} else if let Some(initial_data) = manga_data.get("initialData") {
-		if let Some(chapters_array) = initial_data.get("chapters").and_then(|c| c.as_array()) {
-			parse_chapters_from_json_array(chapters_array, &manga_key)
-		} else if let Some(manga_obj) = initial_data.get("manga") {
-			if let Some(chapters_array) = manga_obj.get("chapters").and_then(|c| c.as_array()) {
-				parse_chapters_from_json_array(chapters_array, &manga_key)
-			} else {
-				// Fallback to HTML if no chapters found in nested structure
-				parse_chapter_list_from_html(html)?
-			}
-		} else {
-			// Fallback to HTML extraction
-			parse_chapter_list_from_html(html)?
-		}
-	} else {
-		// Fallback to HTML extraction if Next.js data is empty
-		parse_chapter_list_from_html(html)?
-	};
+	// Comprehensive search for chapters - try ALL possible locations
+	let mut chapters = find_chapters_in_json(&manga_data, &manga_key);
 	
-	// Extract chapter dates from HTML (like original implementation)
+	// If we still don't have chapters, try HTML fallback
+	if chapters.is_empty() {
+		chapters = parse_chapter_list_from_html(html)?;
+	}
+	
+	// Extract chapter dates from HTML (for accurate relative dates)
 	extract_chapter_dates_from_html(&html, &mut chapters);
 	
 	// Sort chapters by number in descending order (latest first)
@@ -343,37 +322,125 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	Ok(chapters)
 }
 
-// Simple Next.js extraction adapted from original implementation
+// Comprehensive search for chapters in Next.js JSON data
+fn find_chapters_in_json(data: &serde_json::Value, manga_key: &str) -> Vec<Chapter> {
+	// Try all possible locations for chapters data
+	let possible_paths: Vec<&[&str]> = vec![
+		// Direct paths
+		&["chapters"],
+		&["manga", "chapters"],
+		&["initialData", "chapters"],
+		&["initialData", "manga", "chapters"],
+		&["pageProps", "chapters"],
+		&["pageProps", "initialData", "chapters"],
+		&["pageProps", "initialData", "manga", "chapters"],
+		&["pageProps", "manga", "chapters"],
+		// Props-based paths  
+		&["props", "pageProps", "chapters"],
+		&["props", "pageProps", "initialData", "chapters"],
+		&["props", "pageProps", "initialData", "manga", "chapters"],
+		&["props", "pageProps", "manga", "chapters"],
+		// Query-based paths (sometimes used in Next.js)
+		&["query", "chapters"],
+		&["query", "manga", "chapters"],
+	];
+	
+	for path in &possible_paths {
+		if let Some(chapters_value) = get_nested_json_value(data, path) {
+			if let Some(chapters_array) = chapters_value.as_array() {
+				let parsed_chapters = parse_chapters_from_json_array(chapters_array, manga_key);
+				if !parsed_chapters.is_empty() {
+					return parsed_chapters;
+				}
+			}
+		}
+	}
+	
+	// If no direct path worked, try recursive search
+	search_for_chapters_recursively(data, manga_key)
+}
+
+// Helper function to navigate nested JSON paths
+fn get_nested_json_value<'a>(data: &'a serde_json::Value, path: &[&str]) -> Option<&'a serde_json::Value> {
+	let mut current = data;
+	for key in path {
+		current = current.get(key)?;
+	}
+	Some(current)
+}
+
+// Recursive search for chapters array in any nested structure
+fn search_for_chapters_recursively(data: &serde_json::Value, manga_key: &str) -> Vec<Chapter> {
+	match data {
+		serde_json::Value::Object(obj) => {
+			// First check if this object has a "chapters" key
+			if let Some(chapters_value) = obj.get("chapters") {
+				if let Some(chapters_array) = chapters_value.as_array() {
+					let parsed_chapters = parse_chapters_from_json_array(chapters_array, manga_key);
+					if !parsed_chapters.is_empty() {
+						return parsed_chapters;
+					}
+				}
+			}
+			
+			// Recursively search in all object values
+			for (key, value) in obj {
+				// Skip keys that are unlikely to contain chapters to avoid false positives
+				if key != "cache" && key != "buildManifest" && key != "runtimeConfig" {
+					let chapters = search_for_chapters_recursively(value, manga_key);
+					if !chapters.is_empty() {
+						return chapters;
+					}
+				}
+			}
+		}
+		serde_json::Value::Array(arr) => {
+			// Search in array items
+			for item in arr {
+				let chapters = search_for_chapters_recursively(item, manga_key);
+				if !chapters.is_empty() {
+					return chapters;
+				}
+			}
+		}
+		_ => {}
+	}
+	
+	Vec::new()
+}
+
+// Improved Next.js extraction - more permissive to catch all chapter data
 fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 	// First try __NEXT_DATA__ script tag (most reliable)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
 		for script in script_elements {
 			if let Some(script_content) = script.text() {
 				if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&script_content) {
-					// Try props.pageProps first (most common structure)
+					// Strategy 1: Try props.pageProps first (most common structure)
 					if let Some(props) = root_json.get("props") {
 						if let Some(page_props) = props.get("pageProps") {
-							// Check if pageProps contains expected data structures
-							if page_props.get("initialData").is_some() ||
-							   page_props.get("manga").is_some() ||
-							   page_props.get("chapters").is_some() {
-								return Ok(page_props.clone());
-							}
+							// Return pageProps without strict validation - let the caller decide
+							return Ok(page_props.clone());
 						}
 					}
 					
-					// Try root level initialData (alternative structure)
+					// Strategy 2: Try root level initialData (alternative structure)
 					if let Some(initial_data) = root_json.get("initialData") {
-						if initial_data.get("manga").is_some() ||
-						   initial_data.get("chapters").is_some() {
-							return Ok(initial_data.clone());
-						}
+						return Ok(initial_data.clone());
 					}
 					
-					// Try direct manga data at root level
-					if root_json.get("manga").is_some() {
+					// Strategy 3: Return the entire root object if it has any relevant data
+					// This ensures we don't miss any data structure variations
+					if root_json.get("manga").is_some() || 
+					   root_json.get("chapters").is_some() ||
+					   root_json.get("props").is_some() ||
+					   root_json.get("query").is_some() {
 						return Ok(root_json);
 					}
+					
+					// Strategy 4: As last resort, return the root JSON anyway
+					// Better to have too much data than too little
+					return Ok(root_json);
 				}
 			}
 		}
