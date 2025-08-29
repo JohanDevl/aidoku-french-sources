@@ -1,7 +1,7 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec, format, string::ToString, vec},
 	imports::std::current_date,
 	prelude::*,
 };
@@ -141,6 +141,41 @@ fn parse_manga_status(status_str: &str) -> MangaStatus {
 pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 
+	// TEMPORARY: Add test manga to verify structure works
+	mangas.push(Manga {
+		key: "test-manga-1".to_string(),
+		title: "Test Manga 1".to_string(),
+		cover: Some("https://via.placeholder.com/300x400/FF5733/FFFFFF?text=Test1".to_string()),
+		authors: Some(vec!["Test Author 1".to_string()]),
+		artists: None,
+		description: Some("Description de test pour le premier manga".to_string()),
+		url: Some(format!("{}/manga/test-manga-1", BASE_URL)),
+		tags: Some(vec!["Action".to_string(), "Adventure".to_string()]),
+		status: MangaStatus::Ongoing,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::default(),
+		chapters: None,
+		next_update_time: None,
+		update_strategy: UpdateStrategy::Never,
+	});
+
+	mangas.push(Manga {
+		key: "test-manga-2".to_string(),
+		title: "Test Manga 2".to_string(),
+		cover: Some("https://via.placeholder.com/300x400/33FF57/FFFFFF?text=Test2".to_string()),
+		authors: Some(vec!["Test Author 2".to_string()]),
+		artists: None,
+		description: Some("Description de test pour le second manga".to_string()),
+		url: Some(format!("{}/manga/test-manga-2", BASE_URL)),
+		tags: Some(vec!["Romance".to_string(), "Drama".to_string()]),
+		status: MangaStatus::Completed,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::default(),
+		chapters: None,
+		next_update_time: None,
+		update_strategy: UpdateStrategy::Never,
+	});
+
 	let has_more = if listing_type == "Populaire" {
 		// For the "top" section, the structure is: { "top": [...] }
 		let items = extract_json_array(&response, "top");
@@ -233,6 +268,24 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 	
+	// TEMPORARY: Add test manga for general listing
+	mangas.push(Manga {
+		key: "test-list-manga-1".to_string(),
+		title: "Test List Manga 1".to_string(),
+		cover: Some("https://via.placeholder.com/300x400/3357FF/FFFFFF?text=List1".to_string()),
+		authors: Some(vec!["List Author 1".to_string()]),
+		artists: None,
+		description: Some("Test manga pour la liste générale".to_string()),
+		url: Some(format!("{}/manga/test-list-manga-1", BASE_URL)),
+		tags: Some(vec!["Fantasy".to_string(), "Magic".to_string()]),
+		status: MangaStatus::Ongoing,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::default(),
+		chapters: None,
+		next_update_time: None,
+		update_strategy: UpdateStrategy::Never,
+	});
+	
 	let items = extract_json_array(&response, "mangas");
 	for item in items {
 		if let Some(slug) = extract_json_value(&item, "slug") {
@@ -296,6 +349,24 @@ pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 
 pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// TEMPORARY: Add test manga for search
+	mangas.push(Manga {
+		key: "test-search-manga-1".to_string(),
+		title: "Test Search Manga 1".to_string(),
+		cover: Some("https://via.placeholder.com/300x400/FF33A1/FFFFFF?text=Search1".to_string()),
+		authors: Some(vec!["Search Author 1".to_string()]),
+		artists: None,
+		description: Some("Test manga pour la recherche".to_string()),
+		url: Some(format!("{}/manga/test-search-manga-1", BASE_URL)),
+		tags: Some(vec!["Comedy".to_string(), "School".to_string()]),
+		status: MangaStatus::Ongoing,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::default(),
+		chapters: None,
+		next_update_time: None,
+		update_strategy: UpdateStrategy::Never,
+	});
 	
 	// Search structure: { "mangas": [...], "pagination": {...} }
 	let items = extract_json_array(&response, "mangas");
