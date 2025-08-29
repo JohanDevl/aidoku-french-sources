@@ -247,31 +247,93 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		}
 	}
 
-	// Extract genres/tags from HTML
-	let mut genre_list: Vec<String> = Vec::new();
-	if let Some(genre_elements) = html.select("a[href*='/genres/']") {
-		for genre_element in genre_elements {
-			if let Some(genre_text) = genre_element.text() {
-				let genre = genre_text.trim().to_string();
-				if !genre.is_empty() {
-					genre_list.push(genre);
+	// 🏷️ EXTRACT TAGS FROM JSON-LD AND STATUS FROM HTML
+	let mut tag_list: Vec<String> = Vec::new();
+	
+	// Extract genres from JSON-LD (most reliable source)
+	println!("🏷️ DEBUG: Extracting tags from JSON-LD and status from HTML");
+	if let Ok(manga_data) = extract_jsonld_manga_details(html) {
+		if let Some(genres) = manga_data.get("genre").and_then(|g| g.as_array()) {
+			println!("📋 DEBUG: Found {} genres in JSON-LD", genres.len());
+			for genre in genres {
+				if let Some(genre_str) = genre.as_str() {
+					let genre_clean = genre_str.trim().to_string();
+					if !genre_clean.is_empty() {
+						println!("🏷️ DEBUG: Adding genre tag: {}", genre_clean);
+						tag_list.push(genre_clean);
+					}
 				}
 			}
 		}
 	}
-	if !genre_list.is_empty() {
-		tags = Some(genre_list);
-	}
-
-	// Extract status from HTML
-	if let Some(status_elements) = html.select(".status, .manga-status, [class*='status']") {
+	
+	// Extract status from HTML and add as tag
+	let mut status_found = false;
+	
+	// Method 1: Look for status paragraph with "Status:" text
+	if let Some(status_elements) = html.select("p") {
 		for status_element in status_elements {
-			if let Some(status_text) = status_element.text() {
-				let status_str = status_text.trim();
-				status = parse_manga_status(status_str);
-				break;
+			if let Some(status_html) = status_element.html() {
+				if status_html.contains("Status:") {
+					if let Some(status_text) = status_element.text() {
+						let status_str = status_text.replace("Status:", "").trim().to_string();
+						if !status_str.is_empty() {
+							println!("📊 DEBUG: Found status from paragraph: {}", status_str);
+							status = parse_manga_status(&status_str);
+							tag_list.push(status_str.clone());
+							status_found = true;
+							break;
+						}
+					}
+				}
 			}
 		}
+	}
+	
+	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en pause)
+	if !status_found {
+		if let Some(status_spans) = html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20") {
+			for status_span in status_spans {
+				if let Some(status_text) = status_span.text() {
+					let status_str = status_text.trim().to_string();
+					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
+						println!("🏷️ DEBUG: Found status badge: {}", status_str);
+						status = parse_manga_status(&status_str);
+						tag_list.push(status_str);
+						status_found = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback: look for any span with status-like content
+	if !status_found {
+		if let Some(status_spans) = html.select("span") {
+			for status_span in status_spans {
+				if let Some(status_text) = status_span.text() {
+					let status_str = status_text.trim().to_string();
+					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
+						println!("🏷️ DEBUG: Found status from span: {}", status_str);
+						status = parse_manga_status(&status_str);
+						tag_list.push(status_str);
+						status_found = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+	
+	// Set default status if not found
+	if !status_found {
+		println!("⚠️ DEBUG: No status found, defaulting to Unknown");
+	}
+	
+	if !tag_list.is_empty() {
+		tags = Some(tag_list);
+		println!("✅ DEBUG: Final tags list: {:?}", tags);
 	}
 
 	let cover = format!("{}/api/covers/{}.webp", BASE_URL, manga_key);
