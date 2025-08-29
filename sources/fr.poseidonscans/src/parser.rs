@@ -294,22 +294,24 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	})
 }
 
-// HYBRID extraction using script.html() method from old implementation with modern APIs
-fn extract_nextjs_manga_details_hybrid(html: &Document) -> Result<serde_json::Value> {
-	println!("🔥 DEBUG: Using HYBRID extraction approach (old method + modern APIs)!");
+// MODERN extraction using element.data() method from working sources  
+fn extract_nextjs_manga_details_modern(html: &Document) -> Result<serde_json::Value> {
+	println!("🔥 DEBUG: Using MODERN extraction approach with element.data()!");
 	
-	// Try __NEXT_DATA__ script tag using the key extraction method from old implementation
+	// Try __NEXT_DATA__ script tag using modern API like other working sources
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		println!("📜 DEBUG: Found script elements");
+		
 		for script in script_elements {
-			// Use script.html() like the old implementation (this was the key!)
-			if let Some(content) = script.html() {
+			// Use element.data() like the working sources (copymanga, etc.)
+			if let Some(content) = script.data() {
 				println!("📜 DEBUG: Found __NEXT_DATA__ script tag, content length: {}", content.len());
 				
 				if !content.trim().is_empty() {
-					println!("📄 DEBUG: Trying serde_json parse on script.html() content...");
+					println!("📄 DEBUG: Trying serde_json parse on script.data() content...");
 					
 					if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&content) {
-						println!("✅ DEBUG: SUCCESS with script.html() + serde_json parsing!");
+						println!("✅ DEBUG: SUCCESS with element.data() + serde_json parsing!");
 						
 						// Try props.pageProps first (most common structure)
 						if let Some(props) = root_json.get("props") {
@@ -331,10 +333,10 @@ fn extract_nextjs_manga_details_hybrid(html: &Document) -> Result<serde_json::Va
 						println!("❌ DEBUG: Failed to parse JSON with serde_json");
 					}
 				} else {
-					println!("❌ DEBUG: Script content is empty");
+					println!("❌ DEBUG: Script data content is empty");
 				}
 			} else {
-				println!("❌ DEBUG: script.html() returned None");
+				println!("❌ DEBUG: script.data() returned None");
 			}
 		}
 	} else {
@@ -349,8 +351,8 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	// Use the PROVEN logic from the old implementation that worked!
 	println!("🔄 DEBUG: Using old implementation logic that worked!");
 	
-	// Extract Next.js page data using hybrid approach that WORKS
-	let manga_data = extract_nextjs_manga_details_hybrid(html)?;
+	// Extract Next.js page data using modern approach that WORKS
+	let manga_data = extract_nextjs_manga_details_modern(html)?;
 	
 	// Simple direct extraction like the old version but with serde_json APIs
 	let chapters_array = if let Some(chapters) = manga_data.get("chapters").and_then(|c| c.as_array()) {
