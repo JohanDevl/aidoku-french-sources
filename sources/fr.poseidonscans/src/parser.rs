@@ -7,7 +7,7 @@ use aidoku::{
 };
 use core::cmp::Ordering;
 use serde_json;
-use crate::{BASE_URL, API_URL};
+use crate::BASE_URL;
 
 // Serde structures for Poseidon Scans API responses
 
@@ -227,8 +227,8 @@ pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
 pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> {
 	let mut title = manga_key.clone();
 	let mut description = String::new();
-	let mut authors: Option<Vec<String>> = None;
-	let mut artists: Option<Vec<String>> = None;
+	let authors: Option<Vec<String>> = None;
+	let artists: Option<Vec<String>> = None;
 	let mut tags: Option<Vec<String>> = None;
 	let mut status = MangaStatus::Unknown;
 
@@ -294,7 +294,178 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	})
 }
 
-pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
+	// First try to extract Next.js data like the original implementation
+	if let Ok(chapters) = extract_chapters_from_nextjs_data(&html, &manga_key) {
+		if !chapters.is_empty() {
+			return Ok(chapters);
+		}
+	}
+
+	// Fallback to HTML parsing if Next.js extraction fails
+	parse_chapter_list_from_html(html)
+}
+
+fn extract_chapters_from_nextjs_data(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
+	// Try to find __NEXT_DATA__ script
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(script_content) = script.text() {
+				if let Ok(manga_data) = serde_json::from_str::<serde_json::Value>(&script_content) {
+					if let Some(chapters_data) = extract_chapters_from_nextjs_value(&manga_data, manga_key) {
+						return Ok(chapters_data);
+					}
+				}
+			}
+		}
+	}
+
+	// Try to find Next.js data in other script tags
+	if let Some(script_elements) = html.select("script") {
+		for script in script_elements {
+			if let Some(script_content) = script.text() {
+				if script_content.contains("self.__next_f.push") || script_content.contains("__NEXT_DATA__") {
+					// Extract JSON from the script content
+					if let Some(json_start) = script_content.find('{') {
+						if let Some(json_end) = script_content.rfind('}') {
+							if json_start < json_end {
+								let json_str = &script_content[json_start..=json_end];
+								if let Ok(manga_data) = serde_json::from_str::<serde_json::Value>(json_str) {
+									if let Some(chapters_data) = extract_chapters_from_nextjs_value(&manga_data, manga_key) {
+										return Ok(chapters_data);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	Err(aidoku::AidokuError::message("No Next.js data found"))
+}
+
+fn extract_chapters_from_nextjs_value(data: &serde_json::Value, manga_key: &str) -> Option<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+
+	// Try multiple paths to find chapters data
+	let possible_paths: Vec<&[&str]> = vec![
+		&["props", "pageProps", "manga", "chapters"],
+		&["props", "pageProps", "initialData", "chapters"],
+		&["manga", "chapters"],
+		&["initialData", "chapters"],
+		&["chapters"],
+	];
+
+	for path in &possible_paths {
+		if let Some(chapters_array) = get_nested_value(data, path) {
+			if let Some(chapters_array) = chapters_array.as_array() {
+				for chapter_value in chapters_array {
+					if let Some(chapter) = parse_nextjs_chapter(chapter_value, manga_key) {
+						chapters.push(chapter);
+					}
+				}
+				if !chapters.is_empty() {
+					break;
+				}
+			}
+		}
+	}
+
+	if chapters.is_empty() {
+		None
+	} else {
+		// Sort by chapter number descending
+		chapters.sort_by(|a, b| {
+			match (a.chapter_number, b.chapter_number) {
+				(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+				(Some(_), None) => Ordering::Less,
+				(None, Some(_)) => Ordering::Greater,
+				(None, None) => Ordering::Equal,
+			}
+		});
+		Some(chapters)
+	}
+}
+
+fn get_nested_value<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&'a serde_json::Value> {
+	let mut current = value;
+	for key in path {
+		current = current.get(key)?;
+	}
+	Some(current)
+}
+
+fn parse_nextjs_chapter(chapter_value: &serde_json::Value, manga_key: &str) -> Option<Chapter> {
+	let chapter_obj = chapter_value.as_object()?;
+	
+	// Extract chapter ID/slug
+	let chapter_id = chapter_obj.get("id")
+		.or_else(|| chapter_obj.get("slug"))
+		.or_else(|| chapter_obj.get("chapterNumber"))
+		.and_then(|v| {
+			if let Some(s) = v.as_str() {
+				Some(s.to_string())
+			} else if let Some(n) = v.as_f64() {
+				Some(n.to_string())
+			} else {
+				None
+			}
+		})?;
+
+	// Extract title
+	let title = chapter_obj.get("title")
+		.or_else(|| chapter_obj.get("name"))
+		.and_then(|v| v.as_str())
+		.unwrap_or("")
+		.to_string();
+
+	// Extract chapter number
+	let chapter_number = chapter_obj.get("chapterNumber")
+		.or_else(|| chapter_obj.get("number"))
+		.and_then(|v| {
+			if let Some(n) = v.as_f64() {
+				Some(n as f32)
+			} else if let Some(s) = v.as_str() {
+				s.parse::<f32>().ok()
+			} else {
+				None
+			}
+		});
+
+	// Extract date
+	let date_uploaded = chapter_obj.get("createdAt")
+		.or_else(|| chapter_obj.get("releaseDate"))
+		.or_else(|| chapter_obj.get("publishedAt"))
+		.and_then(|v| v.as_str())
+		.and_then(|date_str| {
+			// Try to parse ISO date
+			use chrono::{DateTime, Utc};
+			DateTime::parse_from_rfc3339(date_str)
+				.or_else(|_| DateTime::parse_from_str(date_str, "%Y-%m-%d %H:%M:%S"))
+				.or_else(|_| DateTime::parse_from_str(date_str, "%Y-%m-%d"))
+				.map(|dt| dt.with_timezone(&Utc).timestamp())
+				.ok()
+		});
+
+	let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga_key, chapter_id);
+
+	Some(Chapter {
+		key: chapter_id,
+		title: if title.is_empty() { None } else { Some(title) },
+		volume_number: None,
+		chapter_number,
+		date_uploaded,
+		scanlators: None,
+		url: Some(url),
+		language: Some("fr".to_string()),
+		thumbnail: None,
+		locked: false,
+	})
+}
+
+fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let mut seen_chapter_ids: Vec<String> = Vec::new();
 
@@ -318,7 +489,6 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 						seen_chapter_ids.push(chapter_id.clone());
 
 						let mut title = String::new();
-						let mut chapter_number: Option<f32> = None;
 
 						// Try to get chapter title
 						if let Some(title_text) = chapter_element.text() {
@@ -326,7 +496,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 						}
 
 						// Extract chapter number
-						chapter_number = extract_chapter_number_from_title(&title)
+						let chapter_number = extract_chapter_number_from_title(&title)
 							.or_else(|| extract_chapter_number_from_id(&chapter_id));
 
 						let url = if href_str.starts_with("http") {
@@ -470,8 +640,6 @@ fn extract_chapter_id_from_url(url: &str) -> Option<String> {
 
 fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
 	// Try to extract chapter number from title
-	use aidoku::alloc::string::ToString;
-	
 	let title_lower = title.to_lowercase();
 	
 	// Pattern: "Chapitre 123" or "Chapter 123"

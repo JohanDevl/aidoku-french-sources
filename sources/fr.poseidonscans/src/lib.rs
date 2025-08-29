@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
+    Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult,
     Page, Result, Source,
     alloc::{String, Vec},
     imports::net::Request,
@@ -63,6 +63,7 @@ impl Source for PoseidonScans {
             parser::parse_manga_details(manga.key, &html)
         }
     }
+
 
     fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga.key, chapter.key);
