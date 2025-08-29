@@ -7,6 +7,8 @@ use aidoku::{
 	prelude::*,
 };
 
+use chrono::DateTime;
+
 use serde_json;
 
 use crate::BASE_URL;
@@ -362,8 +364,15 @@ pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chap
 		let title = Some(format!("Ch.{}", chapter_number));
 		let url = Some(format!("{}/manga/{}/chapitre/{}", BASE_URL, manga_id, chapter_number));
 
-		// Parse date if available
-		let date_uploaded = Some(current_date()); // For simplicity, using current date
+		// Parse date if available (using chrono like modern sources)
+		let date_uploaded = if let Some(date_str) = &item.created_at {
+			DateTime::parse_from_rfc3339(date_str)
+				.ok()
+				.map(|d| d.timestamp())
+				.or_else(|| Some(current_date()))
+		} else {
+			Some(current_date())
+		};
 
 		chapters.push(Chapter {
 			key,
