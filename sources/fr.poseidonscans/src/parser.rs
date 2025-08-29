@@ -296,44 +296,76 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
+	let mut seen_chapter_ids: Vec<String> = Vec::new();
 
-	// Extract chapters from HTML
-	if let Some(chapter_elements) = html.select("a[href*='/chapter/'], .chapter-item a, [class*='chapter'] a") {
-		for chapter_element in chapter_elements {
-			if let Some(href_str) = chapter_element.attr("href") {
-				// Extract chapter ID from URL
-				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-					let mut title = String::new();
-					let mut chapter_number: Option<f32> = None;
+	// Try more specific selectors first, then fallback to general ones
+	let chapter_selectors = [
+		".chapter-list a[href*='/chapter/']",
+		".chapters a[href*='/chapter/']", 
+		"a[href*='/chapter/']",
+	];
 
-					// Try to get chapter title
-					if let Some(title_text) = chapter_element.text() {
-						title = title_text.trim().to_string();
+	for selector in &chapter_selectors {
+		if let Some(chapter_elements) = html.select(selector) {
+			for chapter_element in chapter_elements {
+				if let Some(href_str) = chapter_element.attr("href") {
+					// Extract chapter ID from URL
+					if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
+						// Skip duplicates
+						if seen_chapter_ids.contains(&chapter_id) {
+							continue;
+						}
+						seen_chapter_ids.push(chapter_id.clone());
+
+						let mut title = String::new();
+						let mut chapter_number: Option<f32> = None;
+
+						// Try to get chapter title
+						if let Some(title_text) = chapter_element.text() {
+							title = title_text.trim().to_string();
+						}
+
+						// Extract chapter number
+						chapter_number = extract_chapter_number_from_title(&title)
+							.or_else(|| extract_chapter_number_from_id(&chapter_id));
+
+						let url = if href_str.starts_with("http") {
+							href_str
+						} else {
+							format!("{}{}", BASE_URL, href_str)
+						};
+
+						// Estimate date based on chapter number for better sorting
+						let date_uploaded = {
+							let base_date = current_date() as i64;
+							if let Some(ch_num) = chapter_number {
+								// Assume chapters are released weekly, subtract weeks based on chapter number
+								let estimated_days_ago = (200.0 - ch_num.min(200.0)) as i64 * 7;
+								base_date - (estimated_days_ago * 24 * 60 * 60)
+							} else {
+								base_date
+							}
+						};
+
+						chapters.push(Chapter {
+							key: chapter_id,
+							title: Some(title),
+							volume_number: None,
+							chapter_number,
+							date_uploaded: Some(date_uploaded),
+							scanlators: None,
+							url: Some(url),
+							language: Some("fr".to_string()),
+							thumbnail: None,
+							locked: false,
+						});
 					}
-
-					// Extract chapter number
-					chapter_number = extract_chapter_number_from_title(&title)
-						.or_else(|| extract_chapter_number_from_id(&chapter_id));
-
-					let url = if href_str.starts_with("http") {
-						href_str
-					} else {
-						format!("{}{}", BASE_URL, href_str)
-					};
-
-					chapters.push(Chapter {
-						key: chapter_id,
-						title: Some(title),
-						volume_number: None,
-						chapter_number,
-						date_uploaded: Some(current_date() as i64),
-						scanlators: None,
-						url: Some(url),
-						language: Some("fr".to_string()),
-						thumbnail: None,
-						locked: false,
-					});
 				}
+			}
+
+			// If we found chapters with this selector, stop trying others
+			if !chapters.is_empty() {
+				break;
 			}
 		}
 	}
@@ -466,3 +498,4 @@ fn extract_chapter_number_from_id(chapter_id: &str) -> Option<f32> {
 	// Try to parse chapter ID as number
 	chapter_id.parse::<f32>().ok()
 }
+
