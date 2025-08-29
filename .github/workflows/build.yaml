@@ -33,6 +33,7 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/bin
             sources/**/target/
+            offline-sources/**/target/
           key: ${{ runner.os }}-cargo3-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo3-
