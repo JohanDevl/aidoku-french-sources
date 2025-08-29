@@ -108,11 +108,36 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 	None
 }
 
-// Extract array of objects from JSON
+// Extract array of objects from JSON - WITH DETAILED DEBUG
 fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 	if let Some(array_str) = extract_json_value(json, key) {
-		if array_str.starts_with('[') && array_str.ends_with(']') {
-			let content = &array_str[1..array_str.len()-1]; // Remove brackets
+		if !array_str.starts_with('[') || !array_str.ends_with(']') {
+			// TEMP DEBUG ERROR: Return error to see the issue in app logs
+			let display_value = if array_str.len() > 100 { 
+				format!("{}...", &array_str[..100]) 
+			} else { 
+				array_str.clone() 
+			};
+			panic!("DEBUG STEP 2 FAIL - Array does NOT start with '[' or end with ']'. Value: {}", display_value);
+		}
+		
+		let content = &array_str[1..array_str.len()-1]; // Remove brackets
+		if content.trim().is_empty() {
+			// TEMP DEBUG ERROR: Empty content
+			panic!("DEBUG STEP 3 FAIL - Content after removing brackets is empty");
+		}
+		
+		// TEMP DEBUG ERROR: Show content for analysis
+		let display_content = if content.len() > 300 { 
+			format!("{}...", &content[..300]) 
+		} else { 
+			content.to_string() 
+		};
+		panic!("DEBUG STEP 3 SUCCESS - Content after removing brackets (first 300 chars): {}", display_content);
+		
+		// NOTE: Rest of parsing code temporarily unreachable due to debug panic above
+		#[allow(unreachable_code)]
+		{
 			let mut objects = Vec::new();
 			let mut current_object = String::new();
 			let mut brace_count = 0;
@@ -131,7 +156,15 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 				if !in_string {
 					match c {
 						'{' => brace_count += 1,
-						'}' => brace_count -= 1,
+						'}' => {
+							brace_count -= 1;
+							if brace_count == 0 {
+								if !current_object.trim().is_empty() {
+									objects.push(current_object.trim().to_string());
+									current_object.clear();
+								}
+							}
+						},
 						',' if brace_count == 0 => {
 							if !current_object.trim().is_empty() {
 								objects.push(current_object.trim().to_string());
@@ -152,8 +185,10 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 			
 			return objects;
 		}
+	} else {
+		// TEMP DEBUG ERROR: extract_json_value failed
+		panic!("DEBUG STEP 1 FAIL - extract_json_value returned None for key '{}'", key);
 	}
-	Vec::new()
 }
 
 fn parse_manga_status(status_str: &str) -> MangaStatus {
