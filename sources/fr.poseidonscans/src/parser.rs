@@ -542,13 +542,8 @@ fn parse_nextjs_chapter(chapter_value: &serde_json::Value, manga_key: &str) -> O
 			}
 		});
 
-	// Extract chapter title
-	let chapter_title = chapter_obj.get("title")
-		.and_then(|v| v.as_str())
-		.map(|t| t.trim())
-		.filter(|t| !t.is_empty())
-		.map(|title_text| format!("Chapter {} - {}", chapter_number, title_text))
-		.unwrap_or_else(|| format!("Chapter {}", chapter_number));
+	// Extract chapter title - simple format: "Chapitre X"
+	let chapter_title = format!("Chapitre {}", chapter_number);
 
 	// NOTE: Disabled JSON date extraction due to incorrect dates
 	// Force HTML date extraction for accurate relative dates (will be done later)
@@ -593,16 +588,15 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 						}
 						seen_chapter_ids.push(chapter_id.clone());
 
-						let mut title = String::new();
+						// Extract chapter number from URL or ID first
+						let chapter_number = extract_chapter_number_from_id(&chapter_id);
 
-						// Try to get chapter title
-						if let Some(title_text) = chapter_element.text() {
-							title = title_text.trim().to_string();
-						}
-
-						// Extract chapter number
-						let chapter_number = extract_chapter_number_from_title(&title)
-							.or_else(|| extract_chapter_number_from_id(&chapter_id));
+						// Generate clean title: "Chapitre X"
+						let title = if let Some(ch_num) = chapter_number {
+							format!("Chapitre {}", ch_num)
+						} else {
+							format!("Chapitre {}", chapter_id)
+						};
 
 						let url = if href_str.starts_with("http") {
 							href_str
