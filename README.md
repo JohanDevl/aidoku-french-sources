@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
 [![Sources](https://img.shields.io/badge/sources-13-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-9-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-8-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -42,7 +42,7 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 | :----------------: | :-----------------------------------------------: | :------------: | :-----------: | :---------------------------- |
 | **MangasOrigines** | [mangas-origines.fr](https://mangas-origines.fr/) | ✅ **Active**  |    Madara     | Large catalog of French manga |
 | **MangaScantrad**  |  [manga-scantrad.io](https://manga-scantrad.io/)  | ✅ **Active**  |    Madara     | Quality French scanlations    |
-|  **Astral Manga**  |    [astral-manga.fr](https://astral-manga.fr/)    | ✅ **Active**  |    Madara     | Popular manga in French       |
+|  **Astral Manga**  |    [astral-manga.fr](https://astral-manga.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
 |   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |    Custom     | Recent French scanlations     |
 |  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |    Custom     | French scanlation community   |
 | **PoseidonScans**  |  [poseidonscans.com](https://poseidonscans.com/)  | ✅ **Active**  |    Custom     | Next.js scanlation platform   |
@@ -67,7 +67,7 @@ This project uses **Rust** and different templates to support various website te
 
 |     Template      |           Description           |                       Compatible Sites                        |
 | :---------------: | :-----------------------------: | :-----------------------------------------------------------: |
-|    **Madara**     | Popular WordPress CMS for manga |          MangasOrigines, MangaScantrad, Astral Manga          |
+|    **Madara**     | Popular WordPress CMS for manga |                  MangasOrigines, MangaScantrad                  |
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
