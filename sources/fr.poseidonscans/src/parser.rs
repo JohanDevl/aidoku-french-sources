@@ -341,18 +341,17 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 }
 
 pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// Use the PROVEN logic from the old implementation that worked!
-	println!("🔄 DEBUG: Using old implementation logic that worked!");
+	println!("🔄 DEBUG: Starting chapter list parsing for manga: {}", manga_key);
 	
 	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
 	let manga_data = extract_jsonld_manga_details(html)?;
 	
 	// Extract chapters from JSON-LD "hasPart" array
 	let chapters_array = if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
-		println!("✅ DEBUG: Found {} ComicIssues in hasPart!", has_part.len());
+		println!("✅ DEBUG: Found {} ComicIssues in hasPart! Using JSON-LD parsing", has_part.len());
 		has_part
 	} else {
-		println!("⚠️  DEBUG: No hasPart found in JSON-LD, using HTML fallback");
+		println!("⚠️  DEBUG: No hasPart found in JSON-LD, switching to HTML fallback parsing");
 		return Ok(parse_chapter_list_from_html(html)?);
 	};
 	
@@ -1115,6 +1114,7 @@ fn parse_nextjs_chapter(chapter_value: &serde_json::Value, manga_key: &str) -> O
 }
 
 fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
+	println!("🏗️  DEBUG: Starting HTML fallback parsing for chapters");
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let mut seen_chapter_ids: Vec<String> = Vec::new();
 
@@ -1123,6 +1123,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	let chapter_selector = "a[href*='/chapter/']";
 	
 	if let Some(chapter_elements) = html.select(chapter_selector) {
+		println!("🔍 DEBUG: Found chapter elements with selector '{}'", chapter_selector);
 		for chapter_element in chapter_elements {
 			if let Some(href_str) = chapter_element.attr("href") {
 				// Extract chapter ID from URL
@@ -1134,11 +1135,14 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 					seen_chapter_ids.push(chapter_id.clone());
 
 					// Check if this chapter is premium by looking for indicators in the HTML
+					println!("🔍 DEBUG: About to check premium status for chapter_id: {}", chapter_id);
 					let is_premium = is_chapter_premium(&chapter_element, html, &href_str);
 					
 					if is_premium {
-						println!("🔒 DEBUG: Skipping premium chapter found in HTML: {}", chapter_id);
+						println!("🔒 DEBUG: SKIPPING premium chapter found in HTML: {} - EXCLUDED from listing", chapter_id);
 						continue; // Skip premium chapters entirely
+					} else {
+						println!("🆓 DEBUG: Including NON-premium chapter in listing: {}", chapter_id);
 					}
 
 					// Extract chapter number from URL or ID first
@@ -1188,41 +1192,70 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 		}
 	});
 
+	println!("📋 DEBUG: HTML parsing final result: {} chapters after premium filtering", chapters.len());
+	println!("📋 DEBUG: Chapter list: {:?}", chapters.iter().map(|c| c.key.clone()).collect::<Vec<_>>());
 	Ok(chapters)
 }
 
 // Detect if a chapter is premium based on HTML indicators
-fn is_chapter_premium(chapter_element: &Element, _html: &Document, _href: &str) -> bool {
+fn is_chapter_premium(chapter_element: &Element, _html: &Document, href: &str) -> bool {
+	// Extract chapter ID from href for debugging
+	let chapter_id = if let Some(last_part) = href.split('/').last() {
+		last_part
+	} else {
+		"unknown"
+	};
+	
+	println!("🔍 DEBUG: Checking premium status for chapter {} (href: {})", chapter_id, href);
+	
 	// Method 1: Check the class attribute of the chapter element (main indicator)
 	// Premium chapters have "border-amber-500/30" while normal chapters have "border-zinc-700/30"
 	if let Some(class_attr) = chapter_element.attr("class") {
+		println!("📋 DEBUG: Chapter {} class attribute: '{}'", chapter_id, class_attr);
+		
 		if class_attr.contains("border-amber-500") {
-			println!("🔒 DEBUG: Found premium chapter via class attribute: border-amber-500");
+			println!("🔒 DEBUG: Chapter {} DETECTED as premium via class attribute: contains 'border-amber-500'", chapter_id);
 			return true;
+		} else {
+			println!("✅ DEBUG: Chapter {} class check: no 'border-amber-500' found", chapter_id);
 		}
+	} else {
+		println!("❌ DEBUG: Chapter {} has no class attribute", chapter_id);
 	}
 	
 	// Method 2: Check if the element's HTML contains premium indicators
 	if let Some(element_html) = chapter_element.html() {
+		println!("📄 DEBUG: Chapter {} HTML content (first 200 chars): '{}'", chapter_id, 
+			if element_html.len() > 200 { &element_html[..200] } else { &element_html });
+		
 		// Check for PREMIUM badge
 		if element_html.contains("PREMIUM") {
-			println!("🔒 DEBUG: Found premium chapter via PREMIUM badge");
+			println!("🔒 DEBUG: Chapter {} DETECTED as premium via PREMIUM badge", chapter_id);
 			return true;
+		} else {
+			println!("✅ DEBUG: Chapter {} HTML check: no 'PREMIUM' text found", chapter_id);
 		}
 		
 		// Check for amber-500 CSS classes in child elements
 		if element_html.contains("amber-500") {
-			println!("🔒 DEBUG: Found premium chapter via amber-500 class");
+			println!("🔒 DEBUG: Chapter {} DETECTED as premium via amber-500 class in HTML", chapter_id);
 			return true;
+		} else {
+			println!("✅ DEBUG: Chapter {} HTML check: no 'amber-500' found", chapter_id);
 		}
 		
 		// Check for early access text
 		if element_html.contains("Accès anticipé") {
-			println!("🔒 DEBUG: Found premium chapter via 'Accès anticipé' text");
+			println!("🔒 DEBUG: Chapter {} DETECTED as premium via 'Accès anticipé' text", chapter_id);
 			return true;
+		} else {
+			println!("✅ DEBUG: Chapter {} HTML check: no 'Accès anticipé' found", chapter_id);
 		}
+	} else {
+		println!("❌ DEBUG: Chapter {} has no HTML content", chapter_id);
 	}
 	
+	println!("🆓 DEBUG: Chapter {} FINAL RESULT: NOT premium (will be included in listing)", chapter_id);
 	false
 }
 
