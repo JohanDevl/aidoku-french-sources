@@ -1,6 +1,6 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
-	Viewer, UpdateStrategy,
+	Viewer, UpdateStrategy, println,
 	alloc::{String, Vec, format, string::ToString, vec},
 	imports::html::Document,
 	serde::Deserialize,
@@ -298,12 +298,54 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 	// Get ALL available Next.js data - more permissive approach
 	let manga_data = extract_nextjs_manga_details(&html)?;
 	
+	// DEBUG: Log the structure we found
+	println!("🔍 DEBUG: Manga data structure found for {}", manga_key);
+	if manga_data.get("chapters").is_some() {
+		println!("   ✅ Found direct 'chapters' key");
+	}
+	if manga_data.get("manga").is_some() {
+		println!("   ✅ Found 'manga' key");
+		if manga_data.get("manga").and_then(|m| m.get("chapters")).is_some() {
+			println!("   ✅ Found 'manga.chapters' key");
+		}
+	}
+	if manga_data.get("initialData").is_some() {
+		println!("   ✅ Found 'initialData' key");
+		if manga_data.get("initialData").and_then(|d| d.get("manga")).and_then(|m| m.get("chapters")).is_some() {
+			println!("   ✅ Found 'initialData.manga.chapters' key");
+		}
+	}
+	if manga_data.get("pageProps").is_some() {
+		println!("   ✅ Found 'pageProps' key");
+	}
+	
 	// Comprehensive search for chapters - try ALL possible locations
 	let mut chapters = find_chapters_in_json(&manga_data, &manga_key);
 	
+	// DEBUG: Log extraction results
+	println!("📊 DEBUG: Chapter extraction results:");
+	println!("   📖 Chapters found from JSON: {}", chapters.len());
+	if !chapters.is_empty() {
+		let chapter_numbers: Vec<String> = chapters.iter()
+			.filter_map(|c| c.chapter_number)
+			.map(|n| if n == (n as i32) as f32 { format!("{}", n as i32) } else { format!("{}", n) })
+			.collect();
+		println!("   📋 Chapter numbers: {:?}", chapter_numbers);
+		
+		// Show range
+		let chapter_nums: Vec<f32> = chapters.iter().filter_map(|c| c.chapter_number).collect();
+		if !chapter_nums.is_empty() {
+			let min = chapter_nums.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+			let max = chapter_nums.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+			println!("   📊 Range: Chapter {} to Chapter {}", min as i32, max as i32);
+		}
+	}
+	
 	// If we still don't have chapters, try HTML fallback
 	if chapters.is_empty() {
+		println!("⚠️  DEBUG: No chapters from JSON, trying HTML fallback...");
 		chapters = parse_chapter_list_from_html(html)?;
+		println!("📖 DEBUG: Chapters found from HTML: {}", chapters.len());
 	}
 	
 	// Extract chapter dates from HTML (for accurate relative dates)
@@ -318,6 +360,12 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 			(None, None) => Ordering::Equal,
 		}
 	});
+	
+	// DEBUG: Final results
+	println!("🎯 DEBUG: FINAL RESULT for {}:", manga_key);
+	println!("   📚 Total chapters returned: {}", chapters.len());
+	println!("   🔒 Premium chapters: {}", chapters.iter().filter(|c| c.locked).count());
+	println!("   🆓 Free chapters: {}", chapters.iter().filter(|c| !c.locked).count());
 	
 	Ok(chapters)
 }
@@ -345,19 +393,40 @@ fn find_chapters_in_json(data: &serde_json::Value, manga_key: &str) -> Vec<Chapt
 		&["query", "manga", "chapters"],
 	];
 	
-	for path in &possible_paths {
+	println!("🔎 DEBUG: Trying {} different paths to find chapters...", possible_paths.len());
+	
+	for (index, path) in possible_paths.iter().enumerate() {
+		let path_str = path.join(".");
+		println!("   🔍 Path {}: {}", index + 1, path_str);
+		
 		if let Some(chapters_value) = get_nested_json_value(data, path) {
+			println!("   ✅ Found data at {}", path_str);
 			if let Some(chapters_array) = chapters_value.as_array() {
+				println!("   📊 Array has {} items", chapters_array.len());
 				let parsed_chapters = parse_chapters_from_json_array(chapters_array, manga_key);
 				if !parsed_chapters.is_empty() {
+					println!("   🎯 SUCCESS! Found {} valid chapters at path: {}", parsed_chapters.len(), path_str);
 					return parsed_chapters;
+				} else {
+					println!("   ⚠️  Array found but no valid chapters parsed");
 				}
+			} else {
+				println!("   ❌ Data found but not an array");
 			}
+		} else {
+			println!("   ❌ No data at {}", path_str);
 		}
 	}
 	
 	// If no direct path worked, try recursive search
-	search_for_chapters_recursively(data, manga_key)
+	println!("🔄 DEBUG: No direct path worked, trying recursive search...");
+	let recursive_chapters = search_for_chapters_recursively(data, manga_key);
+	if !recursive_chapters.is_empty() {
+		println!("   🎯 Recursive search found {} chapters!", recursive_chapters.len());
+	} else {
+		println!("   ❌ Recursive search found no chapters");
+	}
+	recursive_chapters
 }
 
 // Helper function to navigate nested JSON paths
@@ -453,9 +522,13 @@ fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 // Parse chapters from JSON array (adapted from original implementation)
 fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga_key: &str) -> Vec<Chapter> {
 	let mut chapters: Vec<Chapter> = Vec::new();
+	let mut skipped_count = 0;
+	let mut premium_count = 0;
+	
+	println!("📝 DEBUG: Parsing array of {} chapter objects...", chapters_array.len());
 	
 	// Parse each chapter from JSON (matching original logic but adapted for serde)
-	for chapter_value in chapters_array {
+	for (index, chapter_value) in chapters_array.iter().enumerate() {
 		if let Some(chapter_obj) = chapter_value.as_object() {
 			// Extract chapter number
 			let chapter_number = if let Some(num) = chapter_obj.get("number") {
@@ -464,9 +537,13 @@ fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga
 				} else if let Some(n) = num.as_i64() {
 					n as f32
 				} else {
+					println!("   ⚠️  Item {}: Invalid chapter number format", index + 1);
+					skipped_count += 1;
 					continue; // Skip if no valid chapter number
 				}
 			} else {
+				println!("   ⚠️  Item {}: Missing 'number' field", index + 1);
+				skipped_count += 1;
 				continue;
 			};
 			
@@ -475,6 +552,10 @@ fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga
 			let is_premium = chapter_obj.get("isPremium")
 				.and_then(|v| v.as_bool())
 				.unwrap_or(false);
+			
+			if is_premium {
+				premium_count += 1;
+			}
 			
 			// Extract chapter title - simplified format: "Chapitre X"
 			let chapter_title = format!("Chapitre {}", chapter_number);
@@ -502,8 +583,22 @@ fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga
 				thumbnail: None,
 				locked: is_premium, // Mark premium chapters as locked instead of filtering
 			});
+			
+			if (index + 1) % 10 == 0 || index + 1 == chapters_array.len() {
+				println!("   📊 Progress: {}/{} items processed", index + 1, chapters_array.len());
+			}
+		} else {
+			println!("   ⚠️  Item {}: Not a valid object", index + 1);
+			skipped_count += 1;
 		}
 	}
+	
+	// Summary
+	println!("📊 DEBUG: Parsing summary:");
+	println!("   ✅ Successfully parsed: {} chapters", chapters.len());
+	println!("   🔒 Premium chapters: {} (marked as locked)", premium_count);
+	println!("   🆓 Free chapters: {}", chapters.len() - premium_count);
+	println!("   ⚠️  Skipped items: {}", skipped_count);
 	
 	chapters
 }
