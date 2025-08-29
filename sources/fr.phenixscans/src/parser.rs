@@ -211,8 +211,18 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		
 		// TEMP DEBUG: Show what we got
 		if items.len() == 0 {
-			return Err(aidoku::AidokuError::message(&format!("DEBUG: No items found in latest array. Response start: {}", 
-				if response.len() > 100 { &response[..100] } else { &response })));
+			// Debug: check if latest key exists at all
+			if response.contains("\"latest\"") {
+				return Err(aidoku::AidokuError::message(&format!("DEBUG: Found 'latest' in response but extract_json_array failed. Looking around latest key: {}", 
+					if let Some(pos) = response.find("\"latest\"") {
+						let start = pos.saturating_sub(10);
+						let end = (pos + 150).min(response.len());
+						&response[start..end]
+					} else { "NOT FOUND" })));
+			} else {
+				return Err(aidoku::AidokuError::message(&format!("DEBUG: No 'latest' key found in response. Response start: {}", 
+					if response.len() > 200 { &response[..200] } else { &response })));
+			}
 		}
 		
 		let mut processed_count = 0;
