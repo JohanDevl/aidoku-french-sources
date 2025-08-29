@@ -14,6 +14,7 @@ src/rust/node_modules
 
 # New structure with sources directory
 sources/*/target
+offline-sources/*/target
 templates/*/target
 
 wasm-ld

@@ -56,7 +56,7 @@ jobs:
           if ! command -v aidoku >/dev/null 2>&1; then
             cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
           fi
-      - name: Build sources
+      - name: Build Online sources
         run: |
           for src in ./sources/*; do
             (
@@ -67,6 +67,14 @@ jobs:
       - name: Build source list
         run: |
           aidoku build sources/*/package.aix --name "JohanDevl's French Sources (Development)"
+      - name: Build Offline sources
+        run: |
+          for src in ./offline-sources/*; do
+            (
+              cd "$src"
+              aidoku package
+            )
+          done
       - name: Deploy to GitHub Pages (main -> sources)
         uses: JamesIves/github-pages-deploy-action@v4.7.2
         if: ${{ github.ref == 'refs/heads/main' }}
