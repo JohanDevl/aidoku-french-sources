@@ -482,20 +482,48 @@ fn search_for_chapters_recursively(data: &serde_json::Value, manga_key: &str) ->
 fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 	// First try __NEXT_DATA__ script tag (most reliable)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		println!("📜 DEBUG: Found __NEXT_DATA__ script tag");
 		for script in script_elements {
 			if let Some(script_content) = script.text() {
+				println!("📄 DEBUG: Script content length: {} chars", script_content.len());
 				if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&script_content) {
+					println!("✅ DEBUG: Successfully parsed JSON");
+					
+					// Log the root structure keys
+					if let serde_json::Value::Object(obj) = &root_json {
+						let keys: Vec<&String> = obj.keys().collect();
+						println!("🔑 DEBUG: Root JSON keys: {:?}", keys);
+					}
+					
 					// Strategy 1: Try props.pageProps first (most common structure)
 					if let Some(props) = root_json.get("props") {
+						println!("✅ DEBUG: Found 'props' key");
+						if let serde_json::Value::Object(props_obj) = props {
+							let props_keys: Vec<&String> = props_obj.keys().collect();
+							println!("🔑 DEBUG: Props keys: {:?}", props_keys);
+						}
+						
 						if let Some(page_props) = props.get("pageProps") {
+							println!("✅ DEBUG: Found 'props.pageProps' key - returning this data");
+							if let serde_json::Value::Object(page_props_obj) = page_props {
+								let page_props_keys: Vec<&String> = page_props_obj.keys().collect();
+								println!("🔑 DEBUG: PageProps keys: {:?}", page_props_keys);
+							}
 							// Return pageProps without strict validation - let the caller decide
 							return Ok(page_props.clone());
+						} else {
+							println!("❌ DEBUG: No 'pageProps' in props");
 						}
+					} else {
+						println!("❌ DEBUG: No 'props' key found");
 					}
 					
 					// Strategy 2: Try root level initialData (alternative structure)
 					if let Some(initial_data) = root_json.get("initialData") {
+						println!("✅ DEBUG: Found root level 'initialData' - returning this data");
 						return Ok(initial_data.clone());
+					} else {
+						println!("❌ DEBUG: No root level 'initialData'");
 					}
 					
 					// Strategy 3: Return the entire root object if it has any relevant data
@@ -504,18 +532,27 @@ fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 					   root_json.get("chapters").is_some() ||
 					   root_json.get("props").is_some() ||
 					   root_json.get("query").is_some() {
+						println!("✅ DEBUG: Found relevant data in root - returning entire root object");
+						return Ok(root_json);
+					} else {
+						println!("⚠️  DEBUG: No obviously relevant keys found, returning root anyway");
+						// Strategy 4: As last resort, return the root JSON anyway
+						// Better to have too much data than too little
 						return Ok(root_json);
 					}
-					
-					// Strategy 4: As last resort, return the root JSON anyway
-					// Better to have too much data than too little
-					return Ok(root_json);
+				} else {
+					println!("❌ DEBUG: Failed to parse script content as JSON");
 				}
+			} else {
+				println!("❌ DEBUG: Script element has no text content");
 			}
 		}
+	} else {
+		println!("❌ DEBUG: No __NEXT_DATA__ script tag found");
 	}
 	
 	// Return empty object if parsing fails - let fallback handle it
+	println!("💥 DEBUG: Returning empty object - all extraction failed");
 	Ok(serde_json::json!({}))
 }
 
