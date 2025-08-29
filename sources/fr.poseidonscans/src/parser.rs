@@ -1613,6 +1613,8 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 						}
 					}
 
+					println!("📷 DEBUG: Found image - order: {}, src: {}, absolute_url: {}", order, src, absolute_url);
+
 					pages.push((order, Page {
 						content: PageContent::url(absolute_url),
 						thumbnail: None,
