@@ -31,60 +31,48 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				return content.get(1..end + 1).map(|s| s.to_string());
 			}
 		} else if content.starts_with('[') {
-			// Array value - find matching bracket with CORRECTED string handling
+			// Array value - find matching bracket with SIMPLE and CORRECT logic
 			let mut bracket_count = 0;
-			let mut end_pos = 0;
 			let mut in_string = false;
-			let mut escape_next = false;
+			let mut i = 0;
+			let chars: Vec<char> = content.chars().collect();
 			
-			// TEMP DEBUG: Show context around problematic position 35248
-			let debug_start = 35240.min(content.len());
-			let debug_end = (35260).min(content.len());
-			let debug_context = if content.len() > debug_start {
-				&content[debug_start..debug_end]
-			} else { 
-				"" 
-			};
-			panic!("DEBUG extract_json_value CONTEXT - Content around position 35248: '{}'", debug_context);
-			
-			#[allow(unreachable_code)]
-			for (i, c) in content.chars().enumerate() {
-				// Handle escape sequences properly
-				if escape_next {
-					escape_next = false;
-					continue; // Skip this character entirely
-				}
+			while i < chars.len() {
+				let c = chars[i];
 				
-				if c == '\\' {
-					escape_next = true;
-					continue; // Skip the backslash
-				}
-				
-				// Handle string boundaries (only when not escaped)
-				if c == '"' {
-					in_string = !in_string;
-					continue;
-				}
-				
-				// Only process brackets when NOT inside a string
-				if !in_string {
-					match c {
-						'[' => bracket_count += 1,
-						']' => {
-							bracket_count -= 1;
-							if bracket_count == 0 {
-								end_pos = i + 1;
-								break;
-							}
-						},
-						_ => {}
+				match c {
+					'\\' if in_string => {
+						// Skip next character if we're in a string (escape sequence)
+						i += 2; // Skip both \ and the next char
+						continue;
 					}
+					'"' => {
+						in_string = !in_string;
+					}
+					'[' if !in_string => {
+						bracket_count += 1;
+					}
+					']' if !in_string => {
+						bracket_count -= 1;
+						if bracket_count == 0 {
+							// Found the matching closing bracket
+							let result = &content[..=i];
+							// TEMP DEBUG: Verify result
+							panic!("DEBUG SIMPLIFIED - Found end at position {}, result_length={}, ends_with_bracket={}, last_10_chars: {}", 
+								i, 
+								result.len(),
+								result.ends_with(']'),
+								if result.len() >= 10 { &result[result.len()-10..] } else { result }
+							);
+						}
+					}
+					_ => {}
 				}
+				i += 1;
 			}
 			
-			if end_pos > 0 {
-				return content.get(0..end_pos).map(|s| s.to_string());
-			}
+			// If we get here, no matching bracket found
+			panic!("DEBUG SIMPLIFIED FAIL - No matching bracket found, final bracket_count: {}", bracket_count);
 		} else if content.starts_with('{') {
 			// Object value - find matching brace (handle strings properly)
 			let mut brace_count = 0;
