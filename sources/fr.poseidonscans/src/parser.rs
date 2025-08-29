@@ -486,6 +486,20 @@ fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 		for script in script_elements {
 			if let Some(script_content) = script.text() {
 				println!("📄 DEBUG: Script content length: {} chars", script_content.len());
+				
+				// Show first 200 chars to see what we're dealing with
+				let preview = if script_content.len() > 200 {
+					format!("{}...", &script_content[..200])
+				} else {
+					script_content.clone()
+				};
+				println!("👀 DEBUG: Content preview: {}", preview);
+				
+				if script_content.trim().is_empty() {
+					println!("❌ DEBUG: Script content is empty!");
+					continue;
+				}
+				
 				if let Ok(root_json) = serde_json::from_str::<serde_json::Value>(&script_content) {
 					println!("✅ DEBUG: Successfully parsed JSON");
 					
