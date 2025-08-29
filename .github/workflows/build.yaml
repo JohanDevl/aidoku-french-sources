@@ -61,12 +61,10 @@ jobs:
       - name: Build Online sources
         run: |
           for src in ./sources/*; do
-            if [ -d "$src" ] && [ -f "$src/Cargo.toml" ]; then
-              (
-                cd "$src"
-                aidoku package
-              )
-            fi
+            (
+              cd "$src"
+              aidoku package
+            )
           done
       - name: Build source list
         run: |
