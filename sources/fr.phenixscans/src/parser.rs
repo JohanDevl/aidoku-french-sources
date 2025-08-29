@@ -31,7 +31,7 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				return content.get(1..end + 1).map(|s| s.to_string());
 			}
 		} else if content.starts_with('[') {
-			// Array value - find matching bracket (handle strings properly)
+			// Array value - find matching bracket (handle strings properly) - WITH DEBUG
 			let mut bracket_count = 0;
 			let mut end_pos = 0;
 			let mut in_string = false;
@@ -53,6 +53,16 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 							bracket_count -= 1;
 							if bracket_count == 0 {
 								end_pos = i + 1;
+								// TEMP DEBUG: Vérifier qu'on trouve bien le end
+								let result = content.get(0..end_pos).map(|s| s.to_string());
+								if let Some(ref value) = result {
+									panic!("DEBUG extract_json_value FOUND END - position={}, final_length={}, ends_with_bracket={}, last_10_chars: {}", 
+										i, 
+										value.len(),
+										value.ends_with(']'),
+										if value.len() >= 10 { &value[value.len()-10..] } else { value }
+									);
+								}
 								break;
 							}
 						},
@@ -61,6 +71,15 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				}
 			}
 			
+			// TEMP DEBUG: Si on arrive ici, pas de bracket fermant trouvé  
+			panic!("DEBUG extract_json_value NO END FOUND - final bracket_count={}, content_length={}, end_pos={}, last_100_chars: {}", 
+				bracket_count,
+				content.len(), 
+				end_pos,
+				if content.len() >= 100 { &content[content.len()-100..] } else { content }
+			);
+			
+			#[allow(unreachable_code)]
 			if end_pos > 0 {
 				return content.get(0..end_pos).map(|s| s.to_string());
 			}
