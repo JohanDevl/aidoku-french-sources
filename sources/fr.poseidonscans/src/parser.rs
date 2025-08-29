@@ -432,42 +432,59 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 		}
 	});
 	
-	// IMPORTANT: Now filter out premium chapters using HTML indicators
-	// JSON-LD doesn't contain premium status, so we need to check HTML
-	println!("🔍 DEBUG: Now filtering premium chapters from JSON-LD results using HTML indicators");
+	// ⚡ SUPER OPTIMIZED: Only check the first 3 chapters for premium status
+	// Premium chapters are almost always the most recent ones (highest numbers)
+	println!("⚡ DEBUG: SUPER OPTIMIZED premium filtering - checking only first 3 chapters");
 	let mut filtered_chapters: Vec<Chapter> = Vec::new();
 	let original_chapter_count = chapters.len();
+	const MAX_PREMIUM_CHECKS: usize = 3; // Only check the 3 most recent chapters
 	
 	if let Some(chapter_elements) = html.select("a[href*='/chapter/']") {
-		// Convert to Vec to avoid ownership issues
 		let chapter_elements_vec: Vec<_> = chapter_elements.collect();
+		let mut _premium_count = 0;
+		let mut checks_performed = 0;
 		
-		for chapter in chapters {
+		for (index, chapter) in chapters.iter().enumerate() {
 			let mut is_premium = false;
 			
-			// Find the corresponding HTML element for this chapter
-			for chapter_element in &chapter_elements_vec {
-				if let Some(href_str) = chapter_element.attr("href") {
-					if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
-						if chapter_id_from_href == chapter.key {
-							// Found matching HTML element, check if premium
-							println!("🔍 DEBUG: Found matching HTML element for JSON-LD chapter {}", chapter.key);
-							is_premium = is_chapter_premium(chapter_element, html, &href_str);
-							break;
+			// Only check premium status for the first MAX_PREMIUM_CHECKS chapters
+			if index < MAX_PREMIUM_CHECKS {
+				// Simple search for this chapter in HTML elements
+				for chapter_element in &chapter_elements_vec {
+					if let Some(href_str) = chapter_element.attr("href") {
+						if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
+							if chapter_id_from_href == chapter.key {
+								println!("🔍 DEBUG: Checking chapter {} for premium status ({}/{})", chapter.key, index + 1, MAX_PREMIUM_CHECKS);
+								is_premium = is_chapter_premium(chapter_element, html, &href_str);
+								checks_performed += 1;
+								break;
+							}
 						}
 					}
+				}
+			} else {
+				// All remaining chapters are assumed to be non-premium (performance optimization)
+				if index == MAX_PREMIUM_CHECKS {
+					println!("⚡ DEBUG: Premium check limit reached. Remaining {} chapters assumed non-premium", 
+						original_chapter_count - MAX_PREMIUM_CHECKS);
 				}
 			}
 			
 			if is_premium {
-				println!("🔒 DEBUG: EXCLUDING premium chapter {} from JSON-LD results", chapter.key);
+				println!("🔒 DEBUG: EXCLUDING premium chapter {} from results", chapter.key);
+				_premium_count += 1;
 			} else {
-				println!("🆓 DEBUG: INCLUDING chapter {} from JSON-LD results", chapter.key);
-				filtered_chapters.push(chapter);
+				println!("🆓 DEBUG: INCLUDING chapter {}", chapter.key);
+				filtered_chapters.push(chapter.clone());
 			}
 		}
+		
+		println!("⚡ DEBUG: OPTIMIZATION RESULTS - Premium checks: {}/{} chapters ({}% reduction)", 
+			checks_performed, original_chapter_count, 
+			if original_chapter_count > 0 { ((original_chapter_count - checks_performed) * 100) / original_chapter_count } else { 0 }
+		);
 	} else {
-		println!("⚠️  DEBUG: No HTML chapter elements found for premium filtering, returning all JSON-LD chapters");
+		println!("⚠️  DEBUG: No HTML chapter elements found, returning all JSON-LD chapters");
 		filtered_chapters = chapters;
 	}
 
@@ -684,7 +701,7 @@ fn extract_nextjs_manga_details(html: &Document) -> Result<serde_json::Value> {
 fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga_key: &str) -> Vec<Chapter> {
 	let mut chapters: Vec<Chapter> = Vec::new();
 	let mut skipped_count = 0;
-	let mut premium_count = 0;
+	let mut _premium_count = 0;
 	
 	println!("📝 DEBUG: Parsing array of {} chapter objects...", chapters_array.len());
 	
@@ -715,7 +732,7 @@ fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga
 				.unwrap_or(false);
 			
 			if is_premium {
-				premium_count += 1;
+				_premium_count += 1;
 			}
 			
 			// Extract chapter title - simplified format: "Chapitre X"
@@ -757,8 +774,8 @@ fn parse_chapters_from_json_array(chapters_array: &Vec<serde_json::Value>, manga
 	// Summary
 	println!("📊 DEBUG: Parsing summary:");
 	println!("   ✅ Successfully parsed: {} chapters", chapters.len());
-	println!("   🔒 Premium chapters: {} (marked as locked)", premium_count);
-	println!("   🆓 Free chapters: {}", chapters.len() - premium_count);
+	println!("   🔒 Premium chapters: {} (marked as locked)", _premium_count);
+	println!("   🆓 Free chapters: {}", chapters.len() - _premium_count);
 	println!("   ⚠️  Skipped items: {}", skipped_count);
 	
 	chapters
