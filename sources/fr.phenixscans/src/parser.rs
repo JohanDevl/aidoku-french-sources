@@ -361,7 +361,7 @@ pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chap
 		let chapter_number = extract_chapter_number(&item.number);
 		
 		let key = format!("{}", chapter_number);
-		let title = Some(format!("Ch.{}", chapter_number));
+		let title = Some(format!("Ch.{} - Chapitre {}", chapter_number, chapter_number));
 		let url = Some(format!("{}/manga/{}/chapitre/{}", BASE_URL, manga_id, chapter_number));
 
 		// Parse date if available (using chrono like modern sources)
