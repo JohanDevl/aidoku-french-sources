@@ -31,23 +31,13 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				return content.get(1..end + 1).map(|s| s.to_string());
 			}
 		} else if content.starts_with('[') {
-			// Array value - find matching bracket (handle strings properly)  
+			// Array value - find matching bracket (handle strings properly)
 			let mut bracket_count = 0;
 			let mut end_pos = 0;
 			let mut in_string = false;
 			let mut escape_next = false;
 			
-			// DEBUG: Add detailed bracket matching debug
-			let mut debug_info = String::new();
-			let mut first_10_chars = String::new();
-			
 			for (i, c) in content.chars().enumerate() {
-				// Collect debug info for first 20 characters
-				if i < 20 {
-					first_10_chars.push(c);
-					debug_info.push_str(&format!("i={} c='{}' bracket_count={} in_string={} | ", i, c, bracket_count, in_string));
-				}
-				
 				if escape_next {
 					escape_next = false;
 				} else if c == '\\' {
@@ -58,22 +48,12 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				
 				if !in_string {
 					match c {
-						'[' => {
-							bracket_count += 1;
-							if i < 20 {
-								debug_info.push_str(&format!("OPEN_BRACKET! new_count={} | ", bracket_count));
-							}
-						},
+						'[' => bracket_count += 1,
 						']' => {
 							bracket_count -= 1;
-							if i < 20 {
-								debug_info.push_str(&format!("CLOSE_BRACKET! new_count={} ", bracket_count));
-							}
 							if bracket_count == 0 {
 								end_pos = i + 1;
-								// TEMP DEBUG: Show where we found the end
-								panic!("DEBUG extract_json_value BRACKET MATCH SUCCESS - Found closing bracket at position {}. Total content length: {}. First 20 chars debug: {} | First chars: {}", 
-									i, content.len(), debug_info, first_10_chars);
+								break;
 							}
 						},
 						_ => {}
@@ -81,11 +61,6 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				}
 			}
 			
-			// TEMP DEBUG: If we reach here, no matching bracket was found
-			panic!("DEBUG extract_json_value BRACKET MATCH FAIL - No matching bracket found. Final bracket_count: {}, content length: {}, first 20 chars debug: {} | First chars: {}", 
-				bracket_count, content.len(), debug_info, first_10_chars);
-			
-			#[allow(unreachable_code)]
 			if end_pos > 0 {
 				return content.get(0..end_pos).map(|s| s.to_string());
 			}
@@ -134,35 +109,11 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 	None
 }
 
-// Extract array of objects from JSON - WITH DEBUG
+// Extract array of objects from JSON
 fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 	if let Some(array_str) = extract_json_value(json, key) {
-		// DEBUG 1: Vérifier la valeur retournée par extract_json_value
-		let preview = if array_str.len() > 200 { 
-			format!("{}...", &array_str[..200])
-		} else { 
-			array_str.clone()
-		};
-		panic!("DEBUG extract_json_array STEP 1 - extract_json_value returned for '{}': length={}, starts_with=[={}, ends_with_]={}, preview: {}", 
-			key, 
-			array_str.len(),
-			array_str.starts_with('['),
-			array_str.ends_with(']'),
-			preview
-		);
-		
 		if array_str.starts_with('[') && array_str.ends_with(']') {
 			let content = &array_str[1..array_str.len()-1]; // Remove brackets
-			
-			// DEBUG 2: Vérifier le contenu après suppression des crochets
-			let content_preview = if content.len() > 200 { 
-				format!("{}...", &content[..200])
-			} else { 
-				content.to_string()
-			};
-			panic!("DEBUG extract_json_array STEP 2 - content after bracket removal: length={}, preview: {}", 
-				content.len(), content_preview);
-			
 			let mut objects = Vec::new();
 			let mut current_object = String::new();
 			let mut brace_count = 0;
@@ -209,19 +160,9 @@ fn extract_json_array(json: &str, key: &str) -> Vec<String> {
 			}
 			
 			return objects;
-		} else {
-			// DEBUG 3: Problème avec les crochets
-			let value_preview = if array_str.len() > 100 { 
-				format!("{}...", &array_str[..100])
-			} else { 
-				array_str.clone()
-			};
-			panic!("DEBUG extract_json_array STEP 3 FAIL - Array does not start with [ or end with ]. Value: {}", value_preview);
 		}
-	} else {
-		// DEBUG 4: extract_json_value a échoué
-		panic!("DEBUG extract_json_array STEP 4 FAIL - extract_json_value returned None for key '{}'", key);
 	}
+	Vec::new()
 }
 
 fn parse_manga_status(status_str: &str) -> MangaStatus {
@@ -277,25 +218,6 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		
 		let items = extract_json_array(&response, "latest");
-		
-		// DEBUG: Vérifier si extract_json_array fonctionne
-		if items.len() == 0 {
-			return Err(aidoku::AidokuError::message("DEBUG STEP A - extract_json_array returned 0 items"));
-		}
-		
-		let first_item_preview = if items.len() > 0 {
-			if items[0].len() > 200 { 
-				format!("{}...", &items[0][..200])
-			} else { 
-				items[0].clone()
-			}
-		} else { 
-			"NO ITEMS".to_string()
-		};
-		return Err(aidoku::AidokuError::message(&format!("DEBUG STEP B - extract_json_array returned {} items. First item preview: {}", 
-			items.len(), first_item_preview)));
-		
-		#[allow(unreachable_code)]
 		for item in &items {
 			// Dans le JSON, les objets utilisent "_id" au lieu de "id" et parfois "slug"
 			let id_field = extract_json_value(item, "_id").unwrap_or_else(|| "".to_string());
