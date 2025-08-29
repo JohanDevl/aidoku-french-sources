@@ -1192,52 +1192,34 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 }
 
 // Detect if a chapter is premium based on HTML indicators
-fn is_chapter_premium(chapter_element: &Element, html: &Document, href: &str) -> bool {
-	// Method 1: Check if the chapter element itself contains premium indicators
-	if let Some(element_html) = chapter_element.html() {
-		if element_html.contains("PREMIUM") || element_html.contains("amber-500") {
+fn is_chapter_premium(chapter_element: &Element, _html: &Document, _href: &str) -> bool {
+	// Method 1: Check the class attribute of the chapter element (main indicator)
+	// Premium chapters have "border-amber-500/30" while normal chapters have "border-zinc-700/30"
+	if let Some(class_attr) = chapter_element.attr("class") {
+		if class_attr.contains("border-amber-500") {
+			println!("🔒 DEBUG: Found premium chapter via class attribute: border-amber-500");
 			return true;
 		}
 	}
 	
-	// Method 2: Look for the chapter in the HTML structure and check its parent container
-	// The premium chapter has specific classes like "border-amber-500/30"
-	if let Some(chapter_containers) = html.select("a[href*='/chapter/']") {
-		for container in chapter_containers {
-			if let Some(container_href) = container.attr("href") {
-				if container_href == href {
-					// Get container HTML
-					let container_html = container.html().unwrap_or_default();
-					
-					// Get parent HTML
-					let parent_html = if let Some(parent) = container.parent() {
-						parent.html().unwrap_or_default()
-					} else {
-						String::new()
-					};
-					
-					// Check for premium indicators:
-					// 1. PREMIUM badge
-					if container_html.contains("PREMIUM") || parent_html.contains("PREMIUM") {
-						return true;
-					}
-					
-					// 2. Amber border (premium chapters have amber-500 border)
-					if container_html.contains("border-amber-500") || parent_html.contains("border-amber-500") {
-						return true;
-					}
-					
-					// 3. Early access text
-					if container_html.contains("Accès anticipé") || parent_html.contains("Accès anticipé") {
-						return true;
-					}
-					
-					// 4. Amber background elements
-					if container_html.contains("bg-amber-500") || parent_html.contains("bg-amber-500") {
-						return true;
-					}
-				}
-			}
+	// Method 2: Check if the element's HTML contains premium indicators
+	if let Some(element_html) = chapter_element.html() {
+		// Check for PREMIUM badge
+		if element_html.contains("PREMIUM") {
+			println!("🔒 DEBUG: Found premium chapter via PREMIUM badge");
+			return true;
+		}
+		
+		// Check for amber-500 CSS classes in child elements
+		if element_html.contains("amber-500") {
+			println!("🔒 DEBUG: Found premium chapter via amber-500 class");
+			return true;
+		}
+		
+		// Check for early access text
+		if element_html.contains("Accès anticipé") {
+			println!("🔒 DEBUG: Found premium chapter via 'Accès anticipé' text");
+			return true;
 		}
 	}
 	
