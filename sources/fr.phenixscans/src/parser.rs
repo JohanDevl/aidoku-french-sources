@@ -2,7 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString},
-	imports::std::current_date,
+	imports::{std::current_date, html::Document},
 	prelude::*,
 };
 
@@ -131,6 +131,11 @@ fn parse_manga_status(status_str: &str) -> MangaStatus {
 }
 
 pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
+	// DEBUG: Return error with response content for debugging
+	if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+		return Err(aidoku::AidokuError::message(&format!("Site protected by Cloudflare. Response: {}", if response.len() > 200 { &response[..200] } else { &response })));
+	}
+	
 	let mut mangas: Vec<Manga> = Vec::new();
 
 	let has_more = if listing_type == "Populaire" {
@@ -223,6 +228,11 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 }
 
 pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
+	// DEBUG: Check if Cloudflare is blocking
+	if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+		return Err(aidoku::AidokuError::message(&format!("Site protected by Cloudflare. Response: {}", if response.len() > 200 { &response[..200] } else { &response })));
+	}
+	
 	let mut mangas: Vec<Manga> = Vec::new();
 	
 	let items = extract_json_array(&response, "mangas");
@@ -287,6 +297,11 @@ pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
+	// DEBUG: Check if Cloudflare is blocking
+	if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+		return Err(aidoku::AidokuError::message(&format!("Site protected by Cloudflare. Response: {}", if response.len() > 200 { &response[..200] } else { &response })));
+	}
+	
 	let mut mangas: Vec<Manga> = Vec::new();
 	
 	// Search structure: { "mangas": [...], "pagination": {...} }
@@ -492,4 +507,119 @@ pub fn parse_page_list(response: String) -> Result<Vec<Page>> {
 	}
 
 	Ok(pages)
+}
+
+// HTML parsing functions - fallback when API is blocked by Cloudflare
+pub fn parse_search_html(html: Document) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// Basic HTML parsing - will need to be adapted to actual site structure
+	if let Some(manga_items) = html.select(".manga-item, .card, .media") {
+		for item in manga_items {
+		if let Some(title_element) = item.select("h3, .title, .media-heading").and_then(|els| els.first()) {
+			let title = title_element.text().unwrap_or_default();
+			let key = item.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default().to_string();
+			let cover = item.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).map(|s| s.to_string());
+			
+			if !key.is_empty() && !title.is_empty() {
+				mangas.push(Manga {
+					key,
+					title,
+					cover,
+					authors: None,
+					artists: None,
+					description: None,
+					url: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::default(),
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
+	}
+	}
+	
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: false, // Will need pagination logic
+	})
+}
+
+pub fn parse_manga_html(html: Document) -> Result<MangaPageResult> {
+	parse_search_html(html) // Same logic for now
+}
+
+pub fn parse_listing_html(html: Document, listing_type: &str) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	if listing_type == "Populaire" {
+		// Parse popular manga from homepage
+		if let Some(popular_items) = html.select(".popular-manga .manga-item, .trending .card") {
+			for item in popular_items.take(20) { // Limit to 20 items
+			if let Some(title_element) = item.select("h3, .title").and_then(|els| els.first()) {
+				let title = title_element.text().unwrap_or_default();
+				let key = item.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default().to_string();
+				let cover = item.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).map(|s| s.to_string());
+				
+				if !key.is_empty() && !title.is_empty() {
+					mangas.push(Manga {
+						key,
+						title,
+						cover,
+						authors: None,
+						artists: None,
+						description: None,
+						url: None,
+						tags: None,
+						status: MangaStatus::Unknown,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::default(),
+						chapters: None,
+						next_update_time: None,
+						update_strategy: UpdateStrategy::Never,
+					});
+				}
+			}
+		}
+		}
+	} else if listing_type == "Dernières Sorties" {
+		// Parse latest releases
+		if let Some(latest_items) = html.select(".latest-releases .manga-item, .recent .card") {
+			for item in latest_items.take(20) {
+			if let Some(title_element) = item.select("h3, .title").and_then(|els| els.first()) {
+				let title = title_element.text().unwrap_or_default();
+				let key = item.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default().to_string();
+				let cover = item.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).map(|s| s.to_string());
+				
+				if !key.is_empty() && !title.is_empty() {
+					mangas.push(Manga {
+						key,
+						title,
+						cover,
+						authors: None,
+						artists: None,
+						description: None,
+						url: None,
+						tags: None,
+						status: MangaStatus::Unknown,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::default(),
+						chapters: None,
+						next_update_time: None,
+						update_strategy: UpdateStrategy::Never,
+					});
+				}
+			}
+		}
+	}
+	}
+	
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: false, // Will need pagination logic
+	})
 }

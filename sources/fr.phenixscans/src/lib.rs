@@ -33,16 +33,50 @@ impl Source for PhenixScans {
 		// Ignorer les filtres pour l'instant
 		let _ = filters;
 
-		// Construire l'URL finale
+		// Construire l'URL finale - essayer l'API JSON d'abord, puis HTML si bloqué
 		if let Some(search_query) = query {
-			let url = format!("{}/front/manga/search?query={}", API_URL, helper::urlencode(&search_query));
-			let response = Request::get(&url)?.string()?;
-			parser::parse_search_list(response)
+			// Essayer d'abord l'API JSON
+			let api_url = format!("{}/front/manga/search?query={}", API_URL, helper::urlencode(&search_query));
+			match Request::get(&api_url)?.string() {
+				Ok(response) => {
+					if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+						// Fallback vers HTML parsing
+						let html_url = format!("{}/catalogue?search={}", BASE_URL, helper::urlencode(&search_query));
+						let html = Request::get(&html_url)?.html()?;
+						parser::parse_search_html(html)
+					} else {
+						parser::parse_search_list(response)
+					}
+				}
+				Err(_) => {
+					// Fallback vers HTML parsing
+					let html_url = format!("{}/catalogue?search={}", BASE_URL, helper::urlencode(&search_query));
+					let html = Request::get(&html_url)?.html()?;
+					parser::parse_search_html(html)
+				}
+			}
 		} else {
+			// Essayer d'abord l'API JSON
 			let genres_query_str = genres_query.join(",");
-			let url = format!("{}/front/manga?{}&genre={}&page={}&limit=20", API_URL, query_params, genres_query_str, page);
-			let response = Request::get(&url)?.string()?;
-			parser::parse_manga_list(response)
+			let api_url = format!("{}/front/manga?{}&genre={}&page={}&limit=20", API_URL, query_params, genres_query_str, page);
+			match Request::get(&api_url)?.string() {
+				Ok(response) => {
+					if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+						// Fallback vers HTML parsing
+						let html_url = format!("{}/catalogue?page={}", BASE_URL, page);
+						let html = Request::get(&html_url)?.html()?;
+						parser::parse_manga_html(html)
+					} else {
+						parser::parse_manga_list(response)
+					}
+				}
+				Err(_) => {
+					// Fallback vers HTML parsing
+					let html_url = format!("{}/catalogue?page={}", BASE_URL, page);
+					let html = Request::get(&html_url)?.html()?;
+					parser::parse_manga_html(html)
+				}
+			}
 		}
 	}
 
@@ -92,7 +126,8 @@ impl ListingProvider for PhenixScans {
 		listing: Listing,
 		page: i32,
 	) -> Result<MangaPageResult> {
-		let url = if listing.name == "Dernières Sorties" {
+		// Essayer d'abord l'API JSON
+		let api_url = if listing.name == "Dernières Sorties" {
 			format!("{}/front/homepage?page={}&section=latest&limit=20", API_URL, page)
 		} else if listing.name == "Populaire" {
 			format!("{}/front/homepage?section=top", API_URL)
@@ -100,8 +135,24 @@ impl ListingProvider for PhenixScans {
 			return Err(aidoku::AidokuError::message("Unimplemented listing"));
 		};
 		
-		let response = Request::get(&url)?.string()?;
-		parser::parse_manga_listing(response, &listing.name)
+		match Request::get(&api_url)?.string() {
+			Ok(response) => {
+				if response.contains("Just a moment") || response.contains("<!DOCTYPE html>") {
+					// Fallback vers HTML parsing
+					let html_url = format!("{}/", BASE_URL);
+					let html = Request::get(&html_url)?.html()?;
+					parser::parse_listing_html(html, &listing.name)
+				} else {
+					parser::parse_manga_listing(response, &listing.name)
+				}
+			}
+			Err(_) => {
+				// Fallback vers HTML parsing
+				let html_url = format!("{}/", BASE_URL);
+				let html = Request::get(&html_url)?.html()?;
+				parser::parse_listing_html(html, &listing.name)
+			}
+		}
 	}
 }
 
