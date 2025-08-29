@@ -2,255 +2,494 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString},
-	imports::{std::current_date, html::Document},
+	imports::std::current_date,
 	prelude::*,
 };
 
 use crate::BASE_URL;
+use crate::API_URL;
 
-// Parse manga list from HTML (comme AnimeSama)
-pub fn parse_manga_list_html(html: Document) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
-	
-	// Sélecteurs adaptés pour PhenixScans - à ajuster selon la structure réelle
-	if let Some(manga_items) = html.select(".manga-item, .card, .media, .manga-entry") {
-		for item in manga_items {
-			// Extraire le titre
-			let title = item.select("h3, .title, .manga-title, h2")
-				.and_then(|els| els.first())
-				.and_then(|el| el.text())
-				.unwrap_or_default();
-			
-			// Extraire le lien/key 
-			let key = item.select("a")
-				.and_then(|els| els.first())
-				.and_then(|el| el.attr("href"))
-				.unwrap_or_default()
-				.replace("/manga/", ""); // Nettoyer pour garder juste l'ID
-			
-			// Extraire l'image de couverture
-			let cover = item.select("img")
-				.and_then(|els| els.first())
-				.and_then(|el| el.attr("src").or_else(|| el.attr("data-src")))
-				.map(|src| {
-					if src.starts_with("http") {
-						src.to_string()
-					} else {
-						format!("{}{}", BASE_URL, src)
+// Helper function to extract JSON value by key
+fn extract_json_value(json: &str, key: &str) -> Option<String> {
+	// Simple JSON extraction using string manipulation
+	if let Some(start) = json.find(&format!("\"{}\": ", key)) {
+		let start = start + key.len() + 4; // Skip `"key": `
+		if let Some(content) = json.get(start..) {
+			if content.starts_with('"') {
+				// String value
+				if let Some(end) = content[1..].find('"') {
+					return content.get(1..end + 1).map(|s| s.to_string());
+				}
+			} else if content.starts_with('[') {
+				// Array value - find matching bracket
+				let mut bracket_count = 0;
+				let mut end_pos = 0;
+				for (i, c) in content.chars().enumerate() {
+					match c {
+						'[' => bracket_count += 1,
+						']' => {
+							bracket_count -= 1;
+							if bracket_count == 0 {
+								end_pos = i + 1;
+								break;
+							}
+						},
+						_ => {}
 					}
-				});
-			
-			if !key.is_empty() && !title.is_empty() {
-				mangas.push(Manga {
-					key,
-					title,
-					cover,
-					authors: None,
-					artists: None,
-					description: None,
-					url: None,
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::default(),
-					chapters: None,
-					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
-				});
-			}
-		}
-	}
-	
-	// Détecter s'il y a une page suivante
-	let has_next_page = html.select(".pagination .next, .next-page").is_some();
-	
-	Ok(MangaPageResult {
-		entries: mangas,
-		has_next_page,
-	})
-}
-
-// Parse les listings spéciaux (Populaire, Dernières Sorties) 
-pub fn parse_manga_listing_html(html: Document, listing_type: &str) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
-	
-	let selector = if listing_type == "Populaire" {
-		".popular-manga .manga-item, .trending .card, .top-manga .item"
-	} else {
-		".latest-releases .manga-item, .recent .card, .newest .item"
-	};
-	
-	if let Some(items) = html.select(selector) {
-		for item in items.take(20) { // Limiter à 20 résultats
-			let title = item.select("h3, .title, .manga-title")
-				.and_then(|els| els.first())
-				.and_then(|el| el.text())
-				.unwrap_or_default();
-			
-			let key = item.select("a")
-				.and_then(|els| els.first())
-				.and_then(|el| el.attr("href"))
-				.unwrap_or_default()
-				.replace("/manga/", "");
-			
-			let cover = item.select("img")
-				.and_then(|els| els.first())
-				.and_then(|el| el.attr("src").or_else(|| el.attr("data-src")))
-				.map(|src| {
-					if src.starts_with("http") {
-						src.to_string()
-					} else {
-						format!("{}{}", BASE_URL, src)
+				}
+				if end_pos > 0 {
+					return content.get(0..end_pos).map(|s| s.to_string());
+				}
+			} else if content.starts_with('{') {
+				// Object value - find matching brace
+				let mut brace_count = 0;
+				let mut end_pos = 0;
+				for (i, c) in content.chars().enumerate() {
+					match c {
+						'{' => brace_count += 1,
+						'}' => {
+							brace_count -= 1;
+							if brace_count == 0 {
+								end_pos = i + 1;
+								break;
+							}
+						},
+						_ => {}
 					}
-				});
-			
-			if !key.is_empty() && !title.is_empty() {
-				mangas.push(Manga {
-					key,
-					title,
-					cover,
-					authors: None,
-					artists: None,
-					description: None,
-					url: None,
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::default(),
-					chapters: None,
-					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
-				});
-			}
-		}
-	}
-	
-	Ok(MangaPageResult {
-		entries: mangas,
-		has_next_page: false, // Les listings spéciaux ont généralement une seule page
-	})
-}
-
-// Parse les détails d'un manga 
-pub fn parse_manga_details_html(manga_id: String, html: Document) -> Result<Manga> {
-	let title = html.select(".manga-title, h1, .title")
-		.and_then(|els| els.first())
-		.and_then(|el| el.text())
-		.unwrap_or_else(|| "Unknown Title".to_string());
-	
-	let cover = html.select(".manga-cover img, .cover img, .thumbnail img")
-		.and_then(|els| els.first())
-		.and_then(|el| el.attr("src").or_else(|| el.attr("data-src")))
-		.map(|src| {
-			if src.starts_with("http") {
-				src.to_string()
+				}
+				if end_pos > 0 {
+					return content.get(0..end_pos).map(|s| s.to_string());
+				}
 			} else {
-				format!("{}{}", BASE_URL, src)
-			}
-		});
-	
-	let description = html.select(".description, .summary, .synopsis")
-		.and_then(|els| els.first())
-		.and_then(|el| el.text())
-		.or_else(|| Some("Aucune description disponible.".to_string()));
-	
-	let url = Some(format!("{}/manga/{}", BASE_URL, manga_id));
-	
-	// Extraire les tags/genres si disponibles
-	let mut tags = Vec::new();
-	if let Some(tag_elements) = html.select(".genres .genre, .tags .tag") {
-		for tag in tag_elements {
-			if let Some(tag_text) = tag.text() {
-				tags.push(tag_text);
+				// Number or boolean value
+				let end = content.find(',')
+					.or_else(|| content.find('}'))
+					.or_else(|| content.find(']'))
+					.unwrap_or(content.len());
+				return content.get(0..end).map(|s| s.trim().to_string());
 			}
 		}
 	}
-	
-	Ok(Manga {
-		key: manga_id,
-		title,
-		cover,
-		authors: None, // Pourrait être extrait si présent dans le HTML
-		artists: None,
-		description,
-		url,
-		tags: if tags.is_empty() { None } else { Some(tags) },
-		status: MangaStatus::Unknown, // Pourrait être parsé depuis le HTML
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::default(),
-		chapters: None,
-		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
+	None
+}
+
+// Extract array of objects from JSON
+fn extract_json_array(json: &str, key: &str) -> Vec<String> {
+	if let Some(array_str) = extract_json_value(json, key) {
+		if array_str.starts_with('[') && array_str.ends_with(']') {
+			let content = &array_str[1..array_str.len()-1]; // Remove brackets
+			let mut objects = Vec::new();
+			let mut current_object = String::new();
+			let mut brace_count = 0;
+			let mut in_string = false;
+			let mut escape_next = false;
+			
+			for c in content.chars() {
+				if escape_next {
+					escape_next = false;
+				} else if c == '\\' {
+					escape_next = true;
+				} else if c == '"' && !escape_next {
+					in_string = !in_string;
+				}
+				
+				if !in_string {
+					match c {
+						'{' => brace_count += 1,
+						'}' => brace_count -= 1,
+						',' if brace_count == 0 => {
+							if !current_object.trim().is_empty() {
+								objects.push(current_object.trim().to_string());
+								current_object.clear();
+							}
+							continue;
+						},
+						_ => {}
+					}
+				}
+				
+				current_object.push(c);
+			}
+			
+			if !current_object.trim().is_empty() {
+				objects.push(current_object.trim().to_string());
+			}
+			
+			return objects;
+		}
+	}
+	Vec::new()
+}
+
+fn parse_manga_status(status_str: &str) -> MangaStatus {
+	match status_str {
+		"Ongoing" => MangaStatus::Ongoing,
+		"Completed" => MangaStatus::Completed,
+		"Hiatus" => MangaStatus::Hiatus,
+		_ => MangaStatus::Unknown,
+	}
+}
+
+pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+
+	let has_more = if listing_type == "Populaire" {
+		// For the "top" section, the structure is: { "top": [...] }
+		let items = extract_json_array(&response, "top");
+		for item in items {
+			if let Some(slug) = extract_json_value(&item, "slug") {
+				if slug == "unknown" { continue; }
+				
+				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+				let cover = if !cover_image.is_empty() {
+					Some(format!("{}/{}", API_URL, cover_image))
+				} else {
+					None
+				};
+
+				mangas.push(Manga {
+					key: slug,
+					title,
+					cover,
+					authors: None,
+					artists: None,
+					description: None,
+					url: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::default(),
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
+		// Top section has no pagination
+		false
+	} else {
+		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
+		let items = extract_json_array(&response, "latest");
+		for item in items {
+			if let Some(slug) = extract_json_value(&item, "slug") {
+				if slug == "unknown" { continue; }
+				
+				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+				let cover = if !cover_image.is_empty() {
+					Some(format!("{}/{}", API_URL, cover_image))
+				} else {
+					None
+				};
+
+				mangas.push(Manga {
+					key: slug,
+					title,
+					cover,
+					authors: None,
+					artists: None,
+					description: None,
+					url: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::default(),
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
+		
+		// Check if there are more pages
+		if let Some(pagination_str) = extract_json_value(&response, "pagination") {
+			let current_page = extract_json_value(&pagination_str, "currentPage")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			let total_pages = extract_json_value(&pagination_str, "totalPages")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			current_page < total_pages
+		} else {
+			false
+		}
+	};
+
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: has_more,
 	})
 }
 
-// Parse la liste des chapitres 
-pub fn parse_chapter_list_html(manga_id: String, html: Document) -> Result<Vec<Chapter>> {
-	let mut chapters: Vec<Chapter> = Vec::new();
+pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
 	
-	if let Some(chapter_elements) = html.select(".chapter-list .chapter, .chapters .item") {
-		for (index, chapter) in chapter_elements.enumerate() {
-			let title = chapter.select("a, .chapter-title")
-				.and_then(|els| els.first())
-				.and_then(|el| el.text())
-				.unwrap_or_else(|| format!("Chapter {}", index + 1));
+	let items = extract_json_array(&response, "mangas");
+	for item in items {
+		if let Some(slug) = extract_json_value(&item, "slug") {
+			if slug == "unknown" { continue; }
 			
-			let chapter_url = chapter.select("a")
-				.and_then(|els| els.first())
-				.and_then(|el| el.attr("href"))
-				.map(|href| {
-					if href.starts_with("http") {
-						href.to_string()
-					} else {
-						format!("{}{}", BASE_URL, href)
-					}
-				});
+			let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+			let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+			let cover = if !cover_image.is_empty() {
+				Some(format!("{}/{}", API_URL, cover_image))
+			} else {
+				None
+			};
 			
-			// Extraire le numéro de chapitre du titre ou de l'URL
-			let chapter_number = (index + 1) as f32;
-			let key = format!("{}", chapter_number);
-			
-			chapters.push(Chapter {
-				key,
-				title: Some(title),
-				volume_number: Some(-1.0),
-				chapter_number: Some(chapter_number),
-				date_uploaded: Some(current_date()),
-				scanlators: None,
-				url: chapter_url,
-				language: Some("fr".to_string()),
-				thumbnail: None,
-				locked: false,
+			let status = if let Some(status_str) = extract_json_value(&item, "status") {
+				parse_manga_status(&status_str)
+			} else {
+				MangaStatus::Unknown
+			};
+
+			mangas.push(Manga {
+				key: slug,
+				title,
+				cover,
+				authors: None,
+				artists: None,
+				description: None,
+				url: None,
+				tags: None,
+				status,
+				content_rating: ContentRating::Safe,
+				viewer: Viewer::default(),
+				chapters: None,
+				next_update_time: None,
+				update_strategy: UpdateStrategy::Never,
 			});
 		}
 	}
+
+	// Check pagination for general list
+	let has_more = if let Some(pagination_str) = extract_json_value(&response, "pagination") {
+		if let Some(has_next_str) = extract_json_value(&pagination_str, "hasNextPage") {
+			has_next_str.parse::<bool>().unwrap_or(false)
+		} else {
+			let current_page = extract_json_value(&pagination_str, "page")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			let total_pages = extract_json_value(&pagination_str, "totalPages")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			current_page < total_pages
+		}
+	} else {
+		false
+	};
+
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: has_more,
+	})
+}
+
+pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
 	
+	// Search structure: { "mangas": [...], "pagination": {...} }
+	let items = extract_json_array(&response, "mangas");
+	for item in items {
+		if let Some(slug) = extract_json_value(&item, "slug") {
+			if slug == "unknown" { continue; }
+			
+			let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+			let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+			let cover = if !cover_image.is_empty() {
+				Some(format!("{}/{}", API_URL, cover_image))
+			} else {
+				None
+			};
+
+			mangas.push(Manga {
+				key: slug,
+				title,
+				cover,
+				authors: None,
+				artists: None,
+				description: None,
+				url: None,
+				tags: None,
+				status: MangaStatus::Unknown,
+				content_rating: ContentRating::Safe,
+				viewer: Viewer::default(),
+				chapters: None,
+				next_update_time: None,
+				update_strategy: UpdateStrategy::Never,
+			});
+		}
+	}
+
+	// Check pagination for searches if it exists
+	let has_more = if let Some(pagination_str) = extract_json_value(&response, "pagination") {
+		let current_page = extract_json_value(&pagination_str, "page")
+			.and_then(|s| s.parse::<i32>().ok())
+			.unwrap_or(0);
+		let total_pages = extract_json_value(&pagination_str, "totalPages")
+			.and_then(|s| s.parse::<i32>().ok())
+			.unwrap_or(0);
+		current_page < total_pages
+	} else {
+		false
+	};
+
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: has_more,
+	})
+}
+
+pub fn parse_manga_details(manga_id: String, response: String) -> Result<Manga> {
+	if let Some(manga_str) = extract_json_value(&response, "manga") {
+		// Get cover image
+		let cover_image = extract_json_value(&manga_str, "coverImage").unwrap_or_else(|| "".to_string());
+		let cover = if !cover_image.is_empty() {
+			Some(format!("{}/{}", API_URL, cover_image))
+		} else {
+			None
+		};
+		
+		// Get title
+		let title = extract_json_value(&manga_str, "title").unwrap_or_else(|| "Unknown Title".to_string());
+
+		// Get description (with default value)
+		let description = if let Some(synopsis) = extract_json_value(&manga_str, "synopsis") {
+			if !synopsis.is_empty() {
+				Some(synopsis)
+			} else {
+				Some("Aucune description disponible.".to_string())
+			}
+		} else {
+			Some("Aucune description disponible.".to_string())
+		};
+
+		// Get URL
+		let url = Some(format!("{}/manga/{}", BASE_URL, manga_id));
+
+		// Get manga status
+		let status = if let Some(status_str) = extract_json_value(&manga_str, "status") {
+			parse_manga_status(&status_str)
+		} else {
+			MangaStatus::Unknown
+		};
+
+		// Get tags (genres)
+		let tags = if let Some(_genres_array) = extract_json_value(&manga_str, "genres") {
+			let genre_objects = extract_json_array(&manga_str, "genres");
+			let mut genre_names = Vec::new();
+			for genre in genre_objects {
+				if let Some(name) = extract_json_value(&genre, "name") {
+					genre_names.push(name);
+				}
+			}
+			if genre_names.is_empty() { None } else { Some(genre_names) }
+		} else {
+			None
+		};
+
+		Ok(Manga {
+			key: manga_id,
+			title,
+			cover,
+			authors: None,
+			artists: None,
+			description,
+			url,
+			tags,
+			status,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::default(),
+			chapters: None,
+			next_update_time: None,
+			update_strategy: UpdateStrategy::Never,
+		})
+	} else {
+		Ok(Manga {
+			key: manga_id.clone(),
+			title: "Unknown Title".to_string(),
+			cover: None,
+			authors: None,
+			artists: None,
+			description: Some("Aucune description disponible.".to_string()),
+			url: Some(format!("{}/manga/{}", BASE_URL, manga_id)),
+			tags: None,
+			status: MangaStatus::Unknown,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::default(),
+			chapters: None,
+			next_update_time: None,
+			update_strategy: UpdateStrategy::Never,
+		})
+	}
+}
+
+pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	let items = extract_json_array(&response, "chapters");
+	for item in items {
+		// Check price - only take free chapters (price == 0)
+		let price = extract_json_value(&item, "price")
+			.and_then(|s| s.parse::<i32>().ok())
+			.unwrap_or(0);
+		if price != 0 {
+			continue;
+		}
+		
+		// Chapter number can be an integer or a float/string
+		let chapter_number = extract_json_value(&item, "number")
+			.and_then(|s| s.parse::<f32>().ok())
+			.unwrap_or(1.0);
+		
+		let key = format!("{}", chapter_number);
+		let title = Some(format!("Chapter {}", chapter_number));
+		let url = Some(format!("{}/manga/{}/chapitre/{}", BASE_URL, manga_id, chapter_number));
+
+		// Parse date if available
+		let date_uploaded = if let Some(_date_str) = extract_json_value(&item, "createdAt") {
+			// For simplicity, we'll use current timestamp since date parsing is complex
+			// In a real implementation, you'd want to parse the ISO date
+			Some(current_date())
+		} else {
+			Some(current_date())
+		};
+
+		chapters.push(Chapter {
+			key,
+			title,
+			volume_number: Some(-1.0),
+			chapter_number: Some(chapter_number),
+			date_uploaded,
+			scanlators: None,
+			url,
+			language: Some("fr".to_string()),
+			thumbnail: None,
+			locked: false,
+		});
+	}
+
 	Ok(chapters)
 }
 
-// Parse la liste des pages d'un chapitre
-pub fn parse_page_list_html(html: Document) -> Result<Vec<Page>> {
+pub fn parse_page_list(response: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
-	
-	// Chercher les images dans le lecteur
-	if let Some(page_images) = html.select(".reader-page img, .pages img, .chapter-content img") {
-		for img in page_images {
-			if let Some(src) = img.attr("src").or_else(|| img.attr("data-src")) {
-				let image_url = if src.starts_with("http") {
-					src.to_string()
-				} else {
-					format!("{}{}", BASE_URL, src)
-				};
-				
-				pages.push(Page {
-					content: PageContent::url(image_url),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
-			}
+
+	if let Some(chapter_str) = extract_json_value(&response, "chapter") {
+		let images = extract_json_array(&chapter_str, "images");
+		for image in images {
+			// Remove quotes if present
+			let image_path = image.trim_matches('"');
+			let image_url = format!("{}/{}", API_URL, image_path);
+			pages.push(Page {
+				content: PageContent::url(image_url),
+				thumbnail: None,
+				has_description: false,
+				description: None,
+			});
 		}
 	}
-	
+
 	Ok(pages)
 }

@@ -11,8 +11,8 @@ use aidoku::{
 mod parser;
 mod helper;
 
-pub const BASE_URL: &str = "https://phenixscans.fr";
-pub const API_URL: &str = "https://phenixscans.fr/api";
+pub const BASE_URL: &str = "https://phenix-scans.com";
+pub const API_URL: &str = "https://phenix-scans.com/api";
 
 struct PhenixScans;
 
@@ -30,19 +30,18 @@ impl Source for PhenixScans {
 		// Ignorer les filtres pour l'instant  
 		let _ = filters;
 
-		// Construire l'URL HTML comme AnimeSama - approche directe
-		let mut url = format!("{}/manga?page={}", BASE_URL, page);
-		
-		// Ajouter la recherche si fournie
+		// Utiliser les vrais endpoints API comme l'ancienne version
 		if let Some(search_query) = query {
-			url.push_str(&format!("&search={}", helper::urlencode(&search_query)));
+			// Endpoint de recherche
+			let url = format!("{}/front/manga/search?query={}", API_URL, helper::urlencode(&search_query));
+			let response = Request::get(&url)?.string()?;
+			parser::parse_search_list(response)
+		} else {
+			// Endpoint de listing
+			let url = format!("{}/front/manga?page={}&limit=20", API_URL, page);
+			let response = Request::get(&url)?.string()?;
+			parser::parse_manga_list(response)
 		}
-		
-		// Faire la requête HTML directement (comme AnimeSama)
-		let html = Request::get(&url)?.html()?;
-		
-		// Parser les résultats
-		parser::parse_manga_list_html(html)
 	}
 
 	fn get_manga_update(
@@ -51,48 +50,39 @@ impl Source for PhenixScans {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		// Construire l'URL HTML pour les détails manga (comme AnimeSama)
-		let manga_url = if manga.key.starts_with("http") {
-			manga.key.clone()
-		} else {
-			format!("{}/manga/{}", BASE_URL, manga.key)
-		};
-
-		if needs_details {
-			let html = Request::get(&manga_url)?.html()?;
-			let detailed_manga = parser::parse_manga_details_html(manga.key.clone(), html)?;
+		if needs_details || needs_chapters {
+			// Utiliser le vrai endpoint API
+			let url = format!("{}/front/manga/{}", API_URL, manga.key);
+			let response = Request::get(&url)?.string()?;
 			
-			manga.title = detailed_manga.title;
-			manga.authors = detailed_manga.authors;
-			manga.artists = detailed_manga.artists;
-			manga.description = detailed_manga.description;
-			manga.url = detailed_manga.url;
-			manga.cover = detailed_manga.cover;
-			manga.tags = detailed_manga.tags;
-			manga.status = detailed_manga.status;
-			manga.content_rating = detailed_manga.content_rating;
-			manga.viewer = detailed_manga.viewer;
-		}
+			if needs_details {
+				let detailed_manga = parser::parse_manga_details(manga.key.clone(), response.clone())?;
+				manga.title = detailed_manga.title;
+				manga.authors = detailed_manga.authors;
+				manga.artists = detailed_manga.artists;
+				manga.description = detailed_manga.description;
+				manga.url = detailed_manga.url;
+				manga.cover = detailed_manga.cover;
+				manga.tags = detailed_manga.tags;
+				manga.status = detailed_manga.status;
+				manga.content_rating = detailed_manga.content_rating;
+				manga.viewer = detailed_manga.viewer;
+			}
 
-		if needs_chapters {
-			let html = Request::get(&manga_url)?.html()?;
-			let chapters = parser::parse_chapter_list_html(manga.key.clone(), html)?;
-			manga.chapters = Some(chapters);
+			if needs_chapters {
+				let chapters = parser::parse_chapter_list(manga.key.clone(), response)?;
+				manga.chapters = Some(chapters);
+			}
 		}
 
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		// Construire l'URL du chapitre (comme AnimeSama)
-		let chapter_url = if chapter.url.is_some() {
-			chapter.url.unwrap()
-		} else {
-			format!("{}/manga/{}/chapitre/{}", BASE_URL, manga.key, chapter.key)
-		};
-		
-		let html = Request::get(&chapter_url)?.html()?;
-		parser::parse_page_list_html(html)
+		// Utiliser le vrai endpoint API pour les pages
+		let url = format!("{}/front/manga/{}/chapter/{}", API_URL, manga.key, chapter.key);
+		let response = Request::get(&url)?.string()?;
+		parser::parse_page_list(response)
 	}
 }
 
@@ -102,26 +92,18 @@ impl ListingProvider for PhenixScans {
 		listing: Listing,
 		page: i32,
 	) -> Result<MangaPageResult> {
-		// Construire l'URL HTML selon le type de listing (comme AnimeSama)
-		let url = match listing.id.as_str() {
-			"dernières-sorties" => {
-				// Page d'accueil ou section récente
-				format!("{}/", BASE_URL)
-			},
-			"populaire" => {
-				// Catalogue avec tri par popularité
-				format!("{}/manga?page={}&sort=popular", BASE_URL, page)
-			},
-			_ => {
-				return Err(aidoku::AidokuError::message("Unimplemented listing"));
-			}
+		// Utiliser les vrais endpoints API homepage
+		let url = if listing.name == "Dernières Sorties" {
+			format!("{}/front/homepage?page={}&section=latest&limit=20", API_URL, page)
+		} else if listing.name == "Populaire" {
+			format!("{}/front/homepage?section=top", API_URL)
+		} else {
+			return Err(aidoku::AidokuError::message("Unimplemented listing"));
 		};
 		
-		// Faire la requête HTML directement
-		let html = Request::get(&url)?.html()?;
-		
-		// Parser selon le type de listing
-		parser::parse_manga_listing_html(html, &listing.name)
+		// Faire la requête API JSON
+		let response = Request::get(&url)?.string()?;
+		parser::parse_manga_listing(response, &listing.name)
 	}
 }
 
