@@ -180,6 +180,14 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 	let debug_msg = format!("DEBUG PARSING - Type: {} | Response length: {} | First 200 chars: {}", 
 		listing_type, response.len(), 
 		if response.len() > 200 { &response[..200] } else { &response });
+		
+	// Test direct de extract_json_value 
+	let latest_value = extract_json_value(&response, "latest");
+	let debug_extract = format!("EXTRACT TEST - latest key found: {} | Value starts with: {}", 
+		latest_value.is_some(),
+		if let Some(ref val) = latest_value {
+			if val.len() > 50 { &val[..50] } else { val }
+		} else { "NONE" });
 	
 	let has_more = if listing_type == "Populaire" {
 		// For the "top" section, the structure is: { "top": [...] }
@@ -191,7 +199,7 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 			} else { "NONE" });
 		
 		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {}", debug_msg, debug_items)));
+		return Err(aidoku::AidokuError::message(&format!("{} | {} | {}", debug_msg, debug_extract, debug_items)));
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		let items = extract_json_array(&response, "latest");
@@ -213,7 +221,7 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		};
 		
 		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {}{}", debug_msg, debug_items, debug_values)));
+		return Err(aidoku::AidokuError::message(&format!("{} | {} | {}{}", debug_msg, debug_extract, debug_items, debug_values)));
 	};
 
 	Ok(MangaPageResult {
