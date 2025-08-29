@@ -94,13 +94,13 @@ impl MangaItem {
 			.filter(|d| !d.is_empty() && d != "Aucune description.");
 
 		Manga {
-			key,
+			key: key.clone(),
 			title,
 			cover: Some(cover),
 			authors,
 			artists,
 			description,
-			url: None,
+			url: Some(format!("{}/serie/{}", BASE_URL, key)),
 			tags,
 			status,
 			content_rating: ContentRating::Safe,
@@ -119,13 +119,13 @@ impl LatestChapterItem {
 		let cover = format!("{}/api/covers/{}.webp", BASE_URL, self.slug);
 
 		Manga {
-			key,
+			key: key.clone(),
 			title,
 			cover: Some(cover),
 			authors: None,
 			artists: None,
 			description: None,
-			url: None,
+			url: Some(format!("{}/serie/{}", BASE_URL, key)),
 			tags: None,
 			status: MangaStatus::Unknown,
 			content_rating: ContentRating::Safe,
@@ -277,13 +277,13 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	let cover = format!("{}/api/covers/{}.webp", BASE_URL, manga_key);
 
 	Ok(Manga {
-		key: manga_key,
+		key: manga_key.clone(),
 		title,
 		cover: Some(cover),
 		authors,
 		artists,
 		description: if description.is_empty() { None } else { Some(description) },
-		url: None,
+		url: Some(format!("{}/serie/{}", BASE_URL, manga_key)),
 		tags,
 		status,
 		content_rating: ContentRating::Safe,
