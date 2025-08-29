@@ -218,6 +218,22 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		
 		let items = extract_json_array(&response, "latest");
+		
+		// DEBUG: Vérifier maintenant si extract_json_array fonctionne
+		if items.len() == 0 {
+			return Err(aidoku::AidokuError::message("DEBUG FINAL A - extract_json_array still returns 0 items"));
+		}
+		
+		// DEBUG: Montrer combien d'éléments on a trouvés
+		let first_item_preview = if items[0].len() > 200 { 
+			format!("{}...", &items[0][..200])
+		} else { 
+			items[0].clone()
+		};
+		return Err(aidoku::AidokuError::message(&format!("DEBUG FINAL B - extract_json_array SUCCESS! Found {} items. First item (200 chars): {}", 
+			items.len(), first_item_preview)));
+		
+		#[allow(unreachable_code)]
 		for item in &items {
 			// Dans le JSON, les objets utilisent "_id" au lieu de "id" et parfois "slug"
 			let id_field = extract_json_value(item, "_id").unwrap_or_else(|| "".to_string());
