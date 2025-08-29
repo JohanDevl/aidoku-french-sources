@@ -11,63 +11,71 @@ use crate::API_URL;
 
 // Helper function to extract JSON value by key
 fn extract_json_value(json: &str, key: &str) -> Option<String> {
-	// Simple JSON extraction using string manipulation
-	if let Some(start) = json.find(&format!("\"{}\": ", key)) {
-		let start = start + key.len() + 4; // Skip `"key": `
-		if let Some(content) = json.get(start..) {
-			if content.starts_with('"') {
-				// String value
-				if let Some(end) = content[1..].find('"') {
-					return content.get(1..end + 1).map(|s| s.to_string());
-				}
-			} else if content.starts_with('[') {
-				// Array value - find matching bracket
-				let mut bracket_count = 0;
-				let mut end_pos = 0;
-				for (i, c) in content.chars().enumerate() {
-					match c {
-						'[' => bracket_count += 1,
-						']' => {
-							bracket_count -= 1;
-							if bracket_count == 0 {
-								end_pos = i + 1;
-								break;
-							}
-						},
-						_ => {}
-					}
-				}
-				if end_pos > 0 {
-					return content.get(0..end_pos).map(|s| s.to_string());
-				}
-			} else if content.starts_with('{') {
-				// Object value - find matching brace
-				let mut brace_count = 0;
-				let mut end_pos = 0;
-				for (i, c) in content.chars().enumerate() {
-					match c {
-						'{' => brace_count += 1,
-						'}' => {
-							brace_count -= 1;
-							if brace_count == 0 {
-								end_pos = i + 1;
-								break;
-							}
-						},
-						_ => {}
-					}
-				}
-				if end_pos > 0 {
-					return content.get(0..end_pos).map(|s| s.to_string());
-				}
-			} else {
-				// Number or boolean value
-				let end = content.find(',')
-					.or_else(|| content.find('}'))
-					.or_else(|| content.find(']'))
-					.unwrap_or(content.len());
-				return content.get(0..end).map(|s| s.trim().to_string());
+	// Simple JSON extraction using string manipulation - handle both compact and spaced JSON
+	let (search_pos, offset) = if let Some(pos) = json.find(&format!("\"{}\":", key)) {
+		// Compact JSON format: "key":value
+		(pos, key.len() + 3) // Skip `"key":`
+	} else if let Some(pos) = json.find(&format!("\"{}\": ", key)) {
+		// Spaced JSON format: "key": value
+		(pos, key.len() + 4) // Skip `"key": `
+	} else {
+		return None;
+	};
+	
+	let start = search_pos + offset;
+	if let Some(content) = json.get(start..) {
+		if content.starts_with('"') {
+			// String value
+			if let Some(end) = content[1..].find('"') {
+				return content.get(1..end + 1).map(|s| s.to_string());
 			}
+		} else if content.starts_with('[') {
+			// Array value - find matching bracket
+			let mut bracket_count = 0;
+			let mut end_pos = 0;
+			for (i, c) in content.chars().enumerate() {
+				match c {
+					'[' => bracket_count += 1,
+					']' => {
+						bracket_count -= 1;
+						if bracket_count == 0 {
+							end_pos = i + 1;
+							break;
+						}
+					},
+					_ => {}
+				}
+			}
+			if end_pos > 0 {
+				return content.get(0..end_pos).map(|s| s.to_string());
+			}
+		} else if content.starts_with('{') {
+			// Object value - find matching brace
+			let mut brace_count = 0;
+			let mut end_pos = 0;
+			for (i, c) in content.chars().enumerate() {
+				match c {
+					'{' => brace_count += 1,
+					'}' => {
+						brace_count -= 1;
+						if brace_count == 0 {
+							end_pos = i + 1;
+							break;
+						}
+					},
+					_ => {}
+				}
+			}
+			if end_pos > 0 {
+				return content.get(0..end_pos).map(|s| s.to_string());
+			}
+		} else {
+			// Number or boolean value
+			let end = content.find(',')
+				.or_else(|| content.find('}'))
+				.or_else(|| content.find(']'))
+				.unwrap_or(content.len());
+			return content.get(0..end).map(|s| s.trim().to_string());
 		}
 	}
 	None
