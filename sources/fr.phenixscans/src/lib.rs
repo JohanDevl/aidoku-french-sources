@@ -11,8 +11,8 @@ use aidoku::{
 mod parser;
 mod helper;
 
-pub const BASE_URL: &str = "https://phenix-scans.com";
-pub const API_URL: &str = "https://phenix-scans.com/api";
+pub const BASE_URL: &str = "https://phenixscans.fr";
+pub const API_URL: &str = "https://phenixscans.fr/api";
 
 struct PhenixScans;
 
