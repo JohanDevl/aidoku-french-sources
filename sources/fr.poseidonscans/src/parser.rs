@@ -432,12 +432,52 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 		}
 	});
 	
-	// DEBUG: Final results
-	println!("🎯 DEBUG: JSON-LD RESULT for {}:", manga_key);
-	println!("   📚 Total chapters: {}", chapters.len());
-	println!("   ℹ️  Premium filtering: handled in HTML parsing");
+	// IMPORTANT: Now filter out premium chapters using HTML indicators
+	// JSON-LD doesn't contain premium status, so we need to check HTML
+	println!("🔍 DEBUG: Now filtering premium chapters from JSON-LD results using HTML indicators");
+	let mut filtered_chapters: Vec<Chapter> = Vec::new();
+	let original_chapter_count = chapters.len();
 	
-	Ok(chapters)
+	if let Some(chapter_elements) = html.select("a[href*='/chapter/']") {
+		// Convert to Vec to avoid ownership issues
+		let chapter_elements_vec: Vec<_> = chapter_elements.collect();
+		
+		for chapter in chapters {
+			let mut is_premium = false;
+			
+			// Find the corresponding HTML element for this chapter
+			for chapter_element in &chapter_elements_vec {
+				if let Some(href_str) = chapter_element.attr("href") {
+					if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
+						if chapter_id_from_href == chapter.key {
+							// Found matching HTML element, check if premium
+							println!("🔍 DEBUG: Found matching HTML element for JSON-LD chapter {}", chapter.key);
+							is_premium = is_chapter_premium(chapter_element, html, &href_str);
+							break;
+						}
+					}
+				}
+			}
+			
+			if is_premium {
+				println!("🔒 DEBUG: EXCLUDING premium chapter {} from JSON-LD results", chapter.key);
+			} else {
+				println!("🆓 DEBUG: INCLUDING chapter {} from JSON-LD results", chapter.key);
+				filtered_chapters.push(chapter);
+			}
+		}
+	} else {
+		println!("⚠️  DEBUG: No HTML chapter elements found for premium filtering, returning all JSON-LD chapters");
+		filtered_chapters = chapters;
+	}
+
+	// DEBUG: Final results
+	println!("🎯 DEBUG: JSON-LD + HTML FILTERING RESULT for {}:", manga_key);
+	println!("   📚 Total chapters after premium filtering: {}", filtered_chapters.len());
+	println!("   🔒 Chapters filtered out: {}", original_chapter_count - filtered_chapters.len());
+	println!("   📋 Final chapter list: {:?}", filtered_chapters.iter().map(|c| c.key.clone()).collect::<Vec<_>>());
+	
+	Ok(filtered_chapters)
 }
 
 // Comprehensive search for chapters in Next.js JSON data
