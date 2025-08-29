@@ -11,46 +11,18 @@ use crate::API_URL;
 
 // Helper function to extract JSON value by key
 fn extract_json_value(json: &str, key: &str) -> Option<String> {
-	// DEBUG: Test what we're searching for
-	let compact_search = format!("\"{}\":", key);
-	let spaced_search = format!("\"{}\": ", key);
-	
 	// Simple JSON extraction using string manipulation - handle both compact and spaced JSON
-	let (search_pos, offset) = if let Some(pos) = json.find(&compact_search) {
+	let (search_pos, offset) = if let Some(pos) = json.find(&format!("\"{}\":", key)) {
 		// Compact JSON format: "key":value
 		(pos, key.len() + 3) // Skip `"key":`
-	} else if let Some(pos) = json.find(&spaced_search) {
+	} else if let Some(pos) = json.find(&format!("\"{}\": ", key)) {
 		// Spaced JSON format: "key": value
 		(pos, key.len() + 4) // Skip `"key": `
 	} else {
-		// DEBUG: Show what we searched for and what we got
-		if key == "latest" {
-			// Create a debug error to see exactly what happened
-			let first_50 = if json.len() > 50 { &json[..50] } else { json };
-			let debug = format!("SEARCH FAIL - Looking for: '{}' or '{}' in: '{}'", 
-				compact_search, spaced_search, first_50);
-			// We can't return error from here, but we can print debug info
-			// Just return None as normal
-		}
 		return None;
 	};
 	
 	let start = search_pos + offset;
-	
-	// DEBUG: Show extraction details for "latest" key
-	if key == "latest" {
-		let debug_start = format!("EXTRACT DEBUG - search_pos: {}, offset: {}, start: {}, json_len: {}", 
-			search_pos, offset, start, json.len());
-		let content_preview = if let Some(content) = json.get(start..) {
-			let preview = if content.len() > 30 { &content[..30] } else { content };
-			format!("content exists, starts_with_bracket: {}, preview: '{}'", 
-				content.starts_with('['), preview)
-		} else {
-			"content is None (start >= json.len())".to_string()
-		};
-		// We can't return debug here, but this will help us understand
-		// The actual error will be shown in the main function
-	}
 	
 	if let Some(content) = json.get(start..) {
 		if content.starts_with('"') {
@@ -59,40 +31,66 @@ fn extract_json_value(json: &str, key: &str) -> Option<String> {
 				return content.get(1..end + 1).map(|s| s.to_string());
 			}
 		} else if content.starts_with('[') {
-			// Array value - find matching bracket
+			// Array value - find matching bracket (handle strings properly)
 			let mut bracket_count = 0;
 			let mut end_pos = 0;
+			let mut in_string = false;
+			let mut escape_next = false;
+			
 			for (i, c) in content.chars().enumerate() {
-				match c {
-					'[' => bracket_count += 1,
-					']' => {
-						bracket_count -= 1;
-						if bracket_count == 0 {
-							end_pos = i + 1;
-							break;
-						}
-					},
-					_ => {}
+				if escape_next {
+					escape_next = false;
+				} else if c == '\\' {
+					escape_next = true;
+				} else if c == '"' && !escape_next {
+					in_string = !in_string;
+				}
+				
+				if !in_string {
+					match c {
+						'[' => bracket_count += 1,
+						']' => {
+							bracket_count -= 1;
+							if bracket_count == 0 {
+								end_pos = i + 1;
+								break;
+							}
+						},
+						_ => {}
+					}
 				}
 			}
 			if end_pos > 0 {
 				return content.get(0..end_pos).map(|s| s.to_string());
 			}
 		} else if content.starts_with('{') {
-			// Object value - find matching brace
+			// Object value - find matching brace (handle strings properly)
 			let mut brace_count = 0;
 			let mut end_pos = 0;
+			let mut in_string = false;
+			let mut escape_next = false;
+			
 			for (i, c) in content.chars().enumerate() {
-				match c {
-					'{' => brace_count += 1,
-					'}' => {
-						brace_count -= 1;
-						if brace_count == 0 {
-							end_pos = i + 1;
-							break;
-						}
-					},
-					_ => {}
+				if escape_next {
+					escape_next = false;
+				} else if c == '\\' {
+					escape_next = true;
+				} else if c == '"' && !escape_next {
+					in_string = !in_string;
+				}
+				
+				if !in_string {
+					match c {
+						'{' => brace_count += 1,
+						'}' => {
+							brace_count -= 1;
+							if brace_count == 0 {
+								end_pos = i + 1;
+								break;
+							}
+						},
+						_ => {}
+					}
 				}
 			}
 			if end_pos > 0 {
@@ -170,114 +168,89 @@ fn parse_manga_status(status_str: &str) -> MangaStatus {
 pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 
-	// TEMPORARY: Add test manga to verify structure works
-	mangas.push(Manga {
-		key: "test-manga-1".to_string(),
-		title: "Test Manga 1".to_string(),
-		cover: Some("https://via.placeholder.com/300x400/FF5733/FFFFFF?text=Test1".to_string()),
-		authors: Some(vec!["Test Author 1".to_string()]),
-		artists: None,
-		description: Some("Description de test pour le premier manga".to_string()),
-		url: Some(format!("{}/manga/test-manga-1", BASE_URL)),
-		tags: Some(vec!["Action".to_string(), "Adventure".to_string()]),
-		status: MangaStatus::Ongoing,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::default(),
-		chapters: None,
-		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
-	});
 
-	mangas.push(Manga {
-		key: "test-manga-2".to_string(),
-		title: "Test Manga 2".to_string(),
-		cover: Some("https://via.placeholder.com/300x400/33FF57/FFFFFF?text=Test2".to_string()),
-		authors: Some(vec!["Test Author 2".to_string()]),
-		artists: None,
-		description: Some("Description de test pour le second manga".to_string()),
-		url: Some(format!("{}/manga/test-manga-2", BASE_URL)),
-		tags: Some(vec!["Romance".to_string(), "Drama".to_string()]),
-		status: MangaStatus::Completed,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::default(),
-		chapters: None,
-		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
-	});
-
-	// DEBUG: Afficher les infos de parsing  
-	let debug_msg = format!("DEBUG PARSING - Type: {} | Response length: {} | First 200 chars: {}", 
-		listing_type, response.len(), 
-		if response.len() > 200 { &response[..200] } else { &response });
-		
-	// Test direct de extract_json_value avec debug détaillé  
-	let compact_search = "\"latest\":";
-	let spaced_search = "\"latest\": ";
-	let first_100 = if response.len() > 100 { &response[..100] } else { &response };
-	
-	let compact_found = response.find(compact_search);
-	let spaced_found = response.find(spaced_search);
-	
-	let debug_search = format!("SEARCH DEBUG - Looking for: '{}' (found at: {:?}) or '{}' (found at: {:?}) | In: '{}'",
-		compact_search, compact_found, spaced_search, spaced_found, first_100);
-	
-	// Manual calculation of what should happen
-	let manual_calc = if let Some(pos) = compact_found {
-		let offset = "latest".len() + 3; // 6 + 3 = 9 chars for "latest":
-		let start = pos + offset;
-		let content_at_start = if let Some(content) = response.get(start..) {
-			let preview = if content.len() > 20 { &content[..20] } else { content };
-			format!("pos={}, offset={}, start={}, content='{}'", pos, offset, start, preview)
-		} else {
-			format!("pos={}, offset={}, start={}, content=NONE", pos, offset, start)
-		};
-		content_at_start
-	} else {
-		"compact not found".to_string()
-	};
-	
-	let debug_manual = format!("MANUAL CALC - {}", manual_calc);
-		
-	let latest_value = extract_json_value(&response, "latest");
-	let debug_extract = format!("EXTRACT TEST - latest key found: {} | Value starts with: {}", 
-		latest_value.is_some(),
-		if let Some(ref val) = latest_value {
-			if val.len() > 50 { &val[..50] } else { val }
-		} else { "NONE" });
 	
 	let has_more = if listing_type == "Populaire" {
 		// For the "top" section, the structure is: { "top": [...] }
 		let items = extract_json_array(&response, "top");
-		let debug_items = format!("DEBUG TOP - Items found: {} | First item: {}", 
-			items.len(), 
-			if !items.is_empty() { 
-				if items[0].len() > 100 { &items[0][..100] } else { &items[0] }
-			} else { "NONE" });
-		
-		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {} | {} | {} | {}", debug_msg, debug_search, debug_manual, debug_extract, debug_items)));
+		for item in items {
+			if let Some(slug) = extract_json_value(&item, "slug") {
+				if slug == "unknown" { continue; }
+				
+				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+				let cover = if !cover_image.is_empty() {
+					Some(format!("{}/{}", API_URL, cover_image))
+				} else {
+					None
+				};
+
+				mangas.push(Manga {
+					key: slug,
+					title,
+					cover,
+					authors: None,
+					artists: None,
+					description: None,
+					url: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::default(),
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
+		// Top section has no pagination
+		false
 	} else {
 		// For the "latest" section, the structure is: { "pagination": {...}, "latest": [...] }
 		let items = extract_json_array(&response, "latest");
-		let debug_items = format!("DEBUG LATEST - Items found: {} | First item: {}", 
-			items.len(), 
-			if !items.is_empty() { 
-				if items[0].len() > 100 { &items[0][..100] } else { &items[0] }
-			} else { "NONE" });
+		for item in items {
+			if let Some(slug) = extract_json_value(&item, "slug") {
+				if slug == "unknown" { continue; }
+				
+				let title = extract_json_value(&item, "title").unwrap_or_else(|| "Unknown Title".to_string());
+				let cover_image = extract_json_value(&item, "coverImage").unwrap_or_else(|| "".to_string());
+				let cover = if !cover_image.is_empty() {
+					Some(format!("{}/{}", API_URL, cover_image))
+				} else {
+					None
+				};
+
+				mangas.push(Manga {
+					key: slug,
+					title,
+					cover,
+					authors: None,
+					artists: None,
+					description: None,
+					url: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::default(),
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
 		
-		// Test extraction on first item if exists
-		let debug_values = if !items.is_empty() {
-			let first_item = &items[0];
-			let slug = extract_json_value(first_item, "slug").unwrap_or_else(|| "NOT_FOUND".to_string());
-			let title = extract_json_value(first_item, "title").unwrap_or_else(|| "NOT_FOUND".to_string());
-			let cover = extract_json_value(first_item, "coverImage").unwrap_or_else(|| "NOT_FOUND".to_string());
-			format!(" | VALUES: slug='{}' title='{}' cover='{}'", slug, title, cover)
+		// Check if there are more pages
+		if let Some(pagination_str) = extract_json_value(&response, "pagination") {
+			let current_page = extract_json_value(&pagination_str, "currentPage")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			let total_pages = extract_json_value(&pagination_str, "totalPages")
+				.and_then(|s| s.parse::<i32>().ok())
+				.unwrap_or(1);
+			current_page < total_pages
 		} else {
-			String::new()
-		};
-		
-		// Return debug info temporarily
-		return Err(aidoku::AidokuError::message(&format!("{} | {} | {} | {} | {}{}", debug_msg, debug_search, debug_manual, debug_extract, debug_items, debug_values)));
+			false
+		}
 	};
 
 	Ok(MangaPageResult {
@@ -288,24 +261,6 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 
 pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	
-	// TEMPORARY: Add test manga for general listing
-	mangas.push(Manga {
-		key: "test-list-manga-1".to_string(),
-		title: "Test List Manga 1".to_string(),
-		cover: Some("https://via.placeholder.com/300x400/3357FF/FFFFFF?text=List1".to_string()),
-		authors: Some(vec!["List Author 1".to_string()]),
-		artists: None,
-		description: Some("Test manga pour la liste générale".to_string()),
-		url: Some(format!("{}/manga/test-list-manga-1", BASE_URL)),
-		tags: Some(vec!["Fantasy".to_string(), "Magic".to_string()]),
-		status: MangaStatus::Ongoing,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::default(),
-		chapters: None,
-		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
-	});
 	
 	let items = extract_json_array(&response, "mangas");
 	for item in items {
@@ -370,24 +325,6 @@ pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 
 pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	
-	// TEMPORARY: Add test manga for search
-	mangas.push(Manga {
-		key: "test-search-manga-1".to_string(),
-		title: "Test Search Manga 1".to_string(),
-		cover: Some("https://via.placeholder.com/300x400/FF33A1/FFFFFF?text=Search1".to_string()),
-		authors: Some(vec!["Search Author 1".to_string()]),
-		artists: None,
-		description: Some("Test manga pour la recherche".to_string()),
-		url: Some(format!("{}/manga/test-search-manga-1", BASE_URL)),
-		tags: Some(vec!["Comedy".to_string(), "School".to_string()]),
-		status: MangaStatus::Ongoing,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::default(),
-		chapters: None,
-		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
-	});
 	
 	// Search structure: { "mangas": [...], "pagination": {...} }
 	let items = extract_json_array(&response, "mangas");
