@@ -69,8 +69,11 @@ impl ListingProvider for MangaScantrad {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
         println!("get_manga_list called - listing: {}, page: {}", listing.id, page);
         
-        // Use AJAX for all listings
-        self.ajax_manga_list(page)
+        match listing.id.as_str() {
+            "populaire" => self.ajax_manga_listing("popular", page),
+            "tendance" => self.ajax_manga_listing("trending", page),
+            _ => self.ajax_manga_list(page),
+        }
     }
 }
 
@@ -88,7 +91,7 @@ impl MangaScantrad {
         
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
-        // Madara AJAX payload
+        // Madara AJAX payload for general listing
         let body = format!(
             "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
             page - 1, // Madara uses 0-based indexing
@@ -108,6 +111,56 @@ impl MangaScantrad {
             .html()?;
         
         println!("AJAX response received");
+        
+        self.parse_ajax_response(html_doc)
+    }
+    
+    fn ajax_manga_listing(&self, listing_type: &str, page: i32) -> Result<MangaPageResult> {
+        println!("ajax_manga_listing called for type: {}, page: {}", listing_type, page);
+        
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        // Different payloads for different listing types
+        let body = match listing_type {
+            "popular" => {
+                println!("Using popular/populaire AJAX payload");
+                format!(
+                    "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=meta_value_num&vars%5Bmeta_key%5D=_wp_manga_views&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
+                    page - 1,
+                    page
+                )
+            },
+            "trending" => {
+                println!("Using trending/tendance AJAX payload");
+                format!(
+                    "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=trending&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
+                    page - 1,
+                    page
+                )
+            },
+            _ => {
+                println!("Using default AJAX payload");
+                format!(
+                    "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
+                    page - 1,
+                    page
+                )
+            }
+        };
+        
+        println!("AJAX {} request body: {}", listing_type, body);
+        
+        let html_doc = Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html()?;
+        
+        println!("AJAX {} response received", listing_type);
         
         self.parse_ajax_response(html_doc)
     }
