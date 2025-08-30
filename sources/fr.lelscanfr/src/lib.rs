@@ -69,148 +69,73 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Try real parsing first
-            let chapters_result = if let Some(_pagination) = html.select(".pagination") {
-                if let Some(first_pagination) = _pagination.first() {
-                    let pagination_text = first_pagination.text().unwrap_or_default();
-                    if !pagination_text.is_empty() {
-                        // Extract number of pages and fetch all
-                        let pagination_links = html.select(".pagination a");
-                        let mut max_page = 1;
-                        
-                        if let Some(links) = pagination_links {
-                            for link in links {
-                                if let Some(link_text) = link.text() {
-                                    if let Ok(page_num) = link_text.parse::<i32>() {
-                                        if page_num > max_page {
-                                            max_page = page_num;
-                                        }
+            // Detect pagination using "Page X of Y" pattern first
+            let mut total_pages = 1;
+            
+            // Look for "Page X of Y" pattern in the HTML text
+            if let Some(all_elements) = html.select("div, span, p, text()") {
+                for elem in all_elements {
+                    if let Some(text) = elem.text() {
+                        if text.contains("Page ") && text.contains(" of ") {
+                            // Extract "Page 1 of 6" pattern
+                            if let Some(of_pos) = text.find(" of ") {
+                                let after_of = &text[of_pos + 4..];
+                                if let Some(total_pages_str) = after_of.split_whitespace().next() {
+                                    if let Ok(pages) = total_pages_str.parse::<i32>() {
+                                        total_pages = pages;
+                                        break;
                                     }
                                 }
                             }
                         }
-                        
-                        let mut all_docs: Vec<Document> = vec![html];
-                        for page in 2..=max_page {
-                            let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
-                            let page_html = Request::get(&page_url)?.html()?;
-                            all_docs.push(page_html);
-                        }
-                        parser::parse_chapter_list(&manga.key, all_docs)?
-                    } else {
-                        // Get fresh HTML for parsing
-                        let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
-                        let fresh_html = Request::get(&fresh_url)?.html()?;
-                        parser::parse_chapter_list(&manga.key, vec![fresh_html])?
                     }
                 }
-                else {
-                    // Get fresh HTML for parsing  
-                    let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
-                    let fresh_html = Request::get(&fresh_url)?.html()?;
-                    parser::parse_chapter_list(&manga.key, vec![fresh_html])?
-                }
-            } else {
-                // Get fresh HTML for parsing
-                let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
-                let fresh_html = Request::get(&fresh_url)?.html()?;
-                parser::parse_chapter_list(&manga.key, vec![fresh_html])?
-            };
-            
-            // If no chapters found, create debug chapters
-            if chapters_result.is_empty() {
-                let mut debug_chapters: Vec<Chapter> = Vec::new();
-                
-                // Fetch fresh HTML for debugging
-                let debug_url = format!("{}/manga/{}", BASE_URL, manga.key);
-                let debug_html = Request::get(&debug_url)?.html()?;
-                
-                // Debug info 1: Check if we can find ANY links
-                let all_links = debug_html.select("a");
-                let link_count = if let Some(links) = all_links {
-                    links.count()
-                } else {
-                    0
-                };
-                
-                debug_chapters.push(Chapter {
-                    key: String::from("/debug/1"),
-                    title: Some(format!("DEBUG: Found {} total links", link_count)),
-                    chapter_number: Some(1.0),
-                    volume_number: None,
-                    date_uploaded: None,
-                    scanlators: None,
-                    language: Some(String::from("fr")),
-                    locked: false,
-                    thumbnail: None,
-                    url: Some(format!("{}/debug/1", BASE_URL)),
-                });
-                
-                // Debug info 2: Check manga-specific links
-                let manga_links = debug_html.select(&format!("a[href*=\"/manga/{}/\"]", manga.key));
-                let manga_link_count = if let Some(links) = manga_links {
-                    links.count()
-                } else {
-                    0
-                };
-                
-                debug_chapters.push(Chapter {
-                    key: String::from("/debug/2"),
-                    title: Some(format!("DEBUG: Found {} manga-specific links", manga_link_count)),
-                    chapter_number: Some(2.0),
-                    volume_number: None,
-                    date_uploaded: None,
-                    scanlators: None,
-                    language: Some(String::from("fr")),
-                    locked: false,
-                    thumbnail: None,
-                    url: Some(format!("{}/debug/2", BASE_URL)),
-                });
-                
-                // Debug info 3: Check for "Chapitre" text
-                let chapitre_links = debug_html.select("a");
-                let mut chapitre_count = 0;
-                if let Some(links) = chapitre_links {
-                    for link in links {
-                        if let Some(text) = link.text() {
-                            if text.contains("Chapitre") {
-                                chapitre_count += 1;
-                            }
-                        }
-                    }
-                }
-                
-                debug_chapters.push(Chapter {
-                    key: String::from("/debug/3"),
-                    title: Some(format!("DEBUG: Found {} links with 'Chapitre'", chapitre_count)),
-                    chapter_number: Some(3.0),
-                    volume_number: None,
-                    date_uploaded: None,
-                    scanlators: None,
-                    language: Some(String::from("fr")),
-                    locked: false,
-                    thumbnail: None,
-                    url: Some(format!("{}/debug/3", BASE_URL)),
-                });
-                
-                // Debug info 4: Show manga key being searched
-                debug_chapters.push(Chapter {
-                    key: String::from("/debug/4"),
-                    title: Some(format!("DEBUG: Searching for key '{}'", manga.key)),
-                    chapter_number: Some(4.0),
-                    volume_number: None,
-                    date_uploaded: None,
-                    scanlators: None,
-                    language: Some(String::from("fr")),
-                    locked: false,
-                    thumbnail: None,
-                    url: Some(format!("{}/debug/4", BASE_URL)),
-                });
-                
-                manga.chapters = Some(debug_chapters);
-            } else {
-                manga.chapters = Some(chapters_result);
             }
+            
+            // If no "Page X of Y" found, try pagination links
+            if total_pages == 1 {
+                let pagination_selectors = [".pagination", ".page-numbers", ".pages"];
+                for selector in pagination_selectors {
+                    if let Some(pagination) = html.select(selector) {
+                        if let Some(first_pagination) = pagination.first() {
+                            // Look for ellipsis indicating more pages
+                            if let Some(pagination_text) = first_pagination.text() {
+                                if pagination_text.contains("…") || pagination_text.contains("...") {
+                                    total_pages = 10; // Conservative estimate if ellipsis found
+                                    break;
+                                }
+                            }
+                            // Extract max page number from links
+                            if let Some(links) = first_pagination.select("a") {
+                                for link in links {
+                                    if let Some(link_text) = link.text() {
+                                        if let Ok(page_num) = link_text.trim().parse::<i32>() {
+                                            if page_num > total_pages {
+                                                total_pages = page_num;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Fetch all chapter pages
+            let mut all_docs: Vec<Document> = vec![html];
+            for page in 2..=total_pages {
+                let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
+                let page_html = Request::get(&page_url)?
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .html()?;
+                all_docs.push(page_html);
+            }
+            
+            manga.chapters = Some(parser::parse_chapter_list(&manga.key, all_docs)?);
         }
         
         Ok(manga)
