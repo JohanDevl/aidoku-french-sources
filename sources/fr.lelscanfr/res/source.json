@@ -2,17 +2,15 @@
   "info": {
     "id": "fr.lelscanfr",
     "name": "LelscanFR",
-    "version": 10,
+    "version": 11,
     "url": "https://lelscanfr.com",
     "contentRating": 1,
-    "languages": [
-      "fr"
-    ]
+    "languages": ["fr"]
   },
   "listings": [
     {
-      "name": "Tous",
-      "id": "all"
+      "name": "Test",
+      "id": "test"
     }
   ]
 }
