@@ -27,20 +27,15 @@ impl Source for MangaScantrad {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let mut url = format!("{}/page/{}/", BASE_URL, page);
+        println!("get_search_manga_list called - page: {}, query: {:?}", page, query);
         
         if let Some(search_query) = query {
-            url = format!("{}/?s={}", BASE_URL, search_query);
+            // Use AJAX for search
+            self.ajax_search(&search_query, page)
+        } else {
+            // Use AJAX for manga list
+            self.ajax_manga_list(page)
         }
-
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
-
-        self.parse_manga_list(html)
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
@@ -72,20 +67,10 @@ impl Source for MangaScantrad {
 
 impl ListingProvider for MangaScantrad {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let url = match listing.id.as_str() {
-            "populaire" => format!("{}/manga/page/{}/", BASE_URL, page),
-            "tendance" => format!("{}/tendance/page/{}/", BASE_URL, page),
-            _ => format!("{}/page/{}/", BASE_URL, page),
-        };
-
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
-
-        self.parse_manga_list(html)
+        println!("get_manga_list called - listing: {}, page: {}", listing.id, page);
+        
+        // Use AJAX for all listings
+        self.ajax_manga_list(page)
     }
 }
 
@@ -98,60 +83,184 @@ impl ImageRequestProvider for MangaScantrad {
 }
 
 impl MangaScantrad {
-    fn parse_manga_list(&self, html: Document) -> Result<MangaPageResult> {
+    fn ajax_manga_list(&self, page: i32) -> Result<MangaPageResult> {
+        println!("ajax_manga_list called for page {}", page);
+        
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        // Madara AJAX payload
+        let body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
+            page - 1, // Madara uses 0-based indexing
+            page
+        );
+        
+        println!("AJAX request body: {}", body);
+        
+        let html_doc = Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html()?;
+        
+        println!("AJAX response received");
+        
+        self.parse_ajax_response(html_doc)
+    }
+    
+    fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
+        println!("ajax_search called for query: {}, page: {}", query, page);
+        
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        // Madara AJAX search payload
+        let body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bs%5D={}&vars%5Borderby%5D=&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND",
+            page - 1,
+            query,
+            page
+        );
+        
+        println!("AJAX search body: {}", body);
+        
+        let html_doc = Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html()?;
+        
+        println!("AJAX search response received");
+        
+        self.parse_ajax_response(html_doc)
+    }
+    
+    fn parse_ajax_response(&self, html: Document) -> Result<MangaPageResult> {
+        println!("parse_ajax_response called");
         let mut entries: Vec<Manga> = Vec::new();
-
-        // Madara theme selectors
-        if let Some(items) = html.select(".page-item-detail, .c-tabs-item__content, .manga-item") {
-            for item in items {
-                if let Some(title_elements) = item.select("h3.h5 a, .post-title h1, .manga-title-badges") {
-                    if let Some(title_elem) = title_elements.first() {
-                        if let Some(links) = item.select("a") {
-                            if let Some(link) = links.first() {
-                                let title = title_elem.text().unwrap_or_default().trim().to_string();
-                                let href = link.attr("href").unwrap_or_default();
-                                
-                                if !title.is_empty() && !href.is_empty() {
-                                    let key = self.extract_manga_id(&href);
-                                    let cover = item.select("img")
-                                        .and_then(|imgs| imgs.first())
-                                        .and_then(|img| {
-                                            img.attr("data-src")
-                                                .or_else(|| img.attr("src"))
-                                        })
-                                        .unwrap_or_default();
-
-                                    entries.push(Manga {
-                                        key,
-                                        title,
-                                        cover: if cover.is_empty() { None } else { Some(cover) },
-                                        authors: None,
-                                        artists: None,
-                                        description: None,
-                                        url: Some(href),
-                                        tags: None,
-                                        status: MangaStatus::Unknown,
-                                        content_rating: ContentRating::Safe,
-                                        viewer: Viewer::RightToLeft,
-                                        chapters: None,
-                                        next_update_time: None,
-                                        update_strategy: UpdateStrategy::Never,
-                                    });
-                                }
+        
+        // Try multiple selectors for AJAX response
+        let selectors = [
+            ".page-item-detail",
+            ".manga-item",
+            ".row .c-tabs-item",
+            ".col-12 .manga",
+            ".manga-content",
+            ".c-tabs-item__content"
+        ];
+        
+        let mut found_items = false;
+        for selector in &selectors {
+            println!("Trying selector: {}", selector);
+            if let Some(items) = html.select(selector) {
+                let items_vec: Vec<_> = items.collect();
+                if !items_vec.is_empty() {
+                    println!("Found {} items with selector: {}", items_vec.len(), selector);
+                    found_items = true;
+                    
+                    for (idx, item) in items_vec.iter().enumerate() {
+                        println!("Processing item {}", idx);
+                        
+                        // Find the link element
+                        let link = if let Some(links) = item.select("a") {
+                            if let Some(first_link) = links.first() {
+                                first_link
+                            } else {
+                                println!("  No link found");
+                                continue;
                             }
+                        } else {
+                            println!("  No link found");
+                            continue;
+                        };
+                        
+                        let href = link.attr("href").unwrap_or_default();
+                        if href.is_empty() {
+                            println!("  Empty href");
+                            continue;
                         }
+                        
+                        // Extract title
+                        let title = link.attr("title")
+                            .or_else(|| {
+                                item.select("h3 a, .h5 a, .post-title, .manga-title")
+                                    .and_then(|elems| elems.first())
+                                    .and_then(|elem| elem.text())
+                            })
+                            .unwrap_or_default()
+                            .trim()
+                            .to_string();
+                        
+                        if title.is_empty() {
+                            println!("  Empty title");
+                            continue;
+                        }
+                        
+                        println!("  Title: {}, URL: {}", title, href);
+                        
+                        let key = self.extract_manga_id(&href);
+                        
+                        // Extract cover image
+                        let cover = item.select("img")
+                            .and_then(|imgs| imgs.first())
+                            .and_then(|img| {
+                                img.attr("data-src")
+                                    .or_else(|| img.attr("src"))
+                                    .or_else(|| img.attr("data-lazy-src"))
+                            })
+                            .unwrap_or_default();
+                        
+                        println!("  Key: {}, Cover: {}", key, cover);
+                        
+                        entries.push(Manga {
+                            key,
+                            title,
+                            cover: if cover.is_empty() { None } else { Some(cover) },
+                            authors: None,
+                            artists: None,
+                            description: None,
+                            url: Some(href),
+                            tags: None,
+                            status: MangaStatus::Unknown,
+                            content_rating: ContentRating::Safe,
+                            viewer: Viewer::RightToLeft,
+                            chapters: None,
+                            next_update_time: None,
+                            update_strategy: UpdateStrategy::Never,
+                        });
                     }
+                    break; // Stop after finding items with one selector
                 }
             }
         }
-
+        
+        if !found_items {
+            println!("No items found with any selector!");
+            // Try to print the HTML for debugging
+            if let Some(body) = html.select("body") {
+                if let Some(first) = body.first() {
+                    let html_text = first.text().unwrap_or_default();
+                    println!("Response body text (first 500 chars): {}", &html_text[..html_text.len().min(500)]);
+                }
+            }
+        }
+        
         let has_next_page = entries.len() >= 20;
+        println!("Total entries parsed: {}, has_next_page: {}", entries.len(), has_next_page);
+        
         Ok(MangaPageResult {
             entries,
             has_next_page,
         })
     }
-
+    
     fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, _needs_chapters: bool) -> Result<Manga> {
         let title = html.select(".post-title h1, .manga-title")
             .and_then(|elems| elems.first())
