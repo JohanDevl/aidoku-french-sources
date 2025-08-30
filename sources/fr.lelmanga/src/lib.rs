@@ -496,21 +496,29 @@ impl LelManga {
                     continue;
                 }
 
-                // Extract chapter number from URL or title
-                let chapter_number = self.extract_chapter_number(&chapter_key, &title);
-                println!("[LelManga] Chapter: key={}, title={}, number={}", chapter_key, title, chapter_number);
+                // Clean title and extract date if present
+                let (clean_title, extracted_date) = self.clean_chapter_title_and_extract_date(&title);
+                println!("[LelManga] Original title: {}", title);
+                println!("[LelManga] Clean title: {}", clean_title);
 
-                // Parse chapter date with multiple selectors
-                let date_uploaded = if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
+                // Extract chapter number from URL or title
+                let chapter_number = self.extract_chapter_number(&chapter_key, &clean_title);
+                println!("[LelManga] Chapter: key={}, title={}, number={}", chapter_key, clean_title, chapter_number);
+
+                // Parse chapter date with multiple selectors, prioritizing extracted date from title
+                let date_uploaded = if let Some(extracted) = extracted_date {
+                    println!("[LelManga] Using date from title: {:?}", extracted);
+                    Some(extracted)
+                } else if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
                     if let Some(first_date) = date_elem.first() {
                         let date_str = first_date.text().unwrap_or_default();
-                        println!("[LelManga] Found chapter date: {}", date_str);
+                        println!("[LelManga] Found chapter date in element: {}", date_str);
                         self.parse_chapter_date(&date_str)
                     } else {
                         None
                     }
                 } else {
-                    println!("[LelManga] No date element found for chapter: {}", title);
+                    println!("[LelManga] No date found for chapter: {}", clean_title);
                     None
                 };
 
@@ -525,7 +533,7 @@ impl LelManga {
 
                 chapters.push(Chapter {
                     key: chapter_key,
-                    title: Some(title),
+                    title: Some(clean_title),
                     chapter_number: Some(chapter_number),
                     volume_number: None,
                     date_uploaded,
@@ -762,6 +770,58 @@ impl LelManga {
 
         println!("[LelManga] Returning {} pages", pages.len());
         Ok(pages)
+    }
+
+    fn clean_chapter_title_and_extract_date(&self, raw_title: &str) -> (String, Option<i64>) {
+        println!("[LelManga] Cleaning title: {}", raw_title);
+        
+        let mut clean_title = raw_title.to_string();
+        let mut extracted_date = None;
+        
+        // Extract date from title - look for patterns like "August 29, 2025"
+        let words: Vec<&str> = raw_title.split_whitespace().collect();
+        if words.len() >= 3 {
+            // Check last 3 words for date pattern
+            let last_3_words = &words[words.len()-3..];
+            let date_str = last_3_words.join(" ");
+            
+            if let Some(parsed_date) = self.parse_chapter_date(&date_str) {
+                println!("[LelManga] Extracted date from title: {} -> {}", date_str, parsed_date);
+                extracted_date = Some(parsed_date);
+                
+                // Remove the date part from title
+                if let Some(date_pos) = raw_title.rfind(&date_str) {
+                    clean_title = raw_title[..date_pos].trim().to_string();
+                }
+            } else {
+                // Try different combinations for dates
+                for i in (0..words.len().saturating_sub(2)).rev() {
+                    let potential_date = words[i..i+3].join(" ");
+                    if let Some(parsed_date) = self.parse_chapter_date(&potential_date) {
+                        println!("[LelManga] Extracted date from title: {} -> {}", potential_date, parsed_date);
+                        extracted_date = Some(parsed_date);
+                        
+                        if let Some(date_pos) = raw_title.rfind(&potential_date) {
+                            clean_title = raw_title[..date_pos].trim().to_string();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Additional cleanup: remove trailing punctuation and whitespace
+        clean_title = clean_title.trim_end_matches(&['-', '–', '—', ':', ',', '.', ' ']).to_string();
+        
+        // Remove redundant "Ch.XX -" prefix if it exists
+        if let Some(dash_pos) = clean_title.find(" - ") {
+            if clean_title[..dash_pos].starts_with("Ch.") {
+                clean_title = clean_title[dash_pos + 3..].to_string();
+            }
+        }
+        
+        println!("[LelManga] Title cleaned from '{}' to '{}'", raw_title, clean_title);
+        (clean_title, extracted_date)
     }
 }
 
