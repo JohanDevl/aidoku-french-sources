@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, PageContext, Result, Source,
+    Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::net::Request,
     prelude::*,
@@ -165,15 +165,32 @@ impl Source for LelscanFr {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        // Use the exact URL format from old implementation (no special parameters)
-        let url = format!("{}/{}", BASE_URL, chapter.key);
+        // chapter.key already contains the full path like "/manga/some-manga/123"
+        let url = if chapter.key.starts_with("/") {
+            format!("{}{}", BASE_URL, chapter.key)
+        } else {
+            format!("{}/{}", BASE_URL, chapter.key)
+        };
+        
+        // Debug: Create a debug page showing the constructed URL
+        let debug_page = Page {
+            content: PageContent::Url(format!("https://httpbin.org/get?constructed_url={}", url), None),
+            thumbnail: None,
+            has_description: false,
+            description: None,
+        };
+        
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .html()?;
-        parser::parse_page_list(&html)
+            
+        let mut result_pages = parser::parse_page_list(&html)?;
+        // Add debug page at the beginning
+        result_pages.insert(0, debug_page);
+        Ok(result_pages)
     }
 }
 

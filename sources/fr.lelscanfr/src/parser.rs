@@ -423,6 +423,21 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
+	// Debug: Check page title to see if we're on the right page
+	if let Some(title_elem) = html.select("title") {
+		if let Some(title) = title_elem.first() {
+			if let Some(title_text) = title.text() {
+				// Create debug page showing page title
+				pages.push(Page {
+					content: PageContent::Url(format!("https://httpbin.org/get?page_title={}", title_text.chars().take(50).collect::<String>()), None),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			}
+		}
+	}
+
 	// Use the exact selector from the old working implementation
 	let image_selectors = [
 		"#chapter-container .chapter-image",  // Original working selector
@@ -434,37 +449,45 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 		"img"                                 // Final fallback
 	];
 
-	for selector in image_selectors {
+	let mut debug_info = String::from("selectors_tried:");
+	for (i, selector) in image_selectors.iter().enumerate() {
 		if let Some(images) = html.select(selector) {
-			for img in images {
-				// Use the exact attribute extraction from old implementation
-				let img_url = img.attr("data-src")
-					.or_else(|| img.attr("src"))
-					.unwrap_or_default();
-				
-				if !img_url.is_empty() && !img_url.starts_with("data:") {
-					// Ensure URL is absolute
-					let absolute_url = if img_url.starts_with("http") {
-						img_url
-					} else {
-						super::helper::make_absolute_url("https://lelscanfr.com", &img_url)
-					};
+			let count = images.count();
+			debug_info.push_str(&format!("{}={},", selector, count));
+			
+			if count > 0 {
+				// Try to get first image URL to see what we're getting
+				if let Some(first_img) = html.select(selector).and_then(|imgs| imgs.first()) {
+					let data_src = first_img.attr("data-src").unwrap_or_default();
+					let src = first_img.attr("src").unwrap_or_default();
 					
 					pages.push(Page {
-						content: PageContent::Url(absolute_url, None),
+						content: PageContent::Url(format!("https://httpbin.org/get?selector={}&data_src={}&src={}", 
+							selector.replace("#", "hash").replace(".", "dot"), 
+							data_src.chars().take(50).collect::<String>(),
+							src.chars().take(50).collect::<String>()
+						), None),
 						thumbnail: None,
 						has_description: false,
 						description: None,
 					});
 				}
+				break; // Found images, stop trying
 			}
-			
-			// If we found pages with this selector, stop trying others
-			if !pages.is_empty() {
-				break;
-			}
+		} else {
+			debug_info.push_str(&format!("{}=null,", selector));
 		}
+		
+		if i >= 3 { break; } // Limit debug output
 	}
+	
+	// Add selector debug info
+	pages.push(Page {
+		content: PageContent::Url(format!("https://httpbin.org/get?debug={}", debug_info), None),
+		thumbnail: None,
+		has_description: false,
+		description: None,
+	});
 
 	Ok(pages)
 }
