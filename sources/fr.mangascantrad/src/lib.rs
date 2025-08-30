@@ -294,6 +294,51 @@ impl MangaScantrad {
         println!("Could not extract manga numeric ID from page, using fallback ID");
         Ok("0".to_string())
     }
+
+    fn parse_chapter_date(&self, date_str: &str) -> Option<i64> {
+        println!("parse_chapter_date called with: '{}'", date_str);
+        
+        // Parse French date format like "25 août 2025"
+        let parts: Vec<&str> = date_str.split_whitespace().collect();
+        if parts.len() != 3 {
+            println!("Date does not have 3 parts: {:?}", parts);
+            return None;
+        }
+        
+        let day: u32 = parts[0].parse().ok()?;
+        let month_name = parts[1];
+        let year: i32 = parts[2].parse().ok()?;
+        
+        // French month names to numbers
+        let month = match month_name.to_lowercase().as_str() {
+            "janvier" => 1,
+            "février" | "fevrier" => 2,
+            "mars" => 3,
+            "avril" => 4,
+            "mai" => 5,
+            "juin" => 6,
+            "juillet" => 7,
+            "août" | "aout" => 8,
+            "septembre" => 9,
+            "octobre" => 10,
+            "novembre" => 11,
+            "décembre" | "decembre" => 12,
+            _ => {
+                println!("Unknown French month: {}", month_name);
+                return None;
+            }
+        };
+        
+        println!("Parsed date: day={}, month={}, year={}", day, month, year);
+        
+        // Create a simple timestamp (days since epoch approximation)
+        // This is a basic implementation - for production you'd use a proper date library
+        let days_since_1970 = (year - 1970) * 365 + month as i32 * 30 + day as i32;
+        let timestamp = days_since_1970 as i64 * 86400; // seconds in a day
+        
+        println!("Calculated timestamp: {}", timestamp);
+        Some(timestamp)
+    }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
         println!("parse_ajax_chapters_response called");
@@ -890,12 +935,6 @@ impl MangaScantrad {
         }
         
         1.0 // Default
-    }
-    
-    fn parse_chapter_date(&self, _date_str: &str) -> Option<i64> {
-        // Date parsing disabled for now due to no_std limitations
-        // TODO: Implement using Aidoku's date utilities if available
-        None
     }
 
     fn parse_page_list(&self, html: Document) -> Result<Vec<Page>> {
