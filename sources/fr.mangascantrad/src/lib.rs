@@ -743,34 +743,98 @@ impl MangaScantrad {
             }
         }
 
-        // Extract status
+        // Extract status with comprehensive selectors
         let status_selectors = [
-            ".post-status .summary-content",
-            ".manga-status",
-            ".imptdt:contains(Statut) i",
-            ".status",
-            ".series-status",
-            ".tsinfo .imptdt:contains(Status) i"
+            "div.post-content_item:contains(Statut) div.summary-content",   // French Madara primary
+            ".post-status .summary-content",                                // Standard Madara
+            ".imptdt:contains(Statut) i",                                  // French status info
+            ".imptdt:contains(Status) i",                                  // English status info  
+            ".manga-status",                                               // Generic manga status
+            ".status",                                                     // Generic status
+            ".series-status",                                             // Series status
+            ".tsinfo .imptdt:contains(Status) i",                         // Theme specific
+            ".fmed b:contains(Status) + span",                            // Alternative layout
+            ".fmed b:contains(Statut) + span",                            // French alternative
+            ".spe span:contains(Status) + span",                          // Special span layout
+            ".spe span:contains(Statut) + span",                          // French special span
+            "div.summary-content .post-status span",                       // Status in summary
+            ".post-content .post-content_item .summary-content:contains(Statut)", // Content item
         ];
         
         let mut status = MangaStatus::Unknown;
         for selector in &status_selectors {
             if let Some(status_elem) = html.select(selector).and_then(|elems| elems.first()) {
                 if let Some(status_text) = status_elem.text() {
-                    let status_str = status_text.trim().to_lowercase();
+                    let status_str = status_text.trim().to_lowercase()
+                        .replace("é", "e")  // Handle French accents
+                        .replace("è", "e")
+                        .replace("à", "a");
+                    
+                    println!("Checking status text: '{}' -> '{}'", status_text.trim(), status_str);
+                    
                     status = match status_str.as_str() {
-                        "en cours" | "ongoing" | "en_cours" | "en-cours" => MangaStatus::Ongoing,
-                        "terminé" | "completed" | "termine" | "fini" | "achevé" => MangaStatus::Completed,
-                        "annulé" | "cancelled" | "annule" | "canceled" => MangaStatus::Cancelled,
-                        "en pause" | "hiatus" | "pause" | "en_pause" | "en-pause" | "on hold" => MangaStatus::Hiatus,
-                        _ => MangaStatus::Unknown,
+                        "en cours" | "ongoing" | "en_cours" | "en-cours" | "publication" | "publiant" | "continu" => MangaStatus::Ongoing,
+                        "termine" | "completed" | "fini" | "acheve" | "complet" | "fin" | "end" => MangaStatus::Completed,
+                        "annule" | "cancelled" | "canceled" | "arrete" | "abandon" | "abandonne" => MangaStatus::Cancelled,
+                        "en pause" | "hiatus" | "pause" | "en_pause" | "en-pause" | "on hold" | "interrompu" | "suspendu" => MangaStatus::Hiatus,
+                        _ => {
+                            // Try partial matches for more flexibility
+                            if status_str.contains("cours") || status_str.contains("ongoing") || status_str.contains("publication") {
+                                MangaStatus::Ongoing
+                            } else if status_str.contains("termine") || status_str.contains("completed") || status_str.contains("fini") {
+                                MangaStatus::Completed
+                            } else if status_str.contains("annule") || status_str.contains("cancelled") {
+                                MangaStatus::Cancelled
+                            } else if status_str.contains("pause") || status_str.contains("hiatus") {
+                                MangaStatus::Hiatus
+                            } else {
+                                MangaStatus::Unknown
+                            }
+                        }
                     };
+                    
                     if status != MangaStatus::Unknown {
-                        println!("Found status with {}: {:?}", selector, status);
+                        println!("Found status with {}: {:?} (from text: '{}')", selector, status, status_text.trim());
                         break;
                     }
                 }
             }
+        }
+
+        // Fallback: try broader selectors if no specific status found
+        if status == MangaStatus::Unknown {
+            println!("No status found with specific selectors, trying broader search");
+            
+            // Try to find any element containing status-related text
+            if let Some(status_elem) = html.select("*").and_then(|elements| {
+                elements.into_iter().find(|elem| {
+                    if let Some(text) = elem.text() {
+                        let text_lower = text.to_lowercase();
+                        text_lower.contains("statut") || text_lower.contains("status")
+                    } else {
+                        false
+                    }
+                })
+            }) {
+                if let Some(status_text) = status_elem.text() {
+                    let status_str = status_text.trim().to_lowercase()
+                        .replace("é", "e")
+                        .replace("è", "e")
+                        .replace("à", "a");
+                    
+                    if status_str.contains("en cours") || status_str.contains("ongoing") {
+                        status = MangaStatus::Ongoing;
+                        println!("Found status via broader search: Ongoing");
+                    } else if status_str.contains("termine") || status_str.contains("completed") {
+                        status = MangaStatus::Completed;
+                        println!("Found status via broader search: Completed");
+                    }
+                }
+            }
+        }
+        
+        if status == MangaStatus::Unknown {
+            println!("No status found with any method, defaulting to Unknown");
         }
 
         let authors = if !author.is_empty() {
