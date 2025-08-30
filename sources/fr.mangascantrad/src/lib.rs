@@ -14,11 +14,6 @@ use alloc::{string::ToString};
 pub static BASE_URL: &str = "https://manga-scantrad.io";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15";
 
-// Helper function for accurate date calculation
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0)
-}
-
 pub struct MangaScantrad;
 
 impl Source for MangaScantrad {
@@ -301,66 +296,42 @@ impl MangaScantrad {
     }
 
     fn parse_chapter_date(&self, date_str: &str) -> Option<i64> {
-        println!("parse_chapter_date called with: '{}'", date_str);
-        
-        // Parse French date format like "25 août 2025"
-        let parts: Vec<&str> = date_str.split_whitespace().collect();
-        if parts.len() != 3 {
-            println!("Date does not have 3 parts: {:?}", parts);
+        if date_str.is_empty() {
             return None;
         }
         
-        let day: u32 = parts[0].parse().ok()?;
-        let month_name = parts[1];
-        let year: i32 = parts[2].parse().ok()?;
+        println!("parse_chapter_date called with: '{}'", date_str);
         
-        // French month names to numbers
-        let month = match month_name.to_lowercase().as_str() {
-            "janvier" => 1,
-            "février" | "fevrier" => 2,
-            "mars" => 3,
-            "avril" => 4,
-            "mai" => 5,
-            "juin" => 6,
-            "juillet" => 7,
-            "août" | "aout" => 8,
-            "septembre" => 9,
-            "octobre" => 10,
-            "novembre" => 11,
-            "décembre" | "decembre" => 12,
-            _ => {
-                println!("Unknown French month: {}", month_name);
-                return None;
-            }
-        };
+        // Simple French date parsing like LelManga but for French months
+        let french_months = [
+            ("janvier", 1), ("février", 2), ("mars", 3), ("avril", 4),
+            ("mai", 5), ("juin", 6), ("juillet", 7), ("août", 8),
+            ("septembre", 9), ("octobre", 10), ("novembre", 11), ("décembre", 12)
+        ];
         
-        println!("Parsed date: day={}, month={}, year={}", day, month, year);
-        
-        // More accurate timestamp calculation accounting for leap years and actual month lengths
-        let mut total_days = 0i32;
-        
-        // Add days for complete years since 1970
-        for y in 1970..year {
-            if is_leap_year(y) {
-                total_days += 366;
-            } else {
-                total_days += 365;
+        let parts: Vec<&str> = date_str.trim().split_whitespace().collect();
+        if parts.len() >= 3 {
+            let day_str = parts[0];
+            let month_name = parts[1];
+            let year_str = parts[2];
+            
+            if let (Ok(day), Ok(year)) = (day_str.parse::<u32>(), year_str.parse::<i32>()) {
+                // Find month number
+                for (fr_month, month_num) in &french_months {
+                    if fr_month.eq_ignore_ascii_case(month_name) {
+                        // Simple timestamp calculation (approximate)
+                        let days_since_epoch = (year - 1970) * 365 + (*month_num as i32 - 1) * 30 + day as i32;
+                        let timestamp = days_since_epoch as i64 * 86400;
+                        
+                        println!("Successfully parsed French date '{}' -> timestamp: {}", date_str, timestamp);
+                        return Some(timestamp);
+                    }
+                }
             }
         }
         
-        // Add days for complete months in the target year
-        let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        for m in 0..(month as usize - 1) {
-            total_days += days_in_month[m] as i32;
-        }
-        
-        // Add the specific day
-        total_days += day as i32 - 1; // -1 because day 1 = 0 additional days
-        
-        let timestamp = total_days as i64 * 86400; // seconds in a day
-        
-        println!("Calculated accurate timestamp: {}", timestamp);
-        Some(timestamp)
+        println!("French date parsing failed for '{}'", date_str);
+        None
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
