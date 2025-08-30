@@ -16,6 +16,8 @@ fn get_data() -> MadaraSiteData {
 		status_filter_on_hold: "En pause".into(),
 		popular: "Populaire".into(),
 		trending: "Tendance".into(),
+		alt_ajax: true,
+		user_agent: Some("Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15".into()),
 		..MadaraSiteData::default()
 	}
 }
