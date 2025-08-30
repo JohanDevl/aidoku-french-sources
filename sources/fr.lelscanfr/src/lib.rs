@@ -1,16 +1,15 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, 
-    Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result, Source, 
-    UpdateStrategy, Viewer,
+    Chapter, FilterValue, ImageRequestProvider,
+    Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::{net::Request, html::Document},
     prelude::*,
 };
 
 extern crate alloc;
-use alloc::{string::ToString, vec};
+use alloc::vec;
 
 mod parser;
 mod helper;
@@ -34,16 +33,23 @@ impl Source for LelscanFr {
         let mut query_params = String::new();
         
         // Add search query if provided
-        if let Some(search_query) = query {
-            query_params.push_str(&format!("&title={}", helper::urlencode(search_query)));
+        if let Some(search_query) = query.clone() {
+            query_params.push_str(&format!("&title={}", helper::urlencode(search_query.clone())));
+            //println!("LelscanFR: Search query: {}", search_query);
         }
         
         // Process filters - ignore for now
         let _ = filters;
         
         let url = format!("{}/manga?page={}{}", BASE_URL, page, query_params);
+        //println!("LelscanFR: Requesting URL: {}", url);
+        
         let html = Request::get(&url)?.html()?;
-        parser::parse_manga_list(html)
+        // Debug: HTML loaded successfully
+        
+        let result = parser::parse_manga_list(html);
+        // Debug: Parsed manga list
+        result
     }
 
     fn get_manga_update(

@@ -1,5 +1,4 @@
 use aidoku::{
-	prelude::*,
 	Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, ContentRating, Viewer, Chapter,
 	UpdateStrategy,
 	alloc::{String, Vec, vec, format},
@@ -7,17 +6,15 @@ use aidoku::{
 };
 
 extern crate alloc;
-use alloc::string::ToString;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
+	
+	//println!("LelscanFR: Starting manga list parsing");
 
-	// Multiple selectors for robustness
+	// Primary selector based on actual site structure
 	let selectors = [
-		"a[href*=\"/manga/\"]",
-		".manga-item",
-		".card",
-		".item"
+		"a[href*=\"/manga/\"]"
 	];
 	
 	let mut items = None;
@@ -32,61 +29,45 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 
 	if let Some(items) = items {
 		for item in items {
-			// Extract title using multiple selectors
-			let title = if let Some(h2) = item.select("h2") {
-				if let Some(first_h2) = h2.first() {
-					first_h2.text().unwrap_or_default()
-				} else {
-					continue;
-				}
-			} else if let Some(h3) = item.select("h3") {
-				if let Some(first_h3) = h3.first() {
-					first_h3.text().unwrap_or_default()
-				} else {
-					continue;
-				}
-			} else if let Some(title_elem) = item.select(".manga-title") {
-				if let Some(first_title) = title_elem.first() {
-					first_title.text().unwrap_or_default()
+			
+			// Extract title - since item is already an <a> tag, look for h2 inside
+			let title = if let Some(h2_elements) = item.select("h2") {
+				if let Some(h2) = h2_elements.first() {
+					h2.text().unwrap_or_default()
 				} else {
 					continue;
 				}
 			} else {
+				// Fallback to the whole link text if no h2 found
 				item.text().unwrap_or_default()
 			};
 
 			if title.is_empty() {
+				//println!("LelscanFR: Skipping item with empty title");
 				continue;
 			}
 			
-			// Extract URL
-			let url = if let Some(href) = item.attr("href") {
-				href
-			} else if let Some(link) = item.select("a") {
-				if let Some(first_link) = link.first() {
-					first_link.attr("href").unwrap_or_default()
-				} else {
-					continue;
-				}
-			} else {
-				continue;
-			};
+			// Extract URL - item is already an <a> tag
+			let url = item.attr("href").unwrap_or_default();
 			
 			if url.is_empty() || !url.contains("/manga/") {
+				//println!("LelscanFR: Skipping invalid URL: {}", url);
 				continue;
 			}
 
 			let key = super::helper::extract_id_from_url(&url);
 			if key.is_empty() {
+				//println!("LelscanFR: Skipping item with empty key from URL: {}", url);
 				continue;
 			}
+			//println!("LelscanFR: Extracted key: {}", key);
 			
-			// Extract cover with multiple fallbacks
-			let cover = if let Some(img) = item.select("img") {
-				if let Some(first_img) = img.first() {
-					first_img.attr("data-src")
-						.or_else(|| first_img.attr("data-lazy-src"))
-						.or_else(|| first_img.attr("src"))
+			// Extract cover - look for img tag within the link
+			let cover = if let Some(img_elements) = item.select("img") {
+				if let Some(img) = img_elements.first() {
+					img.attr("src")
+						.or_else(|| img.attr("data-src"))
+						.or_else(|| img.attr("data-lazy-src"))
 						.unwrap_or_default()
 				} else {
 					String::new()
@@ -117,15 +98,25 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				next_update_time: None,
 				update_strategy: UpdateStrategy::Always,
 			});
+			//println!("LelscanFR: Successfully created manga: {}", title);
 		}
+	} else {
+		//println!("LelscanFR: No items found with any selector");
 	}
 
 	// Check pagination - multiple approaches for robustness
 	let has_more = if let Some(pagination) = html.select(".pagination") {
-		pagination.count() > 0 && mangas.len() >= 20
+		let pagination_count = pagination.count();
+		let has_pagination = pagination_count > 0 && mangas.len() >= 20;
+		//println!("LelscanFR: Pagination elements found: {}, has_more: {}", pagination_count, has_pagination);
+		has_pagination
 	} else {
-		mangas.len() >= 20
+		let has_more = mangas.len() >= 20;
+		//println!("LelscanFR: No pagination found, has_more based on count: {}", has_more);
+		has_more
 	};
+
+	//println!("LelscanFR: Final result - {} mangas, has_next_page: {}", mangas.len(), has_more);
 
 	Ok(MangaPageResult {
 		entries: mangas,
