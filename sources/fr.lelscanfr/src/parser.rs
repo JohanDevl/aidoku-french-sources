@@ -10,25 +10,21 @@ extern crate alloc;
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 
-	// Select all manga links
+	// Select manga links that contain h2 titles (actual manga entries)
 	if let Some(manga_links) = html.select("a[href*=\"/manga/\"]") {
 		for item in manga_links {
 			
-			// Extract title - since item is already an <a> tag, look for h2 inside
+			// Only process links that have h2 elements (actual manga, not genre links)
 			let title = if let Some(h2_elements) = item.select("h2") {
 				if let Some(h2) = h2_elements.first() {
 					h2.text().unwrap_or_default()
 				} else {
+					// Skip links without h2 (probably genre/filter links)
 					continue;
 				}
 			} else {
-				// Fallback to the whole link text if no h2 found
-				let fallback_title = item.text().unwrap_or_default();
-				if fallback_title.is_empty() {
-					String::from("DEBUG: Empty title fallback")
-				} else {
-					fallback_title
-				}
+				// Skip links without h2 (probably genre/filter links)
+				continue;
 			};
 
 			if title.is_empty() {
@@ -38,17 +34,35 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 			// Extract URL - item is already an <a> tag
 			let url = item.attr("href").unwrap_or_default();
 			
-			if url.is_empty() || !url.contains("/manga/") {
-				//println!("LelscanFR: Skipping invalid URL: {}", url);
+			if url.is_empty() {
+				continue;
+			}
+			
+			// Skip genre links - only process actual manga pages
+			if url.contains("?genre=") || url.contains("?tag=") || url.contains("?category=") {
+				continue;
+			}
+			
+			if !url.contains("/manga/") {
 				continue;
 			}
 
-			let key = super::helper::extract_id_from_url(&url);
+			// Extract manga slug/key from URL
+			let key = if url.starts_with("http") {
+				super::helper::extract_id_from_url(&url)
+			} else {
+				// Handle relative URLs like "/manga/title"
+				let parts: Vec<&str> = url.split('/').collect();
+				if parts.len() >= 3 && parts[1] == "manga" {
+					String::from(parts[2].trim())
+				} else {
+					String::new()
+				}
+			};
+			
 			if key.is_empty() {
-				//println!("LelscanFR: Skipping item with empty key from URL: {}", url);
 				continue;
 			}
-			//println!("LelscanFR: Extracted key: {}", key);
 			
 			// Extract cover - look for img tag within the link
 			let cover = if let Some(img_elements) = item.select("img") {
@@ -87,6 +101,27 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				update_strategy: UpdateStrategy::Always,
 			});
 		}
+	}
+
+	// Debug: If no mangas found at all, there might be a site structure issue
+	if mangas.is_empty() {
+		// Add a debug entry to help identify the issue
+		mangas.push(Manga {
+			key: String::from("debug-no-results"),
+			cover: None,
+			title: String::from("DEBUG: Aucun manga trouvé - structure du site changée?"),
+			authors: None,
+			artists: None,
+			description: None,
+			tags: None,
+			status: MangaStatus::Unknown,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::LeftToRight,
+			chapters: None,
+			url: Some(String::from("https://lelscanfr.com/manga/debug")),
+			next_update_time: None,
+			update_strategy: UpdateStrategy::Always,
+		});
 	}
 
 	// Check pagination
