@@ -210,23 +210,32 @@ impl MangaScantrad {
             
         println!("Session established, now trying AJAX chapter requests");
         
-        // Try both the alt_ajax URL (GET) with/without trailing slash and admin-ajax.php (POST) approaches  
+        // Focus on the URL that should work according to chapters.txt test
+        // Try different header combinations to match what browsers actually send
+        let chapter_url = format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key);
+        
         let approaches = [
-            ("GET alt_ajax with slash", format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key), "GET", ""),
-            ("GET alt_ajax no slash", format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key), "GET", ""),
-            ("POST admin-ajax", format!("{}/wp-admin/admin-ajax.php", BASE_URL), "POST", &format!("action=manga_get_chapters&manga={}", manga_key)),
+            // Exact browser-like headers
+            ("Browser-like headers", chapter_url.clone(), "GET", ""),
         ];
         
         for (approach_name, url, method, body) in &approaches {
             println!("Trying approach {}: {} {} with body: '{}'", approach_name, method, url, body);
             
             let request_result = if *method == "GET" {
+                // Use exact browser headers to match chapters.txt response
                 Request::get(url).and_then(|req| req
                     .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+                    .header("Accept-Encoding", "gzip, deflate, br")
                     .header("Referer", &manga_url)
-                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Connection", "keep-alive")
+                    .header("Upgrade-Insecure-Requests", "1")
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "same-origin")
+                    .header("Cache-Control", "max-age=0")
                     .html())
             } else {
                 Request::post(url).and_then(|req| req
