@@ -198,9 +198,10 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
-        // Try both the alt_ajax URL (GET) and admin-ajax.php (POST) approaches
+        // Try both the alt_ajax URL (GET) with/without trailing slash and admin-ajax.php (POST) approaches  
         let approaches = [
-            ("GET alt_ajax", format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key), "GET", ""),
+            ("GET alt_ajax with slash", format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key), "GET", ""),
+            ("GET alt_ajax no slash", format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key), "GET", ""),
             ("POST admin-ajax", format!("{}/wp-admin/admin-ajax.php", BASE_URL), "POST", &format!("action=manga_get_chapters&manga={}", manga_key)),
         ];
         
