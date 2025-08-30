@@ -373,8 +373,21 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 							href
 						};
 						
+						// Clean up chapter title - remove extra info like dates and view counts
 						let chapter_title = if !link_text.is_empty() && link_text.contains("Chapitre") {
-							String::from(link_text.trim())
+							// Extract clean title from messy text like "Ch.710 - Chapitre 710 il y a 1 an 3679"
+							if let Some(chapitre_pos) = link_text.find("Chapitre ") {
+								let from_chapitre = &link_text[chapitre_pos..];
+								// Take first two words: "Chapitre" + number
+								let words: Vec<&str> = from_chapitre.split_whitespace().collect();
+								if words.len() >= 2 {
+									format!("{} {}", words[0], words[1])
+								} else {
+									format!("Chapitre {}", chapter_number)
+								}
+							} else {
+								format!("Chapitre {}", chapter_number)
+							}
 						} else {
 							format!("Chapitre {}", chapter_number)
 						};

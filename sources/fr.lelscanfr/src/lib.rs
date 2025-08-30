@@ -69,59 +69,101 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Detect pagination using "Page X of Y" pattern first
+            // Try multiple approaches to detect total pages
             let mut total_pages = 1;
+            let mut debug_info = String::new();
             
-            // Look for "Page X of Y" pattern in the HTML text
-            if let Some(all_elements) = html.select("div, span, p, text()") {
-                for elem in all_elements {
-                    if let Some(text) = elem.text() {
-                        if text.contains("Page ") && text.contains(" of ") {
-                            // Extract "Page 1 of 6" pattern
-                            if let Some(of_pos) = text.find(" of ") {
-                                let after_of = &text[of_pos + 4..];
-                                if let Some(total_pages_str) = after_of.split_whitespace().next() {
-                                    if let Ok(pages) = total_pages_str.parse::<i32>() {
-                                        total_pages = pages;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // If no "Page X of Y" found, try pagination links
-            if total_pages == 1 {
-                let pagination_selectors = [".pagination", ".page-numbers", ".pages"];
-                for selector in pagination_selectors {
-                    if let Some(pagination) = html.select(selector) {
-                        if let Some(first_pagination) = pagination.first() {
-                            // Look for ellipsis indicating more pages
-                            if let Some(pagination_text) = first_pagination.text() {
-                                if pagination_text.contains("…") || pagination_text.contains("...") {
-                                    total_pages = 10; // Conservative estimate if ellipsis found
-                                    break;
-                                }
-                            }
-                            // Extract max page number from links
-                            if let Some(links) = first_pagination.select("a") {
-                                for link in links {
-                                    if let Some(link_text) = link.text() {
-                                        if let Ok(page_num) = link_text.trim().parse::<i32>() {
-                                            if page_num > total_pages {
-                                                total_pages = page_num;
+            // Method 1: Look for "Page X of Y" pattern by scanning all elements
+            let page_pattern_found = {
+                // Try to find page pattern in various elements
+                let selectors = ["div", "span", "p", "text", "*"];
+                for selector in selectors {
+                    if let Some(elements) = html.select(selector) {
+                        for elem in elements {
+                            if let Some(text) = elem.text() {
+                                if text.contains("Page ") && text.contains(" of ") {
+                                    // Look for pattern like "Page 1 of 6"
+                                    let lines: Vec<&str> = text.split('\n').collect();
+                                    for line in lines {
+                                        let trimmed = line.trim();
+                                        if trimmed.contains("Page ") && trimmed.contains(" of ") {
+                                            if let Some(of_pos) = trimmed.find(" of ") {
+                                                let after_of = &trimmed[of_pos + 4..]; // Skip " of "
+                                                if let Some(total_str) = after_of.split_whitespace().next() {
+                                                    if let Ok(pages) = total_str.parse::<i32>() {
+                                                        total_pages = pages;
+                                                        debug_info = format!("Found: {}", trimmed);
+                                                        break;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                        if total_pages > 1 {
                             break;
                         }
                     }
                 }
+                total_pages > 1
+            };
+            
+            // Method 2: If no pattern found, aggressively search for pagination
+            if total_pages == 1 {
+                // Try different selectors for pagination
+                let selectors = ["div", "span", "p", ".pagination", ".page-numbers", ".pages", "nav"];
+                for selector in selectors {
+                    if let Some(elements) = html.select(selector) {
+                        for elem in elements {
+                            if let Some(text) = elem.text() {
+                                // Look for numbered page links 
+                                let numbers: Vec<i32> = text
+                                    .split_whitespace()
+                                    .filter_map(|s| s.parse().ok())
+                                    .filter(|&n| n > 1 && n < 50) // Reasonable page range
+                                    .collect();
+                                
+                                if !numbers.is_empty() {
+                                    let max_num = *numbers.iter().max().unwrap_or(&1);
+                                    if max_num > total_pages {
+                                        total_pages = max_num;
+                                        debug_info = format!("Found pages: {:?}", numbers);
+                                    }
+                                }
+                                
+                                // Also check for ellipsis
+                                if text.contains("…") || text.contains("...") {
+                                    if total_pages < 10 {
+                                        total_pages = 10;
+                                        debug_info = format!("Found ellipsis in: {}", text.chars().take(50).collect::<String>());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            
+            // Add debug chapter to show pagination info
+            let mut chapters = if total_pages == 1 {
+                // Create debug chapter to show what was found
+                vec![Chapter {
+                    key: String::from("/debug-pagination"),
+                    title: Some(format!("DEBUG: Only found {} pages. {}", total_pages, debug_info)),
+                    chapter_number: Some(0.1),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    language: Some(String::from("fr")),
+                    locked: false,
+                    thumbnail: None,
+                    url: Some(format!("{}/debug", BASE_URL)),
+                }]
+            } else {
+                Vec::new()
+            };
             
             // Fetch all chapter pages
             let mut all_docs: Vec<Document> = vec![html];
@@ -135,7 +177,10 @@ impl Source for LelscanFr {
                 all_docs.push(page_html);
             }
             
-            manga.chapters = Some(parser::parse_chapter_list(&manga.key, all_docs)?);
+            let mut parsed_chapters = parser::parse_chapter_list(&manga.key, all_docs)?;
+            chapters.append(&mut parsed_chapters);
+            
+            manga.chapters = Some(chapters);
         }
         
         Ok(manga)
