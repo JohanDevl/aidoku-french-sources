@@ -2,11 +2,9 @@
   "info": {
     "id": "fr.poseidonscans",
     "contentRating": 1,
-    "languages": [
-      "fr"
-    ],
+    "languages": ["fr"],
     "name": "Poseidon Scans",
-    "version": 35,
+    "version": 4,
     "url": "https://poseidonscans.com/"
   },
   "listings": [
