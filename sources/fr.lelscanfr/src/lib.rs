@@ -117,73 +117,16 @@ impl Source for LelscanFr {
 }
 
 impl ListingProvider for LelscanFr {
-    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        // Match the listing ID like MangaScantrad does
-        match listing.id.as_str() {
-            "test" => self.get_test_mangas(page),
-            _ => self.get_test_mangas(page), // Default fallback
-        }
-    }
-}
-
-impl LelscanFr {
-    fn get_test_mangas(&self, page: i32) -> Result<MangaPageResult> {
-        // HARDCODED TEST MANGAS - No HTTP requests, no parsing, just direct return
-        let test_mangas = vec![
-            Manga {
-                key: String::from("test-manga-1"),
-                cover: Some(String::from("https://via.placeholder.com/150x200.png?text=Test1")),
-                title: format!("TEST: Manga de Test 1 (Page {})", page),
-                authors: Some(vec![String::from("Auteur Test")]),
-                artists: Some(vec![String::from("Artiste Test")]),
-                description: Some(String::from("Ceci est un manga de test pour vérifier si LelscanFR fonctionne correctement.")),
-                tags: Some(vec![String::from("Test"), String::from("Debug")]),
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: Some(String::from("https://lelscanfr.com/manga/test-manga-1")),
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            },
-            Manga {
-                key: String::from("test-manga-2"),
-                cover: Some(String::from("https://via.placeholder.com/150x200.png?text=Test2")),
-                title: String::from("TEST: Manga de Test 2 - Ça marche !"),
-                authors: Some(vec![String::from("Claude AI")]),
-                artists: Some(vec![String::from("Debug Artist")]),
-                description: Some(String::from("Si vous voyez ce manga, c'est que l'implémentation ListingProvider fonctionne.")),
-                tags: Some(vec![String::from("Success"), String::from("Working")]),
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: Some(String::from("https://lelscanfr.com/manga/test-manga-2")),
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            },
-            Manga {
-                key: String::from("test-manga-3"),
-                cover: None,
-                title: String::from("TEST: Manga sans Cover - ListingProvider OK"),
-                authors: None,
-                artists: None,
-                description: Some(String::from("Test pour vérifier les mangas sans métadonnées.")),
-                tags: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: Some(String::from("https://lelscanfr.com/manga/test-manga-3")),
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            },
-        ];
-
-        Ok(MangaPageResult {
-            entries: test_mangas,
-            has_next_page: page < 3, // Simulate pagination for first 3 pages
-        })
+    fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
+        let url = format!("{}/manga?page={}", BASE_URL, page);
+        
+        let html = Request::get(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .html()?;
+        
+        parser::parse_manga_list(html)
     }
 }
 
