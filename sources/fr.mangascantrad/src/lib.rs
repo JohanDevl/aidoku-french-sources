@@ -198,29 +198,61 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
+        // Try multiple AJAX actions common in Madara themes
+        let ajax_actions = [
+            ("wp_manga_get_chapters", format!("action=wp_manga_get_chapters&manga={}", manga_key)),
+            ("madara_load_more_chap", format!("action=madara_load_more_chap&manga={}", manga_key)),
+            ("manga_get_chapters", format!("action=manga_get_chapters&manga={}", manga_key)),
+            ("load_chapters", format!("action=load_chapters&manga_id={}", manga_key)),
+            ("get_manga_chapters", format!("action=get_manga_chapters&manga_slug={}", manga_key)),
+        ];
+        
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
-        // Madara AJAX payload for chapter list
-        let body = format!(
-            "action=manga_get_chapters&manga={}&nonce=1",
-            manga_key
-        );
+        for (action_name, body) in &ajax_actions {
+            println!("Trying AJAX action: {} with body: {}", action_name, body);
+            
+            match Request::post(&url).and_then(|req| req
+                .header("User-Agent", USER_AGENT)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "*/*")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                .header("X-Requested-With", "XMLHttpRequest")
+                .body(body.as_bytes())
+                .html()) {
+                Ok(html_doc) => {
+                    println!("{} AJAX response received", action_name);
+                    
+                    // Check if response is not just "0" (error response)
+                    if let Some(body_elem) = html_doc.select("body").and_then(|elems| elems.first()) {
+                        let response_text = body_elem.text().unwrap_or_default();
+                        if response_text.trim() != "0" && !response_text.is_empty() {
+                            println!("{} returned valid response: {} chars", action_name, response_text.len());
+                            match self.parse_ajax_chapter_response(html_doc) {
+                                Ok(chapters) => {
+                                    if !chapters.is_empty() {
+                                        println!("SUCCESS: {} returned {} chapters", action_name, chapters.len());
+                                        return Ok(chapters);
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("Error parsing {} response: {:?}", action_name, e);
+                                }
+                            }
+                        } else {
+                            println!("{} returned error response: '{}'", action_name, response_text.trim());
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Error making {} request: {:?}", action_name, e);
+                }
+            }
+        }
         
-        println!("AJAX chapter request body: {}", body);
-        
-        let html_doc = Request::post(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()?;
-        
-        println!("AJAX chapter response received");
-        
-        self.parse_ajax_chapter_response(html_doc)
+        println!("All AJAX actions failed, returning empty chapter list");
+        Ok(vec![])
     }
     
     fn parse_ajax_chapter_response(&self, html: Document) -> Result<Vec<Chapter>> {
@@ -603,25 +635,48 @@ impl MangaScantrad {
         
         // Parse chapters if requested
         let chapters = if needs_chapters {
-            println!("Fetching chapters via AJAX...");
-            match self.ajax_chapter_list(&manga_key) {
-                Ok(chapter_list) => {
-                    println!("Found {} chapters via AJAX", chapter_list.len());
-                    Some(chapter_list)
-                }
-                Err(e) => {
-                    println!("Error fetching chapters via AJAX: {:?}", e);
-                    // Fallback to HTML parsing
-                    println!("Falling back to HTML parsing...");
-                    match self.parse_chapter_list(&html) {
-                        Ok(chapter_list) => {
-                            println!("Found {} chapters via HTML", chapter_list.len());
+            println!("Trying to fetch chapters...");
+            
+            // First try AJAX approaches
+            let ajax_chapters = self.ajax_chapter_list(&manga_key).unwrap_or_else(|e| {
+                println!("Error fetching chapters via AJAX: {:?}", e);
+                vec![]
+            });
+            
+            if !ajax_chapters.is_empty() {
+                println!("SUCCESS: Found {} chapters via AJAX", ajax_chapters.len());
+                Some(ajax_chapters)
+            } else {
+                println!("AJAX failed, trying HTML parsing on current page...");
+                match self.parse_chapter_list(&html) {
+                    Ok(chapter_list) => {
+                        if !chapter_list.is_empty() {
+                            println!("SUCCESS: Found {} chapters via HTML", chapter_list.len());
                             Some(chapter_list)
+                        } else {
+                            println!("HTML parsing returned empty, trying enhanced HTML parsing...");
+                            // Try basic parsing again with different approach
+                            println!("Trying basic HTML parsing again...");
+                            match self.parse_chapter_list(&html) {
+                                Ok(enhanced_chapters) => {
+                                    if !enhanced_chapters.is_empty() {
+                                        println!("SUCCESS: Found {} chapters via enhanced HTML", enhanced_chapters.len());
+                                        Some(enhanced_chapters)
+                                    } else {
+                                        println!("No chapters found with any method");
+                                        None
+                                    }
+                                }
+                                Err(e3) => {
+                                    println!("Error in enhanced HTML parsing: {:?}", e3);
+                                    None
+                                }
+                            }
                         }
-                        Err(e2) => {
-                            println!("Error parsing chapters from HTML: {:?}", e2);
-                            None
-                        }
+                    }
+                    Err(e2) => {
+                        println!("Error parsing chapters from HTML: {:?}", e2);
+                        None
                     }
                 }
             }
