@@ -14,5 +14,7 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", rev = "bae338b15a3840dc0428c7af64fe9fc92abfa2fb" }
-madara_template = { path = "../../templates/madara" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", features = ["json"] }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "wasmbind"] }
