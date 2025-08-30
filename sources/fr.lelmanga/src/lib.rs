@@ -27,7 +27,6 @@ impl Source for LelManga {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        println!("[LelManga] get_search_manga_list called - query: {:?}, page: {}", query, page);
 
         let url = if let Some(search_query) = query {
             if search_query.is_empty() {
@@ -39,15 +38,12 @@ impl Source for LelManga {
             format!("{}/manga/?page={}", BASE_URL, page)
         };
 
-        println!("[LelManga] Search URL: {}", url);
         self.get_manga_from_page(&url)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[LelManga] get_manga_update called - key: {}", manga.key);
 
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
-        println!("[LelManga] Details URL: {}", url);
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -67,11 +63,9 @@ impl Source for LelManga {
         Ok(updated_manga)
     }
 
-    fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        println!("[LelManga] get_page_list called - manga: {}, chapter: {}", manga.key, chapter.key);
+    fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 
         let url = format!("{}/{}/", BASE_URL, chapter.key);
-        println!("[LelManga] Page list URL: {}", url);
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -85,7 +79,6 @@ impl Source for LelManga {
 
 impl ListingProvider for LelManga {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        println!("[LelManga] get_manga_list called - listing: {}, page: {}", listing.name, page);
 
         let mut url = format!("{}/manga/", BASE_URL);
 
@@ -105,14 +98,12 @@ impl ListingProvider for LelManga {
             }
         }
 
-        println!("[LelManga] Listing URL: {}", url);
         self.get_manga_from_page(&url)
     }
 }
 
 impl ImageRequestProvider for LelManga {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-        println!("[LelManga] get_image_request called for: {}", url);
 
         Ok(Request::get(url)?
             .header("User-Agent", USER_AGENT)
@@ -137,11 +128,9 @@ impl LelManga {
 
         // Use MangaThemesia selectors
         let selector = ".utao .uta .imgu, .listupd .bs .bsx, .page-listing-item";
-        println!("[LelManga] Using selector: {}", selector);
 
         if let Some(items) = html.select(selector) {
             let items_vec: Vec<_> = items.collect();
-            println!("[LelManga] Found {} manga items", items_vec.len());
 
             for item in items_vec {
                 let link = if let Some(a_element) = item.select("a") {
@@ -216,7 +205,6 @@ impl LelManga {
                     String::new()
                 };
 
-                println!("[LelManga] Found manga: key={}, title={}", key, title);
 
                 entries.push(Manga {
                     key,
@@ -239,7 +227,6 @@ impl LelManga {
 
         // Check for pagination
         let has_next_page = html.select(".pagination .next, .hpage .r").is_some();
-        println!("[LelManga] Found {} manga, has_next_page: {}", entries.len(), has_next_page);
 
         Ok(MangaPageResult {
             entries,
@@ -248,7 +235,6 @@ impl LelManga {
     }
 
     fn parse_manga_details(&self, key: String, html: &Document) -> Result<Manga> {
-        println!("[LelManga] parse_manga_details called - key: {}", key);
 
         // Extract title with MangaThemesia selectors
         let title = if let Some(container) = html.select("div.bigcontent, div.animefull, div.main-info, div.postbody") {
@@ -290,7 +276,6 @@ impl LelManga {
             title
         };
 
-        println!("[LelManga] Extracted title: {}", title);
 
         if title.is_empty() {
             return Err(aidoku::AidokuError::Unimplemented);
@@ -308,11 +293,9 @@ impl LelManga {
                 String::new()
             }
         } else {
-            println!("[LelManga] No cover image found");
             String::new()
         };
 
-        println!("[LelManga] Extracted cover: {}", cover);
 
         // Extract author and artist
         let (authors, artists) = if let Some(container) = html.select("div.bigcontent, div.animefull, div.main-info, div.postbody") {
@@ -347,18 +330,14 @@ impl LelManga {
         let description = if let Some(desc_elem) = html.select(".desc, .entry-content[itemprop=description], .summary__content, .manga-summary, .post-content_item .summary-content, .description, .synopsis, .sinopsis, .summary, .post-excerpt") {
             if let Some(first_desc) = desc_elem.first() {
                 let desc_text = first_desc.text().unwrap_or_default();
-                println!("[LelManga] Found description: {}", if desc_text.len() > 50 { format!("{}...", &desc_text[..50]) } else { desc_text.clone() });
                 desc_text
             } else {
-                println!("[LelManga] Description element found but no content");
                 String::new()
             }
         } else {
-            println!("[LelManga] No description element found");
             String::new()
         };
 
-        println!("[LelManga] Extracted description length: {}", description.len());
 
         // Extract genres
         let mut tags: Vec<String> = Vec::new();
@@ -373,13 +352,11 @@ impl LelManga {
             }
         }
 
-        println!("[LelManga] Extracted {} tags", tags.len());
 
         // Extract status with multiple selectors
         let status = if let Some(status_elem) = html.select("div.post-content_item:contains(Statut) div.summary-content, .imptdt:contains(Statut) i, .status, .manga-status, .post-status, .series-status, .tsinfo .imptdt:contains(Status) i, .fmed b:contains(Status) + span, .spe span:contains(Status) + span") {
             if let Some(first_status) = status_elem.first() {
                 let status_str = first_status.text().unwrap_or_default().trim().to_lowercase();
-                println!("[LelManga] Found status text: '{}'", status_str);
                 
                 let parsed_status = match status_str.as_str() {
                     "en cours" | "ongoing" | "en_cours" | "en-cours" | "publikasi" => MangaStatus::Ongoing,
@@ -387,65 +364,52 @@ impl LelManga {
                     "annulé" | "cancelled" | "annule" | "canceled" => MangaStatus::Cancelled,
                     "en pause" | "hiatus" | "pause" | "en_pause" | "en-pause" => MangaStatus::Hiatus,
                     _ => {
-                        println!("[LelManga] Unknown status: '{}', using Unknown", status_str);
                         MangaStatus::Unknown
                     }
                 };
                 
-                println!("[LelManga] Parsed status '{}' -> {:?}", status_str, parsed_status);
                 parsed_status
             } else {
-                println!("[LelManga] Status element found but no text content");
                 MangaStatus::Unknown
             }
         } else {
-            println!("[LelManga] No status element found, trying alternative selectors");
             
             // Try broader selectors
             if let Some(info_elem) = html.select(".tsinfo, .infomanga, .manga-info, .post-content") {
-                println!("[LelManga] Searching for status in info container");
                 
                 // Look for text containing status keywords
                 for elem in info_elem {
                     let text = elem.text().unwrap_or_default().to_lowercase();
                     if text.contains("statut") || text.contains("status") {
-                        println!("[LelManga] Found element with status keyword: {}", text);
                         
                         // Extract status from the text and break early
                         if text.contains("en cours") || text.contains("ongoing") {
-                            println!("[LelManga] Detected Ongoing status from text");
                             return Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, MangaStatus::Ongoing));
                         } else if text.contains("terminé") || text.contains("completed") || text.contains("fini") {
-                            println!("[LelManga] Detected Completed status from text");
                             return Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, MangaStatus::Completed));
                         }
                     }
                 }
             }
             
-            println!("[LelManga] No status found, defaulting to Unknown");
             MangaStatus::Unknown
         };
 
-        println!("[LelManga] Extracted status: {:?}", status);
 
         // Content rating will be calculated in create_manga_result
 
         Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, status))
     }
 
-    fn parse_chapter_list(&self, manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-        println!("[LelManga] parse_chapter_list called - manga_key: {}", manga_key);
+    fn parse_chapter_list(&self, _manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
 
         let mut chapters: Vec<Chapter> = Vec::new();
 
         // Use MangaThemesia selectors for chapters with more alternatives
         let selector = "div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num), .chapter-list li, .wp-manga-chapter, .manga-chapters li, li.wp-manga-chapter";
-        println!("[LelManga] Using chapter selector: {}", selector);
 
         if let Some(items) = html.select(selector) {
             let items_vec: Vec<_> = items.collect();
-            println!("[LelManga] Found {} chapter items", items_vec.len());
 
             for item in items_vec {
                 let link = if let Some(a_element) = item.select("a") {
@@ -507,36 +471,22 @@ impl LelManga {
 
                 // Clean title and extract date if present
                 let (clean_title, extracted_date) = self.clean_chapter_title_and_extract_date(&title);
-                println!("[LelManga] Original title: {}", title);
-                println!("[LelManga] Clean title: {}", clean_title);
 
                 // Extract chapter number from URL or title
                 let chapter_number = self.extract_chapter_number(&chapter_key, &clean_title);
-                println!("[LelManga] Chapter: key={}, title={}, number={}", chapter_key, clean_title, chapter_number);
 
                 // Parse chapter date with multiple selectors, prioritizing extracted date from title
                 let date_uploaded = if let Some(extracted) = extracted_date {
-                    println!("[LelManga] ✅ PRIORITÉ: Using date extracted from title: {} (timestamp: {})", clean_title, extracted);
                     Some(extracted)
                 } else {
-                    println!("[LelManga] No date found in title, trying HTML elements for: {}", clean_title);
                     if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
                         if let Some(first_date) = date_elem.first() {
                             let date_str = first_date.text().unwrap_or_default();
-                            println!("[LelManga] Found chapter date in HTML element: '{}' for chapter: {}", date_str, clean_title);
-                            let parsed = self.parse_chapter_date(&date_str);
-                            if let Some(ts) = parsed {
-                                println!("[LelManga] ⚠️ FALLBACK: Using HTML date for {}: {} (timestamp: {})", clean_title, date_str, ts);
-                            } else {
-                                println!("[LelManga] ❌ Failed to parse HTML date '{}' for chapter: {}", date_str, clean_title);
-                            }
-                            parsed
+                            self.parse_chapter_date(&date_str)
                         } else {
-                            println!("[LelManga] Date element found but no content for chapter: {}", clean_title);
                             None
                         }
                     } else {
-                        println!("[LelManga] ❌ No date element found for chapter: {}", clean_title);
                         None
                     }
                 };
@@ -565,7 +515,6 @@ impl LelManga {
             }
         }
 
-        println!("[LelManga] Returning {} chapters", chapters.len());
         Ok(chapters)
     }
 
@@ -577,7 +526,6 @@ impl LelManga {
             let after_chapitre = &chapter_id[chapitre_pos + 9..];
             if let Some(num_str) = after_chapitre.split('-').next() {
                 if let Ok(num) = num_str.parse::<f32>() {
-                    println!("[LelManga] Extracted chapter number from 'chapitre-': {}", num);
                     return num;
                 }
             }
@@ -587,7 +535,6 @@ impl LelManga {
             let after_chapter = &chapter_id[chapter_pos + 8..];
             if let Some(num_str) = after_chapter.split('-').next() {
                 if let Ok(num) = num_str.parse::<f32>() {
-                    println!("[LelManga] Extracted chapter number from 'chapter-': {}", num);
                     return num;
                 }
             }
@@ -601,7 +548,6 @@ impl LelManga {
 
             if let (Ok(last_num), Ok(second_last_num)) = (last_part.parse::<f32>(), second_last_part.parse::<f32>()) {
                 if last_num <= 20.0 && second_last_num >= last_num {
-                    println!("[LelManga] Extracted chapter number from pattern: {}", second_last_num);
                     return second_last_num;
                 }
             }
@@ -610,7 +556,6 @@ impl LelManga {
         // Fallback: last segment
         if let Some(num_str) = chapter_id.split('-').last() {
             if let Ok(num) = num_str.parse::<f32>() {
-                println!("[LelManga] Extracted chapter number from last segment: {}", num);
                 return num;
             }
         }
@@ -621,7 +566,6 @@ impl LelManga {
             if word.to_lowercase().contains("chapitre") || word.to_lowercase().contains("chapter") {
                 if i + 1 < words.len() {
                     if let Ok(num) = words[i + 1].parse::<f32>() {
-                        println!("[LelManga] Extracted chapter number from title: {}", num);
                         return num;
                     }
                 }
@@ -631,12 +575,10 @@ impl LelManga {
         // Last resort: any number in title
         for word in words {
             if let Ok(num) = word.parse::<f32>() {
-                println!("[LelManga] Extracted chapter number from any title number: {}", num);
                 return num;
             }
         }
 
-        println!("[LelManga] Could not extract chapter number, using -1.0");
         -1.0
     }
 
@@ -645,7 +587,6 @@ impl LelManga {
             return None;
         }
 
-        println!("[LelManga] Parsing date: {}", date_str);
 
         // English months with their numbers
         let months = [
@@ -660,7 +601,6 @@ impl LelManga {
             let day_str = parts[1].trim_end_matches(',');
             let year_str = parts[2];
 
-            println!("[LelManga] Date parts: month='{}', day='{}', year='{}'", month_name, day_str, year_str);
 
             if let Some((_, month)) = months.iter().find(|(name, _)| name.eq_ignore_ascii_case(month_name)) {
                 if let (Ok(day), Ok(year)) = (day_str.parse::<i32>(), year_str.parse::<i32>()) {
@@ -692,24 +632,20 @@ impl LelManga {
                         days += (day - 1) as i64;
                         
                         let timestamp = days * 86400; // Convert to seconds
-                        println!("[LelManga] ✅ Parsed date '{}' to timestamp: {}", date_str, timestamp);
                         return Some(timestamp);
                     }
                 }
             }
         }
 
-        println!("[LelManga] ❌ Failed to parse date: {}", date_str);
         None
     }
 
     fn parse_page_list(&self, html: &Document) -> Result<Vec<Page>> {
-        println!("[LelManga] parse_page_list called");
 
         let mut pages: Vec<Page> = Vec::new();
 
         // First try: HTML images
-        println!("[LelManga] Trying HTML image parsing");
         if let Some(img_elements) = html.select("div#readerarea img") {
             for img_element in img_elements {
                 let img_url = if let Some(lazy_src) = img_element.attr("data-lazy-src") {
@@ -729,7 +665,6 @@ impl LelManga {
                 };
 
                 if !img_url.is_empty() {
-                    println!("[LelManga] Found HTML image: {}", img_url);
                     pages.push(Page {
                         content: PageContent::url(img_url),
                         thumbnail: None,
@@ -741,12 +676,10 @@ impl LelManga {
         }
 
         if !pages.is_empty() {
-            println!("[LelManga] HTML parsing successful, found {} pages", pages.len());
             return Ok(pages);
         }
 
         // Second try: JavaScript parsing
-        println!("[LelManga] Trying JavaScript parsing");
         let html_content = if let Some(script_elem) = html.select("script:contains(ts_reader.run)") {
             if let Some(first_script) = script_elem.first() {
                 first_script.text().unwrap_or_default()
@@ -758,7 +691,6 @@ impl LelManga {
         };
 
         if let Some(ts_reader_start) = html_content.find("ts_reader.run({") {
-            println!("[LelManga] Found ts_reader.run configuration");
             let config_start = ts_reader_start + 15;
             if let Some(config_end) = html_content[config_start..].find("})") {
                 let config_content = &html_content[config_start..config_start + config_end];
@@ -776,7 +708,6 @@ impl LelManga {
                             for part in parts {
                                 if part.starts_with("https://") && part.contains("/wp-content/uploads/") && 
                                    (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp") || part.ends_with(".jpeg")) {
-                                    println!("[LelManga] Found JS image: {}", part);
                                     pages.push(Page {
                                         content: PageContent::url(part.to_string()),
                                         thumbnail: None,
@@ -793,7 +724,6 @@ impl LelManga {
 
         // Fallback: general images pattern
         if pages.is_empty() {
-            println!("[LelManga] Trying fallback JavaScript parsing");
             if let Some(images_pattern_start) = html_content.find("\"images\":[") {
                 let images_section = &html_content[images_pattern_start + 10..];
                 if let Some(images_end) = images_section.find("]") {
@@ -804,7 +734,6 @@ impl LelManga {
                     for part in parts {
                         if part.starts_with("https://") && part.contains("lelmanga.com") && 
                            (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp")) {
-                            println!("[LelManga] Found fallback image: {}", part);
                             pages.push(Page {
                                 content: PageContent::url(part.to_string()),
                                 thumbnail: None,
@@ -817,12 +746,10 @@ impl LelManga {
             }
         }
 
-        println!("[LelManga] Returning {} pages", pages.len());
         Ok(pages)
     }
 
     fn clean_chapter_title_and_extract_date(&self, raw_title: &str) -> (String, Option<i64>) {
-        println!("[LelManga] Cleaning title: {}", raw_title);
         
         let mut clean_title = raw_title.to_string();
         let mut extracted_date = None;
@@ -835,7 +762,6 @@ impl LelManga {
         
         // Check for dates anywhere in the title
         let words: Vec<&str> = raw_title.split_whitespace().collect();
-        println!("[LelManga] Title words: {:?}", words);
         
         for i in 0..words.len().saturating_sub(2) {
             let potential_month = words[i];
@@ -847,10 +773,8 @@ impl LelManga {
                 if english_months.iter().any(|&month| month.eq_ignore_ascii_case(potential_month)) {
                     let day_clean = day_str.trim_end_matches(',');
                     let date_candidate = format!("{} {} {}", potential_month, day_clean, year_str);
-                    println!("[LelManga] Testing date candidate: {}", date_candidate);
                     
                     if let Some(parsed_date) = self.parse_chapter_date(&date_candidate) {
-                        println!("[LelManga] ✅ Successfully extracted date from title: {} -> {}", date_candidate, parsed_date);
                         extracted_date = Some(parsed_date);
                         
                         // Remove the date part from title - find the original date text and remove it
@@ -882,7 +806,6 @@ impl LelManga {
             }
         }
         
-        println!("[LelManga] Title cleaned from '{}' to '{}'", raw_title, clean_title);
         (clean_title, extracted_date)
     }
 
