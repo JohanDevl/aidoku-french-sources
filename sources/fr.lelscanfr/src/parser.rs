@@ -202,6 +202,65 @@ pub fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 		}
 	}
 	
+	// Extract tags/genres
+	let mut tags: Vec<String> = Vec::new();
+	let tag_selectors = [
+		"a[href*=\"?genre=\"]",
+		".genre a",
+		".genres a",
+		".tag a",
+		".tags a"
+	];
+	
+	for selector in tag_selectors {
+		if let Some(tag_elements) = html.select(selector) {
+			for tag_elem in tag_elements {
+				if let Some(tag_text) = tag_elem.text() {
+					let clean_tag = tag_text.trim();
+					if !clean_tag.is_empty() && !tags.contains(&String::from(clean_tag)) {
+						tags.push(String::from(clean_tag));
+					}
+				}
+			}
+			if !tags.is_empty() {
+				break; // Found tags with this selector, stop trying others
+			}
+		}
+	}
+	
+	if !tags.is_empty() {
+		manga.tags = Some(tags);
+	}
+	
+	// Extract manga status 
+	let status_selectors = [
+		"a[href*=\"?status=\"]",
+		".status",
+		".manga-status",
+		"span:contains(Statut)+span",
+		"span:contains(Status)+span"
+	];
+	
+	for selector in status_selectors {
+		if let Some(status_elements) = html.select(selector) {
+			if let Some(status_elem) = status_elements.first() {
+				if let Some(status_text) = status_elem.text() {
+					let clean_status = status_text.trim().to_lowercase();
+					if !clean_status.is_empty() {
+						manga.status = match clean_status.as_str() {
+							"en cours" | "ongoing" | "publication" | "publiant" => MangaStatus::Ongoing,
+							"terminé" | "completed" | "fini" | "achevé" | "complet" => MangaStatus::Completed,
+							"annulé" | "cancelled" | "canceled" | "arrêté" => MangaStatus::Cancelled,
+							"en pause" | "hiatus" | "pause" => MangaStatus::Hiatus,
+							_ => MangaStatus::Unknown,
+						};
+						break;
+					}
+				}
+			}
+		}
+	}
+	
 	Ok(manga)
 }
 
