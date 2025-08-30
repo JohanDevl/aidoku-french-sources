@@ -406,11 +406,21 @@ impl MangaScantrad {
                     // Extract chapter number from title or URL
                     let chapter_number = self.extract_chapter_number(&chapter_key, &title);
 
-                    // Extract date if available  
-                    let date_uploaded = item.select("span.chapter-release-date i")
-                        .and_then(|elems| elems.first())
-                        .and_then(|elem| elem.text())
-                        .and_then(|date_str| self.parse_chapter_date(&date_str.trim()));
+                    // Extract date if available - with detailed debugging
+                    let date_uploaded = if let Some(date_elem) = item.select("span.chapter-release-date i")
+                        .and_then(|elems| elems.first()) {
+                        if let Some(raw_date) = date_elem.text() {
+                            let date_str = raw_date.trim();
+                            println!("  Chapter {}: Raw date text = '{}'", idx, date_str);
+                            self.parse_chapter_date(date_str)
+                        } else {
+                            println!("  Chapter {}: No date text found", idx);
+                            None
+                        }
+                    } else {
+                        println!("  Chapter {}: No date element found", idx);
+                        None
+                    };
 
                     // Ensure URL is absolute
                     let url = if href.starts_with("http") {
@@ -421,7 +431,12 @@ impl MangaScantrad {
                         format!("{}/{}", BASE_URL, href)
                     };
 
-                    println!("  Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
+                    let date_debug = if let Some(ts) = date_uploaded {
+                        format!("timestamp={}", ts)
+                    } else {
+                        "no_date".to_string()
+                    };
+                    println!("  Chapter {}: title='{}', number={}, url={}, date={}", idx, title, chapter_number, url, date_debug);
 
                     chapters.push(Chapter {
                         key: chapter_key,
