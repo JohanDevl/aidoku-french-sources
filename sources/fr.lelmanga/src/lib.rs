@@ -296,26 +296,19 @@ impl LelManga {
             return Err(aidoku::AidokuError::Unimplemented);
         }
 
-        // Extract cover image
-        let cover = if let Some(cover_elem) = html.select(".infomanga > div[itemprop=image] img") {
+        // Extract cover image with multiple selectors
+        let cover = if let Some(cover_elem) = html.select(".infomanga > div[itemprop=image] img, .thumb img, .manga-poster img, .post-thumb img, .series-thumb img, img.attachment-post-thumbnail, .wp-post-image, .post-content img:first-child") {
             if let Some(first_cover) = cover_elem.first() {
-                first_cover.attr("src").unwrap_or_default()
-            } else {
-                String::new()
-            }
-        } else if let Some(thumb_elem) = html.select(".thumb img") {
-            if let Some(first_thumb) = thumb_elem.first() {
-                first_thumb.attr("src").unwrap_or_default()
-            } else {
-                String::new()
-            }
-        } else if let Some(poster_elem) = html.select(".manga-poster img") {
-            if let Some(first_poster) = poster_elem.first() {
-                first_poster.attr("src").unwrap_or_default()
+                let src = first_cover.attr("data-lazy-src")
+                    .or_else(|| first_cover.attr("data-src"))
+                    .or_else(|| first_cover.attr("src"))
+                    .unwrap_or_default();
+                src
             } else {
                 String::new()
             }
         } else {
+            println!("[LelManga] No cover image found");
             String::new()
         };
 
@@ -350,31 +343,18 @@ impl LelManga {
             (None, None)
         };
 
-        // Extract description
-        let description = if let Some(container) = html.select("div.bigcontent, div.animefull, div.main-info, div.postbody") {
-            if let Some(desc_elem) = container.select(".desc") {
-                if let Some(first_desc) = desc_elem.first() {
-                    let desc_text = first_desc.text().unwrap_or_default();
-                    if desc_text.is_empty() {
-                        if let Some(content_elem) = container.select(".entry-content[itemprop=description]") {
-                            if let Some(first_content) = content_elem.first() {
-                                first_content.text().unwrap_or_default()
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        desc_text
-                    }
-                } else {
-                    String::new()
-                }
+        // Extract description with multiple selectors
+        let description = if let Some(desc_elem) = html.select(".desc, .entry-content[itemprop=description], .summary__content, .manga-summary, .post-content_item .summary-content, .description, .synopsis, .sinopsis, .summary, .post-excerpt") {
+            if let Some(first_desc) = desc_elem.first() {
+                let desc_text = first_desc.text().unwrap_or_default();
+                println!("[LelManga] Found description: {}", if desc_text.len() > 50 { format!("{}...", &desc_text[..50]) } else { desc_text.clone() });
+                desc_text
             } else {
+                println!("[LelManga] Description element found but no content");
                 String::new()
             }
         } else {
+            println!("[LelManga] No description element found");
             String::new()
         };
 
@@ -450,8 +430,8 @@ impl LelManga {
 
         let mut chapters: Vec<Chapter> = Vec::new();
 
-        // Use MangaThemesia selectors for chapters
-        let selector = "div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num)";
+        // Use MangaThemesia selectors for chapters with more alternatives
+        let selector = "div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num), .chapter-list li, .wp-manga-chapter, .manga-chapters li, li.wp-manga-chapter";
         println!("[LelManga] Using chapter selector: {}", selector);
 
         if let Some(items) = html.select(selector) {
@@ -520,15 +500,17 @@ impl LelManga {
                 let chapter_number = self.extract_chapter_number(&chapter_key, &title);
                 println!("[LelManga] Chapter: key={}, title={}, number={}", chapter_key, title, chapter_number);
 
-                // Parse chapter date
-                let date_uploaded = if let Some(date_elem) = item.select(".chapterdate") {
+                // Parse chapter date with multiple selectors
+                let date_uploaded = if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
                     if let Some(first_date) = date_elem.first() {
                         let date_str = first_date.text().unwrap_or_default();
+                        println!("[LelManga] Found chapter date: {}", date_str);
                         self.parse_chapter_date(&date_str)
                     } else {
                         None
                     }
                 } else {
+                    println!("[LelManga] No date element found for chapter: {}", title);
                     None
                 };
 
