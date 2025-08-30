@@ -423,38 +423,34 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Target the specific image structure from lelscanfr
+	// Use Madara-compatible selectors like mangascantrad (which works)
 	let image_selectors = [
-		"img.chapter-image[data-src]",     // Primary: lazyload chapter images with data-src
-		"img.lazyload[data-src]",          // Alternative: any lazyload image with data-src  
-		"img[data-src]",                   // Fallback: any image with data-src
-		"img[src*='storage/content/']",    // Direct: images with storage path in src
+		"div.page-break > img",              // Madara default selector
+		".page-break img",                   // Alternative page break
+		"img.chapter-image",                 // LelscanFR specific based on your example
+		"img.lazyload",                      // Lazyload images
+		".reading-content img",              // Reading content
+		".wp-manga-chapter-img",             // WordPress manga images
+		"img.wp-manga-chapter-img",          // Specific manga chapter images
+		".chapter-content img",              // Chapter content images
+		"div.text-left img",                 // Text content images
+		"#chapter-content img",              // Chapter content by ID
+		".entry-content img",                // Entry content images
+		"img"                                // Fallback: all images
 	];
 
-	// Try each selector in priority order
 	for selector in image_selectors {
 		if let Some(images) = html.select(selector) {
 			for img in images {
-				// Extract image URL with priority on data-src
-				let img_url = img.attr("data-src")
-					.or_else(|| img.attr("src"));
-
-				if let Some(url) = img_url {
-					if !url.is_empty() && !url.starts_with("data:") {
-						// Ensure URL is absolute
-						let absolute_url = if url.starts_with("http") {
-							url
-						} else {
-							super::helper::make_absolute_url("https://lelscanfr.com", &url)
-						};
-						
-						pages.push(Page {
-							content: PageContent::Url(absolute_url, None),
-							thumbnail: None,
-							has_description: false,
-							description: None,
-						});
-					}
+				let img_url = get_image_url(&img);
+				
+				if !img_url.is_empty() {
+					pages.push(Page {
+						content: PageContent::Url(img_url, None),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
 				}
 			}
 			
@@ -466,4 +462,40 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	}
 
 	Ok(pages)
+}
+
+// Helper function similar to mangascantrad's get_image_url
+fn get_image_url(img_elem: &aidoku::imports::html::Element) -> String {
+	// Try different attributes in same priority as Madara template
+	let mut img_url = img_elem.attr("data-src").unwrap_or_default();
+	if img_url.is_empty() {
+		img_url = img_elem.attr("data-lazy-src").unwrap_or_default();
+	}
+	if img_url.is_empty() {
+		img_url = img_elem.attr("src").unwrap_or_default();
+	}
+	if img_url.is_empty() {
+		img_url = img_elem.attr("srcset").unwrap_or_default();
+	}
+	if img_url.is_empty() {
+		img_url = img_elem.attr("data-cfsrc").unwrap_or_default();
+	}
+	
+	let img_url = img_url.trim();
+	
+	// Clean up srcset if needed (take first URL)
+	let final_url = if img_url.contains(" ") {
+		String::from(img_url.split_whitespace().next().unwrap_or(""))
+	} else {
+		String::from(img_url)
+	};
+
+	// Ensure URL is absolute
+	if final_url.starts_with("http") {
+		final_url
+	} else if !final_url.is_empty() && !final_url.starts_with("data:") {
+		super::helper::make_absolute_url("https://lelscanfr.com", &final_url)
+	} else {
+		String::new()
+	}
 }
