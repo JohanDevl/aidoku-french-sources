@@ -198,83 +198,40 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
-        // Use alt_ajax URL format like in the working madara template
-        let url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
-        println!("Using alt_ajax URL: {}", url);
+        // Fetch chapters directly from the main manga page
+        let url = format!("{}/manga/{}/", BASE_URL, manga_key);
+        println!("Fetching chapters from main manga page: {}", url);
         
         match Request::get(&url).and_then(|req| req
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
-            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Referer", BASE_URL)
             .html()) {
             Ok(html_doc) => {
-                println!("alt_ajax chapters response received");
+                println!("Main manga page response received");
                 
-                match self.parse_ajax_chapter_response(html_doc) {
+                // Parse chapters from the main page
+                match self.parse_chapter_list_from_manga_page(html_doc) {
                     Ok(chapters) => {
                         if !chapters.is_empty() {
-                            println!("SUCCESS: alt_ajax returned {} chapters", chapters.len());
+                            println!("SUCCESS: Main page returned {} chapters", chapters.len());
                             return Ok(chapters);
                         } else {
-                            println!("alt_ajax returned no chapters, trying fallback");
+                            println!("Main page returned no chapters");
                         }
                     }
                     Err(e) => {
-                        println!("Error parsing alt_ajax response: {:?}", e);
+                        println!("Error parsing main page chapters: {:?}", e);
                     }
                 }
             }
             Err(e) => {
-                println!("Error making alt_ajax request: {:?}", e);
+                println!("Error fetching main manga page: {:?}", e);
             }
         }
         
-        // Fallback to POST request with manga ID
-        println!("Trying fallback POST to admin-ajax.php");
-        let ajax_url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        let body = format!("action=manga_get_chapters&manga={}", manga_key);
-        
-        match Request::post(&ajax_url).and_then(|req| req
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()) {
-            Ok(html_doc) => {
-                println!("Fallback AJAX response received");
-                
-                // Check if response is not just "0" (error response)
-                if let Some(body_elem) = html_doc.select("body").and_then(|elems| elems.first()) {
-                    let response_text = body_elem.text().unwrap_or_default();
-                    if response_text.trim() != "0" && !response_text.is_empty() {
-                        println!("Fallback returned valid response: {} chars", response_text.len());
-                        match self.parse_ajax_chapter_response(html_doc) {
-                            Ok(chapters) => {
-                                if !chapters.is_empty() {
-                                    println!("SUCCESS: Fallback returned {} chapters", chapters.len());
-                                    return Ok(chapters);
-                                }
-                            }
-                            Err(e) => {
-                                println!("Error parsing fallback response: {:?}", e);
-                            }
-                        }
-                    } else {
-                        println!("Fallback returned error response: '{}'", response_text.trim());
-                    }
-                }
-            }
-            Err(e) => {
-                println!("Error making fallback request: {:?}", e);
-            }
-        }
-        
-        println!("All chapter fetch methods failed, returning empty chapter list");
+        println!("Failed to get chapters from main page, returning empty list");
         Ok(vec![])
     }
     
@@ -282,16 +239,16 @@ impl MangaScantrad {
         println!("parse_ajax_chapter_response called");
         let mut chapters: Vec<Chapter> = Vec::new();
 
-        // Try selectors specifically for AJAX chapter responses
+        // Try selectors specifically for AJAX chapter responses - be more specific to avoid navigation links
         let chapter_selectors = [
-            "li.wp-manga-chapter",
-            ".wp-manga-chapter",
-            "li a",
-            ".version-chap li",
-            ".listing-chapters_wrap li",
-            ".manga-chapters li",
-            "li.chapter-item",
-            ".chapters li"
+            "li.wp-manga-chapter a",
+            ".wp-manga-chapter a", 
+            ".listing-chapters_wrap li a",
+            ".manga-chapters li a",
+            "li.chapter-item a",
+            ".chapters li a",
+            ".version-chap li a",
+            ".chapter-list li a"
         ];
         
         let mut found_chapters = false;
@@ -838,6 +795,104 @@ impl MangaScantrad {
         }
 
         println!("Total chapters parsed: {}", chapters.len());
+        Ok(chapters)
+    }
+    
+    fn parse_chapter_list_from_manga_page(&self, html: Document) -> Result<Vec<Chapter>> {
+        println!("parse_chapter_list_from_manga_page called");
+        let mut chapters: Vec<Chapter> = Vec::new();
+
+        // Madara chapter selectors - more specific for manga pages
+        let chapter_selectors = [
+            ".wp-manga-chapter a",
+            ".chapter-item a", 
+            ".listing-chapters_wrap li a[href*='/manga/']",
+            ".manga-chapters li a[href*='/manga/']",
+            "ul.clstyle li a",
+            ".version-chap li a[href*='/manga/']",
+            ".single-chapter a[href*='/manga/']"
+        ];
+        
+        let mut found_chapters = false;
+        for selector in &chapter_selectors {
+            println!("Trying manga page chapter selector: {}", selector);
+            if let Some(items) = html.select(selector) {
+                let items_vec: Vec<_> = items.collect();
+                if !items_vec.is_empty() {
+                    println!("Found {} chapter items with manga page selector: {}", items_vec.len(), selector);
+                    
+                    for (idx, item) in items_vec.iter().enumerate() {
+                        let href = item.attr("href").unwrap_or_default();
+                        if href.is_empty() {
+                            println!("  Manga page Chapter {}: Empty href", idx);
+                            continue;
+                        }
+
+                        // Filter out non-chapter links - must contain the manga slug
+                        if !href.contains("/manga/") {
+                            println!("  Manga page Chapter {}: Not a manga chapter link", idx);
+                            continue;
+                        }
+
+                        // Extract chapter title
+                        let title = item.text()
+                            .unwrap_or_default()
+                            .trim()
+                            .to_string();
+                        
+                        if title.is_empty() {
+                            println!("  Manga page Chapter {}: Empty title", idx);
+                            continue;
+                        }
+
+                        // Extract chapter ID from URL
+                        let chapter_key = href
+                            .replace(BASE_URL, "")
+                            .trim_start_matches('/')
+                            .trim_end_matches('/')
+                            .to_string();
+
+                        // Extract chapter number from title or URL
+                        let chapter_number = self.extract_chapter_number(&chapter_key, &title);
+
+                        // Ensure URL is absolute
+                        let url = if href.starts_with("http") {
+                            href
+                        } else if href.starts_with("/") {
+                            format!("{}{}", BASE_URL, href)
+                        } else {
+                            format!("{}/{}", BASE_URL, href)
+                        };
+
+                        println!("  Manga page Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
+
+                        chapters.push(Chapter {
+                            key: chapter_key,
+                            title: Some(title),
+                            chapter_number: Some(chapter_number),
+                            volume_number: None,
+                            date_uploaded: None,
+                            scanlators: None,
+                            url: Some(url),
+                            language: Some(String::from("fr")),
+                            thumbnail: None,
+                            locked: false,
+                        });
+                    }
+                    
+                    if !chapters.is_empty() {
+                        found_chapters = true;
+                        break; // Stop after finding chapters with one selector
+                    }
+                }
+            }
+        }
+        
+        if !found_chapters {
+            println!("No chapters found with any manga page selector!");
+        }
+
+        println!("Total manga page chapters parsed: {}", chapters.len());
         Ok(chapters)
     }
     
