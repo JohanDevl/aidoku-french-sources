@@ -198,47 +198,61 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
-        // Try different URL variants for the chapters endpoint
-        let url_variants = [
-            format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key),
-            format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key),
+        // Try both the alt_ajax URL (GET) and admin-ajax.php (POST) approaches
+        let approaches = [
+            ("GET alt_ajax", format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key), "GET", ""),
+            ("POST admin-ajax", format!("{}/wp-admin/admin-ajax.php", BASE_URL), "POST", &format!("action=manga_get_chapters&manga={}", manga_key)),
         ];
         
-        for (idx, url) in url_variants.iter().enumerate() {
-            println!("Trying URL variant {}: {}", idx + 1, url);
+        for (approach_name, url, method, body) in &approaches {
+            println!("Trying approach {}: {} {} with body: '{}'", approach_name, method, url, body);
             
-            match Request::get(url).and_then(|req| req
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
-                .header("X-Requested-With", "XMLHttpRequest")
-                .html()) {
+            let request_result = if *method == "GET" {
+                Request::get(url).and_then(|req| req
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .html())
+            } else {
+                Request::post(url).and_then(|req| req
+                    .header("User-Agent", USER_AGENT)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .header("Accept", "*/*")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .body(body.as_bytes())
+                    .html())
+            };
+            
+            match request_result {
                 Ok(html_doc) => {
-                    println!("AJAX chapters response received for variant {}", idx + 1);
+                    println!("AJAX chapters response received for {}", approach_name);
                     
                     // Parse chapters using the known structure
                     match self.parse_ajax_chapters_response(html_doc) {
                         Ok(chapters) => {
                             if !chapters.is_empty() {
-                                println!("SUCCESS: URL variant {} returned {} chapters", idx + 1, chapters.len());
+                                println!("SUCCESS: {} returned {} chapters", approach_name, chapters.len());
                                 return Ok(chapters);
                             } else {
-                                println!("URL variant {} returned no chapters", idx + 1);
+                                println!("{} returned no chapters", approach_name);
                             }
                         }
                         Err(e) => {
-                            println!("Error parsing AJAX chapters for variant {}: {:?}", idx + 1, e);
+                            println!("Error parsing AJAX chapters for {}: {:?}", approach_name, e);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Error fetching AJAX chapters for variant {}: {:?}", idx + 1, e);
+                    println!("Error fetching AJAX chapters for {}: {:?}", approach_name, e);
                 }
             }
         }
         
-        println!("All URL variants failed, returning empty list");
+        println!("All approaches failed, returning empty list");
         Ok(vec![])
     }
     
