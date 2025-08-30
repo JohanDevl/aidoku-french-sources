@@ -198,47 +198,81 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
-        // Use the correct ajax/chapters URL that we know works
-        let url = format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key);
-        println!("Fetching chapters from ajax URL: {}", url);
+        // Try different URL variants for the chapters endpoint
+        let url_variants = [
+            format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key),
+            format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key),
+        ];
         
-        match Request::get(&url).and_then(|req| req
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
-            .header("X-Requested-With", "XMLHttpRequest")
-            .html()) {
-            Ok(html_doc) => {
-                println!("AJAX chapters response received");
-                
-                // Parse chapters using the known structure
-                match self.parse_ajax_chapters_response(html_doc) {
-                    Ok(chapters) => {
-                        if !chapters.is_empty() {
-                            println!("SUCCESS: AJAX returned {} chapters", chapters.len());
-                            return Ok(chapters);
-                        } else {
-                            println!("AJAX returned no chapters");
+        for (idx, url) in url_variants.iter().enumerate() {
+            println!("Trying URL variant {}: {}", idx + 1, url);
+            
+            match Request::get(url).and_then(|req| req
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                .header("X-Requested-With", "XMLHttpRequest")
+                .html()) {
+                Ok(html_doc) => {
+                    println!("AJAX chapters response received for variant {}", idx + 1);
+                    
+                    // Parse chapters using the known structure
+                    match self.parse_ajax_chapters_response(html_doc) {
+                        Ok(chapters) => {
+                            if !chapters.is_empty() {
+                                println!("SUCCESS: URL variant {} returned {} chapters", idx + 1, chapters.len());
+                                return Ok(chapters);
+                            } else {
+                                println!("URL variant {} returned no chapters", idx + 1);
+                            }
+                        }
+                        Err(e) => {
+                            println!("Error parsing AJAX chapters for variant {}: {:?}", idx + 1, e);
                         }
                     }
-                    Err(e) => {
-                        println!("Error parsing AJAX chapters: {:?}", e);
-                    }
                 }
-            }
-            Err(e) => {
-                println!("Error fetching AJAX chapters: {:?}", e);
+                Err(e) => {
+                    println!("Error fetching AJAX chapters for variant {}: {:?}", idx + 1, e);
+                }
             }
         }
         
-        println!("Failed to get chapters from AJAX, returning empty list");
+        println!("All URL variants failed, returning empty list");
         Ok(vec![])
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
         println!("parse_ajax_chapters_response called");
         let mut chapters: Vec<Chapter> = Vec::new();
+
+        // Debug: Print the raw HTML response to see what we're actually getting
+        if let Some(body) = html.select("body") {
+            if let Some(first) = body.first() {
+                let html_text = first.text().unwrap_or_default();
+                println!("DEBUG: HTML response body text (first 500 chars): {}", &html_text[..html_text.len().min(500)]);
+                
+                // Check if response contains expected chapter content
+                if html_text.contains("Chapitre") {
+                    println!("DEBUG: Response contains 'Chapitre' text - chapters are present");
+                } else {
+                    println!("DEBUG: Response does NOT contain 'Chapitre' text");
+                }
+            }
+        }
+
+        // Debug: Try finding any li elements first
+        if let Some(all_li) = html.select("li") {
+            let li_vec: Vec<_> = all_li.collect();
+            println!("DEBUG: Found {} total <li> elements", li_vec.len());
+            
+            // Show first few li elements
+            for (idx, li) in li_vec.iter().enumerate().take(5) {
+                let class = li.attr("class").unwrap_or_default();
+                let text = li.text().unwrap_or_default();
+                println!("DEBUG: li[{}] class='{}' text='{}'", idx, class, &text[..text.len().min(50)]);
+            }
+        }
 
         // Use the exact structure from the AJAX response we analyzed
         if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
@@ -313,115 +347,6 @@ impl MangaScantrad {
         Ok(chapters)
     }
     
-    fn parse_ajax_chapter_response(&self, html: Document) -> Result<Vec<Chapter>> {
-        println!("parse_ajax_chapter_response called");
-        let mut chapters: Vec<Chapter> = Vec::new();
-
-        // Try selectors specifically for AJAX chapter responses - be more specific to avoid navigation links
-        let chapter_selectors = [
-            "li.wp-manga-chapter a",
-            ".wp-manga-chapter a", 
-            ".listing-chapters_wrap li a",
-            ".manga-chapters li a",
-            "li.chapter-item a",
-            ".chapters li a",
-            ".version-chap li a",
-            ".chapter-list li a"
-        ];
-        
-        let mut found_chapters = false;
-        for selector in &chapter_selectors {
-            println!("Trying AJAX chapter selector: {}", selector);
-            if let Some(items) = html.select(selector) {
-                let items_vec: Vec<_> = items.collect();
-                if !items_vec.is_empty() {
-                    println!("Found {} chapter items with AJAX selector: {}", items_vec.len(), selector);
-                    found_chapters = true;
-                    
-                    for (idx, item) in items_vec.iter().enumerate() {
-                        // Find the link element
-                        let link = if let Some(links) = item.select("a") {
-                            if let Some(first_link) = links.first() {
-                                first_link
-                            } else {
-                                println!("  AJAX Chapter {}: No link found", idx);
-                                continue;
-                            }
-                        } else {
-                            println!("  AJAX Chapter {}: No link found", idx);
-                            continue;
-                        };
-
-                        let href = link.attr("href").unwrap_or_default();
-                        if href.is_empty() {
-                            println!("  AJAX Chapter {}: Empty href", idx);
-                            continue;
-                        }
-
-                        // Extract chapter title
-                        let title = link.text()
-                            .unwrap_or_default()
-                            .trim()
-                            .to_string();
-                        
-                        if title.is_empty() {
-                            println!("  AJAX Chapter {}: Empty title", idx);
-                            continue;
-                        }
-
-                        // Extract chapter ID from URL
-                        let chapter_key = href
-                            .replace(BASE_URL, "")
-                            .trim_start_matches('/')
-                            .trim_end_matches('/')
-                            .to_string();
-
-                        // Extract chapter number from title or URL
-                        let chapter_number = self.extract_chapter_number(&chapter_key, &title);
-
-                        // Ensure URL is absolute
-                        let url = if href.starts_with("http") {
-                            href
-                        } else if href.starts_with("/") {
-                            format!("{}{}", BASE_URL, href)
-                        } else {
-                            format!("{}/{}", BASE_URL, href)
-                        };
-
-                        println!("  AJAX Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
-
-                        chapters.push(Chapter {
-                            key: chapter_key,
-                            title: Some(title),
-                            chapter_number: Some(chapter_number),
-                            volume_number: None,
-                            date_uploaded: None,
-                            scanlators: None,
-                            url: Some(url),
-                            language: Some(String::from("fr")),
-                            thumbnail: None,
-                            locked: false,
-                        });
-                    }
-                    break; // Stop after finding chapters with one selector
-                }
-            }
-        }
-        
-        if !found_chapters {
-            println!("No chapters found with any AJAX selector!");
-            // Try to print the response for debugging
-            if let Some(body) = html.select("body") {
-                if let Some(first) = body.first() {
-                    let response_text = first.text().unwrap_or_default();
-                    println!("AJAX response body text (first 300 chars): {}", &response_text[..response_text.len().min(300)]);
-                }
-            }
-        }
-
-        println!("Total AJAX chapters parsed: {}", chapters.len());
-        Ok(chapters)
-    }
     
     fn parse_ajax_response(&self, html: Document) -> Result<MangaPageResult> {
         println!("parse_ajax_response called");
@@ -876,133 +801,6 @@ impl MangaScantrad {
         Ok(chapters)
     }
     
-    fn parse_chapter_list_from_manga_page(&self, html: Document) -> Result<Vec<Chapter>> {
-        println!("parse_chapter_list_from_manga_page called");
-        
-        // Debug: Print all links containing 'chapitre' or similar chapter indicators
-        if let Some(all_links) = html.select("a[href]") {
-            let mut chapter_debug_count = 0;
-            for link in all_links {
-                if let Some(href) = link.attr("href") {
-                    let text = link.text().unwrap_or_default();
-                    let href_lower = href.to_lowercase();
-                    let text_lower = text.to_lowercase();
-                    
-                    if href_lower.contains("chapitre") || text_lower.contains("chapitre") || 
-                       href_lower.contains("chapter") || text_lower.contains("chapter") ||
-                       href_lower.contains("/manga/") && (text_lower.contains("ch") || text_lower.contains("ep")) {
-                        println!("DEBUG: Potential chapter link - href: '{}', text: '{}'", href, text);
-                        chapter_debug_count += 1;
-                        if chapter_debug_count >= 10 { // Limit debug output
-                            println!("DEBUG: (showing first 10 potential chapter links)");
-                            break;
-                        }
-                    }
-                }
-            }
-            if chapter_debug_count == 0 {
-                println!("DEBUG: No potential chapter links found");
-            }
-        }
-        
-        let mut chapters: Vec<Chapter> = Vec::new();
-
-        // Broader chapter selectors based on common patterns
-        let chapter_selectors = [
-            "a[href*='chapitre']",
-            "a[href*='chapter']",
-            ".wp-manga-chapter a",
-            ".chapter-item a", 
-            ".listing-chapters_wrap li a",
-            ".manga-chapters li a",
-            "ul.clstyle li a",
-            ".version-chap li a",
-            ".single-chapter a",
-            "li a[href*='/manga/']"
-        ];
-        
-        let mut found_chapters = false;
-        for selector in &chapter_selectors {
-            println!("Trying manga page chapter selector: {}", selector);
-            if let Some(items) = html.select(selector) {
-                let items_vec: Vec<_> = items.collect();
-                if !items_vec.is_empty() {
-                    println!("Found {} chapter items with manga page selector: {}", items_vec.len(), selector);
-                    
-                    for (idx, item) in items_vec.iter().enumerate() {
-                        let href = item.attr("href").unwrap_or_default();
-                        if href.is_empty() {
-                            println!("  Manga page Chapter {}: Empty href", idx);
-                            continue;
-                        }
-
-                        // Filter out non-chapter links - must contain the manga slug
-                        if !href.contains("/manga/") {
-                            println!("  Manga page Chapter {}: Not a manga chapter link", idx);
-                            continue;
-                        }
-
-                        // Extract chapter title
-                        let title = item.text()
-                            .unwrap_or_default()
-                            .trim()
-                            .to_string();
-                        
-                        if title.is_empty() {
-                            println!("  Manga page Chapter {}: Empty title", idx);
-                            continue;
-                        }
-
-                        // Extract chapter ID from URL
-                        let chapter_key = href
-                            .replace(BASE_URL, "")
-                            .trim_start_matches('/')
-                            .trim_end_matches('/')
-                            .to_string();
-
-                        // Extract chapter number from title or URL
-                        let chapter_number = self.extract_chapter_number(&chapter_key, &title);
-
-                        // Ensure URL is absolute
-                        let url = if href.starts_with("http") {
-                            href
-                        } else if href.starts_with("/") {
-                            format!("{}{}", BASE_URL, href)
-                        } else {
-                            format!("{}/{}", BASE_URL, href)
-                        };
-
-                        println!("  Manga page Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
-
-                        chapters.push(Chapter {
-                            key: chapter_key,
-                            title: Some(title),
-                            chapter_number: Some(chapter_number),
-                            volume_number: None,
-                            date_uploaded: None,
-                            scanlators: None,
-                            url: Some(url),
-                            language: Some(String::from("fr")),
-                            thumbnail: None,
-                            locked: false,
-                        });
-                    }
-                    
-                    if !chapters.is_empty() {
-                        found_chapters = true;
-                        break; // Stop after finding chapters with one selector
-                    }
-                }
-            }
-        }
-        
-        if !found_chapters {
-            println!("No chapters found with any manga page selector!");
-        }
-
-        println!("Total manga page chapters parsed: {}", chapters.len());
-        Ok(chapters)
-    }
     
     fn extract_chapter_number(&self, chapter_id: &str, title: &str) -> f32 {
         // Try to extract from title first - check for "chapitre" or "ch"
