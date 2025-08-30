@@ -8,108 +8,36 @@ use aidoku::{
 extern crate alloc;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
+	// Create default result that we'll always return successfully
 	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// Add a debug entry to show we're processing
+	mangas.push(Manga {
+		key: String::from("debug-processing"),
+		cover: None,
+		title: String::from("DEBUG: Processing manga list..."),
+		authors: None,
+		artists: None,
+		description: None,
+		tags: None,
+		status: MangaStatus::Unknown,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::LeftToRight,
+		chapters: None,
+		url: Some(String::from("https://lelscanfr.com/manga/debug-processing")),
+		next_update_time: None,
+		update_strategy: UpdateStrategy::Always,
+	});
 
-	// Select manga links that contain h2 titles (actual manga entries)
+	// Try to select manga links - if this fails, we still have the debug entry
 	if let Some(manga_links) = html.select("a[href*=\"/manga/\"]") {
-		for item in manga_links {
-			
-			// Only process links that have h2 elements (actual manga, not genre links)
-			let title = if let Some(h2_elements) = item.select("h2") {
-				if let Some(h2) = h2_elements.first() {
-					h2.text().unwrap_or_default()
-				} else {
-					// Skip links without h2 (probably genre/filter links)
-					continue;
-				}
-			} else {
-				// Skip links without h2 (probably genre/filter links)
-				continue;
-			};
-
-			if title.is_empty() {
-				continue;
-			}
-			
-			// Extract URL - item is already an <a> tag
-			let url = item.attr("href").unwrap_or_default();
-			
-			if url.is_empty() {
-				continue;
-			}
-			
-			// Skip genre links - only process actual manga pages
-			if url.contains("?genre=") || url.contains("?tag=") || url.contains("?category=") {
-				continue;
-			}
-			
-			if !url.contains("/manga/") {
-				continue;
-			}
-
-			// Extract manga slug/key from URL
-			let key = if url.starts_with("http") {
-				super::helper::extract_id_from_url(&url)
-			} else {
-				// Handle relative URLs like "/manga/title"
-				let parts: Vec<&str> = url.split('/').collect();
-				if parts.len() >= 3 && parts[1] == "manga" {
-					String::from(parts[2].trim())
-				} else {
-					String::new()
-				}
-			};
-			
-			if key.is_empty() {
-				continue;
-			}
-			
-			// Extract cover - look for img tag within the link
-			let cover = if let Some(img_elements) = item.select("img") {
-				if let Some(img) = img_elements.first() {
-					img.attr("src")
-						.or_else(|| img.attr("data-src"))
-						.or_else(|| img.attr("data-lazy-src"))
-						.unwrap_or_default()
-				} else {
-					String::new()
-				}
-			} else {
-				String::new()
-			};
-
-			let absolute_cover = if cover.is_empty() {
-				None
-			} else {
-				Some(super::helper::make_absolute_url("https://lelscanfr.com", &cover))
-			};
-
-			mangas.push(Manga {
-				key: key.clone(),
-				cover: absolute_cover,
-				title,
-				authors: None,
-				artists: None,
-				description: None,
-				tags: None,
-				status: MangaStatus::Unknown,
-				content_rating: ContentRating::Safe,
-				viewer: Viewer::LeftToRight,
-				chapters: None,
-				url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &url)),
-				next_update_time: None,
-				update_strategy: UpdateStrategy::Always,
-			});
-		}
-	}
-
-	// Debug: If no mangas found at all, there might be a site structure issue
-	if mangas.is_empty() {
-		// Add a debug entry to help identify the issue
+		let total_links = manga_links.count();
+		
+		// Add debug info about total links found
 		mangas.push(Manga {
-			key: String::from("debug-no-results"),
+			key: String::from("debug-links-found"),
 			cover: None,
-			title: String::from("DEBUG: Aucun manga trouvé - structure du site changée?"),
+			title: format!("DEBUG: Found {} links with '/manga/' in href", total_links),
 			authors: None,
 			artists: None,
 			description: None,
@@ -118,22 +46,110 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 			content_rating: ContentRating::Safe,
 			viewer: Viewer::LeftToRight,
 			chapters: None,
-			url: Some(String::from("https://lelscanfr.com/manga/debug")),
+			url: Some(String::from("https://lelscanfr.com/manga/debug-links")),
+			next_update_time: None,
+			update_strategy: UpdateStrategy::Always,
+		});
+		
+		// Try to re-select and process (count() consumes the iterator)
+		if let Some(manga_links_again) = html.select("a[href*=\"/manga/\"]") {
+			let mut processed_count = 0;
+			let mut manga_count = 0;
+			
+			for item in manga_links_again {
+				processed_count += 1;
+				
+				// Only process first few to avoid overwhelming debug output
+				if processed_count > 5 {
+					break;
+				}
+				
+				// Try to get title safely
+				let title = if let Some(h2_elements) = item.select("h2") {
+					if let Some(h2) = h2_elements.first() {
+						let title_text = h2.text().unwrap_or(String::from("NO_TEXT"));
+						if !title_text.is_empty() && title_text != "NO_TEXT" {
+							title_text
+						} else {
+							format!("DEBUG: Empty h2 text #{}", processed_count)
+						}
+					} else {
+						format!("DEBUG: h2 found but no first() #{}", processed_count)
+					}
+				} else {
+					format!("DEBUG: No h2 in link #{}", processed_count)
+				};
+
+				// Add debug entry for each link processed
+				let url = item.attr("href").unwrap_or(String::from("NO_HREF"));
+				
+				mangas.push(Manga {
+					key: format!("debug-link-{}", processed_count),
+					cover: None,
+					title: format!("DEBUG Link #{}: {} | URL: {}", processed_count, title, url),
+					authors: None,
+					artists: None,
+					description: None,
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::LeftToRight,
+					chapters: None,
+					url: Some(format!("https://lelscanfr.com/manga/debug-{}", processed_count)),
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Always,
+				});
+				
+				// Count actual manga entries (those with h2 and proper URLs)
+				if title.starts_with("DEBUG: Empty") || title.starts_with("DEBUG: No h2") || url.contains("?genre=") {
+					// Skip debug entries or genre links
+				} else {
+					manga_count += 1;
+				}
+			}
+			
+			// Add summary debug entry
+			mangas.push(Manga {
+				key: String::from("debug-summary"),
+				cover: None,
+				title: format!("DEBUG: Processed {} links, found {} manga entries", processed_count, manga_count),
+				authors: None,
+				artists: None,
+				description: None,
+				tags: None,
+				status: MangaStatus::Unknown,
+				content_rating: ContentRating::Safe,
+				viewer: Viewer::LeftToRight,
+				chapters: None,
+				url: Some(String::from("https://lelscanfr.com/manga/debug-summary")),
+				next_update_time: None,
+				update_strategy: UpdateStrategy::Always,
+			});
+		}
+	} else {
+		// No manga links found at all
+		mangas.push(Manga {
+			key: String::from("debug-no-links"),
+			cover: None,
+			title: String::from("DEBUG: No links found with '/manga/' in href"),
+			authors: None,
+			artists: None,
+			description: None,
+			tags: None,
+			status: MangaStatus::Unknown,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::LeftToRight,
+			chapters: None,
+			url: Some(String::from("https://lelscanfr.com/manga/debug-no-links")),
 			next_update_time: None,
 			update_strategy: UpdateStrategy::Always,
 		});
 	}
 
-	// Check pagination
-	let has_more = if let Some(pagination) = html.select(".pagination") {
-		pagination.count() > 0 && mangas.len() >= 20
-	} else {
-		mangas.len() >= 20
-	};
-
+	// Always return success - never fail
 	Ok(MangaPageResult {
 		entries: mangas,
-		has_next_page: has_more,
+		has_next_page: false, // Keep it simple for debugging
 	})
 }
 

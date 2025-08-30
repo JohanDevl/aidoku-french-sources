@@ -1,8 +1,8 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, PageContext, Result, Source,
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider,
+    Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, format},
     imports::{net::Request, html::Document},
 };
@@ -117,20 +117,106 @@ impl Source for LelscanFr {
 
 impl ListingProvider for LelscanFr {
     fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
-        // For now, all listings use the same logic (general manga list)
+        // Create failsafe response - this will ALWAYS succeed
+        let mut debug_mangas: Vec<Manga> = vec![];
+        
+        // Add initial debug entry
+        debug_mangas.push(Manga {
+            key: String::from("debug-start"),
+            cover: None,
+            title: format!("DEBUG: Starting get_manga_list for page {}", page),
+            authors: None,
+            artists: None,
+            description: None,
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: Some(String::from("https://lelscanfr.com/manga/debug-start")),
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        });
+        
+        // Try to make request - if this fails, we still return debug info
         let url = format!("{}/manga?page={}", BASE_URL, page);
         
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .html()?;
+        match Request::get(&url)
+            .and_then(|req| req
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .html()
+            ) {
+            Ok(html) => {
+                debug_mangas.push(Manga {
+                    key: String::from("debug-request-success"),
+                    cover: None,
+                    title: format!("DEBUG: Request successful for {}", url),
+                    authors: None,
+                    artists: None,
+                    description: None,
+                    tags: None,
+                    status: MangaStatus::Unknown,
+                    content_rating: ContentRating::Safe,
+                    viewer: Viewer::LeftToRight,
+                    chapters: None,
+                    url: Some(String::from("https://lelscanfr.com/manga/debug-request-success")),
+                    next_update_time: None,
+                    update_strategy: UpdateStrategy::Always,
+                });
+                
+                // Try to parse - if this fails, we still return something
+                match parser::parse_manga_list(html) {
+                    Ok(result) => {
+                        // Success! Return the parsed result
+                        return Ok(result);
+                    }
+                    Err(_) => {
+                        debug_mangas.push(Manga {
+                            key: String::from("debug-parse-error"),
+                            cover: None,
+                            title: String::from("DEBUG: Parsing failed but request succeeded"),
+                            authors: None,
+                            artists: None,
+                            description: None,
+                            tags: None,
+                            status: MangaStatus::Unknown,
+                            content_rating: ContentRating::Safe,
+                            viewer: Viewer::LeftToRight,
+                            chapters: None,
+                            url: Some(String::from("https://lelscanfr.com/manga/debug-parse-error")),
+                            next_update_time: None,
+                            update_strategy: UpdateStrategy::Always,
+                        });
+                    }
+                }
+            }
+            Err(_) => {
+                debug_mangas.push(Manga {
+                    key: String::from("debug-request-failed"),
+                    cover: None,
+                    title: format!("DEBUG: Request failed for {}", url),
+                    authors: None,
+                    artists: None,
+                    description: None,
+                    tags: None,
+                    status: MangaStatus::Unknown,
+                    content_rating: ContentRating::Safe,
+                    viewer: Viewer::LeftToRight,
+                    chapters: None,
+                    url: Some(String::from("https://lelscanfr.com/manga/debug-request-failed")),
+                    next_update_time: None,
+                    update_strategy: UpdateStrategy::Always,
+                });
+            }
+        }
         
-        parser::parse_manga_list(html)
+        // Always return success with debug info
+        Ok(MangaPageResult {
+            entries: debug_mangas,
+            has_next_page: false,
+        })
     }
 }
 
