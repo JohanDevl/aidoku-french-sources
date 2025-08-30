@@ -302,13 +302,6 @@ impl MangaScantrad {
         
         println!("parse_chapter_date called with: '{}'", date_str);
         
-        // Simple French date parsing like LelManga but for French months
-        let french_months = [
-            ("janvier", 1), ("février", 2), ("mars", 3), ("avril", 4),
-            ("mai", 5), ("juin", 6), ("juillet", 7), ("août", 8),
-            ("septembre", 9), ("octobre", 10), ("novembre", 11), ("décembre", 12)
-        ];
-        
         let parts: Vec<&str> = date_str.trim().split_whitespace().collect();
         if parts.len() >= 3 {
             let day_str = parts[0];
@@ -316,22 +309,63 @@ impl MangaScantrad {
             let year_str = parts[2];
             
             if let (Ok(day), Ok(year)) = (day_str.parse::<u32>(), year_str.parse::<i32>()) {
-                // Find month number
-                for (fr_month, month_num) in &french_months {
-                    if fr_month.eq_ignore_ascii_case(month_name) {
-                        // Simple timestamp calculation (approximate)
-                        let days_since_epoch = (year - 1970) * 365 + (*month_num as i32 - 1) * 30 + day as i32;
-                        let timestamp = days_since_epoch as i64 * 86400;
-                        
-                        println!("Successfully parsed French date '{}' -> timestamp: {}", date_str, timestamp);
-                        return Some(timestamp);
+                let month = match month_name.to_lowercase().as_str() {
+                    "janvier" => 1,
+                    "février" => 2,
+                    "mars" => 3,
+                    "avril" => 4,
+                    "mai" => 5,
+                    "juin" => 6,
+                    "juillet" => 7,
+                    "août" => 8,
+                    "septembre" => 9,
+                    "octobre" => 10,
+                    "novembre" => 11,
+                    "décembre" => 12,
+                    _ => {
+                        println!("Unknown French month: {}", month_name);
+                        return None;
                     }
-                }
+                };
+                
+                // Use precise calculation like real calendar libraries
+                let timestamp = self.date_to_timestamp(year, month, day);
+                
+                println!("Successfully parsed French date '{}' -> timestamp: {}", date_str, timestamp);
+                return Some(timestamp);
             }
         }
         
         println!("French date parsing failed for '{}'", date_str);
         None
+    }
+    
+    fn date_to_timestamp(&self, year: i32, month: u32, day: u32) -> i64 {
+        // Days cumulated for each month in non-leap year (0-indexed)
+        let days_before_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+        
+        // Years since epoch
+        let years_since_epoch = year - 1970;
+        
+        // Count leap years between 1970 and year (not including current year)
+        let leap_days = ((1970..year).filter(|&y| (y % 4 == 0 && y % 100 != 0) || y % 400 == 0).count()) as i32;
+        
+        // Days for complete years
+        let mut days = years_since_epoch * 365 + leap_days;
+        
+        // Add days for complete months in current year
+        days += days_before_month[(month - 1) as usize] as i32;
+        
+        // Add one day if current year is leap and we're past February
+        if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) && month > 2 {
+            days += 1;
+        }
+        
+        // Add days in current month (subtract 1 because we count from day 1)
+        days += (day - 1) as i32;
+        
+        // Convert to seconds
+        days as i64 * 86400
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
