@@ -188,23 +188,47 @@ pub fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 		}
 	}
 	
-	// Extract title with multiple approaches
-	if let Some(h1_elements) = html.select("h1") {
-		if let Some(h1) = h1_elements.first() {
-			if let Some(title_text) = h1.text() {
-				if !title_text.is_empty() {
-					manga.title = title_text;
+	// Extract title with multiple approaches - prioritize the longest title found
+	let title_selectors = [
+		"h1",                           // Main page title
+		".manga-title",                 // Manga-specific title class
+		".post-title h1",               // Post title heading
+		".entry-title",                 // Entry title
+		"title",                        // Page title element
+		".wp-manga-title",              // WordPress manga title
+		"meta[property='og:title']",    // Open Graph title
+	];
+	
+	let mut best_title = String::new();
+	for selector in title_selectors {
+		if let Some(elements) = html.select(selector) {
+			if let Some(elem) = elements.first() {
+				let title_text = if selector == "meta[property='og:title']" {
+					elem.attr("content").unwrap_or_default()
+				} else if selector == "title" {
+					// For page title, clean up site name
+					let raw_title = elem.text().unwrap_or_default();
+					if raw_title.contains(" - ") {
+						String::from(raw_title.split(" - ").next().unwrap_or(&raw_title))
+					} else if raw_title.contains(" | ") {
+						String::from(raw_title.split(" | ").next().unwrap_or(&raw_title))
+					} else {
+						raw_title
+					}
+				} else {
+					elem.text().unwrap_or_default()
+				};
+				
+				// Take the longest title found (likely most complete)
+				if title_text.len() > best_title.len() && !title_text.is_empty() {
+					best_title = title_text;
 				}
 			}
 		}
-	} else if let Some(title_elements) = html.select(".manga-title") {
-		if let Some(title_elem) = title_elements.first() {
-			if let Some(title_text) = title_elem.text() {
-				if !title_text.is_empty() {
-					manga.title = title_text;
-				}
-			}
-		}
+	}
+	
+	if !best_title.is_empty() {
+		manga.title = best_title;
 	}
 	
 	// Extract author and artist
