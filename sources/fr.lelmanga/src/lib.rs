@@ -507,19 +507,29 @@ impl LelManga {
 
                 // Parse chapter date with multiple selectors, prioritizing extracted date from title
                 let date_uploaded = if let Some(extracted) = extracted_date {
-                    println!("[LelManga] Using date from title: {:?}", extracted);
+                    println!("[LelManga] ✅ PRIORITÉ: Using date extracted from title: {} (timestamp: {})", clean_title, extracted);
                     Some(extracted)
-                } else if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
-                    if let Some(first_date) = date_elem.first() {
-                        let date_str = first_date.text().unwrap_or_default();
-                        println!("[LelManga] Found chapter date in element: {}", date_str);
-                        self.parse_chapter_date(&date_str)
+                } else {
+                    println!("[LelManga] No date found in title, trying HTML elements for: {}", clean_title);
+                    if let Some(date_elem) = item.select(".chapterdate, .dt, .chapter-date, .date, span.dt, .chapter-release-date") {
+                        if let Some(first_date) = date_elem.first() {
+                            let date_str = first_date.text().unwrap_or_default();
+                            println!("[LelManga] Found chapter date in HTML element: '{}' for chapter: {}", date_str, clean_title);
+                            let parsed = self.parse_chapter_date(&date_str);
+                            if let Some(ts) = parsed {
+                                println!("[LelManga] ⚠️ FALLBACK: Using HTML date for {}: {} (timestamp: {})", clean_title, date_str, ts);
+                            } else {
+                                println!("[LelManga] ❌ Failed to parse HTML date '{}' for chapter: {}", date_str, clean_title);
+                            }
+                            parsed
+                        } else {
+                            println!("[LelManga] Date element found but no content for chapter: {}", clean_title);
+                            None
+                        }
                     } else {
+                        println!("[LelManga] ❌ No date element found for chapter: {}", clean_title);
                         None
                     }
-                } else {
-                    println!("[LelManga] No date found for chapter: {}", clean_title);
-                    None
                 };
 
                 // Ensure URL is absolute
@@ -628,7 +638,7 @@ impl LelManga {
 
         println!("[LelManga] Parsing date: {}", date_str);
 
-        // Simple date parsing for English months
+        // English months with their numbers
         let months = [
             ("January", 1), ("February", 2), ("March", 3), ("April", 4),
             ("May", 5), ("June", 6), ("July", 7), ("August", 8),
@@ -641,16 +651,46 @@ impl LelManga {
             let day_str = parts[1].trim_end_matches(',');
             let year_str = parts[2];
 
+            println!("[LelManga] Date parts: month='{}', day='{}', year='{}'", month_name, day_str, year_str);
+
             if let Some((_, month)) = months.iter().find(|(name, _)| name.eq_ignore_ascii_case(month_name)) {
                 if let (Ok(day), Ok(year)) = (day_str.parse::<i32>(), year_str.parse::<i32>()) {
-                    let days_since_1970 = (year - 1970) * 365 + (month - 1) * 30 + day;
-                    let timestamp = (days_since_1970 as i64) * 86400; // seconds in a day
-                    println!("[LelManga] Parsed date to timestamp: {}", timestamp);
-                    return Some(timestamp);
+                    if day >= 1 && day <= 31 && year >= 1970 && year <= 2100 {
+                        // More accurate timestamp calculation
+                        // Days since epoch (January 1, 1970)
+                        let mut days = 0i64;
+                        
+                        // Add days for complete years
+                        for y in 1970..year {
+                            if (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) {
+                                days += 366; // leap year
+                            } else {
+                                days += 365;
+                            }
+                        }
+                        
+                        // Add days for complete months in the current year
+                        let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                        for m in 1..*month {
+                            if m == 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                                days += 29; // February in leap year
+                            } else {
+                                days += days_in_month[m as usize - 1] as i64;
+                            }
+                        }
+                        
+                        // Add the days in the current month
+                        days += (day - 1) as i64;
+                        
+                        let timestamp = days * 86400; // Convert to seconds
+                        println!("[LelManga] ✅ Parsed date '{}' to timestamp: {}", date_str, timestamp);
+                        return Some(timestamp);
+                    }
                 }
             }
         }
 
+        println!("[LelManga] ❌ Failed to parse date: {}", date_str);
         None
     }
 
@@ -778,31 +818,44 @@ impl LelManga {
         let mut clean_title = raw_title.to_string();
         let mut extracted_date = None;
         
-        // Extract date from title - look for patterns like "August 29, 2025"
+        // Look for date patterns like "August 29, 2025", "July 3, 2025", etc.
+        let english_months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        
+        // Check for dates anywhere in the title
         let words: Vec<&str> = raw_title.split_whitespace().collect();
-        if words.len() >= 3 {
-            // Check last 3 words for date pattern
-            let last_3_words = &words[words.len()-3..];
-            let date_str = last_3_words.join(" ");
+        println!("[LelManga] Title words: {:?}", words);
+        
+        for i in 0..words.len().saturating_sub(2) {
+            let potential_month = words[i];
+            let potential_day = words.get(i + 1);
+            let potential_year = words.get(i + 2);
             
-            if let Some(parsed_date) = self.parse_chapter_date(&date_str) {
-                println!("[LelManga] Extracted date from title: {} -> {}", date_str, parsed_date);
-                extracted_date = Some(parsed_date);
-                
-                // Remove the date part from title
-                if let Some(date_pos) = raw_title.rfind(&date_str) {
-                    clean_title = raw_title[..date_pos].trim().to_string();
-                }
-            } else {
-                // Try different combinations for dates
-                for i in (0..words.len().saturating_sub(2)).rev() {
-                    let potential_date = words[i..i+3].join(" ");
-                    if let Some(parsed_date) = self.parse_chapter_date(&potential_date) {
-                        println!("[LelManga] Extracted date from title: {} -> {}", potential_date, parsed_date);
+            if let (Some(day_str), Some(year_str)) = (potential_day, potential_year) {
+                // Check if this looks like a date (Month Day, Year or Month Day Year)
+                if english_months.iter().any(|&month| month.eq_ignore_ascii_case(potential_month)) {
+                    let day_clean = day_str.trim_end_matches(',');
+                    let date_candidate = format!("{} {} {}", potential_month, day_clean, year_str);
+                    println!("[LelManga] Testing date candidate: {}", date_candidate);
+                    
+                    if let Some(parsed_date) = self.parse_chapter_date(&date_candidate) {
+                        println!("[LelManga] ✅ Successfully extracted date from title: {} -> {}", date_candidate, parsed_date);
                         extracted_date = Some(parsed_date);
                         
-                        if let Some(date_pos) = raw_title.rfind(&potential_date) {
-                            clean_title = raw_title[..date_pos].trim().to_string();
+                        // Remove the date part from title - find the original date text and remove it
+                        let original_date_text = if day_str.ends_with(',') {
+                            format!("{} {} {}", potential_month, day_str, year_str)
+                        } else {
+                            format!("{} {} {}", potential_month, day_str, year_str)
+                        };
+                        
+                        if let Some(date_pos) = raw_title.find(&original_date_text) {
+                            clean_title = format!("{}{}", 
+                                &raw_title[..date_pos].trim(),
+                                &raw_title[date_pos + original_date_text.len()..].trim()
+                            ).trim().to_string();
                         }
                         break;
                     }
