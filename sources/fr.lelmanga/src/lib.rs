@@ -375,54 +375,63 @@ impl LelManga {
 
         println!("[LelManga] Extracted {} tags", tags.len());
 
-        // Extract status
-        let status = if let Some(container) = html.select("div.bigcontent, div.animefull, div.main-info, div.postbody") {
-            if let Some(status_elem) = container.select("div.post-content_item:contains(Statut) div.summary-content") {
-                if let Some(first_status) = status_elem.first() {
-                    let status_str = first_status.text().unwrap_or_default().trim().to_lowercase();
-                    match status_str.as_str() {
-                        "en cours" | "ongoing" => MangaStatus::Ongoing,
-                        "terminé" | "completed" => MangaStatus::Completed,
-                        "annulé" | "cancelled" => MangaStatus::Cancelled,
-                        "en pause" | "hiatus" => MangaStatus::Hiatus,
-                        _ => MangaStatus::Unknown,
+        // Extract status with multiple selectors
+        let status = if let Some(status_elem) = html.select("div.post-content_item:contains(Statut) div.summary-content, .imptdt:contains(Statut) i, .status, .manga-status, .post-status, .series-status, .tsinfo .imptdt:contains(Status) i, .fmed b:contains(Status) + span, .spe span:contains(Status) + span") {
+            if let Some(first_status) = status_elem.first() {
+                let status_str = first_status.text().unwrap_or_default().trim().to_lowercase();
+                println!("[LelManga] Found status text: '{}'", status_str);
+                
+                let parsed_status = match status_str.as_str() {
+                    "en cours" | "ongoing" | "en_cours" | "en-cours" | "publikasi" => MangaStatus::Ongoing,
+                    "terminé" | "completed" | "termine" | "fini" | "achevé" => MangaStatus::Completed,
+                    "annulé" | "cancelled" | "annule" | "canceled" => MangaStatus::Cancelled,
+                    "en pause" | "hiatus" | "pause" | "en_pause" | "en-pause" => MangaStatus::Hiatus,
+                    _ => {
+                        println!("[LelManga] Unknown status: '{}', using Unknown", status_str);
+                        MangaStatus::Unknown
                     }
-                } else {
-                    MangaStatus::Unknown
-                }
+                };
+                
+                println!("[LelManga] Parsed status '{}' -> {:?}", status_str, parsed_status);
+                parsed_status
             } else {
+                println!("[LelManga] Status element found but no text content");
                 MangaStatus::Unknown
             }
         } else {
+            println!("[LelManga] No status element found, trying alternative selectors");
+            
+            // Try broader selectors
+            if let Some(info_elem) = html.select(".tsinfo, .infomanga, .manga-info, .post-content") {
+                println!("[LelManga] Searching for status in info container");
+                
+                // Look for text containing status keywords
+                for elem in info_elem {
+                    let text = elem.text().unwrap_or_default().to_lowercase();
+                    if text.contains("statut") || text.contains("status") {
+                        println!("[LelManga] Found element with status keyword: {}", text);
+                        
+                        // Extract status from the text and break early
+                        if text.contains("en cours") || text.contains("ongoing") {
+                            println!("[LelManga] Detected Ongoing status from text");
+                            return Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, MangaStatus::Ongoing));
+                        } else if text.contains("terminé") || text.contains("completed") || text.contains("fini") {
+                            println!("[LelManga] Detected Completed status from text");
+                            return Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, MangaStatus::Completed));
+                        }
+                    }
+                }
+            }
+            
+            println!("[LelManga] No status found, defaulting to Unknown");
             MangaStatus::Unknown
         };
 
         println!("[LelManga] Extracted status: {:?}", status);
 
-        // Extract content rating
-        let suggestive_tags = ["ecchi", "mature", "adult"];
-        let content_rating = if tags.iter().any(|v| suggestive_tags.iter().any(|tag| v.to_lowercase() == *tag)) {
-            ContentRating::Suggestive
-        } else {
-            ContentRating::Safe
-        };
+        // Content rating will be calculated in create_manga_result
 
-        Ok(Manga {
-            key: key.clone(),
-            title,
-            cover: if cover.is_empty() { None } else { Some(cover) },
-            authors,
-            artists,
-            description: if description.is_empty() { None } else { Some(description) },
-            url: Some(format!("{}/manga/{}/", BASE_URL, key)),
-            tags: if tags.is_empty() { None } else { Some(tags) },
-            status,
-            content_rating,
-            viewer: Viewer::RightToLeft,
-            chapters: None,
-            next_update_time: None,
-            update_strategy: UpdateStrategy::Never,
-        })
+        Ok(self.create_manga_result(key, title, cover, authors, artists, description, tags, status))
     }
 
     fn parse_chapter_list(&self, manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
@@ -875,6 +884,41 @@ impl LelManga {
         
         println!("[LelManga] Title cleaned from '{}' to '{}'", raw_title, clean_title);
         (clean_title, extracted_date)
+    }
+
+    fn create_manga_result(
+        &self,
+        key: String,
+        title: String,
+        cover: String,
+        authors: Option<Vec<String>>,
+        artists: Option<Vec<String>>,
+        description: String,
+        tags: Vec<String>,
+        status: MangaStatus,
+    ) -> Manga {
+        let content_rating = if tags.iter().any(|v| ["ecchi", "mature", "adult"].iter().any(|tag| v.to_lowercase() == *tag)) {
+            ContentRating::Suggestive
+        } else {
+            ContentRating::Safe
+        };
+
+        Manga {
+            key: key.clone(),
+            title,
+            cover: if cover.is_empty() { None } else { Some(cover) },
+            authors,
+            artists,
+            description: if description.is_empty() { None } else { Some(description) },
+            url: Some(format!("{}/manga/{}/", BASE_URL, key)),
+            tags: if tags.is_empty() { None } else { Some(tags) },
+            status,
+            content_rating,
+            viewer: Viewer::RightToLeft,
+            chapters: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Never,
+        }
     }
 }
 
