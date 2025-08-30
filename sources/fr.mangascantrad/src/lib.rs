@@ -198,6 +198,18 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
+        // First, establish a session by visiting the manga page
+        let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
+        println!("Establishing session by visiting: {}", manga_url);
+        
+        let _session_doc = Request::get(&manga_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .html()?;
+            
+        println!("Session established, now trying AJAX chapter requests");
+        
         // Try both the alt_ajax URL (GET) with/without trailing slash and admin-ajax.php (POST) approaches  
         let approaches = [
             ("GET alt_ajax with slash", format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key), "GET", ""),
@@ -213,7 +225,7 @@ impl MangaScantrad {
                     .header("User-Agent", USER_AGENT)
                     .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                     .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                    .header("Referer", &manga_url)
                     .header("X-Requested-With", "XMLHttpRequest")
                     .html())
             } else {
@@ -222,7 +234,7 @@ impl MangaScantrad {
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .header("Accept", "*/*")
                     .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Referer", &format!("{}/manga/{}/", BASE_URL, manga_key))
+                    .header("Referer", &manga_url)
                     .header("X-Requested-With", "XMLHttpRequest")
                     .body(body.as_bytes())
                     .html())
