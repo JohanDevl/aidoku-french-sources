@@ -69,8 +69,8 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Check for pagination and handle multi-page chapter lists
-            if let Some(_pagination) = html.select(".pagination") {
+            // Try real parsing first
+            let chapters_result = if let Some(_pagination) = html.select(".pagination") {
                 if let Some(first_pagination) = _pagination.first() {
                     let pagination_text = first_pagination.text().unwrap_or_default();
                     if !pagination_text.is_empty() {
@@ -96,13 +96,120 @@ impl Source for LelscanFr {
                             let page_html = Request::get(&page_url)?.html()?;
                             all_docs.push(page_html);
                         }
-                        manga.chapters = Some(parser::parse_chapter_list(&manga.key, all_docs)?);
+                        parser::parse_chapter_list(&manga.key, all_docs)?
                     } else {
-                        manga.chapters = Some(parser::parse_chapter_list(&manga.key, vec![html])?);
+                        // Get fresh HTML for parsing
+                        let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
+                        let fresh_html = Request::get(&fresh_url)?.html()?;
+                        parser::parse_chapter_list(&manga.key, vec![fresh_html])?
                     }
                 }
+                else {
+                    // Get fresh HTML for parsing  
+                    let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
+                    let fresh_html = Request::get(&fresh_url)?.html()?;
+                    parser::parse_chapter_list(&manga.key, vec![fresh_html])?
+                }
             } else {
-                manga.chapters = Some(parser::parse_chapter_list(&manga.key, vec![html])?);
+                // Get fresh HTML for parsing
+                let fresh_url = format!("{}/manga/{}", BASE_URL, manga.key);
+                let fresh_html = Request::get(&fresh_url)?.html()?;
+                parser::parse_chapter_list(&manga.key, vec![fresh_html])?
+            };
+            
+            // If no chapters found, create debug chapters
+            if chapters_result.is_empty() {
+                let mut debug_chapters: Vec<Chapter> = Vec::new();
+                
+                // Fetch fresh HTML for debugging
+                let debug_url = format!("{}/manga/{}", BASE_URL, manga.key);
+                let debug_html = Request::get(&debug_url)?.html()?;
+                
+                // Debug info 1: Check if we can find ANY links
+                let all_links = debug_html.select("a");
+                let link_count = if let Some(links) = all_links {
+                    links.count()
+                } else {
+                    0
+                };
+                
+                debug_chapters.push(Chapter {
+                    key: String::from("/debug/1"),
+                    title: Some(format!("DEBUG: Found {} total links", link_count)),
+                    chapter_number: Some(1.0),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    language: Some(String::from("fr")),
+                    locked: false,
+                    thumbnail: None,
+                    url: Some(format!("{}/debug/1", BASE_URL)),
+                });
+                
+                // Debug info 2: Check manga-specific links
+                let manga_links = debug_html.select(&format!("a[href*=\"/manga/{}/\"]", manga.key));
+                let manga_link_count = if let Some(links) = manga_links {
+                    links.count()
+                } else {
+                    0
+                };
+                
+                debug_chapters.push(Chapter {
+                    key: String::from("/debug/2"),
+                    title: Some(format!("DEBUG: Found {} manga-specific links", manga_link_count)),
+                    chapter_number: Some(2.0),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    language: Some(String::from("fr")),
+                    locked: false,
+                    thumbnail: None,
+                    url: Some(format!("{}/debug/2", BASE_URL)),
+                });
+                
+                // Debug info 3: Check for "Chapitre" text
+                let chapitre_links = debug_html.select("a");
+                let mut chapitre_count = 0;
+                if let Some(links) = chapitre_links {
+                    for link in links {
+                        if let Some(text) = link.text() {
+                            if text.contains("Chapitre") {
+                                chapitre_count += 1;
+                            }
+                        }
+                    }
+                }
+                
+                debug_chapters.push(Chapter {
+                    key: String::from("/debug/3"),
+                    title: Some(format!("DEBUG: Found {} links with 'Chapitre'", chapitre_count)),
+                    chapter_number: Some(3.0),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    language: Some(String::from("fr")),
+                    locked: false,
+                    thumbnail: None,
+                    url: Some(format!("{}/debug/3", BASE_URL)),
+                });
+                
+                // Debug info 4: Show manga key being searched
+                debug_chapters.push(Chapter {
+                    key: String::from("/debug/4"),
+                    title: Some(format!("DEBUG: Searching for key '{}'", manga.key)),
+                    chapter_number: Some(4.0),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    language: Some(String::from("fr")),
+                    locked: false,
+                    thumbnail: None,
+                    url: Some(format!("{}/debug/4", BASE_URL)),
+                });
+                
+                manga.chapters = Some(debug_chapters);
+            } else {
+                manga.chapters = Some(chapters_result);
             }
         }
         
