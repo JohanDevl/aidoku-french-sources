@@ -1,11 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider,
+    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::{net::Request, html::Document},
-    prelude::*,
 };
 
 extern crate alloc;
@@ -33,9 +32,8 @@ impl Source for LelscanFr {
         let mut query_params = String::new();
         
         // Add search query if provided
-        if let Some(search_query) = query.clone() {
-            query_params.push_str(&format!("&title={}", helper::urlencode(search_query.clone())));
-            //println!("LelscanFR: Search query: {}", search_query);
+        if let Some(search_query) = query {
+            query_params.push_str(&format!("&title={}", helper::urlencode(search_query)));
         }
         
         // Process filters - ignore for now
@@ -53,9 +51,7 @@ impl Source for LelscanFr {
             .header("Upgrade-Insecure-Requests", "1")
             .html()?;
         
-        let result = parser::parse_manga_list(html);
-        // Debug: Parsed manga list
-        result
+        parser::parse_manga_list(html)
     }
 
     fn get_manga_update(
@@ -116,6 +112,25 @@ impl Source for LelscanFr {
         let url = format!("{}/{}", BASE_URL, chapter.key);
         let html = Request::get(&url)?.html()?;
         parser::parse_page_list(&html)
+    }
+}
+
+impl ListingProvider for LelscanFr {
+    fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
+        // For now, all listings use the same logic (general manga list)
+        let url = format!("{}/manga?page={}", BASE_URL, page);
+        
+        let html = Request::get(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .html()?;
+        
+        parser::parse_manga_list(html)
     }
 }
 

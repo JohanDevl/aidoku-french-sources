@@ -9,84 +9,10 @@ extern crate alloc;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	
-	// Simple debug check - try to select basic elements
-	let debug_check = html.select("html");
-	if debug_check.is_none() {
-		// HTML structure issue
-		mangas.push(Manga {
-			key: String::from("debug-no-html"),
-			cover: None,
-			title: String::from("DEBUG: No HTML structure found"),
-			authors: None,
-			artists: None,
-			description: None,
-			tags: None,
-			status: MangaStatus::Unknown,
-			content_rating: ContentRating::Safe,
-			viewer: Viewer::LeftToRight,
-			chapters: None,
-			url: Some(String::from("https://lelscanfr.com/manga/debug")),
-			next_update_time: None,
-			update_strategy: UpdateStrategy::Always,
-		});
-		return Ok(MangaPageResult {
-			entries: mangas,
-			has_next_page: false,
-		});
-	}
 
-	// Primary selector based on actual site structure
-	let selectors = [
-		"a[href*=\"/manga/\"]"
-	];
-	
-	let mut items = None;
-	let mut selector_found = false;
-	
-	for selector in selectors {
-		if let Some(found_items) = html.select(selector) {
-			selector_found = true;
-			if found_items.first().is_some() {
-				items = html.select(selector);
-				break;
-			}
-		}
-	}
-	
-	// Debug: No selectors found - return empty list to identify issue
-	if !selector_found {
-		return Ok(MangaPageResult {
-			entries: vec![],
-			has_next_page: false,
-		});
-	}
-
-	if let Some(items) = items {
-		let item_count = items.count();
-		
-		// Debug: Return a test manga if no real items found but selector worked
-		if item_count == 0 {
-			mangas.push(Manga {
-				key: String::from("test-debug-1"),
-				cover: None,
-				title: String::from("DEBUG: Selector found but no items"),
-				authors: None,
-				artists: None,
-				description: None,
-				tags: None,
-				status: MangaStatus::Unknown,
-				content_rating: ContentRating::Safe,
-				viewer: Viewer::LeftToRight,
-				chapters: None,
-				url: Some(String::from("https://lelscanfr.com/manga/test-debug")),
-				next_update_time: None,
-				update_strategy: UpdateStrategy::Always,
-			});
-		}
-		
-		if let Some(manga_links) = html.select("a[href*=\"/manga/\"]") {
-			for item in manga_links {
+	// Select all manga links
+	if let Some(manga_links) = html.select("a[href*=\"/manga/\"]") {
+		for item in manga_links {
 			
 			// Extract title - since item is already an <a> tag, look for h2 inside
 			let title = if let Some(h2_elements) = item.select("h2") {
@@ -160,42 +86,15 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				next_update_time: None,
 				update_strategy: UpdateStrategy::Always,
 			});
-			//println!("LelscanFR: Successfully created manga: {}", title);
-			}
 		}
-	} else {
-		// Debug: No items found, return debug info
-		mangas.push(Manga {
-			key: String::from("debug-no-items"),
-			cover: None,
-			title: String::from("DEBUG: No items found with manga selector"),
-			authors: None,
-			artists: None,
-			description: None,
-			tags: None,
-			status: MangaStatus::Unknown,
-			content_rating: ContentRating::Safe,
-			viewer: Viewer::LeftToRight,
-			chapters: None,
-			url: Some(String::from("https://lelscanfr.com/manga/debug")),
-			next_update_time: None,
-			update_strategy: UpdateStrategy::Always,
-		});
 	}
 
-	// Check pagination - multiple approaches for robustness
+	// Check pagination
 	let has_more = if let Some(pagination) = html.select(".pagination") {
-		let pagination_count = pagination.count();
-		let has_pagination = pagination_count > 0 && mangas.len() >= 20;
-		//println!("LelscanFR: Pagination elements found: {}, has_more: {}", pagination_count, has_pagination);
-		has_pagination
+		pagination.count() > 0 && mangas.len() >= 20
 	} else {
-		let has_more = mangas.len() >= 20;
-		//println!("LelscanFR: No pagination found, has_more based on count: {}", has_more);
-		has_more
+		mangas.len() >= 20
 	};
-
-	//println!("LelscanFR: Final result - {} mangas, has_next_page: {}", mangas.len(), has_more);
 
 	Ok(MangaPageResult {
 		entries: mangas,
