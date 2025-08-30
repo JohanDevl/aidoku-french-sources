@@ -4,6 +4,7 @@ use aidoku::{
 	alloc::{String, Vec, vec, format},
 	imports::html::Document,
 };
+use core::cmp::Ordering;
 
 extern crate alloc;
 
@@ -335,82 +336,73 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 	let mut chapters: Vec<Chapter> = Vec::new();
 
 	for html in all_html {
-		// Try multiple selectors for chapter links
-		let chapter_selectors = [
-			"a[href*=\"/manga/\"]", // General manga chapter links
-			".chapter-list a", // If there's a chapter list class
-			"a[href$=\"\"][href*=\"/manga/\"]", // Links ending with numbers
-		];
-		
-		for selector in chapter_selectors {
-			if let Some(chapter_links) = html.select(selector) {
-				for link in chapter_links {
-					let href = link.attr("href").unwrap_or_default();
-					let link_text = link.text().unwrap_or_default();
-					
-					// Skip if empty, not for this manga, or doesn't contain chapter
-					if href.is_empty() || !href.contains(manga_key) || !link_text.contains("Chapitre") {
-						continue;
-					}
-					
-					// Extract chapter number from URL path or text
-					let chapter_number: f32 = {
-						// Try extracting from URL first (more reliable)
-						if let Some(url_parts) = href.split('/').last() {
-							if let Ok(num) = url_parts.parse::<f32>() {
-								num
-							} else {
-								// Fallback to extracting from text
-								if let Some(num_start) = link_text.find("Chapitre ") {
-									let after_chapitre = &link_text[num_start + 9..];
-									let num_str: String = after_chapitre
-										.chars()
-										.take_while(|c| c.is_ascii_digit() || *c == '.')
-										.collect();
-									num_str.parse().unwrap_or(0.0)
-								} else {
-									0.0
-								}
-							}
-						} else {
-							0.0
-						}
-					};
-					
-					if chapter_number == 0.0 {
-						continue; // Skip invalid chapters
-					}
-					
-					// Create clean chapter key (relative path)
-					let chapter_key = if href.starts_with("http") {
-						href.replace("https://lelscanfr.com", "")
-					} else {
-						href
-					};
-					
-					let chapter_title = format!("Chapitre {}", chapter_number);
-			
-					chapters.push(Chapter {
-						key: chapter_key.clone(),
-						title: Some(chapter_title),
-						chapter_number: Some(chapter_number),
-						volume_number: None,
-						date_uploaded: None,
-						scanlators: None,
-						language: Some(String::from("fr")),
-						locked: false,
-						thumbnail: None,
-						url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &chapter_key)),
-					});
-				}
+		// Get ALL links first to debug
+		if let Some(all_links) = html.select("a") {
+			for link in all_links {
+				let href = link.attr("href").unwrap_or_default();
+				let link_text = link.text().unwrap_or_default();
 				
-				// If we found chapters with this selector, break
-				if !chapters.is_empty() {
-					break;
+				// Very broad check - any link that looks like a chapter
+				if href.contains(&format!("/manga/{}/", manga_key)) && 
+				   (link_text.contains("Chapitre") || href.split('/').last().unwrap_or("").parse::<f32>().is_ok()) {
+					
+					// Extract chapter number from URL (most reliable)
+					let chapter_number: f32 = if let Some(url_part) = href.split('/').last() {
+						url_part.parse().unwrap_or_else(|_| {
+							// Fallback to text extraction if URL parsing fails
+							if let Some(num_start) = link_text.find("Chapitre ") {
+								let after_chapitre = &link_text[num_start + 9..];
+								let num_str: String = after_chapitre
+									.chars()
+									.take_while(|c| c.is_ascii_digit() || *c == '.')
+									.collect();
+								num_str.parse().unwrap_or(0.0)
+							} else {
+								0.0
+							}
+						})
+					} else {
+						0.0
+					};
+					
+					if chapter_number > 0.0 {
+						// Create clean chapter key (relative path)  
+						let chapter_key = if href.starts_with("http") {
+							href.replace("https://lelscanfr.com", "")
+						} else {
+							href
+						};
+						
+						let chapter_title = if !link_text.is_empty() && link_text.contains("Chapitre") {
+							String::from(link_text.trim())
+						} else {
+							format!("Chapitre {}", chapter_number)
+						};
+				
+						chapters.push(Chapter {
+							key: chapter_key.clone(),
+							title: Some(chapter_title),
+							chapter_number: Some(chapter_number),
+							volume_number: None,
+							date_uploaded: None,
+							scanlators: None,
+							language: Some(String::from("fr")),
+							locked: false,
+							thumbnail: None,
+							url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &chapter_key)),
+						});
+					}
 				}
 			}
 		}
 	}
+	
+	// Sort chapters by number (descending - newest first)
+	chapters.sort_by(|a, b| {
+		let a_num = a.chapter_number.unwrap_or(0.0);
+		let b_num = b.chapter_number.unwrap_or(0.0);
+		b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+	});
 	
 	Ok(chapters)
 }
