@@ -5,6 +5,7 @@ use aidoku::{
     Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, format},
     imports::{net::Request, html::Document},
+    prelude::*,
 };
 
 extern crate alloc;
@@ -193,3 +194,5 @@ impl ImageRequestProvider for LelscanFr {
             .header("Referer", BASE_URL))
     }
 }
+
+register_source!(LelscanFr, ListingProvider, ImageRequestProvider);
