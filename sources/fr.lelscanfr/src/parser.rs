@@ -188,47 +188,33 @@ pub fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 		}
 	}
 	
-	// Extract title with multiple approaches - prioritize the longest title found
+	// Extract title - prioritize specific selectors over generic ones
 	let title_selectors = [
+		"main img",                     // Image alt attribute (primary method)
 		"h1",                           // Main page title
 		".manga-title",                 // Manga-specific title class
 		".post-title h1",               // Post title heading
 		".entry-title",                 // Entry title
-		"title",                        // Page title element
 		".wp-manga-title",              // WordPress manga title
-		"meta[property='og:title']",    // Open Graph title
 	];
 	
-	let mut best_title = String::new();
 	for selector in title_selectors {
 		if let Some(elements) = html.select(selector) {
 			if let Some(elem) = elements.first() {
-				let title_text = if selector == "meta[property='og:title']" {
-					elem.attr("content").unwrap_or_default()
-				} else if selector == "title" {
-					// For page title, clean up site name
-					let raw_title = elem.text().unwrap_or_default();
-					if raw_title.contains(" - ") {
-						String::from(raw_title.split(" - ").next().unwrap_or(&raw_title))
-					} else if raw_title.contains(" | ") {
-						String::from(raw_title.split(" | ").next().unwrap_or(&raw_title))
-					} else {
-						raw_title
-					}
+				let title_text = if selector == "main img" {
+					// Use alt attribute for image (original method)
+					elem.attr("alt").unwrap_or_default()
 				} else {
 					elem.text().unwrap_or_default()
 				};
 				
-				// Take the longest title found (likely most complete)
-				if title_text.len() > best_title.len() && !title_text.is_empty() {
-					best_title = title_text;
+				// Take first valid title found (prioritized order)
+				if !title_text.is_empty() && !title_text.to_lowercase().contains("lelscan") {
+					manga.title = title_text;
+					break;
 				}
 			}
 		}
-	}
-	
-	if !best_title.is_empty() {
-		manga.title = best_title;
 	}
 	
 	// Extract author and artist
