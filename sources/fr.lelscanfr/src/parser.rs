@@ -209,57 +209,79 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 	let mut chapters: Vec<Chapter> = Vec::new();
 
 	for html in all_html {
-		// Select chapter links based on actual site structure  
-		// Format: a[href*="/manga/{manga_key}/"] containing "Chapitre"
-		let chapter_selector = format!("a[href*=\"/manga/{}/\"]", manga_key);
+		// Try multiple selectors for chapter links
+		let chapter_selectors = [
+			"a[href*=\"/manga/\"]", // General manga chapter links
+			".chapter-list a", // If there's a chapter list class
+			"a[href$=\"\"][href*=\"/manga/\"]", // Links ending with numbers
+		];
 		
-		if let Some(chapter_links) = html.select(&chapter_selector) {
-			for link in chapter_links {
-				let href = link.attr("href").unwrap_or_default();
-				let link_text = link.text().unwrap_or_default();
-				
-				// Skip if empty or doesn't look like a chapter link
-				if href.is_empty() || !link_text.contains("Chapitre") {
-					continue;
+		for selector in chapter_selectors {
+			if let Some(chapter_links) = html.select(selector) {
+				for link in chapter_links {
+					let href = link.attr("href").unwrap_or_default();
+					let link_text = link.text().unwrap_or_default();
+					
+					// Skip if empty, not for this manga, or doesn't contain chapter
+					if href.is_empty() || !href.contains(manga_key) || !link_text.contains("Chapitre") {
+						continue;
+					}
+					
+					// Extract chapter number from URL path or text
+					let chapter_number: f32 = {
+						// Try extracting from URL first (more reliable)
+						if let Some(url_parts) = href.split('/').last() {
+							if let Ok(num) = url_parts.parse::<f32>() {
+								num
+							} else {
+								// Fallback to extracting from text
+								if let Some(num_start) = link_text.find("Chapitre ") {
+									let after_chapitre = &link_text[num_start + 9..];
+									let num_str: String = after_chapitre
+										.chars()
+										.take_while(|c| c.is_ascii_digit() || *c == '.')
+										.collect();
+									num_str.parse().unwrap_or(0.0)
+								} else {
+									0.0
+								}
+							}
+						} else {
+							0.0
+						}
+					};
+					
+					if chapter_number == 0.0 {
+						continue; // Skip invalid chapters
+					}
+					
+					// Create clean chapter key (relative path)
+					let chapter_key = if href.starts_with("http") {
+						href.replace("https://lelscanfr.com", "")
+					} else {
+						href
+					};
+					
+					let chapter_title = format!("Chapitre {}", chapter_number);
+			
+					chapters.push(Chapter {
+						key: chapter_key.clone(),
+						title: Some(chapter_title),
+						chapter_number: Some(chapter_number),
+						volume_number: None,
+						date_uploaded: None,
+						scanlators: None,
+						language: Some(String::from("fr")),
+						locked: false,
+						thumbnail: None,
+						url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &chapter_key)),
+					});
 				}
 				
-				// Extract chapter number from link text (format: "Chapitre 1158")
-				let chapter_number: f32 = if let Some(num_start) = link_text.find("Chapitre ") {
-					let after_chapitre = &link_text[num_start + 9..]; // Skip "Chapitre "
-					let num_str: String = after_chapitre
-						.chars()
-						.take_while(|c| c.is_ascii_digit() || *c == '.')
-						.collect();
-					num_str.parse().unwrap_or(0.0)
-				} else {
-					0.0
-				};
-				
-				if chapter_number == 0.0 {
-					continue; // Skip invalid chapters
+				// If we found chapters with this selector, break
+				if !chapters.is_empty() {
+					break;
 				}
-				
-				// Create clean chapter key (relative path)
-				let chapter_key = if href.starts_with("http") {
-					href.replace("https://lelscanfr.com", "")
-				} else {
-					href
-				};
-				
-				let chapter_title = format!("Chapitre {}", chapter_number);
-		
-				chapters.push(Chapter {
-					key: chapter_key.clone(),
-					title: Some(chapter_title),
-					chapter_number: Some(chapter_number),
-					volume_number: None,
-					date_uploaded: None,
-					scanlators: None,
-					language: Some(String::from("fr")),
-					locked: false,
-					thumbnail: None,
-					url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &chapter_key)),
-				});
 			}
 		}
 	}

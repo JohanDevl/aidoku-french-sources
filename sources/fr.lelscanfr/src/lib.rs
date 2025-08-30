@@ -69,29 +69,41 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Version temporaire avec chapitres hardcodés pour debug
-            let mut test_chapters: Vec<Chapter> = Vec::new();
-            
-            // Ajouter 5 chapitres de test
-            for i in 1..=5 {
-                let chapter_key = format!("/manga/{}/{}", manga.key, 1150 + i);
-                let chapter_title = format!("Chapitre {}", 1150 + i);
-                
-                test_chapters.push(Chapter {
-                    key: chapter_key.clone(),
-                    title: Some(chapter_title),
-                    chapter_number: Some((1150 + i) as f32),
-                    volume_number: None,
-                    date_uploaded: None,
-                    scanlators: None,
-                    language: Some(String::from("fr")),
-                    locked: false,
-                    thumbnail: None,
-                    url: Some(format!("{}{}", BASE_URL, chapter_key)),
-                });
+            // Check for pagination and handle multi-page chapter lists
+            if let Some(_pagination) = html.select(".pagination") {
+                if let Some(first_pagination) = _pagination.first() {
+                    let pagination_text = first_pagination.text().unwrap_or_default();
+                    if !pagination_text.is_empty() {
+                        // Extract number of pages and fetch all
+                        let pagination_links = html.select(".pagination a");
+                        let mut max_page = 1;
+                        
+                        if let Some(links) = pagination_links {
+                            for link in links {
+                                if let Some(link_text) = link.text() {
+                                    if let Ok(page_num) = link_text.parse::<i32>() {
+                                        if page_num > max_page {
+                                            max_page = page_num;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        let mut all_docs: Vec<Document> = vec![html];
+                        for page in 2..=max_page {
+                            let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
+                            let page_html = Request::get(&page_url)?.html()?;
+                            all_docs.push(page_html);
+                        }
+                        manga.chapters = Some(parser::parse_chapter_list(&manga.key, all_docs)?);
+                    } else {
+                        manga.chapters = Some(parser::parse_chapter_list(&manga.key, vec![html])?);
+                    }
+                }
+            } else {
+                manga.chapters = Some(parser::parse_chapter_list(&manga.key, vec![html])?);
             }
-            
-            manga.chapters = Some(test_chapters);
         }
         
         Ok(manga)
