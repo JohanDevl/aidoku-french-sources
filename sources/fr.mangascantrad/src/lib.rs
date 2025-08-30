@@ -27,7 +27,6 @@ impl Source for MangaScantrad {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        println!("get_search_manga_list called - page: {}, query: {:?}", page, query);
         
         if let Some(search_query) = query {
             // Use AJAX for search
@@ -54,7 +53,6 @@ impl Source for MangaScantrad {
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         // Use Madara template approach: add ?style=list parameter for better image loading
         let url = format!("{}/{}/?style=list", BASE_URL, chapter.key);
-        println!("Getting page list from: {}", url);
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -69,7 +67,6 @@ impl Source for MangaScantrad {
 
 impl ListingProvider for MangaScantrad {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        println!("get_manga_list called - listing: {}, page: {}", listing.id, page);
         
         match listing.id.as_str() {
             "populaire" => self.ajax_manga_listing("popular", page),
@@ -89,7 +86,6 @@ impl ImageRequestProvider for MangaScantrad {
 
 impl MangaScantrad {
     fn ajax_manga_list(&self, page: i32) -> Result<MangaPageResult> {
-        println!("ajax_manga_list called for page {}", page);
         
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
@@ -100,7 +96,6 @@ impl MangaScantrad {
             page
         );
         
-        println!("AJAX request body: {}", body);
         
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
@@ -112,20 +107,17 @@ impl MangaScantrad {
             .body(body.as_bytes())
             .html()?;
         
-        println!("AJAX response received");
         
         self.parse_ajax_response(html_doc)
     }
     
     fn ajax_manga_listing(&self, listing_type: &str, page: i32) -> Result<MangaPageResult> {
-        println!("ajax_manga_listing called for type: {}, page: {}", listing_type, page);
         
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
         // Different payloads for different listing types
         let body = match listing_type {
             "popular" => {
-                println!("Using popular/populaire AJAX payload");
                 format!(
                     "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=meta_value_num&vars%5Bmeta_key%5D=_wp_manga_views&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
                     page - 1,
@@ -133,7 +125,6 @@ impl MangaScantrad {
                 )
             },
             "trending" => {
-                println!("Using trending/tendance AJAX payload");
                 format!(
                     "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=trending&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
                     page - 1,
@@ -141,7 +132,6 @@ impl MangaScantrad {
                 )
             },
             _ => {
-                println!("Using default AJAX payload");
                 format!(
                     "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
                     page - 1,
@@ -150,7 +140,6 @@ impl MangaScantrad {
             }
         };
         
-        println!("AJAX {} request body: {}", listing_type, body);
         
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
@@ -162,13 +151,11 @@ impl MangaScantrad {
             .body(body.as_bytes())
             .html()?;
         
-        println!("AJAX {} response received", listing_type);
         
         self.parse_ajax_response(html_doc)
     }
     
     fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        println!("ajax_search called for query: {}, page: {}", query, page);
         
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
@@ -180,7 +167,6 @@ impl MangaScantrad {
             page
         );
         
-        println!("AJAX search body: {}", body);
         
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
@@ -192,17 +178,14 @@ impl MangaScantrad {
             .body(body.as_bytes())
             .html()?;
         
-        println!("AJAX search response received");
         
         self.parse_ajax_response(html_doc)
     }
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
-        println!("ajax_chapter_list called for manga: {}", manga_key);
         
         // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
-        println!("Fetching manga page to extract numeric ID: {}", manga_url);
         
         let manga_page_doc = Request::get(&manga_url)?
             .header("User-Agent", USER_AGENT)
@@ -212,14 +195,11 @@ impl MangaScantrad {
         
         // Step 2: Extract numeric ID from JavaScript (exactly like old Madara implementation)
         let int_id = self.extract_manga_int_id(&manga_page_doc)?;
-        println!("Extracted numeric manga ID: {}", int_id);
         
         // Step 3: Use Madara alt_ajax method - POST to /manga/{key}/ajax/chapters  
         let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
         
-        println!("Making Madara alt_ajax POST request to: {}", ajax_url);
-        println!("POST body: {}", body_content);
         
         let ajax_doc = Request::post(&ajax_url)?
             .header("User-Agent", USER_AGENT)
@@ -228,51 +208,41 @@ impl MangaScantrad {
             .body(body_content.as_bytes())
             .html()?;
         
-        println!("AJAX response received, parsing chapters...");
         
         // Parse the response (should contain the chapter HTML fragment)
         match self.parse_ajax_chapters_response(ajax_doc) {
             Ok(chapters) => {
                 if !chapters.is_empty() {
-                    println!("SUCCESS: Found {} chapters via Madara alt_ajax", chapters.len());
                     return Ok(chapters);
                 } else {
-                    println!("Madara alt_ajax returned no chapters");
                 }
             }
-            Err(e) => {
-                println!("Error parsing Madara alt_ajax response: {:?}", e);
+            Err(_e) => {
             }
         }
         
         // Fallback: try to parse from main page
-        println!("Fallback: trying to parse chapters from main manga page");
         if let Ok(chapters) = self.parse_chapter_list(&manga_page_doc) {
             if !chapters.is_empty() {
-                println!("SUCCESS: Found {} chapters in main page", chapters.len());
                 return Ok(chapters);
             }
         }
         
-        println!("No chapters found with any method");
         Ok(vec![])
     }
     
     fn extract_manga_int_id(&self, html: &Document) -> Result<String> {
-        println!("extract_manga_int_id called");
         
         // Look for the wp-manga-js-extra script tag (like in old Madara implementation)
         if let Some(script_element) = html.select("script#wp-manga-js-extra") {
             if let Some(script_content) = script_element.html() {
                 let script_text = script_content;
-                println!("Found wp-manga-js-extra script: {}", &script_text[..500.min(script_text.len())]);
                 
                 // Look for manga ID in the script (usually in a variable like manga_id or similar)
                 if let Some(start) = script_text.find("\"manga_id\":\"") {
                     let after_start = &script_text[start + 12..];
                     if let Some(end) = after_start.find("\"") {
                         let manga_id = &after_start[..end];
-                        println!("Extracted manga ID from script: {}", manga_id);
                         return Ok(manga_id.to_string());
                     }
                 }
@@ -282,7 +252,6 @@ impl MangaScantrad {
                     let after_start = &script_text[start + 9..];
                     if let Some(end) = after_start.find(|c: char| !c.is_ascii_digit()) {
                         let manga_id = &after_start[..end];
-                        println!("Extracted manga ID (alt pattern): {}", manga_id);
                         return Ok(manga_id.to_string());
                     }
                 }
@@ -290,10 +259,8 @@ impl MangaScantrad {
         }
         
         // If not found in script, try to extract from other common locations
-        println!("No manga ID found in wp-manga-js-extra, trying alternative methods");
         
         // For now, return a placeholder ID and let the POST request handle it
-        println!("Could not extract manga numeric ID from page, using fallback ID");
         Ok("0".to_string())
     }
 
@@ -302,7 +269,6 @@ impl MangaScantrad {
             return None;
         }
         
-        println!("parse_chapter_date called with: '{}'", date_str);
         
         let parts: Vec<&str> = date_str.trim().split_whitespace().collect();
         if parts.len() >= 3 {
@@ -325,7 +291,6 @@ impl MangaScantrad {
                     "novembre" => 11,
                     "décembre" => 12,
                     _ => {
-                        println!("Unknown French month: {}", month_name);
                         return None;
                     }
                 };
@@ -333,12 +298,10 @@ impl MangaScantrad {
                 // Use precise calculation like real calendar libraries
                 let timestamp = self.date_to_timestamp(year, month, day);
                 
-                println!("Successfully parsed French date '{}' -> timestamp: {}", date_str, timestamp);
                 return Some(timestamp);
             }
         }
         
-        println!("French date parsing failed for '{}'", date_str);
         None
     }
     
@@ -371,20 +334,16 @@ impl MangaScantrad {
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
-        println!("parse_ajax_chapters_response called");
         let mut chapters: Vec<Chapter> = Vec::new();
 
         // Debug: Print the raw HTML response to see what we're actually getting
         if let Some(body) = html.select("body") {
             if let Some(first) = body.first() {
                 let html_text = first.text().unwrap_or_default();
-                println!("DEBUG: HTML response body text (first 500 chars): {}", &html_text[..html_text.len().min(500)]);
                 
                 // Check if response contains expected chapter content
                 if html_text.contains("Chapitre") {
-                    println!("DEBUG: Response contains 'Chapitre' text - chapters are present");
                 } else {
-                    println!("DEBUG: Response does NOT contain 'Chapitre' text");
                 }
             }
         }
@@ -392,27 +351,23 @@ impl MangaScantrad {
         // Debug: Try finding any li elements first
         if let Some(all_li) = html.select("li") {
             let li_vec: Vec<_> = all_li.collect();
-            println!("DEBUG: Found {} total <li> elements", li_vec.len());
             
             // Show first few li elements
-            for (idx, li) in li_vec.iter().enumerate().take(5) {
-                let class = li.attr("class").unwrap_or_default();
-                let text = li.text().unwrap_or_default();
-                println!("DEBUG: li[{}] class='{}' text='{}'", idx, class, &text[..text.len().min(50)]);
+            for (_idx, li) in li_vec.iter().enumerate().take(5) {
+                let _class = li.attr("class").unwrap_or_default();
+                let _text = li.text().unwrap_or_default();
             }
         }
 
         // Use the exact structure from the AJAX response we analyzed
         if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
             let items_vec: Vec<_> = chapter_items.collect();
-            println!("Found {} chapter items with li.wp-manga-chapter", items_vec.len());
             
-            for (idx, item) in items_vec.iter().enumerate() {
+            for (_idx, item) in items_vec.iter().enumerate() {
                 // Get the chapter link
                 if let Some(link) = item.select("a").and_then(|links| links.first()) {
                     let href = link.attr("href").unwrap_or_default();
                     if href.is_empty() {
-                        println!("  Chapter {}: Empty href", idx);
                         continue;
                     }
 
@@ -422,7 +377,6 @@ impl MangaScantrad {
                         .to_string();
                     
                     if title.is_empty() {
-                        println!("  Chapter {}: Empty title", idx);
                         continue;
                     }
 
@@ -441,14 +395,11 @@ impl MangaScantrad {
                         .and_then(|elems| elems.first()) {
                         if let Some(raw_date) = date_elem.text() {
                             let date_str = raw_date.trim();
-                            println!("  Chapter {}: Raw date text = '{}'", idx, date_str);
                             self.parse_chapter_date(date_str)
                         } else {
-                            println!("  Chapter {}: No date text found", idx);
                             None
                         }
                     } else {
-                        println!("  Chapter {}: No date element found", idx);
                         None
                     };
 
@@ -461,12 +412,11 @@ impl MangaScantrad {
                         format!("{}/{}", BASE_URL, href)
                     };
 
-                    let date_debug = if let Some(ts) = date_uploaded {
+                    let _date_debug = if let Some(ts) = date_uploaded {
                         format!("timestamp={}", ts)
                     } else {
                         "no_date".to_string()
                     };
-                    println!("  Chapter {}: title='{}', number={}, url={}, date={}", idx, title, chapter_number, url, date_debug);
 
                     chapters.push(Chapter {
                         key: chapter_key,
@@ -483,16 +433,13 @@ impl MangaScantrad {
                 }
             }
         } else {
-            println!("No li.wp-manga-chapter elements found");
         }
 
-        println!("Total AJAX chapters parsed: {}", chapters.len());
         Ok(chapters)
     }
     
     
     fn parse_ajax_response(&self, html: Document) -> Result<MangaPageResult> {
-        println!("parse_ajax_response called");
         let mut entries: Vec<Manga> = Vec::new();
         
         // Try multiple selectors for AJAX response
@@ -507,32 +454,26 @@ impl MangaScantrad {
         
         let mut found_items = false;
         for selector in &selectors {
-            println!("Trying selector: {}", selector);
             if let Some(items) = html.select(selector) {
                 let items_vec: Vec<_> = items.collect();
                 if !items_vec.is_empty() {
-                    println!("Found {} items with selector: {}", items_vec.len(), selector);
                     found_items = true;
                     
-                    for (idx, item) in items_vec.iter().enumerate() {
-                        println!("Processing item {}", idx);
+                    for (_idx, item) in items_vec.iter().enumerate() {
                         
                         // Find the link element
                         let link = if let Some(links) = item.select("a") {
                             if let Some(first_link) = links.first() {
                                 first_link
                             } else {
-                                println!("  No link found");
                                 continue;
                             }
                         } else {
-                            println!("  No link found");
                             continue;
                         };
                         
                         let href = link.attr("href").unwrap_or_default();
                         if href.is_empty() {
-                            println!("  Empty href");
                             continue;
                         }
                         
@@ -548,11 +489,9 @@ impl MangaScantrad {
                             .to_string();
                         
                         if title.is_empty() {
-                            println!("  Empty title");
                             continue;
                         }
                         
-                        println!("  Title: {}, URL: {}", title, href);
                         
                         let key = self.extract_manga_id(&href);
                         
@@ -577,7 +516,6 @@ impl MangaScantrad {
                             })
                             .unwrap_or_default();
                         
-                        println!("  Key: {}, Cover: {}", key, cover);
                         
                         entries.push(Manga {
                             key,
@@ -602,12 +540,10 @@ impl MangaScantrad {
         }
         
         if !found_items {
-            println!("No items found with any selector!");
             // Try to print the HTML for debugging
             if let Some(body) = html.select("body") {
                 if let Some(first) = body.first() {
-                    let html_text = first.text().unwrap_or_default();
-                    println!("Response body text (first 500 chars): {}", &html_text[..html_text.len().min(500)]);
+                    let _html_text = first.text().unwrap_or_default();
                 }
             }
         }
@@ -615,7 +551,6 @@ impl MangaScantrad {
         // Pagination logic: if we got any results, assume there might be more
         // Madara typically returns 10-12 items per page, so we check if we got a reasonable amount
         let has_next_page = entries.len() >= 8; // Conservative threshold
-        println!("Total entries parsed: {}, has_next_page: {} (threshold >= 8)", entries.len(), has_next_page);
         
         Ok(MangaPageResult {
             entries,
@@ -623,8 +558,7 @@ impl MangaScantrad {
         })
     }
     
-    fn parse_manga_details(&self, html: Document, manga_key: String, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("parse_manga_details called - key: {}, needs_details: {}, needs_chapters: {}", manga_key, needs_details, needs_chapters);
+    fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         
         // Extract title with multiple selectors
         let title = html.select(".post-title h1, .manga-title, h1.entry-title, .wp-manga-title, .single-title")
@@ -632,11 +566,9 @@ impl MangaScantrad {
             .and_then(|elem| elem.text())
             .map(|text| text.trim().to_string())
             .unwrap_or_else(|| {
-                println!("No title found with selectors");
                 manga_key.clone()
             });
         
-        println!("Found title: {}", title);
 
         // Extract cover using Madara template approach with more selectors
         let cover_selectors = [
@@ -657,7 +589,6 @@ impl MangaScantrad {
         
         let mut cover = String::new();
         for selector in &cover_selectors {
-            println!("Trying cover selector: {}", selector);
             if let Some(img_elem) = html.select(selector).and_then(|elems| elems.first()) {
                 // Use same attribute priority as Madara template
                 if let Some(src) = img_elem.attr("data-src")
@@ -672,7 +603,6 @@ impl MangaScantrad {
                         } else {
                             src.to_string()
                         };
-                        println!("Found cover with {}: {}", selector, cover);
                         break;
                     }
                 }
@@ -680,7 +610,6 @@ impl MangaScantrad {
         }
         
         if cover.is_empty() {
-            println!("No cover found with any selector");
         }
 
         // Extract description with multiple selectors
@@ -702,7 +631,6 @@ impl MangaScantrad {
                 if let Some(desc_text) = desc_elem.text() {
                     if !desc_text.trim().is_empty() {
                         description = desc_text.trim().to_string();
-                        println!("Found description with {}: {} chars", selector, description.len());
                         break;
                     }
                 }
@@ -716,7 +644,6 @@ impl MangaScantrad {
             .map(|text| text.trim().to_string())
             .unwrap_or_default();
             
-        println!("Found author: {}", if author.is_empty() { "none" } else { &author });
 
         // Extract tags/genres
         let mut tags: Vec<String> = Vec::new();
@@ -739,7 +666,6 @@ impl MangaScantrad {
                     }
                 }
                 if !tags.is_empty() {
-                    println!("Found {} tags with {}", tags.len(), selector);
                     break;
                 }
             }
@@ -772,7 +698,6 @@ impl MangaScantrad {
                         .replace("è", "e")
                         .replace("à", "a");
                     
-                    println!("Checking status text: '{}' -> '{}'", status_text.trim(), status_str);
                     
                     status = match status_str.as_str() {
                         "en cours" | "ongoing" | "en_cours" | "en-cours" | "publication" | "publiant" | "continu" => MangaStatus::Ongoing,
@@ -796,7 +721,6 @@ impl MangaScantrad {
                     };
                     
                     if status != MangaStatus::Unknown {
-                        println!("Found status with {}: {:?} (from text: '{}')", selector, status, status_text.trim());
                         break;
                     }
                 }
@@ -805,7 +729,6 @@ impl MangaScantrad {
 
         // Fallback: try broader selectors if no specific status found
         if status == MangaStatus::Unknown {
-            println!("No status found with specific selectors, trying broader search");
             
             // Try to find any element containing status-related text
             if let Some(status_elem) = html.select("*").and_then(|elements| {
@@ -826,17 +749,14 @@ impl MangaScantrad {
                     
                     if status_str.contains("en cours") || status_str.contains("ongoing") {
                         status = MangaStatus::Ongoing;
-                        println!("Found status via broader search: Ongoing");
                     } else if status_str.contains("termine") || status_str.contains("completed") {
                         status = MangaStatus::Completed;
-                        println!("Found status via broader search: Completed");
                     }
                 }
             }
         }
         
         if status == MangaStatus::Unknown {
-            println!("No status found with any method, defaulting to Unknown");
         }
 
         let authors = if !author.is_empty() {
@@ -847,47 +767,36 @@ impl MangaScantrad {
         
         // Parse chapters if requested
         let chapters = if needs_chapters {
-            println!("Trying to fetch chapters...");
             
             // First try AJAX approaches
-            let ajax_chapters = self.ajax_chapter_list(&manga_key).unwrap_or_else(|e| {
-                println!("Error fetching chapters via AJAX: {:?}", e);
+            let ajax_chapters = self.ajax_chapter_list(&manga_key).unwrap_or_else(|_e| {
                 vec![]
             });
             
             if !ajax_chapters.is_empty() {
-                println!("SUCCESS: Found {} chapters via AJAX", ajax_chapters.len());
                 Some(ajax_chapters)
             } else {
-                println!("AJAX failed, trying HTML parsing on current page...");
                 match self.parse_chapter_list(&html) {
                     Ok(chapter_list) => {
                         if !chapter_list.is_empty() {
-                            println!("SUCCESS: Found {} chapters via HTML", chapter_list.len());
                             Some(chapter_list)
                         } else {
-                            println!("HTML parsing returned empty, trying enhanced HTML parsing...");
                             // Try basic parsing again with different approach
-                            println!("Trying basic HTML parsing again...");
                             match self.parse_chapter_list(&html) {
                                 Ok(enhanced_chapters) => {
                                     if !enhanced_chapters.is_empty() {
-                                        println!("SUCCESS: Found {} chapters via enhanced HTML", enhanced_chapters.len());
                                         Some(enhanced_chapters)
                                     } else {
-                                        println!("No chapters found with any method");
                                         None
                                     }
                                 }
-                                Err(e3) => {
-                                    println!("Error in enhanced HTML parsing: {:?}", e3);
+                                Err(_e3) => {
                                     None
                                 }
                             }
                         }
                     }
-                    Err(e2) => {
-                        println!("Error parsing chapters from HTML: {:?}", e2);
+                    Err(_e2) => {
                         None
                     }
                 }
@@ -915,7 +824,6 @@ impl MangaScantrad {
     }
     
     fn parse_chapter_list(&self, html: &Document) -> Result<Vec<Chapter>> {
-        println!("parse_chapter_list called");
         let mut chapters: Vec<Chapter> = Vec::new();
 
         // Madara/WordPress chapter selectors
@@ -934,30 +842,25 @@ impl MangaScantrad {
         
         let mut found_chapters = false;
         for selector in &chapter_selectors {
-            println!("Trying chapter selector: {}", selector);
             if let Some(items) = html.select(selector) {
                 let items_vec: Vec<_> = items.collect();
                 if !items_vec.is_empty() {
-                    println!("Found {} chapter items with {}", items_vec.len(), selector);
                     found_chapters = true;
                     
-                    for (idx, item) in items_vec.iter().enumerate() {
+                    for (_idx, item) in items_vec.iter().enumerate() {
                         // Find the link element
                         let link = if let Some(links) = item.select("a") {
                             if let Some(first_link) = links.first() {
                                 first_link
                             } else {
-                                println!("  Chapter {}: No link found", idx);
                                 continue;
                             }
                         } else {
-                            println!("  Chapter {}: No link found", idx);
                             continue;
                         };
 
                         let href = link.attr("href").unwrap_or_default();
                         if href.is_empty() {
-                            println!("  Chapter {}: Empty href", idx);
                             continue;
                         }
 
@@ -973,7 +876,6 @@ impl MangaScantrad {
                             .to_string();
                         
                         if title.is_empty() {
-                            println!("  Chapter {}: Empty title", idx);
                             continue;
                         }
 
@@ -1002,7 +904,6 @@ impl MangaScantrad {
                             format!("{}/{}", BASE_URL, href)
                         };
 
-                        println!("  Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
 
                         chapters.push(Chapter {
                             key: chapter_key,
@@ -1023,10 +924,8 @@ impl MangaScantrad {
         }
         
         if !found_chapters {
-            println!("No chapters found with any selector!");
         }
 
-        println!("Total chapters parsed: {}", chapters.len());
         Ok(chapters)
     }
     
@@ -1071,7 +970,6 @@ impl MangaScantrad {
     fn parse_page_list(&self, html: Document) -> Result<Vec<Page>> {
         let mut pages: Vec<Page> = Vec::new();
         
-        println!("parse_page_list called");
 
         // Primary selector (same as Madara template default)
         let image_selectors = [
@@ -1086,18 +984,14 @@ impl MangaScantrad {
             ".entry-content img"                 // Entry content images
         ];
 
-        for (selector_idx, selector) in image_selectors.iter().enumerate() {
-            println!("Trying image selector {}: {}", selector_idx, selector);
+        for (_selector_idx, selector) in image_selectors.iter().enumerate() {
             
             if let Some(images) = html.select(selector) {
-                let mut found_images = 0;
                 
-                for (idx, img) in images.into_iter().enumerate() {
-                    found_images += 1;
+                for (_idx, img) in images.into_iter().enumerate() {
                     let img_url = self.get_image_url(&img);
                     
                     if !img_url.is_empty() {
-                        println!("  Image {}: {}", idx, img_url);
                         pages.push(Page {
                             content: PageContent::Url(img_url, None),
                             thumbnail: None,
@@ -1105,32 +999,26 @@ impl MangaScantrad {
                             description: None,
                         });
                     } else {
-                        println!("  Image {} has empty URL", idx);
                     }
                 }
                 
-                println!("  Found {} images with selector: {}", found_images, selector);
                 
                 if !pages.is_empty() {
-                    println!("Successfully found {} pages with selector: {}", pages.len(), selector);
                     break;
                 }
             } else {
-                println!("  No images found with selector: {}", selector);
             }
         }
         
         if pages.is_empty() {
-            println!("No images found with any selector, trying to debug page content");
             // Debug: print some page content to understand structure
             if let Some(body) = html.select("body").and_then(|b| b.first()) {
                 if let Some(body_html) = body.html() {
-                    let preview = if body_html.len() > 500 {
+                    let _preview = if body_html.len() > 500 {
                         &body_html[..500]
                     } else {
                         &body_html
                     };
-                    println!("Page body preview: {}", preview);
                 }
             }
         }
