@@ -1,15 +1,15 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
-    MangaStatus, Page, PageContent, Result, Source,
-    alloc::{String, Vec},
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+    MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
+    alloc::{String, Vec, vec},
     imports::{net::Request, html::Document},
     prelude::*,
 };
 
 extern crate alloc;
-use alloc::{string::ToString, vec};
+use alloc::{string::ToString};
 
 pub static BASE_URL: &str = "https://manga-scantrad.io";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15";
@@ -43,8 +43,8 @@ impl Source for MangaScantrad {
         self.parse_manga_list(html)
     }
 
-    fn get_manga_update(&self, manga_id: String) -> Result<Manga> {
-        let url = format!("{}/manga/{}/", BASE_URL, manga_id);
+    fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        let url = format!("{}/manga/{}/", BASE_URL, manga.key);
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -53,11 +53,11 @@ impl Source for MangaScantrad {
             .header("Referer", BASE_URL)
             .html()?;
 
-        self.parse_manga_details(html, manga_id)
+        self.parse_manga_details(html, manga.key, needs_details, needs_chapters)
     }
 
-    fn get_page_list(&self, _manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
-        let url = format!("{}/{}/", BASE_URL, chapter_id);
+    fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        let url = format!("{}/{}/", BASE_URL, chapter.key);
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -90,7 +90,7 @@ impl ListingProvider for MangaScantrad {
 }
 
 impl ImageRequestProvider for MangaScantrad {
-    fn get_image_request(&self, url: String) -> Result<Request> {
+    fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
         Ok(Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL))
@@ -104,83 +104,95 @@ impl MangaScantrad {
         // Madara theme selectors
         if let Some(items) = html.select(".page-item-detail, .c-tabs-item__content, .manga-item") {
             for item in items {
-                if let (Some(title_elem), Some(link)) = (
-                    item.select("h3.h5 a, .post-title h1, .manga-title-badges").first(),
-                    item.select("a").first(),
-                ) {
-                    let title = title_elem.text().read().trim().to_string();
-                    let href = link.attr("href").read();
-                    
-                    if !title.is_empty() && !href.is_empty() {
-                        let id = self.extract_manga_id(&href);
-                        let cover = item.select("img").first()
-                            .map(|img| {
-                                img.attr("data-src").read()
-                                    .or_else(|| img.attr("src").read())
-                                    .unwrap_or_default()
-                            })
-                            .unwrap_or_default();
+                if let Some(title_elements) = item.select("h3.h5 a, .post-title h1, .manga-title-badges") {
+                    if let Some(title_elem) = title_elements.first() {
+                        if let Some(links) = item.select("a") {
+                            if let Some(link) = links.first() {
+                                let title = title_elem.text().unwrap_or_default().trim().to_string();
+                                let href = link.attr("href").unwrap_or_default();
+                                
+                                if !title.is_empty() && !href.is_empty() {
+                                    let key = self.extract_manga_id(&href);
+                                    let cover = item.select("img")
+                                        .and_then(|imgs| imgs.first())
+                                        .and_then(|img| {
+                                            img.attr("data-src")
+                                                .or_else(|| img.attr("src"))
+                                        })
+                                        .unwrap_or_default();
 
-                        entries.push(Manga {
-                            id,
-                            title,
-                            cover: if cover.is_empty() { None } else { Some(cover) },
-                            author: None,
-                            artist: None,
-                            description: None,
-                            url: Some(href),
-                            categories: Vec::new(),
-                            status: MangaStatus::Unknown,
-                            nsfw: ContentRating::Safe,
-                            viewer: ViewerType::Rtl,
-                        });
+                                    entries.push(Manga {
+                                        key,
+                                        title,
+                                        cover: if cover.is_empty() { None } else { Some(cover) },
+                                        authors: None,
+                                        artists: None,
+                                        description: None,
+                                        url: Some(href),
+                                        tags: None,
+                                        status: MangaStatus::Unknown,
+                                        content_rating: ContentRating::Safe,
+                                        viewer: Viewer::RightToLeft,
+                                        chapters: None,
+                                        next_update_time: None,
+                                        update_strategy: UpdateStrategy::Never,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
+        let has_next_page = entries.len() >= 20;
         Ok(MangaPageResult {
             entries,
-            has_next_page: entries.len() >= 20,
+            has_next_page,
         })
     }
 
-    fn parse_manga_details(&self, html: Document, manga_id: String) -> Result<Manga> {
+    fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, _needs_chapters: bool) -> Result<Manga> {
         let title = html.select(".post-title h1, .manga-title")
-            .first()
-            .map(|elem| elem.text().read().trim().to_string())
+            .and_then(|elems| elems.first())
+            .and_then(|elem| elem.text())
+            .map(|text| text.trim().to_string())
             .unwrap_or_default();
 
         let cover = html.select(".summary_image img")
-            .first()
-            .map(|img| {
-                img.attr("data-src").read()
-                    .or_else(|| img.attr("src").read())
-                    .unwrap_or_default()
+            .and_then(|elems| elems.first())
+            .and_then(|img| {
+                img.attr("data-src")
+                    .or_else(|| img.attr("src"))
             })
             .unwrap_or_default();
 
         let description = html.select(".description-summary .summary__content, .summary p")
-            .first()
-            .map(|elem| elem.text().read().trim().to_string())
+            .and_then(|elems| elems.first())
+            .and_then(|elem| elem.text())
+            .map(|text| text.trim().to_string())
             .unwrap_or_default();
 
         let author = html.select(".author-content a, .manga-authors")
-            .first()
-            .map(|elem| elem.text().read().trim().to_string())
+            .and_then(|elems| elems.first())
+            .and_then(|elem| elem.text())
+            .map(|text| text.trim().to_string())
             .unwrap_or_default();
 
-        let mut categories: Vec<String> = Vec::new();
+        let mut tags: Vec<String> = Vec::new();
         if let Some(genre_items) = html.select(".genres-content a, .manga-genres a") {
             for genre in genre_items {
-                categories.push(genre.text().read().trim().to_string());
+                if let Some(text) = genre.text() {
+                    tags.push(text.trim().to_string());
+                }
             }
         }
 
         let status = html.select(".post-status .summary-content, .manga-status")
-            .first()
-            .map(|elem| {
-                let status_text = elem.text().read().to_lowercase();
+            .and_then(|elems| elems.first())
+            .and_then(|elem| elem.text())
+            .map(|text| {
+                let status_text = text.to_lowercase();
                 match status_text.as_str() {
                     "en cours" | "ongoing" => MangaStatus::Ongoing,
                     "terminé" | "completed" => MangaStatus::Completed,
@@ -191,18 +203,27 @@ impl MangaScantrad {
             })
             .unwrap_or(MangaStatus::Unknown);
 
+        let authors = if !author.is_empty() {
+            Some(vec![author])
+        } else {
+            None
+        };
+
         Ok(Manga {
-            id: manga_id,
+            key: manga_key.clone(),
             title,
             cover: if cover.is_empty() { None } else { Some(cover) },
-            author: if author.is_empty() { None } else { Some(author) },
-            artist: None,
+            authors,
+            artists: None,
             description: if description.is_empty() { None } else { Some(description) },
-            url: Some(format!("{}/manga/{}/", BASE_URL, manga_id)),
-            categories,
+            url: Some(format!("{}/manga/{}/", BASE_URL, manga_key)),
+            tags: if tags.is_empty() { None } else { Some(tags) },
             status,
-            nsfw: ContentRating::Safe,
-            viewer: ViewerType::Rtl,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::RightToLeft,
+            chapters: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Never,
         })
     }
 
@@ -211,17 +232,17 @@ impl MangaScantrad {
 
         // Try multiple selectors for Madara themes
         if let Some(images) = html.select(".page-break img, .reading-content img, div.page-break > img") {
-            for (index, img) in images.enumerate() {
-                let img_url = img.attr("data-src").read()
-                    .or_else(|| img.attr("src").read())
+            for img in images {
+                let img_url = img.attr("data-src")
+                    .or_else(|| img.attr("src"))
                     .unwrap_or_default();
 
                 if !img_url.is_empty() {
                     pages.push(Page {
-                        index: index as i32,
-                        url: img_url,
-                        base64: None,
-                        text: None,
+                        content: PageContent::Url(img_url, None),
+                        thumbnail: None,
+                        has_description: false,
+                        description: None,
                     });
                 }
             }
