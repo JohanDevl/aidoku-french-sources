@@ -46,7 +46,7 @@ jobs:
           restore-keys: ${{ runner.os }}-sccache-
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
           target: wasm32-unknown-unknown
       - name: Install build dependencies
