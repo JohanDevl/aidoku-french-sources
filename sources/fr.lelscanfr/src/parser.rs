@@ -423,45 +423,126 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Multiple selectors for different image containers
+	// Very aggressive image detection - try all possible selectors and sources
 	let image_selectors = [
+		"img", // Try all images first
 		"img[src*=\"storage/chapters/\"]",
-		"#chapter-container .chapter-image",
+		"img[src*=\"chapters/\"]",
+		"img[src*=\"/manga/\"]", 
+		"img[data-src]",
+		"img[data-lazy-src]",
+		"img[data-original]",
+		"img[data-cfsrc]",
+		"#chapter-container img",
 		".chapter-container img",
 		".page-image",
 		".manga-page img",
-		"img[data-src]",
-		"img[src]"
+		".reader-content img",
+		".chapter-image",
+		"div img", // Images in divs
+		"section img", // Images in sections
+		"main img", // Images in main
 	];
 	
-	let mut images = None;
+	// Also search for image URLs in script tags (sometimes they're in JavaScript)
+	if let Some(scripts) = html.select("script") {
+		for script in scripts {
+			if let Some(script_text) = script.text() {
+				// Look for image URLs in JavaScript
+				if script_text.contains(".jpg") || script_text.contains(".png") || script_text.contains(".jpeg") || script_text.contains(".webp") {
+					// Try to extract URLs from JavaScript
+					let lines: Vec<&str> = script_text.split('\n').collect();
+					for line in lines {
+						// Look for common image URL patterns
+						if line.contains("http") && (line.contains(".jpg") || line.contains(".png") || line.contains(".jpeg") || line.contains(".webp")) {
+							// Simple URL extraction - look for quoted URLs
+							let parts: Vec<&str> = line.split('"').collect();
+							for part in parts {
+								if part.starts_with("http") && (part.contains(".jpg") || part.contains(".png") || part.contains(".jpeg") || part.contains(".webp")) {
+									pages.push(Page {
+										content: PageContent::Url(String::from(part), None),
+										thumbnail: None,
+										has_description: false,
+										description: None,
+									});
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Try all image selectors
 	for selector in image_selectors {
-		if let Some(found_images) = html.select(selector) {
-			if found_images.first().is_some() {
-				images = html.select(selector);
-				break;
+		if let Some(images) = html.select(selector) {
+			for img in images {
+				// Try all possible image attributes
+				let url = img.attr("data-src")
+					.or_else(|| img.attr("data-lazy-src"))
+					.or_else(|| img.attr("data-original"))
+					.or_else(|| img.attr("data-cfsrc"))
+					.or_else(|| img.attr("src"))
+					.or_else(|| {
+						// Try srcset and take first URL
+						if let Some(srcset) = img.attr("srcset") {
+							srcset.split(',').next().map(|s| String::from(s.trim().split_whitespace().next().unwrap_or("")))
+						} else {
+							None
+						}
+					})
+					.unwrap_or_default();
+				
+				if !url.is_empty() {
+					// Filter out obvious non-manga images (avatars, icons, etc.)
+					let url_lower = url.to_lowercase();
+					if !url_lower.contains("avatar") && 
+					   !url_lower.contains("icon") && 
+					   !url_lower.contains("logo") &&
+					   !url_lower.contains("banner") &&
+					   !url_lower.contains("cover") &&
+					   (url_lower.contains("chapter") || url_lower.contains("storage") || url_lower.contains("/manga/") ||
+					    url_lower.ends_with(".jpg") || url_lower.ends_with(".png") || url_lower.ends_with(".jpeg") || url_lower.ends_with(".webp")) {
+						
+						let absolute_url = super::helper::make_absolute_url("https://lelscanfr.com", &url);
+						
+						// Avoid duplicates
+						if !pages.iter().any(|p| {
+							if let PageContent::Url(ref existing_url, _) = p.content {
+								existing_url == &absolute_url
+							} else {
+								false
+							}
+						}) {
+							pages.push(Page {
+								content: PageContent::Url(absolute_url, None),
+								thumbnail: None,
+								has_description: false,
+								description: None,
+							});
+						}
+					}
+				}
 			}
 		}
 	}
 
-	if let Some(images) = images {
-		for img in images {
-			// Try multiple attributes for image URL
-			let url = img.attr("data-src")
-				.or_else(|| img.attr("data-lazy-src"))
-				.or_else(|| img.attr("src"))
-				.unwrap_or_default();
-			
-			if !url.is_empty() {
-				let absolute_url = super::helper::make_absolute_url("https://lelscanfr.com", &url);
-				pages.push(Page {
-					content: PageContent::url(absolute_url),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
-			}
-		}
+	// If still no images found, create a debug page to show what we found
+	if pages.is_empty() {
+		let all_imgs = html.select("img");
+		let img_count = if let Some(imgs) = all_imgs {
+			imgs.count()
+		} else {
+			0
+		};
+		
+		pages.push(Page {
+			content: PageContent::Url(format!("{}/debug-no-images-found-{}-imgs", "https://lelscanfr.com", img_count), None),
+			thumbnail: None,
+			has_description: false,
+			description: None,
+		});
 	}
 
 	Ok(pages)
