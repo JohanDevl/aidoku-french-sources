@@ -1,6 +1,6 @@
 use aidoku::{
-	Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, ContentRating, Viewer, Chapter,
-	UpdateStrategy,
+	Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
+	ContentRating, Viewer, UpdateStrategy,
 	alloc::{String, Vec, vec, format},
 	imports::html::Document,
 };
