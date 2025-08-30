@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source,
+    Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source, println,
     alloc::{String, Vec, format},
     imports::net::Request,
     prelude::*,
@@ -172,13 +172,8 @@ impl Source for LelscanFr {
             format!("{}/{}", BASE_URL, chapter.key)
         };
         
-        // Debug: Create a debug page showing the constructed URL
-        let debug_page = Page {
-            content: PageContent::Url(format!("https://httpbin.org/get?constructed_url={}", url), None),
-            thumbnail: None,
-            has_description: false,
-            description: None,
-        };
+        println!("🔗 DEBUG: Constructed URL: {}", url);
+        println!("🔗 DEBUG: Chapter key: {}", chapter.key);
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -187,10 +182,9 @@ impl Source for LelscanFr {
             .header("Referer", BASE_URL)
             .html()?;
             
-        let mut result_pages = parser::parse_page_list(&html)?;
-        // Add debug page at the beginning
-        result_pages.insert(0, debug_page);
-        Ok(result_pages)
+        println!("📄 DEBUG: HTML loaded successfully");
+        
+        parser::parse_page_list(&html)
     }
 }
 

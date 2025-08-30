@@ -1,6 +1,6 @@
 use aidoku::{
 	Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-	ContentRating, Viewer, UpdateStrategy,
+	ContentRating, Viewer, UpdateStrategy, println,
 	alloc::{String, Vec, vec, format},
 	imports::html::Document,
 };
@@ -423,72 +423,44 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Debug: Check page title to see if we're on the right page
-	if let Some(title_elem) = html.select("title") {
-		if let Some(title) = title_elem.first() {
-			if let Some(title_text) = title.text() {
-				// Create debug page showing page title
+	println!("🖼️ DEBUG: parse_page_list called");
+
+	// Simple real image test - just try to get ANY image
+	if let Some(images) = html.select("img") {
+		let count = images.count();
+		println!("🖼️ DEBUG: Found {} img tags", count);
+
+		// Show first image attributes if any
+		if let Some(first_img) = html.select("img").and_then(|imgs| imgs.first()) {
+			let data_src = first_img.attr("data-src").unwrap_or_default();
+			let src = first_img.attr("src").unwrap_or_default();
+			let class = first_img.attr("class").unwrap_or_default();
+			
+			println!("🖼️ DEBUG: First img - data-src: '{}', src: '{}', class: '{}'", data_src, src, class);
+			
+			if !data_src.is_empty() {
+				println!("🖼️ DEBUG: Using data-src: {}", data_src);
 				pages.push(Page {
-					content: PageContent::Url(format!("https://httpbin.org/get?page_title={}", title_text.chars().take(50).collect::<String>()), None),
+					content: PageContent::Url(data_src, None),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			} else if !src.is_empty() {
+				println!("🖼️ DEBUG: Using src: {}", src);
+				pages.push(Page {
+					content: PageContent::Url(src, None),
 					thumbnail: None,
 					has_description: false,
 					description: None,
 				});
 			}
 		}
+	} else {
+		println!("🖼️ DEBUG: No img tags found at all");
 	}
 
-	// Use the exact selector from the old working implementation
-	let image_selectors = [
-		"#chapter-container .chapter-image",  // Original working selector
-		"#chapter-container img",             // Alternative in same container
-		".chapter-image",                     // Fallback without container
-		"img.chapter-image",                  // Specific class selector
-		"img.lazyload",                       // Lazyload images
-		"img[data-src]",                      // Any image with data-src
-		"img"                                 // Final fallback
-	];
-
-	let mut debug_info = String::from("selectors_tried:");
-	for (i, selector) in image_selectors.iter().enumerate() {
-		if let Some(images) = html.select(selector) {
-			let count = images.count();
-			debug_info.push_str(&format!("{}={},", selector, count));
-			
-			if count > 0 {
-				// Try to get first image URL to see what we're getting
-				if let Some(first_img) = html.select(selector).and_then(|imgs| imgs.first()) {
-					let data_src = first_img.attr("data-src").unwrap_or_default();
-					let src = first_img.attr("src").unwrap_or_default();
-					
-					pages.push(Page {
-						content: PageContent::Url(format!("https://httpbin.org/get?selector={}&data_src={}&src={}", 
-							selector.replace("#", "hash").replace(".", "dot"), 
-							data_src.chars().take(50).collect::<String>(),
-							src.chars().take(50).collect::<String>()
-						), None),
-						thumbnail: None,
-						has_description: false,
-						description: None,
-					});
-				}
-				break; // Found images, stop trying
-			}
-		} else {
-			debug_info.push_str(&format!("{}=null,", selector));
-		}
-		
-		if i >= 3 { break; } // Limit debug output
-	}
-	
-	// Add selector debug info
-	pages.push(Page {
-		content: PageContent::Url(format!("https://httpbin.org/get?debug={}", debug_info), None),
-		thumbnail: None,
-		has_description: false,
-		description: None,
-	});
-
+	println!("🖼️ DEBUG: Returning {} pages", pages.len());
 	Ok(pages)
 }
 
