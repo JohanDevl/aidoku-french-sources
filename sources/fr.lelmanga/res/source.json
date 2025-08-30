@@ -2,11 +2,9 @@
   "info": {
     "id": "fr.lelmanga",
     "contentRating": 1,
-    "languages": [
-      "fr"
-    ],
+    "languages": ["fr"],
     "name": "LelManga",
-    "version": 10,
+    "version": 4,
     "url": "https://www.lelmanga.com"
   },
   "listings": [
