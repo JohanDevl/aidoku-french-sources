@@ -274,7 +274,17 @@ impl MangaScantrad {
             }
         }
         
-        println!("All approaches failed, returning empty list");
+        println!("All approaches failed, trying to parse chapters from the current page");
+        
+        // If AJAX failed, try to parse chapters from the session page we already fetched
+        if let Ok(chapters) = self.parse_chapter_list(&_session_doc) {
+            if !chapters.is_empty() {
+                println!("SUCCESS: Found {} chapters in the main manga page", chapters.len());
+                return Ok(chapters);
+            }
+        }
+        
+        println!("No chapters found in main page either, returning empty list");
         Ok(vec![])
     }
     
