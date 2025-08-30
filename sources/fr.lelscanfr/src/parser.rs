@@ -423,38 +423,30 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Look for images with multiple selectors (inspired by mangascantrad)
+	// Target the specific image structure from lelscanfr
 	let image_selectors = [
-		"img[data-src]",           // Lazy loaded images
-		"img[data-lazy-src]",      // Alternative lazy loading
-		"img[src*='.jpg']",        // Direct JPG images
-		"img[src*='.jpeg']",       // Direct JPEG images  
-		"img[src*='.png']",        // Direct PNG images
-		"img[src*='.webp']",       // WebP images
-		"img",                     // All images as fallback
+		"img.chapter-image[data-src]",     // Primary: lazyload chapter images with data-src
+		"img.lazyload[data-src]",          // Alternative: any lazyload image with data-src  
+		"img[data-src]",                   // Fallback: any image with data-src
+		"img[src*='storage/content/']",    // Direct: images with storage path in src
 	];
 
-	// Try each selector in order
+	// Try each selector in priority order
 	for selector in image_selectors {
 		if let Some(images) = html.select(selector) {
 			for img in images {
-				// Try multiple attributes in priority order
+				// Extract image URL with priority on data-src
 				let img_url = img.attr("data-src")
-					.or_else(|| img.attr("data-lazy-src"))
-					.or_else(|| img.attr("src"))
-					.or_else(|| {
-						// Extract first URL from srcset if available
-						img.attr("srcset").and_then(|srcset| {
-							srcset.split(',').next().and_then(|first| {
-								first.trim().split_whitespace().next().map(String::from)
-							})
-						})
-					});
+					.or_else(|| img.attr("src"));
 
 				if let Some(url) = img_url {
 					if !url.is_empty() && !url.starts_with("data:") {
-						// Make sure URL is absolute
-						let absolute_url = super::helper::make_absolute_url("https://lelscanfr.com", &url);
+						// Ensure URL is absolute
+						let absolute_url = if url.starts_with("http") {
+							url
+						} else {
+							super::helper::make_absolute_url("https://lelscanfr.com", &url)
+						};
 						
 						pages.push(Page {
 							content: PageContent::Url(absolute_url, None),
@@ -469,46 +461,6 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 			// If we found pages with this selector, stop trying others
 			if !pages.is_empty() {
 				break;
-			}
-		}
-	}
-
-	// If no images found in HTML, try to parse from scripts (some sites load images via JS)
-	if pages.is_empty() {
-		if let Some(scripts) = html.select("script") {
-			for script in scripts {
-				if let Some(script_text) = script.text() {
-					// Look for image URLs in JavaScript
-					let image_extensions = [".jpg", ".jpeg", ".png", ".webp"];
-					for ext in image_extensions {
-						if script_text.contains(ext) {
-							// Simple regex-like extraction of URLs
-							let lines: Vec<&str> = script_text.lines().collect();
-							for line in lines {
-								if line.contains("http") && line.contains(ext) {
-									// Extract URL from line
-									if let Some(start) = line.find("http") {
-										let url_part = &line[start..];
-										if let Some(end) = url_part.find(ext) {
-											let url = &url_part[..end + ext.len()];
-											// Clean up quotes and other characters
-											let clean_url = url.trim_matches(|c| c == '"' || c == '\'' || c == ',' || c == ';');
-											
-											if clean_url.starts_with("http") {
-												pages.push(Page {
-													content: PageContent::Url(String::from(clean_url), None),
-													thumbnail: None,
-													has_description: false,
-													description: None,
-												});
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
 			}
 		}
 	}

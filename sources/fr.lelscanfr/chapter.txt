@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lelscanfr | Scan  Nezumi No Hatsukoi  32 VF Lecture en Ligne</title>
+  <meta name="description" content="Scan  Nezumi No Hatsukoi  32 VF Lecture en Ligne | LelscanFR , ">
+  <meta name="keywords" content="Scan  Nezumi No Hatsukoi  32 VF Lecture en Ligne">
+  <meta name="csrf-token" content="PuWeSCL3ccKvUPfM0ttuXVGa15tml9zTNjLKcrKS">
+      <link rel="icon" type="image/png" sizes="32x32" href="https://lelscanfr.com/images/favicon.png">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+  <script>
+    const language = {
+      "submitting": "Soumission",
+    };
+  </script>
+  <link rel="preload" as="style" href="https://lelscanfr.com/build/assets/app-efc4a1e7.css" /><link rel="preload" as="style" href="https://lelscanfr.com/build/assets/app-2d4c25b0.css" /><link rel="preload" as="style" href="https://lelscanfr.com/build/assets/app-4b35ba86.css" /><link rel="modulepreload" href="https://lelscanfr.com/build/assets/app-ca63ddab.js" /><link rel="modulepreload" href="https://lelscanfr.com/build/assets/app-dfd64fb0.js" /><link rel="modulepreload" href="https://lelscanfr.com/build/assets/deleteModal-6c3c4667.js" /><link rel="stylesheet" href="https://lelscanfr.com/build/assets/app-efc4a1e7.css" /><link rel="stylesheet" href="https://lelscanfr.com/build/assets/app-2d4c25b0.css" /><link rel="stylesheet" href="https://lelscanfr.com/build/assets/app-4b35ba86.css" /><script type="module" src="https://lelscanfr.com/build/assets/app-ca63ddab.js"></script><script type="module" src="https://lelscanfr.com/build/assets/app-dfd64fb0.js"></script>  <script src="https://lelscanfr.com/js/swiper-element-bundle.min.js" defer></script>
+  <!-- social menu popup -->
+  <script src="https://lelscanfr.com/js/custom.js"></script>
+
+<script type="text/javascript" class="flasher-js">(function() {    var rootScript = '/vendor/flasher/flasher.min.js';    var FLASHER_FLASH_BAG_PLACE_HOLDER = {};    var options = mergeOptions([], FLASHER_FLASH_BAG_PLACE_HOLDER);    function mergeOptions(first, second) {        return {            context: merge(first.context || {}, second.context || {}),            envelopes: merge(first.envelopes || [], second.envelopes || []),            options: merge(first.options || {}, second.options || {}),            scripts: merge(first.scripts || [], second.scripts || []),            styles: merge(first.styles || [], second.styles || []),        };    }    function merge(first, second) {        if (Array.isArray(first) && Array.isArray(second)) {            return first.concat(second).filter(function(item, index, array) {                return array.indexOf(item) === index;            });        }        return Object.assign({}, first, second);    }    function renderOptions(options) {        if(!window.hasOwnProperty('flasher')) {            console.error('Flasher is not loaded');            return;        }        requestAnimationFrame(function () {            window.flasher.render(options);        });    }    function render(options) {        if ('loading' !== document.readyState) {            renderOptions(options);            return;        }        document.addEventListener('DOMContentLoaded', function() {            renderOptions(options);        });    }    if (1 === document.querySelectorAll('script.flasher-js').length) {        document.addEventListener('flasher:render', function (event) {            render(event.detail);        });    }    if (window.hasOwnProperty('flasher') || !rootScript || document.querySelector('script[src="' + rootScript + '"]')) {        render(options);    } else {        var tag = document.createElement('script');        tag.setAttribute('src', rootScript);        tag.setAttribute('type', 'text/javascript');        tag.onload = function () {            render(options);        };        document.head.appendChild(tag);    }})();</script>
+</head>
+
+<body class="dark:bg-dark-primary flex h-screen flex-col bg-white text-sm dark:text-white">
+<!-- Include jQuery -->
+<!-- Include custom.js -->
+  <header class="container relative z-50 mx-auto px-3 sm:px-0" id="navbar">
+  <nav class="flex items-center justify-between py-6">
+    <div class="flex h-0 items-center gap-4">
+      <a href="https://lelscanfr.com" class="py-2 font-bold">
+                  <img class="max-w-[120px] transition-opacity duration-300 hover:opacity-80"
+            src="https://lelscanfr.com/storage/site/logo.png" alt="lelscanfr" />
+              </a>
+
+      <div class="hidden items-center gap-1 sm:flex">
+        <a href="https://lelscanfr.com/manga"
+  class="nav-link text-sm p-2 hover:bg-black/10 hover:rounded-sm flex gap-2 items-center transition">
+  
+      <span>Mangas</span>
+  </a>
+        <a href="https://lelscanfr.com/bookmarks"
+  class="nav-link text-sm p-2 hover:bg-black/10 hover:rounded-sm flex gap-2 items-center transition">
+  
+  </a>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 sm:gap-5">
+      <div class="flex items-center gap-3">
+      <div class="relative">
+  <!-- Social Links Button -->
+  <button id="social-links-btn" class="flex items-center gap-2 rounded-md bg-gray-800 px-4 py-2 text-white transition hover:bg-gray-700">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+  <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z"/>
+</svg>
+    <span>communauté</span>
+  </button>
+
+  <!-- Dropdown Menu -->
+  <div id="social-dropdown" class="absolute right-0 mt-2 rounded-lg bg-white shadow-lg border border-gray-200 hidden" style="width : 130px">
+
+  <a href="https://t.me/yourtelegram" target="_blank" class="flex flex-row justify-start items-center gap-1 px-4 py-2 text-gray-800 hover:bg-gray-200" onmouseover="this.style.backgroundColor='#E5E7EB';" onmouseout="this.style.backgroundColor='';">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+</svg> Telegram</a>
+
+    <a href="https://discord.gg/raNd8bhw" target="_blank" class="flex flex-row justify-start items-center gap-1 px-4 py-2 text-gray-800 hover:bg-gray-200"
+     onmouseover="this.style.backgroundColor='#E5E7EB';" onmouseout="this.style.backgroundColor='';"
+    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+  <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z"/>
+</svg> Discord</a>
+   
+    <a href="https://instagram.com" target="_blank" class="flex flex-row justify-start items-center gap-1 px-4 py-2 text-gray-800 hover:bg-gray-200"  onmouseover="this.style.backgroundColor='#E5E7EB';" onmouseout="this.style.backgroundColor='';">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+</svg> Instagram</a>
+    
+    
+    
+    <a href="https://x.com/lelscanfr" target="_blank" class="flex flex-row justify-start items-center gap-1 px-4 py-2 text-gray-800 hover:bg-gray-200"  onmouseover="this.style.backgroundColor='#E5E7EB';" onmouseout="this.style.backgroundColor='';">
+    <svg class="w-5 h-5 text-black" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+  <path d="M13.795 10.533 20.68 2h-3.073l-5.255 6.517L7.69 2H1l7.806 10.91L1.47 22h3.074l5.705-7.07L15.31 22H22l-8.205-11.467Zm-2.38 2.95L9.97 11.464 4.36 3.627h2.31l4.528 6.317 1.443 2.02 6.018 8.409h-2.31l-4.934-6.89Z"/>
+</svg>
+ Twitter</a>
+  </div>
+</div>
+
+
+        <a href="#" id="search-link" aria-label="Rechercher">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+  class="h-3 w-3 h-5 w-5 transition hover:text-blue-500">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+</svg>
+        </a>
+        <a href="https://lelscanfr.com/manga/random" aria-label="Aléatoire">
+          <svg class="h-5 w-5 transition hover:text-yellow-400" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc. --><path d="M274.9 34.3c-28.1-28.1-73.7-28.1-101.8 0L34.3 173.1c-28.1 28.1-28.1 73.7 0 101.8L173.1 413.7c28.1 28.1 73.7 28.1 101.8 0L413.7 274.9c28.1-28.1 28.1-73.7 0-101.8L274.9 34.3zM200 224a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM96 200a24 24 0 1 1 0 48 24 24 0 1 1 0-48zM224 376a24 24 0 1 1 0-48 24 24 0 1 1 0 48zM352 200a24 24 0 1 1 0 48 24 24 0 1 1 0-48zM224 120a24 24 0 1 1 0-48 24 24 0 1 1 0 48zm96 328c0 35.3 28.7 64 64 64H576c35.3 0 64-28.7 64-64V256c0-35.3-28.7-64-64-64H461.7c11.6 36 3.1 77-25.4 105.5L320 413.8V448zM480 328a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg>        </a>
+        <a class="cursor-pointer" data-toggle="dark" aria-label="Dark Mode">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+            class="h-6 w-6">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+          </svg>
+        </a>
+
+       
+      </div>
+      <a
+  class="cursor-pointer hover:text-black dark:hover:text-white duration-200 transition-colors text-gray-500" data-toggle="dropdown" aria-label="User Menu"><img class="h-9 w-9 rounded-full border-[1px] border-solid border-black/10 object-cover object-top" alt="avatar"
+          src="https://lelscanfr.com/images/user/no-image.jpg" /></a>
+      <div class="dropdown-menu absolute left-0 top-6 z-20 hidden min-w-[200px] max-w-fit rounded-md border-[1px] border-black/10 bg-white p-2 text-sm dark:border-white/10 dark:bg-[#09090b]">
+  <div class="flex flex-col px-0 pt-0">
+    <a
+  class="cursor-pointer py-1 sm:px-2 w-full sm:hover:rounded-sm sm:hover:bg-black/10 sm:dark:hover:bg-white/10 duration-200 transition-colors" href="https://lelscanfr.com/register">
+  S&#039;inscrire
+</a>
+          <a
+  class="cursor-pointer py-1 sm:px-2 w-full sm:hover:rounded-sm sm:hover:bg-black/10 sm:dark:hover:bg-white/10 duration-200 transition-colors" href="https://lelscanfr.com/login">
+  Se connecter
+</a>
+  </div>
+</div>
+    </div>
+  </nav>
+
+  <div id="nav-search" class="animate__animated animate__fast mb-8 hidden w-full sm:absolute">
+    <form method="GET" action="https://lelscanfr.com/manga" class="flex gap-3" id="search-form">
+  <div class="relative w-full">
+    <input   name="title"   type="text" class="input w-full sm:bg-[#191919]" autocomplete="off" id="search-input" placeholder="Rechercher du contenu..." required="required" />
+
+    <button class="right-4 absolute top-1/2 -translate-y-1/2">
+      <svg class="h-4 w-4 text-blue-500 transition-colors duration-200 hover:text-blue-600" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!-- Font Awesome Free 5.15.4 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) --><path d="M505 442.7L405.3 343c-4.5-4.5-10.6-7-17-7H372c27.6-35.3 44-79.7 44-128C416 93.1 322.9 0 208 0S0 93.1 0 208s93.1 208 208 208c48.3 0 92.7-16.4 128-44v16.3c0 6.4 2.5 12.5 7 17l99.7 99.7c9.4 9.4 24.6 9.4 33.9 0l28.3-28.3c9.4-9.4 9.4-24.6.1-34zM208 336c-70.7 0-128-57.2-128-128 0-70.7 57.2-128 128-128 70.7 0 128 57.2 128 128 0 70.7-57.2 128-128 128z"/></svg>    </button>
+  </div>
+</form>
+  </div>
+</header>
+
+<div id="phone-nav" class="-mt-4 mb-4 flex flex-col gap-3 bg-blue-600 p-3 text-white sm:hidden md:hidden lg:hidden">
+  <div class="flex w-full flex-wrap justify-center gap-3 text-sm">
+    <a  href="https://lelscanfr.com/manga" class="flex items-center gap-2"
+  >
+      <svg class="h-4 w-4" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc. --><path d="M40 48C26.7 48 16 58.7 16 72v48c0 13.3 10.7 24 24 24H88c13.3 0 24-10.7 24-24V72c0-13.3-10.7-24-24-24H40zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H192zM16 232v48c0 13.3 10.7 24 24 24H88c13.3 0 24-10.7 24-24V232c0-13.3-10.7-24-24-24H40c-13.3 0-24 10.7-24 24zM40 368c-13.3 0-24 10.7-24 24v48c0 13.3 10.7 24 24 24H88c13.3 0 24-10.7 24-24V392c0-13.3-10.7-24-24-24H40z"/></svg>    <span>Mangas</span>
+</a>
+      </div>
+
+</div>
+  <main class="container mx-auto px-3 sm:px-0 md:px-0">
+      <section class="flex flex-col items-center">
+    <h2 class="text-lg font-bold">
+  Nezumi No Hatsukoi - Chapitre 32
+  <span></span>
+</h2>
+<span class="text-xs text-gray-500">
+  Tous les chapitres sont dans
+  <a class="text-black transition hover:text-opacity-60 dark:text-gray-300"
+    href="https://lelscanfr.com/manga/nezumi-no-hatsukoi">Nezumi No Hatsukoi</a>
+</span>
+    <div class="relative my-5 flex w-full flex-col gap-5 rounded-md bg-red-200/30 px-6 py-4 shadow-md dark:bg-zinc-900 lg:w-3/4">
+  <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex flex-col items-start">
+      <h3 class="text-md font-bold !text-opacity-60 transition hover:text-opacity-80 dark:dark:text-white">
+        <a href="https://lelscanfr.com/manga/nezumi-no-hatsukoi">Nezumi No Hatsukoi</a>
+      </h3>
+
+      <span class="block">
+        Nezumi No Hatsukoi - Chapter 32
+        <span></span>
+      </span>
+    </div>
+
+    <div class="w-full sm:w-1/3">
+      <select  name="type"  class="input w-full" id="chapter-select"
+  >
+      <option class="option" value="54749"
+      >
+      34</option>
+      <option class="option" value="54748"
+      >
+      33</option>
+      <option class="option" value="54747"
+       selected >
+      32</option>
+      <option class="option" value="54746"
+      >
+      31</option>
+      <option class="option" value="54745"
+      >
+      30</option>
+      <option class="option" value="54743"
+      >
+      29</option>
+      <option class="option" value="54742"
+      >
+      28</option>
+      <option class="option" value="54741"
+      >
+      27</option>
+      <option class="option" value="54740"
+      >
+      26</option>
+      <option class="option" value="54739"
+      >
+      25</option>
+      <option class="option" value="54738"
+      >
+      24</option>
+      <option class="option" value="54737"
+      >
+      23</option>
+      <option class="option" value="54736"
+      >
+      22</option>
+      <option class="option" value="54735"
+      >
+      21</option>
+      <option class="option" value="54734"
+      >
+      20</option>
+      <option class="option" value="54732"
+      >
+      19</option>
+      <option class="option" value="54731"
+      >
+      18</option>
+      <option class="option" value="54730"
+      >
+      17</option>
+      <option class="option" value="54729"
+      >
+      16</option>
+      <option class="option" value="54728"
+      >
+      15</option>
+      <option class="option" value="54727"
+      >
+      14</option>
+      <option class="option" value="54725"
+      >
+      13</option>
+      <option class="option" value="54724"
+      >
+      12</option>
+      <option class="option" value="54723"
+      >
+      11</option>
+      <option class="option" value="54722"
+      >
+      10</option>
+      <option class="option" value="54755"
+      >
+      9</option>
+      <option class="option" value="54754"
+      >
+      8</option>
+      <option class="option" value="54753"
+      >
+      7</option>
+      <option class="option" value="54752"
+      >
+      6</option>
+      <option class="option" value="54751"
+      >
+      5</option>
+      <option class="option" value="54750"
+      >
+      4</option>
+      <option class="option" value="54744"
+      >
+      3</option>
+      <option class="option" value="54733"
+      >
+      2</option>
+      <option class="option" value="54721"
+      >
+      1</option>
+  </select>
+
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <a href=https://lelscanfr.com/manga/nezumi-no-hatsukoi/31>
+  <button
+    class="flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-white transition bg-blue-600 shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+    <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+  class="h-5 w-5">
+  <path
+    d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.375 9.375a.624.624 0 1 1 0 1.25H9.134l2.684 2.682a.627.627 0 0 1-.886.885l-3.75-3.75a.625.625 0 0 1 0-.885l3.75-3.75a.626.626 0 0 1 .886.886l-2.684 2.682h7.241Z">
+  </path>
+</svg>
+    <span>Précédent</span>
+  </button>
+</a>
+      <a href=https://lelscanfr.com/manga/nezumi-no-hatsukoi/33>
+  <button
+    class="flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-white transition bg-blue-600 shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+    <span>Suivant</span>
+      <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+  class="h-5 w-5">
+  <path
+    d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-4.375 9.375a.625.625 0 1 0 0 1.25h7.241l-2.684 2.682a.627.627 0 0 0 .886.885l3.75-3.75a.625.625 0 0 0 0-.885l-3.75-3.75a.626.626 0 1 0-.886.886l2.684 2.682H7.625Z">
+  </path>
+</svg>
+  </button>
+</a>
+    </div>
+  </div>
+</div>
+    <div class="mx-auto max-w-3xl" id="chapter-container">
+      <div class="my-3 flex justify-center">
+          <div class="inline-block w-full">
+        <div><script data-cfasync="false" async type="text/javascript" src="//ok.ungreeninwrit.com/tHd8VIB0hy1/78716"></script></div>
+<script data-cfasync="false" async type="text/javascript" src="//af.errandsracket.com/rOPPzScJ1JUAQ/83627"></script>
+      </div>
+      </div>
+                                    <img class="lazyload chapter-image w-full cursor-pointer" data-id="0"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c4e33e8.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c4e33e8.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="1"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c5abdd5.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c5abdd5.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="2"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c65e3e5.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c65e3e5.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="3"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c76b474.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c76b474.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="4"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c8359f6.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c8359f6.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="5"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5c938d6d.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5c938d6d.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="6"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5ca0f696.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5ca0f696.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="7"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5cac40b3.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5cac40b3.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="8"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5cb7d6e2.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5cb7d6e2.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="9"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5cc2da7d.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5cc2da7d.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="10"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5cccbdd5.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5cccbdd5.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="11"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5cd9230b.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5cd9230b.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="12"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5ce440b6.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5ce440b6.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="13"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d01f733.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d01f733.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="14"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d0d18b3.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d0d18b3.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="15"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d18740e.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d18740e.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="16"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d26ea83.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d26ea83.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="17"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d31dd3d.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d31dd3d.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="18"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d3eafca.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d3eafca.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="19"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d4aa5ea.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d4aa5ea.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="20"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d568acd.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d568acd.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="21"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d60d951.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d60d951.webp" />
+                                        <img class="lazyload chapter-image w-full cursor-pointer" data-id="22"
+              data-src="https://lelscanfr.com/storage/content/nezumi-no-hatsukoi/32/6886c5d6bfb95.webp"
+              alt="Nezumi No Hatsukoi - 32 - 6886c5d6bfb95.webp" />
+                              <div class="my-3 flex justify-center">
+          <div class="inline-block w-full">
+        <script data-cfasync="false" async type="text/javascript" src="//af.errandsracket.com/rOPPzScJ1JUAQ/83627"></script>
+      </div>
+      </div>
+    </div>
+    <div class="relative my-5 flex w-full flex-col gap-5 rounded-md bg-red-200/30 px-6 py-4 shadow-md dark:bg-zinc-900 lg:w-3/4">
+  <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex flex-col items-start">
+      <h3 class="text-md font-bold !text-opacity-60 transition hover:text-opacity-80 dark:dark:text-white">
+        <a href="https://lelscanfr.com/manga/nezumi-no-hatsukoi">Nezumi No Hatsukoi</a>
+      </h3>
+
+      <span class="block">
+        Nezumi No Hatsukoi - Chapter 32
+        <span></span>
+      </span>
+    </div>
+
+    <div class="w-full sm:w-1/3">
+      <select  name="type"  class="input w-full" id="chapter-select"
+  >
+      <option class="option" value="54749"
+      >
+      34</option>
+      <option class="option" value="54748"
+      >
+      33</option>
+      <option class="option" value="54747"
+       selected >
+      32</option>
+      <option class="option" value="54746"
+      >
+      31</option>
+      <option class="option" value="54745"
+      >
+      30</option>
+      <option class="option" value="54743"
+      >
+      29</option>
+      <option class="option" value="54742"
+      >
+      28</option>
+      <option class="option" value="54741"
+      >
+      27</option>
+      <option class="option" value="54740"
+      >
+      26</option>
+      <option class="option" value="54739"
+      >
+      25</option>
+      <option class="option" value="54738"
+      >
+      24</option>
+      <option class="option" value="54737"
+      >
+      23</option>
+      <option class="option" value="54736"
+      >
+      22</option>
+      <option class="option" value="54735"
+      >
+      21</option>
+      <option class="option" value="54734"
+      >
+      20</option>
+      <option class="option" value="54732"
+      >
+      19</option>
+      <option class="option" value="54731"
+      >
+      18</option>
+      <option class="option" value="54730"
+      >
+      17</option>
+      <option class="option" value="54729"
+      >
+      16</option>
+      <option class="option" value="54728"
+      >
+      15</option>
+      <option class="option" value="54727"
+      >
+      14</option>
+      <option class="option" value="54725"
+      >
+      13</option>
+      <option class="option" value="54724"
+      >
+      12</option>
+      <option class="option" value="54723"
+      >
+      11</option>
+      <option class="option" value="54722"
+      >
+      10</option>
+      <option class="option" value="54755"
+      >
+      9</option>
+      <option class="option" value="54754"
+      >
+      8</option>
+      <option class="option" value="54753"
+      >
+      7</option>
+      <option class="option" value="54752"
+      >
+      6</option>
+      <option class="option" value="54751"
+      >
+      5</option>
+      <option class="option" value="54750"
+      >
+      4</option>
+      <option class="option" value="54744"
+      >
+      3</option>
+      <option class="option" value="54733"
+      >
+      2</option>
+      <option class="option" value="54721"
+      >
+      1</option>
+  </select>
+
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <a href=https://lelscanfr.com/manga/nezumi-no-hatsukoi/31>
+  <button
+    class="flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-white transition bg-blue-600 shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+    <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+  class="h-5 w-5">
+  <path
+    d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.375 9.375a.624.624 0 1 1 0 1.25H9.134l2.684 2.682a.627.627 0 0 1-.886.885l-3.75-3.75a.625.625 0 0 1 0-.885l3.75-3.75a.626.626 0 0 1 .886.886l-2.684 2.682h7.241Z">
+  </path>
+</svg>
+    <span>Précédent</span>
+  </button>
+</a>
+      <a href=https://lelscanfr.com/manga/nezumi-no-hatsukoi/33>
+  <button
+    class="flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold text-white transition bg-blue-600 shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600">
+    <span>Suivant</span>
+      <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+  class="h-5 w-5">
+  <path
+    d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-4.375 9.375a.625.625 0 1 0 0 1.25h7.241l-2.684 2.682a.627.627 0 0 0 .886.885l3.75-3.75a.625.625 0 0 0 0-.885l-3.75-3.75a.626.626 0 1 0-.886.886l2.684 2.682H7.625Z">
+  </path>
+</svg>
+  </button>
+</a>
+    </div>
+  </div>
+</div>
+    <div class="visibility: hidden container mx-auto mt-10 flex justify-center px-3 sm:px-0 md:px-0">
+      <div id="comments-list" class="w-full lg:w-3/4">
+        <h2 class="visibility: hidden mb-3 block text-lg font-bold leading-[1rem]">Commentaires (0)</h2>
+
+
+<form method="POST" action="https://lelscanfr.com/comments/post">
+  <input type="hidden" name="_token" value="PuWeSCL3ccKvUPfM0ttuXVGa15tml9zTNjLKcrKS" autocomplete="off">  <input type="hidden" name="type" value="App\Models\Chapter" />
+  <input type="hidden" name="key" value="54747" />
+  <div class="relative">
+    <input   name="comment"   type="text" class="input visibility: hidden w-full py-4" autocomplete="off" placeholder="Ajouter un commentaire..." required="required" />
+
+    <button class="right-4 absolute top-1/2 -translate-y-1/2" type="submit">
+  <svg class="h-5 w-5 text-blue-500" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc. --><path d="M498.1 5.6c10.1 7 15.4 19.1 13.5 31.2l-64 416c-1.5 9.7-7.4 18.2-16 23s-18.9 5.4-28 1.6L284 427.7l-68.5 74.1c-8.9 9.7-22.9 12.9-35.2 8.1S160 493.2 160 480V396.4c0-4 1.5-7.8 4.2-10.7L331.8 202.8c5.8-6.3 5.6-16-.4-22s-15.7-6.4-22-.7L106 360.8 17.7 316.6C7.1 311.3 .3 300.7 0 288.9s5.9-22.8 16.1-28.7l448-256c10.7-6.1 23.9-5.5 34 1.4z"/></svg></button>
+  </div>
+  <p class="visibility: hidden mt-1 text-xs text-black !text-opacity-50 dark:text-white"><span id="comment-char">0</span>/500
+    Max
+  </p>
+</form>
+
+<div class="mt-5 flex flex-col gap-4">
+  </div>
+
+      </div>
+    </div>
+  </section>
+  <div class="group fixed bottom-[3vh] right-[5vw] cursor-pointer rounded-full p-2 opacity-50 hover:opacity-100">
+    <a id="chapter-modal">
+      <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+        class="h-9 w-9 transition group-hover:fill-blue-500">
+        <path fill-rule="evenodd"
+          d="M13.788 3.804c-.456-1.872-3.12-1.872-3.576 0a1.839 1.839 0 0 1-2.743 1.138c-1.647-1.004-3.53.88-2.527 2.527a1.84 1.84 0 0 1-1.137 2.744c-1.873.455-1.873 3.12 0 3.574a1.838 1.838 0 0 1 1.137 2.744c-1.004 1.647.88 3.53 2.527 2.527a1.839 1.839 0 0 1 2.744 1.137c.455 1.873 3.12 1.873 3.574 0a1.84 1.84 0 0 1 2.744-1.137c1.647 1.004 3.53-.88 2.527-2.527a1.839 1.839 0 0 1 1.137-2.744c1.873-.455 1.873-3.12 0-3.574a1.838 1.838 0 0 1-1.137-2.744c1.004-1.647-.88-3.53-2.527-2.527a1.838 1.838 0 0 1-2.744-1.137l.001-.001ZM12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"
+          clip-rule="evenodd"></path>
+      </svg>
+    </a>
+  </div>
+  <div class="hidden" id="modal">
+  <div class="fixed bottom-0 left-0 h-screen w-screen bg-black/70" id="modal-bg"></div>
+  <div
+    class="fixed left-1/2 top-1/2 flex w-[400px] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 flex-col gap-5 rounded-md border-[1px] border-black/10 bg-white p-5 dark:bg-black">
+    <div class="flex flex-col gap-1">
+      <h3 class="text-lg font-bold">Paramètre de lecture</h3>
+      <p class="text-gray-400">Définissez vos paramètres de lecture préférés parmi les suivants</p>
+    </div>
+    <div class="flex flex-col gap-3">
+      <div class="flex w-full flex-col gap-3">
+    <label class="text-sm font-medium cursor-pointer max-w-fit">Type de lecture</label>
+
+<select  name="type"  class="input " id="reading-types"
+  >
+      <option class="option" value="long"
+      >
+      Bande longue</option>
+      <option class="option" value="single"
+      >
+      Une Seul Page</option>
+  </select>
+
+  </div>
+      <div class="flex w-full flex-col gap-3">
+    <label class="text-sm font-medium cursor-pointer max-w-fit">Largeur du Chapitre</label>
+
+<select  name="type"  class="input " id="chapter-width"
+  >
+      <option class="option" value="768px"
+      >
+      768px</option>
+      <option class="option" value="896px"
+      >
+      896px</option>
+      <option class="option" value="1024px"
+      >
+      1024px</option>
+      <option class="option" value="1152px"
+      >
+      1152px</option>
+      <option class="option" value="1280px"
+      >
+      1280px</option>
+      <option class="option" value="100vw"
+      >
+      Max</option>
+  </select>
+
+  </div>
+      <div class="flex w-full flex-col gap-3">
+    <label class="text-sm font-medium cursor-pointer max-w-fit">Défilement par taille de clic</label>
+
+<select  name="type"  class="input " id="chapter-scroll"
+  >
+      <option class="option" value="500"
+      >
+      500px</option>
+      <option class="option" value="1000"
+      >
+      1000px</option>
+      <option class="option" value="1500"
+      >
+      1500px</option>
+      <option class="option" value="2000"
+      >
+      2000px</option>
+      <option class="option" value="2500"
+      >
+      2500px</option>
+      <option class="option" value="3000"
+      >
+      3000px</option>
+  </select>
+
+  </div>
+    </div>
+    <div class="flex gap-3">
+      <button type="submit"
+  class="flex gap-3 items-center justify-center relative font-semibold px-4 py-3 bg-white text-black rounded-md duration-200 transition-all shadow-sm border-[1px] border-black/10 hover:border-white/20 hover:bg-black hover:text-white disabled:cursor-not-allowed w-full" id="reset-settings">
+  <span id="btn-text">Réinitialiser</span>
+  <span id="btn-loader"
+    class="hidden h-5 w-5 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+    role="status">
+    <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+  </span>
+
+</button>
+      <button type="submit"
+  class="flex gap-3 items-center justify-center relative font-semibold px-4 py-3 bg-white text-black rounded-md duration-200 transition-all shadow-sm border-[1px] border-black/10 hover:border-white/20 hover:bg-black hover:text-white disabled:cursor-not-allowed w-full" id="save-settings">
+  <span id="btn-text">Enregistrer</span>
+  <span id="btn-loader"
+    class="hidden h-5 w-5 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+    role="status">
+    <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+  </span>
+
+</button>
+    </div>
+  </div>
+</div>
+<link rel="modulepreload" href="https://lelscanfr.com/build/assets/chapter-4760d0c4.js" /><script type="module" src="https://lelscanfr.com/build/assets/chapter-4760d0c4.js"></script>
+  </main>
+  <div id="anime-welcome-popup" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 50; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); background-color: rgba(0, 0, 0, 0.8); padding: 1rem;">
+    <div id="popup-content" style="position: absolute; width: 100%; top: 10%; max-width: 28rem; transform: scale(0); transition: all 900ms ease-out;">
+        <!-- Animated border gradient -->
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 0.75rem; background: linear-gradient(to right, #4f46e5, #d946ef, #22d3ee); padding: 0.25rem; animation: pulse 2s infinite;">
+            <!-- Main content -->
+            <div style="position: relative; background-color: #111827; border-radius: 0.75rem; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden;">
+                <!-- Decorative elements -->
+                <div style="position: absolute; top: -4rem; right: -4rem; width: 8rem; height: 8rem; background-color: #d946ef; opacity: 0.2; border-radius: 50%; filter: blur(24px);"></div>
+                <div style="position: absolute; bottom: -3rem; left: -3rem; width: 6rem; height: 6rem; background-color: #22d3ee; opacity: 0.2; border-radius: 50%; filter: blur(24px);"></div>
+                
+                <!-- Decorative corners -->
+                <div style="position: absolute; top: 0; left: 0; width: 3rem; height: 3rem; border-top: 2px solid #4f46e5; border-left: 2px solid #4f46e5; border-top-left-radius: 0.5rem;"></div>
+                <div style="position: absolute; top: 0; right: 0; width: 3rem; height: 3rem; border-top: 2px solid #d946ef; border-right: 2px solid #d946ef; border-top-right-radius: 0.5rem;"></div>
+                <div style="position: absolute; bottom: 0; left: 0; width: 3rem; height: 3rem; border-bottom: 2px solid #22d3ee; border-left: 2px solid #22d3ee; border-bottom-left-radius: 0.5rem;"></div>
+                <div style="position: absolute; bottom: 0; right: 0; width: 3rem; height: 3rem; border-bottom: 2px solid #4f46e5; border-right: 2px solid #4f46e5; border-bottom-right-radius: 0.5rem;"></div>
+
+                <!-- Header -->
+                <div style="margin-bottom: 2rem; text-align: center; position: relative; padding-top: 0.5rem;">
+    <h3 style="font-size: 1.875rem; font-weight: 700; 
+              color: transparent; 
+              background: linear-gradient(to right, #4f46e5, #d946ef, #22d3ee);
+              -webkit-background-clip: text; 
+              background-clip: text;
+              margin: 0;
+              line-height: 1.2;
+              position: relative;
+              z-index: 1;">
+        Bienvenue sur lelscanfr !
+    </h3>
+    <button onclick="closeAnimePopup()" 
+            style="position: absolute; 
+                  top: -1.2rem; 
+                  right: -1rem; 
+                  color: #9ca3af; 
+                  transition: all 0.3s;
+                  z-index: 2;"
+            onmouseover="this.style.color='#d946ef'; this.style.transform='rotate(90deg)';"
+            onmouseout="this.style.color='#9ca3af'; this.style.transform='rotate(0deg)'">
+        <svg style="width: 1.5rem; height: 1.5rem;" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M18.707 6.707a1 1 0 0 0-1.414-1.414L12 10.586 6.707 5.293a1 1 0 0 0-1.414 1.414L10.586 12l-5.293 5.293a1 1 0 1 0 1.414 1.414L12 13.414l5.293 5.293a1 1 0 0 0 1.414-1.414L13.414 12l5.293-5.293z"/>
+        </svg>
+    </button>
+</div>
+                <p class="mb-6 text-gray-300 text-center leading-relaxed text-lg">
+                        Nous vous invitons à rejoindre notre communauté sur les réseaux sociaux pour ne rien manquer de nos actualités, partager vos expériences et bénéficier d’avantages exclusifs.
+Cliquez ici pour nous suivre et faire partie de l’aventure !
+                    </p>
+                <!-- Social links -->
+                <div style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;margin-top:1.5rem">
+                    <!-- Discord -->
+                    <a href="https://discord.gg/raNd8bhw" style="position: relative;">
+                        <div style="position: absolute; inset: -0.125rem; border-radius: 9999px; background: linear-gradient(to right, #4f46e5, #d946ef); opacity: 0.7; filter: blur(4px); transition: opacity 0.3s;"></div>
+                        <div style="position: relative; display: flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: 9999px; background-color: #111827; color: #d1d5db; transition: color 0.3s;">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z"/>
+                                </svg>
+                        </div>
+                    </a>
+
+ <!-- Twitter -->
+                    <a href="https://x.com/lelscanfr" style="position: relative;">
+                        <div style="position: absolute; inset: -0.125rem; border-radius: 9999px; background: linear-gradient(to right, #4f46e5, #d946ef); opacity: 0.7; filter: blur(4px); transition: opacity 0.3s;"></div>
+                        <div style="position: relative; display: flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: 9999px; background-color: #111827; color: #d1d5db; transition: color 0.3s;">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                </svg>
+                        </div>
+                    </a>
+
+
+  <!-- Telegram -->
+                    <a href="#telegram" style="position: relative;">
+                        <div style="position: absolute; inset: -0.125rem; border-radius: 9999px; background: linear-gradient(to right, #4f46e5, #d946ef); opacity: 0.7; filter: blur(4px); transition: opacity 0.3s;"></div>
+                        <div style="position: relative; display: flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: 9999px; background-color: #111827; color: #d1d5db; transition: color 0.3s;">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                                </svg>
+                        </div>
+                    </a>
+
+  <!-- Instagram -->
+                    <a href="#instagram" style="position: relative;">
+                        <div style="position: absolute; inset: -0.125rem; border-radius: 9999px; background: linear-gradient(to right, #4f46e5, #d946ef); opacity: 0.7; filter: blur(4px); transition: opacity 0.3s;"></div>
+                        <div style="position: relative; display: flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: 9999px; background-color: #111827; color: #d1d5db; transition: color 0.3s;">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                                </svg>
+                        </div>
+                    </a>
+                    <!-- Other social links -->
+                </div>
+
+                <!-- Close button -->
+                <div style="display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-top: 2rem;">
+                    <button onclick="closeAnimePopup()" style="position: relative; overflow: hidden; border-radius: 0.5rem; border: 1px solid #374151; background-color: rgba(17, 24, 39, 0.8); padding: 0.75rem 1rem; color: #d1d5db; transition: color 0.3s;">
+                        <span style="position: absolute; inset: 0; width: 33%; height: 100%; background: linear-gradient(to right, transparent, white, transparent); opacity: 0.1; transform: translateX(-100%) rotate(45deg); transition: transform 1s ease-out;"></span>
+                        <span style="position: relative;">Peut-être plus tard</span>
+                    </button>
+                </div>
+
+                <!-- Bottom animation -->
+                <div style="width: 100%; height: 0.25rem; background: linear-gradient(to right, #22d3ee, #d946ef, #4f46e5); border-radius: 9999px; margin-top: 0.5rem; position: relative; overflow: hidden;">
+                    <div style="position: absolute; inset: 0; width: 50%; height: 100%; background-color: white; opacity: 0.3; transform: translateX(-100%); animation: shimmer 2s infinite;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom animations for the popup */
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+    }
+    
+    @keyframes bounceIn {
+        0% { transform: scale(0); opacity: 0; }
+        70% { transform: scale(1.05); opacity: 1; }
+        80% { transform: scale(0.95); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    @keyframes fadeOut {
+        0% { transform: scale(1); opacity: 1; }
+        20% { transform: scale(0.95); opacity: 0.8; }
+        100% { transform: scale(0); opacity: 0; }
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .animate-pulse-slow {
+        animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    .animate-float {
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    .animate-shimmer {
+        animation: shimmer 2s infinite;
+    }
+    
+    .animate-bounce-in {
+        animation: bounceIn 0.6s ease-out forwards;
+    }
+    
+    .animate-fade-out {
+        animation: fadeOut 0.5s ease-out forwards;
+    }
+</style>
+
+<script>
+    /**
+     * Anime Welcome Popup Handler
+     * 
+     * This script handles the anime-themed welcome popup that appears
+     * every 7 days for users. It includes animations and cookie management.
+     */
+    
+    // Custom animations for the popup using Web Animations API
+    const animePopupAnimations = {
+        // Bounce in animation
+        bounceIn: [
+            { transform: 'scale(0)', opacity: 0, offset: 0 },
+            { transform: 'scale(1.05)', opacity: 1, offset: 0.8 },
+            { transform: 'scale(0.95)', opacity: 1, offset: 0.9 },
+            { transform: 'scale(1)', opacity: 1, offset: 1 }
+        ],
+        
+        // Fade out animation
+        fadeOut: [
+            { transform: 'scale(1)', opacity: 1, offset: 0 },
+            { transform: 'scale(0.95)', opacity: 0.9, offset: 0.2 },
+            { transform: 'scale(0)', opacity: 0, offset: 1 }
+        ]
+    };
+    
+    // Show popup with animation when page loads (if no cookie exists)
+    document.addEventListener('DOMContentLoaded', function() {
+        const popup = document.getElementById('anime-welcome-popup');
+        const content = document.getElementById('popup-content');
+        if (!getAnimeCookie('anime_welcome_popup_seen')) {
+           
+            
+            if (!popup || !content) return;
+            
+            // Display the container
+            popup.style.display = 'flex';
+            
+            // Add slight delay before animation for better effect
+            setTimeout(function() {
+                // Use Web Animations API for more control if supported
+				
+                if (typeof content.animate === 'function') {
+                    content.animate(animePopupAnimations.bounceIn, {
+                        duration: 900,
+                        easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                        fill: 'forwards'
+                    });
+                }
+                
+                // Also add classes for browsers that might not support Web Animations API
+                content.classList.remove('scale-0');
+                content.classList.add('scale-100');
+                content.classList.add('animate-bounce-in');
+            }, 900);
+        }
+        else{
+  
+            popup.style.display = 'none';
+        }
+		
+		
+    });
+    
+    // Close popup with animation and set cookie
+    function closeAnimePopup() {
+        const popup = document.getElementById('anime-welcome-popup');
+        const content = document.getElementById('popup-content');
+        
+        if (!popup || !content) return;
+        
+        // Use Web Animations API for the exit animation if supported
+        if (typeof content.animate === 'function') {
+            const animation = content.animate(animePopupAnimations.fadeOut, {
+                duration: 500,
+                easing: 'ease-out',
+                fill: 'forwards'
+            });
+            
+            // Wait for animation to complete before hiding
+            animation.onfinish = function() {
+                popup.style.display = 'none';
+            };
+        } else {
+            // Fallback for browsers without Web Animations API
+            content.classList.remove('scale-100');
+            content.classList.remove('animate-bounce-in');
+            content.classList.add('scale-0');
+            content.classList.add('animate-fade-out');
+            
+            // Wait for animation to complete before hiding
+            setTimeout(function() {
+                popup.style.display = 'none';
+            }, 500);
+        }
+        
+        // Set cookie for 7 days
+        setAnimeCookie('anime_welcome_popup_seen', '1', 7);
+    }
+    
+    // Helper function to set a cookie
+    function setAnimeCookie(name, value, days) {
+        var expires = "";
+        if (days) {
+            var date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            expires = "; expires=" + date.toUTCString();
+        }
+        document.cookie = name + "=" + value + expires + "; path=/; SameSite=Lax";
+    }
+    
+    // Helper function to get a cookie
+    function getAnimeCookie(name) {
+        var nameEQ = name + "=";
+        var ca = document.cookie.split(';');
+        for(var i=0; i < ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+</script>
+
+  <div class="bottom-0 left-1/2 -translate-x-1/2 w-[90%] max-w-[1000px] fixed z-50 flex flex-col">
+    <span id="close-ad"
+      class="inline-block max-w-fit grow-0 cursor-pointer rounded-t-md border-[1px] border-white/20 bg-black px-3 py-1 text-white hover:bg-black/70">X</span>
+    <div class="flex justify-center">
+              <div class="inline-block w-full">
+          <div><script data-cfasync="false" async type="text/javascript" src="//ok.ungreeninwrit.com/tHd8VIB0hy1/78716"></script></div>
+        </div>
+          </div>
+  </div>
+<div class="top-[10%] left-0 fixed z-50 flex flex-col">
+    <span id="close-ad"
+      class="inline-block max-w-fit grow-0 cursor-pointer rounded-t-md border-[1px] border-white/20 bg-black px-3 py-1 text-white hover:bg-black/70">X</span>
+    <div class="flex justify-center">
+              <div class="inline-block w-full">
+          <script data-cfasync="false" async type="text/javascript" src="//centricgaffkya.com/nNY6s0dfZGWzRDyc/79005"></script>
+        </div>
+          </div>
+  </div>
+<div class="top-[10%] right-0 fixed z-50 flex flex-col">
+    <span id="close-ad"
+      class="inline-block max-w-fit grow-0 cursor-pointer rounded-t-md border-[1px] border-white/20 bg-black px-3 py-1 text-white hover:bg-black/70">X</span>
+    <div class="flex justify-center">
+              <div class="inline-block w-full">
+          <script data-cfasync="false" async type="text/javascript" src="//af.errandsracket.com/rOPPzScJ1JUAQ/83627"></script>
+        </div>
+          </div>
+  </div>
+
+<footer class="flex w-full flex-col items-center justify-center py-5">
+  <div class="mb-3 flex gap-3">
+                  </div>
+  <div class="mb-1 flex flex-wrap justify-center gap-2">
+      </div>
+  <span class="text-sm text-black !text-opacity-60 dark:dark:text-white">All rights reserved. ©2026</span>
+
+  <a href="https://lelscanfr.com">lelscanfr</a>
+</footer>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0297GPTREH"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-0297GPTREH');
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6738849736357342"
+     crossorigin="anonymous"></script>
+ 
+</body>
