@@ -554,13 +554,24 @@ impl MangaScantrad {
                         
                         let key = self.extract_manga_id(&href);
                         
-                        // Extract cover image
+                        // Extract cover image using Madara template approach
                         let cover = item.select("img")
                             .and_then(|imgs| imgs.first())
                             .and_then(|img| {
+                                // Same attribute priority as Madara template
                                 img.attr("data-src")
-                                    .or_else(|| img.attr("src"))
                                     .or_else(|| img.attr("data-lazy-src"))
+                                    .or_else(|| img.attr("src"))
+                                    .or_else(|| img.attr("srcset"))
+                                    .or_else(|| img.attr("data-cfsrc"))
+                            })
+                            .map(|src| {
+                                // Clean up srcset if needed (take first URL)
+                                if src.contains(" ") {
+                                    src.split_whitespace().next().unwrap_or("").to_string()
+                                } else {
+                                    src.to_string()
+                                }
                             })
                             .unwrap_or_default();
                         
@@ -625,29 +636,40 @@ impl MangaScantrad {
         
         println!("Found title: {}", title);
 
-        // Extract cover with extensive selectors
+        // Extract cover using Madara template approach with more selectors
         let cover_selectors = [
-            ".summary_image img",
-            ".wp-post-image",
-            ".manga-poster img",
-            ".post-thumb img",
-            ".series-thumb img",
-            ".thumb img",
-            "img.attachment-post-thumbnail",
-            ".infomanga img",
-            "div[itemprop=image] img",
-            ".post-content img:first-child"
+            "div.summary_image img",      // Primary Madara selector
+            ".wp-post-image",             // WordPress featured image
+            ".manga-poster img",          // Common manga poster
+            ".post-thumb img",            // Post thumbnail
+            ".series-thumb img",          // Series thumbnail
+            ".thumb img",                 // Generic thumb
+            "img.attachment-post-thumbnail", // WordPress attachment
+            ".infomanga img",             // Info manga section
+            "div[itemprop=image] img",    // Schema.org structured data
+            ".post-content img:first-child", // First content image
+            ".entry-content img:first-child", // Entry content image
+            ".manga-summary img",         // Manga summary image
+            "article img:first-child",    // First article image
         ];
         
         let mut cover = String::new();
         for selector in &cover_selectors {
             println!("Trying cover selector: {}", selector);
             if let Some(img_elem) = html.select(selector).and_then(|elems| elems.first()) {
-                if let Some(src) = img_elem.attr("data-lazy-src")
-                    .or_else(|| img_elem.attr("data-src"))
-                    .or_else(|| img_elem.attr("src")) {
+                // Use same attribute priority as Madara template
+                if let Some(src) = img_elem.attr("data-src")
+                    .or_else(|| img_elem.attr("data-lazy-src"))
+                    .or_else(|| img_elem.attr("src"))
+                    .or_else(|| img_elem.attr("srcset"))
+                    .or_else(|| img_elem.attr("data-cfsrc")) {
                     if !src.is_empty() {
-                        cover = src;
+                        // Clean up srcset if needed (take first URL)
+                        cover = if src.contains(" ") {
+                            src.split_whitespace().next().unwrap_or("").to_string()
+                        } else {
+                            src.to_string()
+                        };
                         println!("Found cover with {}: {}", selector, cover);
                         break;
                     }
