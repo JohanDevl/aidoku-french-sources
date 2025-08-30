@@ -2,12 +2,10 @@
   "info": {
     "id": "fr.mangascantrad",
     "name": "Manga Scantrad",
-    "version": 45,
+    "version": 13,
     "url": "https://manga-scantrad.io",
     "contentRating": 1,
-    "languages": [
-      "fr"
-    ]
+    "languages": ["fr"]
   },
   "listings": [
     {
