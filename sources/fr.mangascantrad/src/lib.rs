@@ -198,94 +198,101 @@ impl MangaScantrad {
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         println!("ajax_chapter_list called for manga: {}", manga_key);
         
-        // First, establish a session by visiting the manga page
+        // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
-        println!("Establishing session by visiting: {}", manga_url);
+        println!("Fetching manga page to extract numeric ID: {}", manga_url);
         
-        let _session_doc = Request::get(&manga_url)?
+        let manga_page_doc = Request::get(&manga_url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .html()?;
-            
-        println!("Session established, now trying AJAX chapter requests");
         
-        // Focus on the URL that should work according to chapters.txt test
-        // Try different header combinations to match what browsers actually send
-        let chapter_url = format!("{}/manga/{}/ajax/chapters/", BASE_URL, manga_key);
+        // Step 2: Extract numeric ID from JavaScript (exactly like old Madara implementation)
+        let int_id = self.extract_manga_int_id(&manga_page_doc)?;
+        println!("Extracted numeric manga ID: {}", int_id);
         
-        let approaches = [
-            // Exact browser-like headers
-            ("Browser-like headers", chapter_url.clone(), "GET", ""),
-        ];
+        // Step 3: Use Madara alt_ajax method - POST to /manga/{key}/ajax/chapters  
+        let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
+        let body_content = format!("action=manga_get_chapters&manga={}", int_id);
         
-        for (approach_name, url, method, body) in &approaches {
-            println!("Trying approach {}: {} {} with body: '{}'", approach_name, method, url, body);
-            
-            let request_result = if *method == "GET" {
-                // Use exact browser headers to match chapters.txt response
-                Request::get(url).and_then(|req| req
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-                    .header("Accept-Encoding", "gzip, deflate, br")
-                    .header("Referer", &manga_url)
-                    .header("Connection", "keep-alive")
-                    .header("Upgrade-Insecure-Requests", "1")
-                    .header("Sec-Fetch-Dest", "document")
-                    .header("Sec-Fetch-Mode", "navigate")
-                    .header("Sec-Fetch-Site", "same-origin")
-                    .header("Cache-Control", "max-age=0")
-                    .html())
-            } else {
-                Request::post(url).and_then(|req| req
-                    .header("User-Agent", USER_AGENT)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .header("Accept", "*/*")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Referer", &manga_url)
-                    .header("X-Requested-With", "XMLHttpRequest")
-                    .body(body.as_bytes())
-                    .html())
-            };
-            
-            match request_result {
-                Ok(html_doc) => {
-                    println!("AJAX chapters response received for {}", approach_name);
-                    
-                    // Parse chapters using the known structure
-                    match self.parse_ajax_chapters_response(html_doc) {
-                        Ok(chapters) => {
-                            if !chapters.is_empty() {
-                                println!("SUCCESS: {} returned {} chapters", approach_name, chapters.len());
-                                return Ok(chapters);
-                            } else {
-                                println!("{} returned no chapters", approach_name);
-                            }
-                        }
-                        Err(e) => {
-                            println!("Error parsing AJAX chapters for {}: {:?}", approach_name, e);
-                        }
-                    }
+        println!("Making Madara alt_ajax POST request to: {}", ajax_url);
+        println!("POST body: {}", body_content);
+        
+        let ajax_doc = Request::post(&ajax_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", &manga_url)
+            .body(body_content.as_bytes())
+            .html()?;
+        
+        println!("AJAX response received, parsing chapters...");
+        
+        // Parse the response (should contain the chapter HTML fragment)
+        match self.parse_ajax_chapters_response(ajax_doc) {
+            Ok(chapters) => {
+                if !chapters.is_empty() {
+                    println!("SUCCESS: Found {} chapters via Madara alt_ajax", chapters.len());
+                    return Ok(chapters);
+                } else {
+                    println!("Madara alt_ajax returned no chapters");
                 }
-                Err(e) => {
-                    println!("Error fetching AJAX chapters for {}: {:?}", approach_name, e);
-                }
+            }
+            Err(e) => {
+                println!("Error parsing Madara alt_ajax response: {:?}", e);
             }
         }
         
-        println!("All approaches failed, trying to parse chapters from the current page");
-        
-        // If AJAX failed, try to parse chapters from the session page we already fetched
-        if let Ok(chapters) = self.parse_chapter_list(&_session_doc) {
+        // Fallback: try to parse from main page
+        println!("Fallback: trying to parse chapters from main manga page");
+        if let Ok(chapters) = self.parse_chapter_list(&manga_page_doc) {
             if !chapters.is_empty() {
-                println!("SUCCESS: Found {} chapters in the main manga page", chapters.len());
+                println!("SUCCESS: Found {} chapters in main page", chapters.len());
                 return Ok(chapters);
             }
         }
         
-        println!("No chapters found in main page either, returning empty list");
+        println!("No chapters found with any method");
         Ok(vec![])
+    }
+    
+    fn extract_manga_int_id(&self, html: &Document) -> Result<String> {
+        println!("extract_manga_int_id called");
+        
+        // Look for the wp-manga-js-extra script tag (like in old Madara implementation)
+        if let Some(script_element) = html.select("script#wp-manga-js-extra") {
+            if let Some(script_content) = script_element.html() {
+                let script_text = script_content;
+                println!("Found wp-manga-js-extra script: {}", &script_text[..500.min(script_text.len())]);
+                
+                // Look for manga ID in the script (usually in a variable like manga_id or similar)
+                if let Some(start) = script_text.find("\"manga_id\":\"") {
+                    let after_start = &script_text[start + 12..];
+                    if let Some(end) = after_start.find("\"") {
+                        let manga_id = &after_start[..end];
+                        println!("Extracted manga ID from script: {}", manga_id);
+                        return Ok(manga_id.to_string());
+                    }
+                }
+                
+                // Alternative pattern: look for numeric ID in different formats
+                if let Some(start) = script_text.find("manga_id=") {
+                    let after_start = &script_text[start + 9..];
+                    if let Some(end) = after_start.find(|c: char| !c.is_ascii_digit()) {
+                        let manga_id = &after_start[..end];
+                        println!("Extracted manga ID (alt pattern): {}", manga_id);
+                        return Ok(manga_id.to_string());
+                    }
+                }
+            }
+        }
+        
+        // If not found in script, try to extract from other common locations
+        println!("No manga ID found in wp-manga-js-extra, trying alternative methods");
+        
+        // For now, return a placeholder ID and let the POST request handle it
+        println!("Could not extract manga numeric ID from page, using fallback ID");
+        Ok("0".to_string())
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
