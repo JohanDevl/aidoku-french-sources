@@ -14,6 +14,11 @@ use alloc::{string::ToString};
 pub static BASE_URL: &str = "https://manga-scantrad.io";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15";
 
+// Helper function for accurate date calculation
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0)
+}
+
 pub struct MangaScantrad;
 
 impl Source for MangaScantrad {
@@ -331,12 +336,30 @@ impl MangaScantrad {
         
         println!("Parsed date: day={}, month={}, year={}", day, month, year);
         
-        // Create a simple timestamp (days since epoch approximation)
-        // This is a basic implementation - for production you'd use a proper date library
-        let days_since_1970 = (year - 1970) * 365 + month as i32 * 30 + day as i32;
-        let timestamp = days_since_1970 as i64 * 86400; // seconds in a day
+        // More accurate timestamp calculation accounting for leap years and actual month lengths
+        let mut total_days = 0i32;
         
-        println!("Calculated timestamp: {}", timestamp);
+        // Add days for complete years since 1970
+        for y in 1970..year {
+            if is_leap_year(y) {
+                total_days += 366;
+            } else {
+                total_days += 365;
+            }
+        }
+        
+        // Add days for complete months in the target year
+        let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for m in 0..(month as usize - 1) {
+            total_days += days_in_month[m] as i32;
+        }
+        
+        // Add the specific day
+        total_days += day as i32 - 1; // -1 because day 1 = 0 additional days
+        
+        let timestamp = total_days as i64 * 86400; // seconds in a day
+        
+        println!("Calculated accurate timestamp: {}", timestamp);
         Some(timestamp)
     }
     
