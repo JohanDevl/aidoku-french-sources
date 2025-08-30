@@ -52,7 +52,9 @@ impl Source for MangaScantrad {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let url = format!("{}/{}/", BASE_URL, chapter.key);
+        // Use Madara template approach: add ?style=list parameter for better image loading
+        let url = format!("{}/{}/?style=list", BASE_URL, chapter.key);
+        println!("Getting page list from: {}", url);
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -1068,26 +1070,99 @@ impl MangaScantrad {
 
     fn parse_page_list(&self, html: Document) -> Result<Vec<Page>> {
         let mut pages: Vec<Page> = Vec::new();
+        
+        println!("parse_page_list called");
 
-        // Try multiple selectors for Madara themes
-        if let Some(images) = html.select(".page-break img, .reading-content img, div.page-break > img") {
-            for img in images {
-                let img_url = img.attr("data-src")
-                    .or_else(|| img.attr("src"))
-                    .unwrap_or_default();
+        // Primary selector (same as Madara template default)
+        let image_selectors = [
+            "div.page-break > img",              // Madara default selector
+            ".page-break img",                   // Alternative page break
+            ".reading-content img",              // Reading content
+            ".wp-manga-chapter-img",             // WordPress manga images
+            "img.wp-manga-chapter-img",          // Specific manga chapter images
+            ".chapter-content img",              // Chapter content images
+            "div.text-left img",                 // Text content images
+            "#chapter-content img",              // Chapter content by ID
+            ".entry-content img"                 // Entry content images
+        ];
 
-                if !img_url.is_empty() {
-                    pages.push(Page {
-                        content: PageContent::Url(img_url, None),
-                        thumbnail: None,
-                        has_description: false,
-                        description: None,
-                    });
+        for (selector_idx, selector) in image_selectors.iter().enumerate() {
+            println!("Trying image selector {}: {}", selector_idx, selector);
+            
+            if let Some(images) = html.select(selector) {
+                let mut found_images = 0;
+                
+                for (idx, img) in images.into_iter().enumerate() {
+                    found_images += 1;
+                    let img_url = self.get_image_url(&img);
+                    
+                    if !img_url.is_empty() {
+                        println!("  Image {}: {}", idx, img_url);
+                        pages.push(Page {
+                            content: PageContent::Url(img_url, None),
+                            thumbnail: None,
+                            has_description: false,
+                            description: None,
+                        });
+                    } else {
+                        println!("  Image {} has empty URL", idx);
+                    }
+                }
+                
+                println!("  Found {} images with selector: {}", found_images, selector);
+                
+                if !pages.is_empty() {
+                    println!("Successfully found {} pages with selector: {}", pages.len(), selector);
+                    break;
+                }
+            } else {
+                println!("  No images found with selector: {}", selector);
+            }
+        }
+        
+        if pages.is_empty() {
+            println!("No images found with any selector, trying to debug page content");
+            // Debug: print some page content to understand structure
+            if let Some(body) = html.select("body").and_then(|b| b.first()) {
+                if let Some(body_html) = body.html() {
+                    let preview = if body_html.len() > 500 {
+                        &body_html[..500]
+                    } else {
+                        &body_html
+                    };
+                    println!("Page body preview: {}", preview);
                 }
             }
         }
 
         Ok(pages)
+    }
+    
+    // Helper function similar to Madara template's get_image_url
+    fn get_image_url(&self, img_elem: &aidoku::imports::html::Element) -> String {
+        // Try different attributes in same priority as Madara template
+        let mut img_url = img_elem.attr("data-src").unwrap_or_default();
+        if img_url.is_empty() {
+            img_url = img_elem.attr("data-lazy-src").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("src").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("srcset").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("data-cfsrc").unwrap_or_default();
+        }
+        
+        let img_url = img_url.trim().to_string();
+        
+        // Clean up srcset if needed (take first URL)
+        if img_url.contains(" ") {
+            img_url.split_whitespace().next().unwrap_or("").to_string()
+        } else {
+            img_url
+        }
     }
 
     fn extract_manga_id(&self, url: &str) -> String {
