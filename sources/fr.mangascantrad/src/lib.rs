@@ -316,59 +316,166 @@ impl MangaScantrad {
         })
     }
     
-    fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, _needs_chapters: bool) -> Result<Manga> {
-        let title = html.select(".post-title h1, .manga-title")
+    fn parse_manga_details(&self, html: Document, manga_key: String, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("parse_manga_details called - key: {}, needs_details: {}, needs_chapters: {}", manga_key, needs_details, needs_chapters);
+        
+        // Extract title with multiple selectors
+        let title = html.select(".post-title h1, .manga-title, h1.entry-title, .wp-manga-title, .single-title")
             .and_then(|elems| elems.first())
             .and_then(|elem| elem.text())
             .map(|text| text.trim().to_string())
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                println!("No title found with selectors");
+                manga_key.clone()
+            });
+        
+        println!("Found title: {}", title);
 
-        let cover = html.select(".summary_image img")
-            .and_then(|elems| elems.first())
-            .and_then(|img| {
-                img.attr("data-src")
-                    .or_else(|| img.attr("src"))
-            })
-            .unwrap_or_default();
+        // Extract cover with extensive selectors
+        let cover_selectors = [
+            ".summary_image img",
+            ".wp-post-image",
+            ".manga-poster img",
+            ".post-thumb img",
+            ".series-thumb img",
+            ".thumb img",
+            "img.attachment-post-thumbnail",
+            ".infomanga img",
+            "div[itemprop=image] img",
+            ".post-content img:first-child"
+        ];
+        
+        let mut cover = String::new();
+        for selector in &cover_selectors {
+            println!("Trying cover selector: {}", selector);
+            if let Some(img_elem) = html.select(selector).and_then(|elems| elems.first()) {
+                if let Some(src) = img_elem.attr("data-lazy-src")
+                    .or_else(|| img_elem.attr("data-src"))
+                    .or_else(|| img_elem.attr("src")) {
+                    if !src.is_empty() {
+                        cover = src;
+                        println!("Found cover with {}: {}", selector, cover);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if cover.is_empty() {
+            println!("No cover found with any selector");
+        }
 
-        let description = html.select(".description-summary .summary__content, .summary p")
-            .and_then(|elems| elems.first())
-            .and_then(|elem| elem.text())
-            .map(|text| text.trim().to_string())
-            .unwrap_or_default();
-
-        let author = html.select(".author-content a, .manga-authors")
-            .and_then(|elems| elems.first())
-            .and_then(|elem| elem.text())
-            .map(|text| text.trim().to_string())
-            .unwrap_or_default();
-
-        let mut tags: Vec<String> = Vec::new();
-        if let Some(genre_items) = html.select(".genres-content a, .manga-genres a") {
-            for genre in genre_items {
-                if let Some(text) = genre.text() {
-                    tags.push(text.trim().to_string());
+        // Extract description with multiple selectors
+        let description_selectors = [
+            ".description-summary .summary__content",
+            ".summary p",
+            ".desc",
+            ".entry-content[itemprop=description]",
+            ".manga-summary",
+            ".post-content_item .summary-content",
+            ".description",
+            ".synopsis",
+            ".post-excerpt"
+        ];
+        
+        let mut description = String::new();
+        for selector in &description_selectors {
+            if let Some(desc_elem) = html.select(selector).and_then(|elems| elems.first()) {
+                if let Some(desc_text) = desc_elem.text() {
+                    if !desc_text.trim().is_empty() {
+                        description = desc_text.trim().to_string();
+                        println!("Found description with {}: {} chars", selector, description.len());
+                        break;
+                    }
                 }
             }
         }
 
-        let status = html.select(".post-status .summary-content, .manga-status")
+        // Extract author
+        let author = html.select(".author-content a, .manga-authors, .imptdt:contains(Auteur) i, .fmed b:contains(Author) + span")
             .and_then(|elems| elems.first())
             .and_then(|elem| elem.text())
-            .map(|text| {
-                let status_text = text.to_lowercase();
-                match status_text.as_str() {
-                    "en cours" | "ongoing" => MangaStatus::Ongoing,
-                    "terminé" | "completed" => MangaStatus::Completed,
-                    "annulé" | "cancelled" => MangaStatus::Cancelled,
-                    "en pause" | "on hold" => MangaStatus::Hiatus,
-                    _ => MangaStatus::Unknown,
+            .map(|text| text.trim().to_string())
+            .unwrap_or_default();
+            
+        println!("Found author: {}", if author.is_empty() { "none" } else { &author });
+
+        // Extract tags/genres
+        let mut tags: Vec<String> = Vec::new();
+        let genre_selectors = [
+            ".genres-content a",
+            ".manga-genres a", 
+            ".gnr a",
+            ".mgen a",
+            ".seriestugenre a"
+        ];
+        
+        for selector in &genre_selectors {
+            if let Some(genre_items) = html.select(selector) {
+                for genre in genre_items {
+                    if let Some(text) = genre.text() {
+                        let genre_text = text.trim().to_string();
+                        if !genre_text.is_empty() && !tags.contains(&genre_text) {
+                            tags.push(genre_text);
+                        }
+                    }
                 }
-            })
-            .unwrap_or(MangaStatus::Unknown);
+                if !tags.is_empty() {
+                    println!("Found {} tags with {}", tags.len(), selector);
+                    break;
+                }
+            }
+        }
+
+        // Extract status
+        let status_selectors = [
+            ".post-status .summary-content",
+            ".manga-status",
+            ".imptdt:contains(Statut) i",
+            ".status",
+            ".series-status",
+            ".tsinfo .imptdt:contains(Status) i"
+        ];
+        
+        let mut status = MangaStatus::Unknown;
+        for selector in &status_selectors {
+            if let Some(status_elem) = html.select(selector).and_then(|elems| elems.first()) {
+                if let Some(status_text) = status_elem.text() {
+                    let status_str = status_text.trim().to_lowercase();
+                    status = match status_str.as_str() {
+                        "en cours" | "ongoing" | "en_cours" | "en-cours" => MangaStatus::Ongoing,
+                        "terminé" | "completed" | "termine" | "fini" | "achevé" => MangaStatus::Completed,
+                        "annulé" | "cancelled" | "annule" | "canceled" => MangaStatus::Cancelled,
+                        "en pause" | "hiatus" | "pause" | "en_pause" | "en-pause" | "on hold" => MangaStatus::Hiatus,
+                        _ => MangaStatus::Unknown,
+                    };
+                    if status != MangaStatus::Unknown {
+                        println!("Found status with {}: {:?}", selector, status);
+                        break;
+                    }
+                }
+            }
+        }
 
         let authors = if !author.is_empty() {
             Some(vec![author])
+        } else {
+            None
+        };
+        
+        // Parse chapters if requested
+        let chapters = if needs_chapters {
+            println!("Parsing chapters...");
+            match self.parse_chapter_list(&html) {
+                Ok(chapter_list) => {
+                    println!("Found {} chapters", chapter_list.len());
+                    Some(chapter_list)
+                }
+                Err(e) => {
+                    println!("Error parsing chapters: {:?}", e);
+                    None
+                }
+            }
         } else {
             None
         };
@@ -385,10 +492,169 @@ impl MangaScantrad {
             status,
             content_rating: ContentRating::Safe,
             viewer: Viewer::RightToLeft,
-            chapters: None,
+            chapters,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,
         })
+    }
+    
+    fn parse_chapter_list(&self, html: &Document) -> Result<Vec<Chapter>> {
+        println!("parse_chapter_list called");
+        let mut chapters: Vec<Chapter> = Vec::new();
+
+        // Madara/WordPress chapter selectors
+        let chapter_selectors = [
+            "li.wp-manga-chapter",
+            ".wp-manga-chapter",
+            ".manga-chapters li",
+            ".chapter-list li",
+            "#chapterlist li",
+            "div.bxcl li",
+            "div.cl li",
+            ".listing-chapters_wrap li",
+            ".main .eph-num",
+            ".chbox"
+        ];
+        
+        let mut found_chapters = false;
+        for selector in &chapter_selectors {
+            println!("Trying chapter selector: {}", selector);
+            if let Some(items) = html.select(selector) {
+                let items_vec: Vec<_> = items.collect();
+                if !items_vec.is_empty() {
+                    println!("Found {} chapter items with {}", items_vec.len(), selector);
+                    found_chapters = true;
+                    
+                    for (idx, item) in items_vec.iter().enumerate() {
+                        // Find the link element
+                        let link = if let Some(links) = item.select("a") {
+                            if let Some(first_link) = links.first() {
+                                first_link
+                            } else {
+                                println!("  Chapter {}: No link found", idx);
+                                continue;
+                            }
+                        } else {
+                            println!("  Chapter {}: No link found", idx);
+                            continue;
+                        };
+
+                        let href = link.attr("href").unwrap_or_default();
+                        if href.is_empty() {
+                            println!("  Chapter {}: Empty href", idx);
+                            continue;
+                        }
+
+                        // Extract chapter title
+                        let title = link.text()
+                            .or_else(|| {
+                                item.select(".chapternum, .lch a, .chapter-manhwa-title")
+                                    .and_then(|elems| elems.first())
+                                    .and_then(|elem| elem.text())
+                            })
+                            .unwrap_or_default()
+                            .trim()
+                            .to_string();
+                        
+                        if title.is_empty() {
+                            println!("  Chapter {}: Empty title", idx);
+                            continue;
+                        }
+
+                        // Extract chapter ID from URL
+                        let chapter_key = href
+                            .replace(BASE_URL, "")
+                            .trim_start_matches('/')
+                            .trim_end_matches('/')
+                            .to_string();
+
+                        // Extract chapter number from title or URL
+                        let chapter_number = self.extract_chapter_number(&chapter_key, &title);
+                        
+                        // Extract date if available
+                        let date_uploaded = item.select(".chapterdate, .chapter-release-date, .dt")
+                            .and_then(|elems| elems.first())
+                            .and_then(|elem| elem.text())
+                            .and_then(|date_str| self.parse_chapter_date(&date_str));
+
+                        // Ensure URL is absolute
+                        let url = if href.starts_with("http") {
+                            href
+                        } else if href.starts_with("/") {
+                            format!("{}{}", BASE_URL, href)
+                        } else {
+                            format!("{}/{}", BASE_URL, href)
+                        };
+
+                        println!("  Chapter {}: title='{}', number={}, url={}", idx, title, chapter_number, url);
+
+                        chapters.push(Chapter {
+                            key: chapter_key,
+                            title: Some(title),
+                            chapter_number: Some(chapter_number),
+                            volume_number: None,
+                            date_uploaded,
+                            scanlators: None,
+                            url: Some(url),
+                            language: Some(String::from("fr")),
+                            thumbnail: None,
+                            locked: false,
+                        });
+                    }
+                    break; // Stop after finding chapters with one selector
+                }
+            }
+        }
+        
+        if !found_chapters {
+            println!("No chapters found with any selector!");
+        }
+
+        println!("Total chapters parsed: {}", chapters.len());
+        Ok(chapters)
+    }
+    
+    fn extract_chapter_number(&self, chapter_id: &str, title: &str) -> f32 {
+        // Try to extract from title first - check for "chapitre" or "ch"
+        let title_lower = title.to_lowercase();
+        if let Some(pos) = title_lower.find("chapitre") {
+            let after_ch = &title[pos + 8..].trim(); // "chapitre" has 8 chars
+            if let Some(num_str) = after_ch.split_whitespace().next() {
+                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                    return num;
+                }
+            }
+        } else if let Some(pos) = title_lower.find("ch") {
+            let after_ch = &title[pos + 2..].trim(); // "ch" has 2 chars
+            if let Some(num_str) = after_ch.split_whitespace().next() {
+                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                    return num;
+                }
+            }
+        }
+        
+        // Try to extract from URL
+        let parts: Vec<&str> = chapter_id.split('/').filter(|s| !s.is_empty()).collect();
+        for part in parts.iter().rev() {
+            if let Ok(num) = part.parse::<f32>() {
+                return num;
+            }
+            // Try to extract number from part like "chapitre-123"
+            if let Some(dash_pos) = part.rfind('-') {
+                let after_dash = &part[dash_pos + 1..];
+                if let Ok(num) = after_dash.parse::<f32>() {
+                    return num;
+                }
+            }
+        }
+        
+        1.0 // Default
+    }
+    
+    fn parse_chapter_date(&self, _date_str: &str) -> Option<i64> {
+        // Date parsing disabled for now due to no_std limitations
+        // TODO: Implement using Aidoku's date utilities if available
+        None
     }
 
     fn parse_page_list(&self, html: Document) -> Result<Vec<Page>> {
