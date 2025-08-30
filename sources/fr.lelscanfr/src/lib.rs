@@ -69,60 +69,88 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Optimized pagination detection - check specific locations first
+            // Back to aggressive pagination detection that worked in v22
             let mut total_pages = 1;
             
-            // Method 1: Fast check for "Page X of Y" pattern in likely locations
-            let pagination_selectors = [".pagination", ".page-numbers", ".pages", "nav"];
-            for selector in pagination_selectors {
-                if let Some(pagination_elem) = html.select(selector) {
-                    if let Some(first_elem) = pagination_elem.first() {
-                        if let Some(text) = first_elem.text() {
-                            // Look for "Page X of Y" pattern
+            // Method 1: Look for "Page X of Y" pattern by scanning all elements
+            let selectors = ["div", "span", "p", "text", "*"];
+            for selector in selectors {
+                if let Some(elements) = html.select(selector) {
+                    for elem in elements {
+                        if let Some(text) = elem.text() {
                             if text.contains("Page ") && text.contains(" of ") {
-                                if let Some(of_pos) = text.find(" of ") {
-                                    let after_of = &text[of_pos + 4..];
-                                    if let Some(total_str) = after_of.split_whitespace().next() {
-                                        if let Ok(pages) = total_str.parse::<i32>() {
-                                            total_pages = pages;
-                                            break;
+                                // Look for pattern like "Page 1 of 6"
+                                let lines: Vec<&str> = text.split('\n').collect();
+                                for line in lines {
+                                    let trimmed = line.trim();
+                                    if trimmed.contains("Page ") && trimmed.contains(" of ") {
+                                        if let Some(of_pos) = trimmed.find(" of ") {
+                                            let after_of = &trimmed[of_pos + 4..]; // Skip " of "
+                                            if let Some(total_str) = after_of.split_whitespace().next() {
+                                                if let Ok(pages) = total_str.parse::<i32>() {
+                                                    total_pages = pages;
+                                                    break;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                            
-                            // Fallback: look for numbered links or ellipsis
-                            if total_pages == 1 {
+                        }
+                    }
+                    if total_pages > 1 {
+                        break;
+                    }
+                }
+            }
+            
+            // Method 2: If no pattern found, aggressively search for pagination
+            if total_pages == 1 {
+                let pagination_selectors = ["div", "span", "p", ".pagination", ".page-numbers", ".pages", "nav"];
+                for selector in pagination_selectors {
+                    if let Some(elements) = html.select(selector) {
+                        for elem in elements {
+                            if let Some(text) = elem.text() {
+                                // Look for numbered page links 
                                 let numbers: Vec<i32> = text
                                     .split_whitespace()
                                     .filter_map(|s| s.parse().ok())
-                                    .filter(|&n| n > 1 && n < 20) // Reasonable page range
+                                    .filter(|&n| n > 1 && n < 50) // Reasonable page range
                                     .collect();
                                 
                                 if !numbers.is_empty() {
-                                    total_pages = *numbers.iter().max().unwrap_or(&1);
-                                } else if text.contains("…") || text.contains("...") {
-                                    total_pages = 8; // Conservative estimate
+                                    let max_num = *numbers.iter().max().unwrap_or(&1);
+                                    if max_num > total_pages {
+                                        total_pages = max_num;
+                                    }
+                                }
+                                
+                                // Also check for ellipsis
+                                if text.contains("…") || text.contains("...") {
+                                    if total_pages < 10 {
+                                        total_pages = 10;
+                                    }
                                 }
                             }
-                            break;
                         }
                     }
                 }
             }
             
-            // Optimized chapter fetching - fetch and parse on-the-fly
+            // Fetch all chapter pages (keep the optimized memory approach)
             let mut all_chapters: Vec<Chapter> = Vec::new();
             
-            // Process first page (already have the HTML)
+            // Process first page
             let page_chapters = parser::parse_chapter_list(&manga.key, vec![html])?;
             all_chapters.extend(page_chapters);
             
-            // Fetch additional pages with minimal headers
+            // Fetch additional pages
             for page in 2..=total_pages {
                 let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
                 let page_html = Request::get(&page_url)?
                     .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                     .html()?;
                 
                 // Parse immediately to save memory
