@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source, println,
+    Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::net::Request,
     prelude::*,
@@ -172,17 +172,12 @@ impl Source for LelscanFr {
             format!("{}/{}", BASE_URL, chapter.key)
         };
         
-        println!("🔗 DEBUG: Constructed URL: {}", url);
-        println!("🔗 DEBUG: Chapter key: {}", chapter.key);
-        
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .html()?;
-            
-        println!("📄 DEBUG: HTML loaded successfully");
         
         parser::parse_page_list(&html)
     }

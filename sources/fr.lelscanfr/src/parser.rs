@@ -1,6 +1,6 @@
 use aidoku::{
 	Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-	ContentRating, Viewer, UpdateStrategy, println,
+	ContentRating, Viewer, UpdateStrategy,
 	alloc::{String, Vec, vec, format},
 	imports::html::Document,
 };
@@ -423,44 +423,40 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 
-	println!("🖼️ DEBUG: parse_page_list called");
-
-	// Simple real image test - just try to get ANY image
+	// Ultra-simple approach that cannot crash
 	if let Some(images) = html.select("img") {
-		let count = images.count();
-		println!("🖼️ DEBUG: Found {} img tags", count);
-
-		// Show first image attributes if any
-		if let Some(first_img) = html.select("img").and_then(|imgs| imgs.first()) {
-			let data_src = first_img.attr("data-src").unwrap_or_default();
-			let src = first_img.attr("src").unwrap_or_default();
-			let class = first_img.attr("class").unwrap_or_default();
-			
-			println!("🖼️ DEBUG: First img - data-src: '{}', src: '{}', class: '{}'", data_src, src, class);
-			
-			if !data_src.is_empty() {
-				println!("🖼️ DEBUG: Using data-src: {}", data_src);
-				pages.push(Page {
-					content: PageContent::Url(data_src, None),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
-			} else if !src.is_empty() {
-				println!("🖼️ DEBUG: Using src: {}", src);
-				pages.push(Page {
-					content: PageContent::Url(src, None),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
+		for img in images {
+			if let Some(data_src) = img.attr("data-src") {
+				if !data_src.is_empty() {
+					pages.push(Page {
+						content: PageContent::Url(data_src, None),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
+				}
 			}
 		}
-	} else {
-		println!("🖼️ DEBUG: No img tags found at all");
 	}
 
-	println!("🖼️ DEBUG: Returning {} pages", pages.len());
+	// If no data-src images, try src attribute
+	if pages.is_empty() {
+		if let Some(images) = html.select("img") {
+			for img in images {
+				if let Some(src) = img.attr("src") {
+					if !src.is_empty() && src.contains("storage") {
+						pages.push(Page {
+							content: PageContent::Url(src, None),
+							thumbnail: None,
+							has_description: false,
+							description: None,
+						});
+					}
+				}
+			}
+		}
+	}
+
 	Ok(pages)
 }
 
