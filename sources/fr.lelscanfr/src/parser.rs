@@ -421,124 +421,77 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 }
 
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
+	let mut debug_info: Vec<String> = Vec::new();
 	let mut pages: Vec<Page> = Vec::new();
 
-	// Very aggressive image detection - try all possible selectors and sources
-	let image_selectors = [
-		"img", // Try all images first
-		"img[src*=\"storage/chapters/\"]",
-		"img[src*=\"chapters/\"]",
-		"img[src*=\"/manga/\"]", 
-		"img[data-src]",
-		"img[data-lazy-src]",
-		"img[data-original]",
-		"img[data-cfsrc]",
-		"#chapter-container img",
-		".chapter-container img",
-		".page-image",
-		".manga-page img",
-		".reader-content img",
-		".chapter-image",
-		"div img", // Images in divs
-		"section img", // Images in sections
-		"main img", // Images in main
-	];
-	
-	// Also search for image URLs in script tags (sometimes they're in JavaScript)
-	if let Some(scripts) = html.select("script") {
-		for script in scripts {
-			if let Some(script_text) = script.text() {
-				// Look for image URLs in JavaScript
-				if script_text.contains(".jpg") || script_text.contains(".png") || script_text.contains(".jpeg") || script_text.contains(".webp") {
-					// Try to extract URLs from JavaScript
-					let lines: Vec<&str> = script_text.split('\n').collect();
-					for line in lines {
-						// Look for common image URL patterns
-						if line.contains("http") && (line.contains(".jpg") || line.contains(".png") || line.contains(".jpeg") || line.contains(".webp")) {
-							// Simple URL extraction - look for quoted URLs
-							let parts: Vec<&str> = line.split('"').collect();
-							for part in parts {
-								if part.starts_with("http") && (part.contains(".jpg") || part.contains(".png") || part.contains(".jpeg") || part.contains(".webp")) {
-									pages.push(Page {
-										content: PageContent::Url(String::from(part), None),
-										thumbnail: None,
-										has_description: false,
-										description: None,
-									});
-								}
-							}
-						}
-					}
-				}
-			}
+	// Debug 1: Count total elements
+	let all_imgs = html.select("img");
+	let img_count = if let Some(imgs) = all_imgs {
+		let count = imgs.count();
+		debug_info.push(format!("Total img tags: {}", count));
+		count
+	} else {
+		debug_info.push(String::from("No img tags found"));
+		0
+	};
+
+	// Debug 2: Check what img attributes exist
+	if let Some(images) = html.select("img") {
+		let mut attr_info: Vec<String> = Vec::new();
+		for (i, img) in images.enumerate() {
+			if i >= 5 { break; } // Only check first 5 images
+			
+			let mut img_attrs: Vec<String> = Vec::new();
+			if let Some(src) = img.attr("src") { img_attrs.push(format!("src={}", src)); }
+			if let Some(data_src) = img.attr("data-src") { img_attrs.push(format!("data-src={}", data_src)); }
+			if let Some(data_lazy) = img.attr("data-lazy-src") { img_attrs.push(format!("data-lazy-src={}", data_lazy)); }
+			if let Some(class) = img.attr("class") { img_attrs.push(format!("class={}", class)); }
+			
+			attr_info.push(format!("IMG{}: {}", i+1, img_attrs.join(", ")));
 		}
+		debug_info.extend(attr_info);
 	}
-	
-	// Try all image selectors
-	for selector in image_selectors {
-		if let Some(images) = html.select(selector) {
-			for img in images {
-				// Try all possible image attributes
-				let url = img.attr("data-src")
-					.or_else(|| img.attr("data-lazy-src"))
-					.or_else(|| img.attr("data-original"))
-					.or_else(|| img.attr("data-cfsrc"))
-					.or_else(|| img.attr("src"))
-					.or_else(|| {
-						// Try srcset and take first URL
-						if let Some(srcset) = img.attr("srcset") {
-							srcset.split(',').next().map(|s| String::from(s.trim().split_whitespace().next().unwrap_or("")))
-						} else {
-							None
-						}
-					})
-					.unwrap_or_default();
-				
-				if !url.is_empty() {
-					// Filter out obvious non-manga images (avatars, icons, etc.)
-					let url_lower = url.to_lowercase();
-					if !url_lower.contains("avatar") && 
-					   !url_lower.contains("icon") && 
-					   !url_lower.contains("logo") &&
-					   !url_lower.contains("banner") &&
-					   !url_lower.contains("cover") &&
-					   (url_lower.contains("chapter") || url_lower.contains("storage") || url_lower.contains("/manga/") ||
-					    url_lower.ends_with(".jpg") || url_lower.ends_with(".png") || url_lower.ends_with(".jpeg") || url_lower.ends_with(".webp")) {
-						
-						let absolute_url = super::helper::make_absolute_url("https://lelscanfr.com", &url);
-						
-						// Avoid duplicates
-						if !pages.iter().any(|p| {
-							if let PageContent::Url(ref existing_url, _) = p.content {
-								existing_url == &absolute_url
-							} else {
-								false
-							}
-						}) {
-							pages.push(Page {
-								content: PageContent::Url(absolute_url, None),
-								thumbnail: None,
-								has_description: false,
-								description: None,
-							});
-						}
-					}
-				}
+
+	// Debug 3: Check for common containers
+	let containers = ["main", "section", "article", "div#content", ".content", "#chapter", ".chapter"];
+	for container in containers {
+		if let Some(elem) = html.select(container) {
+			if elem.first().is_some() {
+				debug_info.push(format!("Found container: {}", container));
 			}
 		}
 	}
 
-	// If still no images found, create a debug page to show what we found
-	if pages.is_empty() {
-		let all_imgs = html.select("img");
-		let img_count = if let Some(imgs) = all_imgs {
-			imgs.count()
-		} else {
-			0
-		};
-		
+	// Debug 4: Look for scripts with image-related content
+	if let Some(scripts) = html.select("script") {
+		let mut script_info: Vec<String> = Vec::new();
+		for script in scripts {
+			if let Some(script_text) = script.text() {
+				if script_text.contains("img") || script_text.contains("image") || 
+				   script_text.contains(".jpg") || script_text.contains(".png") {
+					let preview = script_text.chars().take(100).collect::<String>();
+					script_info.push(format!("Script contains images: {}", preview));
+					if script_info.len() >= 3 { break; }
+				}
+			}
+		}
+		debug_info.extend(script_info);
+	}
+
+	// Create debug pages to show what we found
+	for (i, info) in debug_info.iter().enumerate() {
 		pages.push(Page {
-			content: PageContent::Url(format!("{}/debug-no-images-found-{}-imgs", "https://lelscanfr.com", img_count), None),
+			content: PageContent::Url(format!("{}/debug-page-{}: {}", "https://lelscanfr.com", i+1, info), None),
+			thumbnail: None,
+			has_description: false,
+			description: None,
+		});
+	}
+
+	// If we have no debug info, show basic info
+	if pages.is_empty() {
+		pages.push(Page {
+			content: PageContent::Url(format!("{}/debug-no-data-found", "https://lelscanfr.com"), None),
 			thumbnail: None,
 			has_description: false,
 			description: None,
