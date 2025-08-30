@@ -800,17 +800,47 @@ impl MangaScantrad {
     
     fn parse_chapter_list_from_manga_page(&self, html: Document) -> Result<Vec<Chapter>> {
         println!("parse_chapter_list_from_manga_page called");
+        
+        // Debug: Print all links containing 'chapitre' or similar chapter indicators
+        if let Some(all_links) = html.select("a[href]") {
+            let mut chapter_debug_count = 0;
+            for link in all_links {
+                if let Some(href) = link.attr("href") {
+                    let text = link.text().unwrap_or_default();
+                    let href_lower = href.to_lowercase();
+                    let text_lower = text.to_lowercase();
+                    
+                    if href_lower.contains("chapitre") || text_lower.contains("chapitre") || 
+                       href_lower.contains("chapter") || text_lower.contains("chapter") ||
+                       href_lower.contains("/manga/") && (text_lower.contains("ch") || text_lower.contains("ep")) {
+                        println!("DEBUG: Potential chapter link - href: '{}', text: '{}'", href, text);
+                        chapter_debug_count += 1;
+                        if chapter_debug_count >= 10 { // Limit debug output
+                            println!("DEBUG: (showing first 10 potential chapter links)");
+                            break;
+                        }
+                    }
+                }
+            }
+            if chapter_debug_count == 0 {
+                println!("DEBUG: No potential chapter links found");
+            }
+        }
+        
         let mut chapters: Vec<Chapter> = Vec::new();
 
-        // Madara chapter selectors - more specific for manga pages
+        // Broader chapter selectors based on common patterns
         let chapter_selectors = [
+            "a[href*='chapitre']",
+            "a[href*='chapter']",
             ".wp-manga-chapter a",
             ".chapter-item a", 
-            ".listing-chapters_wrap li a[href*='/manga/']",
-            ".manga-chapters li a[href*='/manga/']",
+            ".listing-chapters_wrap li a",
+            ".manga-chapters li a",
             "ul.clstyle li a",
-            ".version-chap li a[href*='/manga/']",
-            ".single-chapter a[href*='/manga/']"
+            ".version-chap li a",
+            ".single-chapter a",
+            "li a[href*='/manga/']"
         ];
         
         let mut found_chapters = false;
