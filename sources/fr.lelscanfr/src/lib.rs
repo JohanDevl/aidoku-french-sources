@@ -42,10 +42,16 @@ impl Source for LelscanFr {
         let _ = filters;
         
         let url = format!("{}/manga?page={}{}", BASE_URL, page, query_params);
-        //println!("LelscanFR: Requesting URL: {}", url);
         
-        let html = Request::get(&url)?.html()?;
-        // Debug: HTML loaded successfully
+        let html = Request::get(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .html()?;
         
         let result = parser::parse_manga_list(html);
         // Debug: Parsed manga list
