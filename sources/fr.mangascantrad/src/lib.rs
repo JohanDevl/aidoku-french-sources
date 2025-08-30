@@ -22,22 +22,53 @@ fn get_data() -> MadaraSiteData {
 	}
 }
 
-#[no_mangle]
-pub extern "C" fn get_manga_list() -> *const u8 {
-	core::ptr::null()
+#[get_manga_list]
+fn get_manga_list_impl(filters: Vec<Filter>, page: i32) -> Result<MangaPageResult> {
+	// Log: Starting get_manga_list with page: {}
+	let data = get_data();
+	// Log: Using base_url: {}
+	let result = madara_stable_template::get_manga_list(filters, page, data);
+	// Log: get_manga_list result: success/error
+	result
 }
 
-#[no_mangle]
-pub extern "C" fn get_manga_details() -> *const u8 {
-	core::ptr::null()
+#[get_manga_listing]
+fn get_manga_listing_impl(listing: Listing, page: i32) -> Result<MangaPageResult> {
+	// Log: Starting get_manga_listing: {} page: {}
+	let data = get_data();
+	// Log: Using base_url: {} with alt_ajax: {}
+	let result = madara_stable_template::get_manga_listing(data, listing, page);
+	// Log: get_manga_listing result: success/error
+	result
 }
 
-#[no_mangle]
-pub extern "C" fn get_chapter_list() -> *const u8 {
-	core::ptr::null()
+#[get_manga_details]
+fn get_manga_details_impl(id: String) -> Result<Manga> {
+	// Log: Starting get_manga_details for id: {}
+	let data = get_data();
+	// Log: Using base_url: {} with description_selector: {}
+	let result = madara_stable_template::get_manga_details(id, data);
+	// Log: get_manga_details result: success/error
+	result
 }
 
-#[no_mangle]
-pub extern "C" fn get_page_list() -> *const u8 {
-	core::ptr::null()
+#[get_chapter_list]
+fn get_chapter_list_impl(id: String) -> Result<Vec<Chapter>> {
+	// Log: Starting get_chapter_list for id: {}
+	let data = get_data();
+	// Log: Using base_url: {} with alt_ajax: {} date_format: {}
+	let result = madara_stable_template::get_chapter_list(id, data);
+	// Log: get_chapter_list result: success/error
+	result
 }
+
+#[get_page_list]
+fn get_page_list_impl(_manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
+	// Log: Starting get_page_list for chapter_id: {}
+	let data = get_data();
+	// Log: Using base_url: {} with image_selector: {}
+	let result = madara_stable_template::get_page_list(chapter_id, data);
+	// Log: get_page_list result: success/error
+	result
+}
+
