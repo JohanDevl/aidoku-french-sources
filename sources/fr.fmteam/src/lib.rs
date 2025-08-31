@@ -82,34 +82,21 @@ impl Source for FMTeam {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        // Try API first, fallback to HTML if needed
-        let api_url = format!("{}/api/chapters/{}/pages", BASE_URL, chapter.key);
+        // Use HTML parsing since we don't have a direct API endpoint for pages
+        let url = if chapter.key.starts_with("/") {
+            format!("{}{}", BASE_URL, chapter.key)
+        } else {
+            format!("{}/{}", BASE_URL, chapter.key)
+        };
         
-        match Request::get(&api_url)?
+        let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .string() {
-            Ok(response) => parser::parse_page_list_json(response),
-            Err(_) => {
-                // Fallback to HTML parsing
-                let url = if chapter.key.starts_with("/") {
-                    format!("{}{}", BASE_URL, chapter.key)
-                } else {
-                    format!("{}/{}", BASE_URL, chapter.key)
-                };
-                
-                let html = Request::get(&url)?
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Referer", BASE_URL)
-                    .html()?;
-                
-                parser::parse_page_list(&html)
-            }
-        }
+            .html()?;
+        
+        parser::parse_page_list(&html)
     }
 }
 

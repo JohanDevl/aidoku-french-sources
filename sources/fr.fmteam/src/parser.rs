@@ -112,7 +112,7 @@ pub fn parse_page_list_json(response: String) -> Result<Vec<Page>> {
                 if let Some(url_str) = page.as_str() {
                     let full_url = super::helper::make_absolute_url(super::BASE_URL, url_str);
                     pages.push(Page {
-                        content: PageContent::Url(full_url, None),
+                        content: PageContent::url(full_url),
                         thumbnail: None,
                         has_description: false,
                         description: None,
@@ -660,7 +660,7 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
                    (img_src.contains("pages") || img_src.contains("chapters") || img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp")) {
                     let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
                     pages.push(Page {
-                        content: PageContent::Url(full_url, None),
+                        content: PageContent::url(full_url),
                         thumbnail: None,
                         has_description: false,
                         description: None,
@@ -687,7 +687,7 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
                    (img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp") || img_src.ends_with(".jpeg")) {
                     let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
                     pages.push(Page {
-                        content: PageContent::Url(full_url, None),
+                        content: PageContent::url(full_url),
                         thumbnail: None,
                         has_description: false,
                         description: None,
