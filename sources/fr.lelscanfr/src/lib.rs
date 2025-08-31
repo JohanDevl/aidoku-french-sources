@@ -102,12 +102,50 @@ impl Source for LelscanFr {
                 }
             }
             
-            // Method 3: Fallback - scan only pagination-related divs and spans
+            // Method 3: Fallback - scan body text for pagination patterns
             if total_pages == 1 {
                 if let Some(body) = html.select("body") {
                     let body_text = body.text().unwrap_or_default();
                     if let Some(total) = helper::extract_pagination_total(&body_text) {
                         total_pages = total;
+                    }
+                }
+            }
+            
+            // Method 3.5: Ultra-aggressive fallback like the old implementation
+            if total_pages == 1 {
+                // Look for pagination elements more aggressively
+                let aggressive_selectors = ["div", "span", "p", "nav"];
+                for selector in aggressive_selectors {
+                    if let Some(elements) = html.select(selector) {
+                        for elem in elements {
+                            if let Some(text) = elem.text() {
+                                // Check for ellipsis patterns that indicate many pages
+                                if text.contains("…") || text.contains("...") {
+                                    // Look for numbers near ellipsis
+                                    let numbers: Vec<i32> = text
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .filter(|&n| n > 1 && n < 200)
+                                        .collect();
+                                    
+                                    if !numbers.is_empty() {
+                                        let max_num = *numbers.iter().max().unwrap_or(&1);
+                                        if max_num > 1 {
+                                            // When ellipsis is present, estimate there are more pages
+                                            total_pages = (max_num * 5).min(100); // Aggressive estimate
+                                            break;
+                                        }
+                                    } else {
+                                        total_pages = 30; // Default when ellipsis found but no numbers
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if total_pages > 1 {
+                            break;
+                        }
                     }
                 }
             }
@@ -127,9 +165,9 @@ impl Source for LelscanFr {
                 }
             }
             
-            // Safety limit to prevent infinite loops
-            if total_pages > 50 {
-                total_pages = 50;
+            // Safety limit to prevent infinite loops - increased for manga with many chapters
+            if total_pages > 150 {
+                total_pages = 150;
             }
             
             // Fetch all chapter pages with optimized batching approach

@@ -65,7 +65,7 @@ pub fn extract_pagination_total(text: &str) -> Option<i32> {
                 .collect();
             
             if let Ok(pages) = clean_number.parse::<i32>() {
-                if pages > 1 && pages <= 100 {
+                if pages > 1 && pages <= 200 {
                     return Some(pages);
                 }
             }
@@ -82,7 +82,7 @@ pub fn extract_pagination_total(text: &str) -> Option<i32> {
                 .collect();
             
             if let Ok(pages) = clean_number.parse::<i32>() {
-                if pages > 1 && pages <= 100 {
+                if pages > 1 && pages <= 200 {
                     return Some(pages);
                 }
             }
@@ -100,21 +100,33 @@ pub fn extract_pagination_total(text: &str) -> Option<i32> {
                 .collect();
             clean_word.parse::<i32>().ok()
         })
-        .filter(|&n| n > 1 && n <= 100) // Reasonable page range
+        .filter(|&n| n > 1 && n <= 200) // Expanded page range for large manga
         .collect();
     
     if !numbers.is_empty() {
         if let Some(&max_num) = numbers.iter().max() {
-            // Only return if we found a reasonable pagination number
-            if max_num >= 2 && max_num <= 50 {
+            // Accept higher pagination numbers for manga with many chapters
+            if max_num >= 2 && max_num <= 150 {
                 return Some(max_num);
             }
         }
     }
     
-    // Method 4: Check for ellipsis indicating more pages
+    // Method 4: Check for ellipsis indicating more pages - be more aggressive
     if text.contains("…") || text.contains("...") {
-        return Some(10); // Conservative estimate when ellipsis is present
+        // When ellipsis is present, assume there are many more pages
+        // Look for any existing numbers and multiply, or use conservative estimate
+        let existing_numbers: Vec<i32> = text
+            .split_whitespace()
+            .filter_map(|s| s.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse().ok())
+            .filter(|&n| n > 1 && n <= 20)
+            .collect();
+        
+        if let Some(&max_visible) = existing_numbers.iter().max() {
+            return Some((max_visible * 3).min(100)); // Estimate there could be 3x more pages
+        } else {
+            return Some(25); // More aggressive estimate when ellipsis is present
+        }
     }
     
     None
