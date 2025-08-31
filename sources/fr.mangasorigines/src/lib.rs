@@ -276,9 +276,47 @@ impl MangasOrigines {
                             let chapter_key = self.extract_chapter_key(&chapter_url);
                             if !chapter_key.is_empty() {
                                 let chapter_number = self.extract_chapter_number(&chapter_title);
-                                let date_published = if let Some(date_elements) = chapter_element.select("span.chapter-release-date, .chapter-date") {
-                                    self.parse_chapter_date(&date_elements.text().unwrap_or_default())
-                                } else { None };
+                                let date_published = {
+                                    let date_selectors = [
+                                        "span.chapter-release-date i",
+                                        ".chapter-release-date",
+                                        ".chapterdate",
+                                        ".chapter-date",
+                                        ".dt",
+                                        "span.date",
+                                        "time",
+                                        "i",
+                                        ".post-on",
+                                        ".release-date",
+                                        ".uploaded-on",
+                                    ];
+                                    
+                                    let mut found_date = None;
+                                    for selector in &date_selectors {
+                                        if let Some(date_elem) = chapter_element.select(selector).and_then(|elems| elems.first()) {
+                                            if let Some(date_text) = date_elem.text() {
+                                                let date_str = date_text.trim();
+                                                if !date_str.is_empty() {
+                                                    if let Some(parsed_date) = self.parse_chapter_date(date_str) {
+                                                        found_date = Some(parsed_date);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if let Some(title_attr) = date_elem.attr("title") {
+                                                let title_str = title_attr.trim();
+                                                if !title_str.is_empty() {
+                                                    if let Some(parsed_date) = self.parse_chapter_date(title_str) {
+                                                        found_date = Some(parsed_date);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    found_date
+                                };
 
                                 chapters.push(Chapter {
                                     key: chapter_key,
@@ -395,9 +433,47 @@ impl MangasOrigines {
                             let chapter_key = self.extract_chapter_key(&chapter_url);
                             if !chapter_key.is_empty() {
                                 let chapter_number = self.extract_chapter_number(&chapter_title);
-                                let date_published = if let Some(date_elements) = chapter_element.select("span.chapter-release-date, .chapter-date") {
-                                    self.parse_chapter_date(&date_elements.text().unwrap_or_default())
-                                } else { None };
+                                let date_published = {
+                                    let date_selectors = [
+                                        "span.chapter-release-date i",
+                                        ".chapter-release-date",
+                                        ".chapterdate",
+                                        ".chapter-date",
+                                        ".dt",
+                                        "span.date",
+                                        "time",
+                                        "i",
+                                        ".post-on",
+                                        ".release-date",
+                                        ".uploaded-on",
+                                    ];
+                                    
+                                    let mut found_date = None;
+                                    for selector in &date_selectors {
+                                        if let Some(date_elem) = chapter_element.select(selector).and_then(|elems| elems.first()) {
+                                            if let Some(date_text) = date_elem.text() {
+                                                let date_str = date_text.trim();
+                                                if !date_str.is_empty() {
+                                                    if let Some(parsed_date) = self.parse_chapter_date(date_str) {
+                                                        found_date = Some(parsed_date);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if let Some(title_attr) = date_elem.attr("title") {
+                                                let title_str = title_attr.trim();
+                                                if !title_str.is_empty() {
+                                                    if let Some(parsed_date) = self.parse_chapter_date(title_str) {
+                                                        found_date = Some(parsed_date);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    found_date
+                                };
 
                                 chapters.push(Chapter {
                                     key: chapter_key,
@@ -650,33 +726,76 @@ impl MangasOrigines {
         if date_str.is_empty() {
             return None;
         }
-
-        let parts: Vec<&str> = date_str.trim().split(' ').collect();
-        if parts.len() != 3 {
-            return None;
-        }
-
-        let day: i32 = parts[0].parse().ok()?;
-        let year: i32 = parts[2].parse().ok()?;
         
-        let month = match parts[1].to_lowercase().as_str() {
-            "janvier" => 1,
-            "février" | "fevrier" => 2,
-            "mars" => 3,
-            "avril" => 4,
-            "mai" => 5,
-            "juin" => 6,
-            "juillet" => 7,
-            "août" | "aout" => 8,
-            "septembre" => 9,
-            "octobre" => 10,
-            "novembre" => 11,
-            "décembre" | "decembre" => 12,
-            _ => return None,
-        };
-
-        let days_since_epoch = (year - 1970) * 365 + ((year - 1969) / 4) + self.days_in_months(month - 1, year) + day - 1;
-        Some(days_since_epoch as i64 * 86400)
+        let cleaned = date_str.trim().to_lowercase();
+        
+        // Try different date formats
+        
+        // Format: "17 août 2025" or "17 aout 2025"
+        let parts: Vec<&str> = cleaned.split(' ').collect();
+        if parts.len() == 3 {
+            if let (Ok(day), Ok(year)) = (parts[0].parse::<i32>(), parts[2].parse::<i32>()) {
+                let month = match parts[1] {
+                    "janvier" => 1,
+                    "février" | "fevrier" => 2,
+                    "mars" => 3,
+                    "avril" => 4,
+                    "mai" => 5,
+                    "juin" => 6,
+                    "juillet" => 7,
+                    "août" | "aout" => 8,
+                    "septembre" => 9,
+                    "octobre" => 10,
+                    "novembre" => 11,
+                    "décembre" | "decembre" => 12,
+                    _ => 0,
+                };
+                
+                if month > 0 {
+                    let days_since_epoch = (year - 1970) * 365 + ((year - 1969) / 4) + self.days_in_months(month - 1, year) + day - 1;
+                    return Some(days_since_epoch as i64 * 86400);
+                }
+            }
+        }
+        
+        // Format: "17/08/2025" or "17-08-2025"
+        for separator in &['/', '-', '.'] {
+            if cleaned.contains(*separator) {
+                let date_parts: Vec<&str> = cleaned.split(*separator).collect();
+                if date_parts.len() == 3 {
+                    if let (Ok(day), Ok(month), Ok(year)) = (
+                        date_parts[0].parse::<i32>(), 
+                        date_parts[1].parse::<i32>(), 
+                        date_parts[2].parse::<i32>()
+                    ) {
+                        if day >= 1 && day <= 31 && month >= 1 && month <= 12 {
+                            let full_year = if year < 100 { year + 2000 } else { year };
+                            let days_since_epoch = (full_year - 1970) * 365 + ((full_year - 1969) / 4) + self.days_in_months(month - 1, full_year) + day - 1;
+                            return Some(days_since_epoch as i64 * 86400);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Format: "2025-08-17" (ISO format)
+        if cleaned.len() == 10 && cleaned.chars().nth(4) == Some('-') && cleaned.chars().nth(7) == Some('-') {
+            let iso_parts: Vec<&str> = cleaned.split('-').collect();
+            if iso_parts.len() == 3 {
+                if let (Ok(year), Ok(month), Ok(day)) = (
+                    iso_parts[0].parse::<i32>(), 
+                    iso_parts[1].parse::<i32>(), 
+                    iso_parts[2].parse::<i32>()
+                ) {
+                    if day >= 1 && day <= 31 && month >= 1 && month <= 12 {
+                        let days_since_epoch = (year - 1970) * 365 + ((year - 1969) / 4) + self.days_in_months(month - 1, year) + day - 1;
+                        return Some(days_since_epoch as i64 * 86400);
+                    }
+                }
+            }
+        }
+        
+        None
     }
 
     fn days_in_months(&self, month: i32, year: i32) -> i32 {
