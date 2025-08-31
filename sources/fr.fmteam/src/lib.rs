@@ -82,24 +82,17 @@ impl Source for FMTeam {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let url = if chapter.key.starts_with("/") {
-            format!("{}{}", BASE_URL, chapter.key)
-        } else {
-            format!("{}/{}", BASE_URL, chapter.key)
-        };
+        // Use API approach like PizzaReader: /api + chapter.url
+        let api_url = format!("{}/api{}", BASE_URL, chapter.key);
         
-        let html = Request::get(&url)?
+        let response = Request::get(&api_url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
-            .html()?;
+            .string()?;
         
-        parser::parse_page_list(&html)
+        parser::parse_page_list_json(response)
     }
 }
 

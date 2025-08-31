@@ -107,16 +107,25 @@ pub fn parse_page_list_json(response: String) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
     
     if let Ok(json) = serde_json::from_str::<Value>(&response) {
-        if let Some(pages_array) = json.as_array() {
-            for page in pages_array {
-                if let Some(url_str) = page.as_str() {
-                    let full_url = super::helper::make_absolute_url(super::BASE_URL, url_str);
-                    pages.push(Page {
-                        content: PageContent::url(full_url),
-                        thumbnail: None,
-                        has_description: false,
-                        description: None,
-                    });
+        // Follow PizzaReader structure: result.chapter.pages
+        if let Some(chapter) = json.get("chapter") {
+            if let Some(pages_array) = chapter.get("pages").and_then(|p| p.as_array()) {
+                for (_i, page) in pages_array.iter().enumerate() {
+                    if let Some(url_str) = page.as_str() {
+                        // URLs should be complete from API like PizzaReader
+                        let full_url = if url_str.starts_with("http") {
+                            url_str.to_string()
+                        } else {
+                            format!("{}{}", super::BASE_URL, url_str)
+                        };
+                        
+                        pages.push(Page {
+                            content: PageContent::url(full_url),
+                            thumbnail: None,
+                            has_description: false,
+                            description: None,
+                        });
+                    }
                 }
             }
         }
