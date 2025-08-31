@@ -41,8 +41,11 @@ impl Source for FMTeam {
         
         let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
+            .header("Accept", "application/json, text/plain, */*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("Connection", "keep-alive")
+            .header("Origin", BASE_URL)
             .header("Referer", BASE_URL)
             .string()?;
         
@@ -58,8 +61,11 @@ impl Source for FMTeam {
         let url = format!("{}/api/comics/{}", BASE_URL, manga.key);
         let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
+            .header("Accept", "application/json, text/plain, */*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("Connection", "keep-alive")
+            .header("Origin", BASE_URL)
             .header("Referer", BASE_URL)
             .string()?;
         
@@ -115,8 +121,11 @@ impl ListingProvider for FMTeam {
         
         let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
+            .header("Accept", "application/json, text/plain, */*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("Connection", "keep-alive")
+            .header("Origin", BASE_URL)
             .header("Referer", BASE_URL)
             .string()?;
         
