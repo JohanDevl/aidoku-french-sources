@@ -112,39 +112,42 @@ impl Source for LelscanFr {
                 }
             }
             
-            // Method 3.5: Ultra-aggressive fallback like the old implementation
-            if total_pages == 1 {
-                // Look for pagination elements more aggressively
-                let aggressive_selectors = ["div", "span", "p", "nav"];
-                for selector in aggressive_selectors {
+            // Method 3.5: RESTORE original aggressive pagination detection that found hidden pages!
+            if total_pages <= 6 { // Even if we found 6, look for more!
+                // Use the EXACT original logic that worked
+                let pagination_selectors = ["div", "span", "p", ".pagination", ".page-numbers", ".pages", "nav"];
+                for selector in pagination_selectors {
                     if let Some(elements) = html.select(selector) {
                         for elem in elements {
                             if let Some(text) = elem.text() {
-                                // Check for ellipsis patterns that indicate many pages
+                                // Look for numbered page links - ORIGINAL LOGIC
+                                let numbers: Vec<i32> = text
+                                    .split_whitespace()
+                                    .filter_map(|s| s.parse().ok())
+                                    .filter(|&n| n > 1 && n < 150) // Expanded range
+                                    .collect();
+                                
+                                if !numbers.is_empty() {
+                                    let max_num = *numbers.iter().max().unwrap_or(&1);
+                                    if max_num > total_pages {
+                                        total_pages = max_num; // THIS IS KEY - could find page 25, 50, etc!
+                                    }
+                                }
+                                
+                                // Also check for ellipsis - ORIGINAL LOGIC
                                 if text.contains("…") || text.contains("...") {
-                                    // Look for numbers near ellipsis
-                                    let numbers: Vec<i32> = text
-                                        .split_whitespace()
-                                        .filter_map(|s| s.parse().ok())
-                                        .filter(|&n| n > 1 && n < 200)
-                                        .collect();
-                                    
-                                    if !numbers.is_empty() {
-                                        let max_num = *numbers.iter().max().unwrap_or(&1);
-                                        if max_num > 1 {
-                                            // When ellipsis is present, estimate there are more pages
-                                            total_pages = (max_num * 5).min(100); // Aggressive estimate
-                                            break;
-                                        }
+                                    // If there's ellipsis, there are definitely more pages
+                                    let estimated_pages = if !numbers.is_empty() {
+                                        let max_visible = *numbers.iter().max().unwrap_or(&6);
+                                        (max_visible * 3).min(100) // Estimate 3x more pages beyond visible
                                     } else {
-                                        total_pages = 30; // Default when ellipsis found but no numbers
-                                        break;
+                                        25 // Conservative estimate with ellipsis
+                                    };
+                                    if estimated_pages > total_pages {
+                                        total_pages = estimated_pages;
                                     }
                                 }
                             }
-                        }
-                        if total_pages > 1 {
-                            break;
                         }
                     }
                 }
@@ -177,9 +180,18 @@ impl Source for LelscanFr {
             let page_chapters = parser::parse_chapter_list(&manga.key, vec![html])?;
             all_chapters.extend(page_chapters);
             
-            // Fetch additional pages using optimized batching
-            if total_pages > 1 {
-                all_chapters.extend(helper::fetch_pages_batch(&manga.key, 2, total_pages)?);
+            // Fetch additional pages - simple sequential approach
+            for page in 2..=total_pages {
+                let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
+                let page_html = Request::get(&page_url)?
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .html()?;
+                
+                // Parse immediately to save memory
+                let page_chapters = parser::parse_chapter_list(&manga.key, vec![page_html])?;
+                all_chapters.extend(page_chapters);
             }
             
             manga.chapters = Some(all_chapters);
