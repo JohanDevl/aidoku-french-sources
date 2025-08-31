@@ -136,15 +136,39 @@ impl MangasOrigines {
                         if !title.is_empty() && !url.is_empty() {
                             let key = self.extract_manga_key(&url);
                             if !key.is_empty() {
-                                let cover_url = if let Some(img_elements) = item.select("img") {
-                                    if let Some(img) = img_elements.first() {
-                                        let mut cover = img.attr("data-src").unwrap_or_default().to_string();
-                                        if cover.is_empty() {
-                                            cover = img.attr("src").unwrap_or_default().to_string();
+                                let cover_selectors = [
+                                    "div.item-thumb img",       // Main manga item thumb
+                                    ".post-thumb img",          // Post thumbnail  
+                                    ".manga-poster img",        // Manga poster
+                                    ".wp-post-image",          // WordPress featured image
+                                    ".item-summary img",        // Item summary image
+                                    ".c-image-hover img",       // Image hover container
+                                    ".tab-thumb img",           // Tab thumbnail
+                                    "img",                      // Fallback generic img
+                                ];
+                                
+                                let mut cover_url: Option<String> = None;
+                                for selector in &cover_selectors {
+                                    if let Some(img_elem) = item.select(selector).and_then(|elems| elems.first()) {
+                                        // Use same attribute priority as other Madara sources
+                                        if let Some(src) = img_elem.attr("data-src")
+                                            .or_else(|| img_elem.attr("data-lazy-src"))
+                                            .or_else(|| img_elem.attr("src"))
+                                            .or_else(|| img_elem.attr("srcset"))
+                                            .or_else(|| img_elem.attr("data-cfsrc")) {
+                                            if !src.is_empty() {
+                                                // Clean up srcset if needed (take first URL)
+                                                let clean_src = if src.contains(" ") {
+                                                    src.split_whitespace().next().unwrap_or("").to_string()
+                                                } else {
+                                                    src.to_string()
+                                                };
+                                                cover_url = Some(clean_src);
+                                                break;
+                                            }
                                         }
-                                        if cover.is_empty() { None } else { Some(cover) }
-                                    } else { None }
-                                } else { None };
+                                    }
+                                }
 
                                 manga_list.push(Manga {
                                     key: key.clone(),
@@ -338,26 +362,34 @@ impl MangasOrigines {
 
     fn get_cover_url(&self, html: &Document) -> Option<String> {
         let cover_selectors = [
-            "div.summary_image img",
-            "div.tab-summary img",
-            ".wp-post-image",
-            "div.manga-detail img",
-            "img.wp-post-image"
+            "div.summary_image img",      // Primary Madara selector
+            ".wp-post-image",             // WordPress featured image
+            ".manga-poster img",          // Common manga poster
+            ".post-thumb img",            // Post thumbnail
+            ".series-thumb img",          // Series thumbnail
+            "div.tab-summary img",        // Tab summary image
+            ".manga-summary img",         // Manga summary image
+            "div.manga-detail img",       // Manga detail image
+            "img.wp-post-image",          // WordPress post image
+            "article img:first-child",    // First article image
         ];
 
-        for selector in cover_selectors.iter() {
-            if let Some(img_elements) = html.select(selector) {
-                if let Some(img) = img_elements.first() {
-                    let mut cover_url = img.attr("data-src").unwrap_or_default().to_string();
-                    if cover_url.is_empty() {
-                        cover_url = img.attr("data-lazy-src").unwrap_or_default().to_string();
-                    }
-                    if cover_url.is_empty() {
-                        cover_url = img.attr("src").unwrap_or_default().to_string();
-                    }
-
-                    if !cover_url.is_empty() {
-                        return Some(cover_url);
+        for selector in &cover_selectors {
+            if let Some(img_elem) = html.select(selector).and_then(|elems| elems.first()) {
+                // Use same attribute priority as other Madara sources
+                if let Some(src) = img_elem.attr("data-src")
+                    .or_else(|| img_elem.attr("data-lazy-src"))
+                    .or_else(|| img_elem.attr("src"))
+                    .or_else(|| img_elem.attr("srcset"))
+                    .or_else(|| img_elem.attr("data-cfsrc")) {
+                    if !src.is_empty() {
+                        // Clean up srcset if needed (take first URL)
+                        let clean_src = if src.contains(" ") {
+                            src.split_whitespace().next().unwrap_or("").to_string()
+                        } else {
+                            src.to_string()
+                        };
+                        return Some(clean_src);
                     }
                 }
             }
