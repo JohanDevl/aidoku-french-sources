@@ -42,7 +42,12 @@ impl Source for SushiScans {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        let url = format!("{}/manga/{}/", BASE_URL, manga.key);
+        // Use catalogue path like in old config (traverse_pathname: "catalogue")
+        let url = if manga.key.starts_with("catalogue/") {
+            format!("{}/{}/", BASE_URL, manga.key)
+        } else {
+            format!("{}/catalogue/{}/", BASE_URL, manga.key)
+        };
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -131,10 +136,10 @@ impl SushiScans {
                     continue;
                 }
 
-                // Extract manga key from URL
+                // Extract manga key from URL (catalogue/manga-name format)
                 let key = href
                     .replace(BASE_URL, "")
-                    .replace("/manga/", "")
+                    .replace("/catalogue/", "")
                     .trim_start_matches('/')
                     .trim_end_matches('/')
                     .to_string();
@@ -352,7 +357,7 @@ impl SushiScans {
             authors: author,
             artists: None,
             description,
-            url: Some(format!("{}/manga/{}/", BASE_URL, key)),
+            url: Some(format!("{}/catalogue/{}/", BASE_URL, key)),
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
             content_rating: ContentRating::Safe,
