@@ -72,10 +72,25 @@ pub fn parse_manga_listing_json(response: String, listing_type: &str) -> Result<
             // Filter and sort based on listing type
             match listing_type {
                 "dernières-sorties" => {
-                    // Filter comics with recent chapters
+                    // Filter comics with recent chapters and sort by last chapter date
                     comic_objects.retain(|comic| {
                         comic.get("last_chapter").is_some()
                     });
+                    
+                    // Sort by last chapter updated_at date (most recent first)
+                    comic_objects.sort_by(|a, b| {
+                        let a_date = a.get("last_chapter")
+                            .and_then(|ch| ch.get("updated_at"))
+                            .and_then(|d| d.as_str())
+                            .unwrap_or("");
+                        let b_date = b.get("last_chapter")
+                            .and_then(|ch| ch.get("updated_at"))
+                            .and_then(|d| d.as_str())
+                            .unwrap_or("");
+                        b_date.cmp(a_date) // Reverse order for most recent first
+                    });
+                    
+                    comic_objects.truncate(20); // Limit to 20 most recent
                 },
                 "populaire" => {
                     // Sort by views or rating for popularity
@@ -88,6 +103,7 @@ pub fn parse_manga_listing_json(response: String, listing_type: &str) -> Result<
                 },
                 _ => {
                     // Default - show all
+                    comic_objects.truncate(20);
                 }
             }
             
