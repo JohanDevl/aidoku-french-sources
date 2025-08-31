@@ -30,29 +30,23 @@ impl Source for FMTeam {
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         let url = if let Some(search_query) = query {
-            format!("{}/search?q={}&page={}", BASE_URL, helper::urlencode(search_query), page)
+            format!("{}/api/comics/search?q={}", BASE_URL, helper::urlencode(search_query))
         } else {
-            format!("{}/comics?page={}", BASE_URL, page)
+            format!("{}/api/comics", BASE_URL)
         };
         
         // Process filters if needed
         let _ = filters;
+        let _ = page; // API doesn't seem to support pagination yet
         
-        let html = Request::get(&url)?
+        let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "none")
-            .header("Cache-Control", "max-age=0")
-            .html()?;
+            .header("Referer", BASE_URL)
+            .string()?;
         
-        parser::parse_manga_list(html)
+        parser::parse_manga_list_json(response)
     }
 
     fn get_manga_update(
@@ -61,20 +55,20 @@ impl Source for FMTeam {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
-        let url = format!("{}/comics/{}", BASE_URL, manga.key);
-        let html = Request::get(&url)?
+        let url = format!("{}/api/comics/{}", BASE_URL, manga.key);
+        let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html()?;
+            .string()?;
         
         if needs_details {
-            manga = parser::parse_manga_details(manga, &html)?;
+            manga = parser::parse_manga_details_json(manga, response.clone())?;
         }
         
         if needs_chapters {
-            let chapters = parser::parse_chapter_list(&manga.key, &html)?;
+            let chapters = parser::parse_chapter_list_json(&manga.key, response)?;
             manga.chapters = Some(chapters);
         }
         
@@ -82,39 +76,51 @@ impl Source for FMTeam {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let url = if chapter.key.starts_with("/") {
-            format!("{}{}", BASE_URL, chapter.key)
-        } else {
-            format!("{}/{}", BASE_URL, chapter.key)
-        };
+        // Try API first, fallback to HTML if needed
+        let api_url = format!("{}/api/chapters/{}/pages", BASE_URL, chapter.key);
         
-        let html = Request::get(&url)?
+        match Request::get(&api_url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html()?;
-        
-        parser::parse_page_list(&html)
+            .string() {
+            Ok(response) => parser::parse_page_list_json(response),
+            Err(_) => {
+                // Fallback to HTML parsing
+                let url = if chapter.key.starts_with("/") {
+                    format!("{}{}", BASE_URL, chapter.key)
+                } else {
+                    format!("{}/{}", BASE_URL, chapter.key)
+                };
+                
+                let html = Request::get(&url)?
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .header("Referer", BASE_URL)
+                    .html()?;
+                
+                parser::parse_page_list(&html)
+            }
+        }
     }
 }
 
 impl ListingProvider for FMTeam {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let url = match listing.id.as_str() {
-            "dernières-sorties" => format!("{}/latest?page={}", BASE_URL, page),
-            "populaire" => format!("{}/popular?page={}", BASE_URL, page),
-            _ => format!("{}/comics?page={}", BASE_URL, page),
-        };
+        // All listings use the main API endpoint for now
+        let url = format!("{}/api/comics", BASE_URL);
+        let _ = page; // API doesn't support pagination yet
         
-        let html = Request::get(&url)?
+        let response = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html()?;
+            .string()?;
         
-        parser::parse_manga_list(html)
+        parser::parse_manga_listing_json(response, &listing.id)
     }
 }
 
