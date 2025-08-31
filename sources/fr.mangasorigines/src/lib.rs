@@ -116,13 +116,25 @@ impl ImageRequestProvider for MangasOrigines {
 
 impl MangasOrigines {
     fn search_manga(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        let url = format!("{}/?s={}&page={}", BASE_URL, self.url_encode(query), page);
+        // Use AJAX search like mangascantrad for better results
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
-        let html = Request::get(&url)?
+        // Madara AJAX search payload
+        let body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bs%5D={}&vars%5Borderby%5D=&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+            page - 1,
+            self.url_encode(query),
+            page
+        );
+        
+        let html = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
             .html()?;
 
         self.parse_manga_list(html, page)
