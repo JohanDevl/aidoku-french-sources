@@ -639,76 +639,56 @@ pub fn parse_chapter_list(manga_key: &str, html: &Document) -> Result<Vec<Chapte
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
 
-    // Look for any images aggressively - check all possible attributes and sources
-    if let Some(all_images) = html.select("img") {
-        for img in all_images {
-            // Check all possible image source attributes
-            let img_src = img.attr("src")
-                .or_else(|| img.attr("data-src"))
-                .or_else(|| img.attr("data-original"))
-                .or_else(|| img.attr("data-lazy-src"))
-                .or_else(|| img.attr("data-srcset"))
-                .or_else(|| img.attr("srcset"));
+    // Stable approach inspired by SushiScans: cascade of proven selectors
+    let selectors = [
+        "div#readerarea img",           // Standard manga reader
+        ".rdminimal img",               // Minimal reader
+        ".reader-area img",             // Reader area
+        "#chapter_imgs img",            // Chapter images
+        ".chapter-content img",         // Chapter content
+        ".reading-content img",         // Reading content
+        ".page-break img",              // Page break
+        ".wp-manga-chapter-img img",    // WordPress manga
+        "img[src*=\"storage\"]",        // Storage images
+        "img[src*=\"uploads\"]",        // Upload directory
+        "img[data-src*=\"storage\"]",   // Lazy loaded storage
+        "img"                           // Final fallback
+    ];
 
-            if let Some(src) = img_src {
-                // Split srcset if needed and take first URL
-                let clean_src = src.split(',').next().unwrap_or(&src).split_whitespace().next().unwrap_or(&src);
-                
-                // Very permissive image detection
-                if clean_src.contains(".jpg") || clean_src.contains(".png") || 
-                   clean_src.contains(".webp") || clean_src.contains(".jpeg") ||
-                   clean_src.contains("image") || clean_src.contains("storage") ||
-                   (!clean_src.is_empty() && clean_src.len() > 10 && clean_src.contains("/")) {
+    for selector in &selectors {
+        if let Some(images) = html.select(selector) {
+            for img_element in images {
+                // Check image source attributes in priority order (like SushiScans)
+                let img_url = img_element.attr("data-src")
+                    .or_else(|| img_element.attr("data-lazy-src"))
+                    .or_else(|| img_element.attr("src"))
+                    .unwrap_or_default();
+
+                if !img_url.is_empty() && 
+                   (img_url.contains(".jpg") || img_url.contains(".png") || 
+                    img_url.contains(".webp") || img_url.contains(".jpeg")) {
                     
-                    // Build full URL carefully
-                    let full_url = if clean_src.starts_with("http://") || clean_src.starts_with("https://") {
-                        clean_src.to_string()
-                    } else if clean_src.starts_with("/") {
-                        format!("https://fmteam.fr{}", clean_src)
+                    // Build absolute URL
+                    let full_url = if img_url.starts_with("http") {
+                        img_url
+                    } else if img_url.starts_with("/") {
+                        format!("{}{}", super::BASE_URL, img_url)
                     } else {
-                        format!("https://fmteam.fr/{}", clean_src)
+                        format!("{}/{}", super::BASE_URL, img_url)
                     };
 
-                    // Very basic URL validation 
-                    if full_url.starts_with("http") && !full_url.contains(" ") && full_url.len() > 20 {
-                        pages.push(Page {
-                            content: PageContent::url(full_url),
-                            thumbnail: None,
-                            has_description: false,
-                            description: None,
-                        });
-                    }
+                    pages.push(Page {
+                        content: PageContent::url(full_url),
+                        thumbnail: None,
+                        has_description: false,
+                        description: None,
+                    });
                 }
             }
-        }
-    }
-
-    // If still no images found, try to find any elements that might contain image URLs
-    if pages.is_empty() {
-        if let Some(scripts) = html.select("script") {
-            for script in scripts {
-                if let Some(script_content) = script.text() {
-                    // Look for image URLs in JavaScript
-                    for line in script_content.lines() {
-                        if (line.contains(".jpg") || line.contains(".png") || line.contains(".webp")) &&
-                           (line.contains("http") || line.contains("/storage/") || line.contains("/images/")) {
-                            // Very basic URL extraction from JS
-                            if let Some(start) = line.find("http") {
-                                if let Some(end) = line[start..].find('"').or_else(|| line[start..].find("'")) {
-                                    let url = &line[start..start + end];
-                                    if url.ends_with(".jpg") || url.ends_with(".png") || url.ends_with(".webp") {
-                                        pages.push(Page {
-                                            content: PageContent::url(url.to_string()),
-                                            thumbnail: None,
-                                            has_description: false,
-                                            description: None,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            
+            // Stop at first successful selector (like SushiScans)
+            if !pages.is_empty() {
+                break;
             }
         }
     }

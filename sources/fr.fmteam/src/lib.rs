@@ -82,7 +82,6 @@ impl Source for FMTeam {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        // Use HTML parsing since we don't have a direct API endpoint for pages
         let url = if chapter.key.starts_with("/") {
             format!("{}{}", BASE_URL, chapter.key)
         } else {
@@ -91,8 +90,12 @@ impl Source for FMTeam {
         
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
         
@@ -105,6 +108,8 @@ impl ImageRequestProvider for FMTeam {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
         Ok(Request::get(url)?
             .header("User-Agent", USER_AGENT)
+            .header("Accept", "image/avif,image/webp,image/png,image/jpeg,*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL))
     }
 }
