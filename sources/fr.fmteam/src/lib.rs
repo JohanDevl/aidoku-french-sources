@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
+    Chapter, FilterValue, ImageRequestProvider, 
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::net::Request,
@@ -113,25 +113,6 @@ impl Source for FMTeam {
     }
 }
 
-impl ListingProvider for FMTeam {
-    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        // All listings use the main API endpoint for now
-        let url = format!("{}/api/comics", BASE_URL);
-        let _ = page; // API doesn't support pagination yet
-        
-        let response = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Connection", "keep-alive")
-            .header("Origin", BASE_URL)
-            .header("Referer", BASE_URL)
-            .string()?;
-        
-        parser::parse_manga_listing_json(response, &listing.id)
-    }
-}
 
 impl ImageRequestProvider for FMTeam {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
@@ -146,4 +127,4 @@ impl ImageRequestProvider for FMTeam {
     }
 }
 
-register_source!(FMTeam, ListingProvider, ImageRequestProvider);
+register_source!(FMTeam, ImageRequestProvider);
