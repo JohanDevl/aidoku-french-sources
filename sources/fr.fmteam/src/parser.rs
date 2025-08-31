@@ -13,28 +13,10 @@ extern crate alloc;
 pub fn parse_manga_list_json(response: String) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     
-    // Toujours créer au moins un manga de test pour vérifier que l'affichage fonctionne
-    mangas.push(Manga {
-        key: "test-manga".to_string(),
-        cover: Some("https://fmteam.fr/storage/comics/covers/6d34ae3eaccdb37ccc4aeeec89e3b9fd.jpg".to_string()),
-        title: "Test Manga - FMTeam".to_string(),
-        authors: Some(vec!["Test Author".to_string()]),
-        artists: None,
-        description: Some("Manga de test pour vérifier l'affichage".to_string()),
-        tags: Some(vec!["Action".to_string(), "Test".to_string()]),
-        status: MangaStatus::Ongoing,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: Some(format!("{}/comics/test-manga", super::BASE_URL)),
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-    
     if let Ok(json) = serde_json::from_str::<Value>(&response) {
         // L'API retourne {"comics": [...]} donc accéder à la clé comics
         if let Some(comics_array) = json.get("comics").and_then(|v| v.as_array()) {
-            for comic in comics_array.iter().take(10) { // Limiter à 10 pour les tests
+            for comic in comics_array {
                 if let Ok(manga) = parse_single_manga_json(comic) {
                     mangas.push(manga);
                 } else {
@@ -82,28 +64,10 @@ pub fn parse_manga_list_json(response: String) -> Result<MangaPageResult> {
 pub fn parse_manga_listing_json(response: String, listing_type: &str) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     
-    // Toujours créer un manga de test pour vérifier que l'affichage fonctionne
-    mangas.push(Manga {
-        key: format!("test-listing-{}", listing_type),
-        cover: Some("https://fmteam.fr/storage/comics/covers/6d34ae3eaccdb37ccc4aeeec89e3b9fd.jpg".to_string()),
-        title: format!("Test {} - FMTeam", listing_type),
-        authors: Some(vec!["Test Author".to_string()]),
-        artists: None,
-        description: Some(format!("Manga de test pour listing {}", listing_type)),
-        tags: Some(vec!["Test".to_string()]),
-        status: MangaStatus::Ongoing,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: Some(format!("{}/comics/test-{}", super::BASE_URL, listing_type)),
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-    
     if let Ok(json) = serde_json::from_str::<Value>(&response) {
         // L'API retourne {"comics": [...]} donc accéder à la clé comics
         if let Some(comics_array) = json.get("comics").and_then(|v| v.as_array()) {
-            let mut comic_objects: Vec<&Value> = comics_array.iter().take(10).collect();
+            let mut comic_objects: Vec<&Value> = comics_array.iter().collect();
             
             // Filter and sort based on listing type
             match listing_type {
@@ -120,6 +84,7 @@ pub fn parse_manga_listing_json(response: String, listing_type: &str) -> Result<
                         let b_views = b.get("views").and_then(|v| v.as_u64()).unwrap_or(0);
                         b_views.cmp(&a_views)
                     });
+                    comic_objects.truncate(20);
                 },
                 _ => {
                     // Default - show all
@@ -360,12 +325,12 @@ fn parse_single_chapter_json(manga_key: &str, chapter: &Value) -> Result<Chapter
             }
         }
         if team_names.is_empty() {
-            Some(vec![String::from("FMTeam")])
+            None
         } else {
             Some(team_names)
         }
     } else {
-        Some(vec![String::from("FMTeam")])
+        None
     };
     
     Ok(Chapter {
