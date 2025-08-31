@@ -29,11 +29,8 @@ impl Source for FMTeam {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let url = if let Some(search_query) = query {
-            format!("{}/api/comics/search?q={}", BASE_URL, helper::urlencode(search_query))
-        } else {
-            format!("{}/api/comics", BASE_URL)
-        };
+        // FMTeam search API is broken, so we get all comics and filter client-side
+        let url = format!("{}/api/comics", BASE_URL);
         
         // Process filters if needed
         let _ = filters;
@@ -49,7 +46,7 @@ impl Source for FMTeam {
             .header("Referer", BASE_URL)
             .string()?;
         
-        parser::parse_manga_list_json(response)
+        parser::parse_manga_list_json(response, query)
     }
 
     fn get_manga_update(

@@ -9,7 +9,7 @@ use serde_json::Value;
 extern crate alloc;
 
 // JSON parsing functions for the API
-pub fn parse_manga_list_json(response: String) -> Result<MangaPageResult> {
+pub fn parse_manga_list_json(response: String, search_query: Option<String>) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     
     if let Ok(json) = serde_json::from_str::<Value>(&response) {
@@ -52,6 +52,44 @@ pub fn parse_manga_list_json(response: String) -> Result<MangaPageResult> {
                 }
             }
         }
+    }
+    
+    // Filter results client-side if search query provided
+    if let Some(query) = search_query {
+        let query_lower = query.to_lowercase();
+        mangas.retain(|manga| {
+            // Search in title
+            if manga.title.to_lowercase().contains(&query_lower) {
+                return true;
+            }
+            
+            // Search in description  
+            if let Some(ref description) = manga.description {
+                if description.to_lowercase().contains(&query_lower) {
+                    return true;
+                }
+            }
+            
+            // Search in authors
+            if let Some(ref authors) = manga.authors {
+                for author in authors {
+                    if author.to_lowercase().contains(&query_lower) {
+                        return true;
+                    }
+                }
+            }
+            
+            // Search in tags
+            if let Some(ref tags) = manga.tags {
+                for tag in tags {
+                    if tag.to_lowercase().contains(&query_lower) {
+                        return true;
+                    }
+                }
+            }
+            
+            false
+        });
     }
     
     Ok(MangaPageResult {
