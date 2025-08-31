@@ -248,7 +248,15 @@ impl MangasOrigines {
         };
 
         if needs_chapters {
-            manga.chapters = Some(self.parse_chapter_list(&key, &html)?);
+            // First try AJAX approach for all chapters
+            let ajax_chapters = self.ajax_chapter_list(&key).unwrap_or_else(|_| vec![]);
+            
+            if !ajax_chapters.is_empty() {
+                manga.chapters = Some(ajax_chapters);
+            } else {
+                // Fallback to HTML parsing if AJAX fails
+                manga.chapters = Some(self.parse_chapter_list(&key, &html)?);
+            }
         }
 
         Ok(manga)
@@ -257,6 +265,125 @@ impl MangasOrigines {
     fn parse_chapter_list(&self, _manga_key: &str, html: &Document) -> Result<Vec<Chapter>> {
         let mut chapters = Vec::new();
         
+        if let Some(chapter_elements) = html.select("li.wp-manga-chapter, .wp-manga-chapter, .chapter-item") {
+            for chapter_element in chapter_elements {
+                if let Some(link_elements) = chapter_element.select("a") {
+                    if let Some(link) = link_elements.first() {
+                        let chapter_url = link.attr("href").unwrap_or_default();
+                        let chapter_title = link.text().unwrap_or_default().trim().to_string();
+                        
+                        if !chapter_url.is_empty() && !chapter_title.is_empty() {
+                            let chapter_key = self.extract_chapter_key(&chapter_url);
+                            if !chapter_key.is_empty() {
+                                let chapter_number = self.extract_chapter_number(&chapter_title);
+                                let date_published = if let Some(date_elements) = chapter_element.select("span.chapter-release-date, .chapter-date") {
+                                    self.parse_chapter_date(&date_elements.text().unwrap_or_default())
+                                } else { None };
+
+                                chapters.push(Chapter {
+                                    key: chapter_key,
+                                    title: Some(chapter_title),
+                                    url: Some(chapter_url),
+                                    language: Some("fr".to_string()),
+                                    volume_number: None,
+                                    chapter_number: Some(chapter_number),
+                                    date_uploaded: date_published,
+                                    scanlators: None,
+                                    thumbnail: None,
+                                    locked: false,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(chapters)
+    }
+    
+    fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
+        // Step 1: Get the manga page to extract the numeric ID
+        let manga_url = format!("{}/oeuvre/{}/", BASE_URL, manga_key);
+        
+        let manga_page_doc = Request::get(&manga_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .html()?;
+        
+        // Step 2: Extract numeric ID from JavaScript
+        let int_id = self.extract_manga_int_id(&manga_page_doc)?;
+        
+        // Step 3: Use Madara AJAX method - POST to /oeuvre/{key}/ajax/chapters  
+        let ajax_url = format!("{}/oeuvre/{}/ajax/chapters", BASE_URL, manga_key);
+        let body_content = format!("action=manga_get_chapters&manga={}", int_id);
+        
+        let ajax_doc = Request::post(&ajax_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", &manga_url)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body_content.as_bytes())
+            .html()?;
+        
+        // Parse the AJAX response
+        self.parse_ajax_chapters_response(ajax_doc)
+    }
+    
+    fn extract_manga_int_id(&self, html: &Document) -> Result<String> {
+        // Look for the wp-manga-js-extra script tag (like in mangascantrad)
+        if let Some(script_element) = html.select("script#wp-manga-js-extra") {
+            if let Some(script_content) = script_element.html() {
+                let script_text = script_content;
+                
+                // Look for manga ID in the script
+                if let Some(start) = script_text.find("\"manga_id\":\"") {
+                    let after_start = &script_text[start + 12..];
+                    if let Some(end) = after_start.find("\"") {
+                        let manga_id = &after_start[..end];
+                        return Ok(manga_id.to_string());
+                    }
+                }
+                
+                // Alternative pattern
+                if let Some(start) = script_text.find("manga_id=") {
+                    let after_start = &script_text[start + 9..];
+                    if let Some(end) = after_start.find(|c: char| !c.is_ascii_digit()) {
+                        let manga_id = &after_start[..end];
+                        return Ok(manga_id.to_string());
+                    }
+                }
+            }
+        }
+        
+        // Fallback - look in other script tags
+        if let Some(script_elements) = html.select("script") {
+            for script in script_elements {
+                if let Some(script_content) = script.html() {
+                    if script_content.contains("manga_id") {
+                        if let Some(start) = script_content.find("\"manga_id\":\"") {
+                            let after_start = &script_content[start + 12..];
+                            if let Some(end) = after_start.find("\"") {
+                                let manga_id = &after_start[..end];
+                                return Ok(manga_id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok("0".to_string()) // Fallback ID if not found
+    }
+    
+    fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
+        let mut chapters: Vec<Chapter> = Vec::new();
+        
+        // Parse AJAX response that should contain chapter HTML fragments
         if let Some(chapter_elements) = html.select("li.wp-manga-chapter, .wp-manga-chapter, .chapter-item") {
             for chapter_element in chapter_elements {
                 if let Some(link_elements) = chapter_element.select("a") {
