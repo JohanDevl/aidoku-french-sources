@@ -417,7 +417,7 @@ impl SushiScans {
                             .to_string();
 
                         // Extract title with multiple selectors
-                        let title = link.text()
+                        let raw_title = link.text()
                             .or_else(|| {
                                 item.select("span.chapternum, .lch a, .chapter-manhwa-title, .chapternum")
                                     .and_then(|elems| elems.first())
@@ -427,35 +427,43 @@ impl SushiScans {
                             .trim()
                             .to_string();
                         
-                        if title.is_empty() {
+                        if raw_title.is_empty() {
                             continue;
                         }
 
-                        // Extract chapter number
+                        // Extract date from title and clean title (e.g., "Ch.200 - Chapitre 200 June 23, 2024")
+                        let (clean_title, title_date) = self.extract_date_from_title(&raw_title);
+                        let title = clean_title;
+
+                        // Extract chapter number from clean title
                         let chapter_number = self.extract_chapter_number(&title);
 
-                        // Extract date with multiple selectors
-                        let date_selectors = [
-                            "span.chapterdate",                 // From template default
-                            ".chapterdate",                     // Chapter date class
-                            ".dt",                              // Date class
-                            ".chapter-release-date",            // Chapter release date
-                            ".chapter-date",                    // Chapter date
-                            "span.date",                        // Date span
-                            "time",                             // Time element
-                            ".post-on",                         // Post date
-                            ".uploaded-on",                     // Upload date
-                        ];
+                        // Extract date with multiple methods: 1) from title, 2) from selectors
+                        let mut date_uploaded = title_date; // Use title date first if found
                         
-                        let mut date_uploaded = None;
-                        for date_selector in &date_selectors {
-                            if let Some(date_elem) = item.select(date_selector).and_then(|elems| elems.first()) {
-                                if let Some(date_text) = date_elem.text() {
-                                    let date_str = date_text.trim();
-                                    if !date_str.is_empty() {
-                                        if let Some(parsed_date) = self.parse_chapter_date(date_str) {
-                                            date_uploaded = Some(parsed_date);
-                                            break;
+                        // If no date from title, try CSS selectors
+                        if date_uploaded.is_none() {
+                            let date_selectors = [
+                                "span.chapterdate",                 // From template default
+                                ".chapterdate",                     // Chapter date class
+                                ".dt",                              // Date class
+                                ".chapter-release-date",            // Chapter release date
+                                ".chapter-date",                    // Chapter date
+                                "span.date",                        // Date span
+                                "time",                             // Time element
+                                ".post-on",                         // Post date
+                                ".uploaded-on",                     // Upload date
+                            ];
+                            
+                            for date_selector in &date_selectors {
+                                if let Some(date_elem) = item.select(date_selector).and_then(|elems| elems.first()) {
+                                    if let Some(date_text) = date_elem.text() {
+                                        let date_str = date_text.trim();
+                                        if !date_str.is_empty() {
+                                            if let Some(parsed_date) = self.parse_chapter_date(date_str) {
+                                                date_uploaded = Some(parsed_date);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -634,6 +642,53 @@ impl SushiScans {
         
         // Add days in current month (subtract 1 because we count from day 1)
         days + (day - 1) as i32
+    }
+    
+    fn extract_date_from_title(&self, title: &str) -> (String, Option<i64>) {
+        // Look for English date patterns like "June 23, 2024" at the end of title
+        // Common patterns: "Month DD, YYYY" or "Month DD YYYY"
+        
+        let months = [
+            ("january", 1), ("february", 2), ("march", 3), ("april", 4),
+            ("may", 5), ("june", 6), ("july", 7), ("august", 8),
+            ("september", 9), ("october", 10), ("november", 11), ("december", 12),
+            ("jan", 1), ("feb", 2), ("mar", 3), ("apr", 4),
+            ("jun", 6), ("jul", 7), ("aug", 8),
+            ("sep", 9), ("oct", 10), ("nov", 11), ("dec", 12),
+        ];
+        
+        let title_lower = title.to_lowercase();
+        
+        // Try to find month name in the title
+        for (month_name, month_num) in &months {
+            if let Some(month_pos) = title_lower.find(month_name) {
+                // Extract the part after month name
+                let after_month = &title[month_pos + month_name.len()..];
+                
+                // Look for pattern: " DD, YYYY" or " DD YYYY"
+                let parts: Vec<&str> = after_month.trim().split_whitespace().collect();
+                if parts.len() >= 2 {
+                    // Try to parse day and year
+                    if let Ok(day) = parts[0].trim_end_matches(',').parse::<u32>() {
+                        if let Ok(year) = parts[1].parse::<i32>() {
+                            if day >= 1 && day <= 31 && year >= 1970 {
+                                // Calculate timestamp
+                                let timestamp = self.calculate_days_since_epoch(year, *month_num, day) as i64 * 86400;
+                                
+                                // Clean title by removing the date part
+                                let date_start = month_pos;
+                                let clean_title = title[..date_start].trim().to_string();
+                                
+                                return (clean_title, Some(timestamp));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no date found, return original title and None
+        (title.to_string(), None)
     }
 }
 
