@@ -243,21 +243,6 @@ fn parse_single_chapter_json(manga_key: &str, chapter: &Value) -> Result<Chapter
     
     let key = format!("/read/{}/fr/ch/{}", manga_key, chapter_num as i32);
     
-    let scanlators = if let Some(teams_array) = chapter.get("teams").and_then(|v| v.as_array()) {
-        let mut team_names: Vec<String> = Vec::new();
-        for team in teams_array {
-            if let Some(name) = team.get("name").and_then(|n| n.as_str()) {
-                team_names.push(name.to_string());
-            }
-        }
-        if team_names.is_empty() {
-            None
-        } else {
-            Some(team_names)
-        }
-    } else {
-        None
-    };
     
     Ok(Chapter {
         key: key.clone(),
@@ -265,8 +250,8 @@ fn parse_single_chapter_json(manga_key: &str, chapter: &Value) -> Result<Chapter
         chapter_number: Some(chapter_num),
         volume_number: None,
         date_uploaded: None,
-        scanlators,
-        language: Some(String::from("fr")),
+        scanlators: None,
+        language: None,
         locked: false,
         thumbnail: None,
         url: Some(super::helper::make_absolute_url(super::BASE_URL, &key)),
@@ -622,7 +607,7 @@ pub fn parse_chapter_list(manga_key: &str, html: &Document) -> Result<Vec<Chapte
                         volume_number: None,
                         date_uploaded: None,
                         scanlators: None,
-                        language: Some(String::from("fr")),
+                        language: None,
                         locked: false,
                         thumbnail: None,
                         url: Some(super::helper::make_absolute_url(super::BASE_URL, &chapter_key)),
