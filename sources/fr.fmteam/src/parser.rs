@@ -241,7 +241,12 @@ fn parse_single_chapter_json(manga_key: &str, chapter: &Value) -> Result<Chapter
         .map(|s| s.to_string())
         .unwrap_or_else(|| format!("Chapitre {}", chapter_num));
     
-    let key = format!("/read/{}/fr/ch/{}", manga_key, chapter_num as i32);
+    // Try to get the actual URL from API data first, fallback to constructed URL
+    let key = if let Some(chapter_url) = chapter.get("url").and_then(|v| v.as_str()) {
+        chapter_url.to_string()
+    } else {
+        format!("/read/{}/fr/ch/{}", manga_key, chapter_num as i32)
+    };
     
     
     Ok(Chapter {
@@ -254,7 +259,7 @@ fn parse_single_chapter_json(manga_key: &str, chapter: &Value) -> Result<Chapter
         language: None,
         locked: false,
         thumbnail: None,
-        url: Some(super::helper::make_absolute_url(super::BASE_URL, &key)),
+        url: Some(if key.starts_with("http") { key } else { format!("{}{}", super::BASE_URL, key) }),
     })
 }
 
@@ -634,31 +639,74 @@ pub fn parse_chapter_list(manga_key: &str, html: &Document) -> Result<Vec<Chapte
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
 
-    // Try simpler selectors first
+    // Look for any images aggressively - check all possible attributes and sources
     if let Some(all_images) = html.select("img") {
         for img in all_images {
-            if let Some(img_src) = img.attr("src").or_else(|| img.attr("data-src")) {
-                // Only process valid image files
-                if img_src.ends_with(".jpg") || img_src.ends_with(".png") || 
-                   img_src.ends_with(".webp") || img_src.ends_with(".jpeg") {
+            // Check all possible image source attributes
+            let img_src = img.attr("src")
+                .or_else(|| img.attr("data-src"))
+                .or_else(|| img.attr("data-original"))
+                .or_else(|| img.attr("data-lazy-src"))
+                .or_else(|| img.attr("data-srcset"))
+                .or_else(|| img.attr("srcset"));
+
+            if let Some(src) = img_src {
+                // Split srcset if needed and take first URL
+                let clean_src = src.split(',').next().unwrap_or(&src).split_whitespace().next().unwrap_or(&src);
+                
+                // Very permissive image detection
+                if clean_src.contains(".jpg") || clean_src.contains(".png") || 
+                   clean_src.contains(".webp") || clean_src.contains(".jpeg") ||
+                   clean_src.contains("image") || clean_src.contains("storage") ||
+                   (!clean_src.is_empty() && clean_src.len() > 10 && clean_src.contains("/")) {
                     
                     // Build full URL carefully
-                    let full_url = if img_src.starts_with("http://") || img_src.starts_with("https://") {
-                        img_src.to_string()
-                    } else if img_src.starts_with("/") {
-                        format!("https://fmteam.fr{}", img_src)
+                    let full_url = if clean_src.starts_with("http://") || clean_src.starts_with("https://") {
+                        clean_src.to_string()
+                    } else if clean_src.starts_with("/") {
+                        format!("https://fmteam.fr{}", clean_src)
                     } else {
-                        format!("https://fmteam.fr/{}", img_src)
+                        format!("https://fmteam.fr/{}", clean_src)
                     };
 
-                    // Validate URL format
-                    if full_url.starts_with("http") && !full_url.contains(" ") {
+                    // Very basic URL validation 
+                    if full_url.starts_with("http") && !full_url.contains(" ") && full_url.len() > 20 {
                         pages.push(Page {
                             content: PageContent::url(full_url),
                             thumbnail: None,
                             has_description: false,
                             description: None,
                         });
+                    }
+                }
+            }
+        }
+    }
+
+    // If still no images found, try to find any elements that might contain image URLs
+    if pages.is_empty() {
+        if let Some(scripts) = html.select("script") {
+            for script in scripts {
+                if let Some(script_content) = script.text() {
+                    // Look for image URLs in JavaScript
+                    for line in script_content.lines() {
+                        if (line.contains(".jpg") || line.contains(".png") || line.contains(".webp")) &&
+                           (line.contains("http") || line.contains("/storage/") || line.contains("/images/")) {
+                            // Very basic URL extraction from JS
+                            if let Some(start) = line.find("http") {
+                                if let Some(end) = line[start..].find('"').or_else(|| line[start..].find("'")) {
+                                    let url = &line[start..start + end];
+                                    if url.ends_with(".jpg") || url.ends_with(".png") || url.ends_with(".webp") {
+                                        pages.push(Page {
+                                            content: PageContent::url(url.to_string()),
+                                            thumbnail: None,
+                                            has_description: false,
+                                            description: None,
+                                        });
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
