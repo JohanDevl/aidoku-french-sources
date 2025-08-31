@@ -105,11 +105,6 @@ impl ImageRequestProvider for FMTeam {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
         Ok(Request::get(url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Sec-Fetch-Dest", "image")
-            .header("Sec-Fetch-Mode", "no-cors")
-            .header("Sec-Fetch-Site", "same-origin")
             .header("Referer", BASE_URL))
     }
 }

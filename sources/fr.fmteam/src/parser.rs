@@ -637,29 +637,30 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     // Try simpler selectors first
     if let Some(all_images) = html.select("img") {
         for img in all_images {
-            let img_src = img.attr("src")
-                .or_else(|| img.attr("data-src"))
-                .or_else(|| img.attr("data-original"))
-                .unwrap_or_default();
+            if let Some(img_src) = img.attr("src").or_else(|| img.attr("data-src")) {
+                // Only process valid image files
+                if img_src.ends_with(".jpg") || img_src.ends_with(".png") || 
+                   img_src.ends_with(".webp") || img_src.ends_with(".jpeg") {
+                    
+                    // Build full URL carefully
+                    let full_url = if img_src.starts_with("http://") || img_src.starts_with("https://") {
+                        img_src.to_string()
+                    } else if img_src.starts_with("/") {
+                        format!("https://fmteam.fr{}", img_src)
+                    } else {
+                        format!("https://fmteam.fr/{}", img_src)
+                    };
 
-            if !img_src.is_empty() && 
-               (img_src.ends_with(".jpg") || img_src.ends_with(".png") || 
-                img_src.ends_with(".webp") || img_src.ends_with(".jpeg")) {
-                
-                let full_url = if img_src.starts_with("http") {
-                    img_src.to_string()
-                } else if img_src.starts_with("/") {
-                    format!("{}{}", super::BASE_URL, img_src)
-                } else {
-                    format!("{}/{}", super::BASE_URL, img_src)
-                };
-
-                pages.push(Page {
-                    content: PageContent::url(full_url),
-                    thumbnail: None,
-                    has_description: false,
-                    description: None,
-                });
+                    // Validate URL format
+                    if full_url.starts_with("http") && !full_url.contains(" ") {
+                        pages.push(Page {
+                            content: PageContent::url(full_url),
+                            thumbnail: None,
+                            has_description: false,
+                            description: None,
+                        });
+                    }
+                }
             }
         }
     }
