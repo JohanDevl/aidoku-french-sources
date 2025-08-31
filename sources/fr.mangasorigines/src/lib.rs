@@ -107,17 +107,35 @@ impl MangasOrigines {
     }
 
     fn get_manga_listing(&self, list_type: &str, page: i32) -> Result<MangaPageResult> {
-        let url = match list_type {
-            "popular" => format!("{}/oeuvre/?order=popular&page={}", BASE_URL, page),
-            "trending" => format!("{}/oeuvre/?order=trending&page={}", BASE_URL, page),
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        // Different payloads for different listing types (like mangascantrad)
+        let body = match list_type {
+            "popular" => {
+                format!(
+                    "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=meta_value_num&vars%5Bmeta_key%5D=_wp_manga_views&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+                    page - 1,
+                    page
+                )
+            },
+            "trending" => {
+                format!(
+                    "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=trending&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=DESC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+                    page - 1,
+                    page
+                )
+            },
             _ => return self.get_manga_listing_page(page)
         };
         
-        let html = Request::get(&url)?
+        let html = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
             .html()?;
 
         self.parse_manga_list(html, page)
