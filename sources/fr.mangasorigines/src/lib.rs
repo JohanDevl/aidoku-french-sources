@@ -48,11 +48,14 @@ impl Source for MangasOrigines {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        // Try different URL formats
+        // Use the stored chapter URL instead of reconstructing from key
+        let base_url = chapter.url.unwrap_or_else(|| format!("{}/{}/", BASE_URL, chapter.key));
+        
+        // Try different URL formats with the correct base URL
         let url_formats = [
-            format!("{}/{}/?style=list", BASE_URL, chapter.key),     // Madara with style parameter
-            format!("{}/{}/", BASE_URL, chapter.key),                 // Standard format
-            format!("{}/{}/?readType=1", BASE_URL, chapter.key),      // Alternative read type
+            format!("{}?style=list", base_url),     // Madara with style parameter
+            base_url.clone(),                       // Standard format (stored URL)
+            format!("{}?readType=1", base_url),     // Alternative read type
         ];
         
         for url in &url_formats {
@@ -61,7 +64,12 @@ impl Source for MangasOrigines {
                     .header("User-Agent", USER_AGENT)
                     .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                     .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Referer", BASE_URL)
+                    .header("Accept-Encoding", "gzip, deflate, br")
+                    .header("DNT", "1")
+                    .header("Connection", "keep-alive")
+                    .header("Upgrade-Insecure-Requests", "1")
+                    .header("Cache-Control", "max-age=0")
+                    .header("Referer", &base_url)
                     .html()) {
                 
                 let pages = self.parse_page_list(&html)?;
@@ -76,7 +84,12 @@ impl Source for MangasOrigines {
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Cache-Control", "max-age=0")
+            .header("Referer", &base_url)
             .html()?;
 
         self.parse_page_list(&html)
