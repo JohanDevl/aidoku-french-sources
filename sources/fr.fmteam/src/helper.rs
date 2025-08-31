@@ -28,27 +28,6 @@ pub fn urlencode(string: String) -> String {
     String::from_utf8(result).unwrap_or_default()
 }
 
-pub fn extract_id_from_url(url: &str) -> String {
-    let parts: Vec<&str> = url.split('/').collect();
-    // For FMTeam URLs like /comics/title or https://fmteam.fr/comics/title
-    if parts.len() >= 3 {
-        for (i, part) in parts.iter().enumerate() {
-            if *part == "comics" && i + 1 < parts.len() {
-                return String::from(parts[i + 1].trim());
-            }
-        }
-    }
-    // Fallback - take last non-empty part
-    if let Some(last_part) = parts.last() {
-        if !last_part.is_empty() {
-            String::from(last_part.trim())
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    }
-}
 
 pub fn make_absolute_url(base_url: &str, url: &str) -> String {
     if url.starts_with("http") {
