@@ -48,9 +48,31 @@ impl Source for MangasOrigines {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let url = format!("{}/{}/?style=list", BASE_URL, chapter.key);
+        // Try different URL formats
+        let url_formats = [
+            format!("{}/{}/?style=list", BASE_URL, chapter.key),     // Madara with style parameter
+            format!("{}/{}/", BASE_URL, chapter.key),                 // Standard format
+            format!("{}/{}/?readType=1", BASE_URL, chapter.key),      // Alternative read type
+        ];
         
-        let html = Request::get(&url)?
+        for url in &url_formats {
+            if let Ok(html) = Request::get(url)
+                .and_then(|req| req
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                    .header("Referer", BASE_URL)
+                    .html()) {
+                
+                let pages = self.parse_page_list(&html)?;
+                if !pages.is_empty() {
+                    return Ok(pages);
+                }
+            }
+        }
+        
+        // If all URL formats fail, try the first one and parse regardless
+        let html = Request::get(&url_formats[0])?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
@@ -500,28 +522,74 @@ impl MangasOrigines {
     fn parse_page_list(&self, html: &Document) -> Result<Vec<Page>> {
         let mut pages = Vec::new();
         
-        if let Some(img_elements) = html.select("div.reading-content img, .wp-manga-chapter-img img, div.page-break img") {
-            for img_element in img_elements {
-                let mut image_url = img_element.attr("data-src").unwrap_or_default().to_string();
-                if image_url.is_empty() {
-                    image_url = img_element.attr("data-lazy-src").unwrap_or_default().to_string();
-                }
-                if image_url.is_empty() {
-                    image_url = img_element.attr("src").unwrap_or_default().to_string();
-                }
+        // Multiple selectors for different page layouts
+        let image_selectors = [
+            "div.page-break > img",              // Madara default selector
+            ".page-break img",                   // Alternative page break
+            ".reading-content img",              // Reading content
+            ".wp-manga-chapter-img",             // WordPress manga images
+            "img.wp-manga-chapter-img",          // Specific manga chapter images
+            ".chapter-content img",              // Chapter content images
+            "div.text-left img",                 // Text content images
+            "#chapter-content img",              // Chapter content by ID
+            ".entry-content img",                // Entry content images
+            "div.reading-content img",           // Reading content div
+            ".wp-manga-chapter-img img",         // WordPress manga chapter images
+            "div.page-break img",                // Page break div
+            ".chapter-wrap img",                 // Chapter wrapper
+            ".chapter img",                      // Chapter class
+            ".pages img",                        // Pages container
+        ];
 
-                if !image_url.is_empty() {
-                    pages.push(Page {
-                        content: PageContent::url(image_url),
-                        thumbnail: None,
-                        has_description: false,
-                        description: None,
-                    });
+        for selector in &image_selectors {
+            if let Some(images) = html.select(selector) {
+                for img_element in images {
+                    let image_url = self.get_image_url(&img_element);
+                    
+                    if !image_url.is_empty() {
+                        pages.push(Page {
+                            content: PageContent::Url(image_url, None),
+                            thumbnail: None,
+                            has_description: false,
+                            description: None,
+                        });
+                    }
+                }
+                
+                // If we found images with this selector, no need to try others
+                if !pages.is_empty() {
+                    break;
                 }
             }
         }
 
         Ok(pages)
+    }
+    
+    fn get_image_url(&self, img_elem: &aidoku::imports::html::Element) -> String {
+        // Try different attributes in same priority as Madara template
+        let mut img_url = img_elem.attr("data-src").unwrap_or_default();
+        if img_url.is_empty() {
+            img_url = img_elem.attr("data-lazy-src").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("src").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("srcset").unwrap_or_default();
+        }
+        if img_url.is_empty() {
+            img_url = img_elem.attr("data-cfsrc").unwrap_or_default();
+        }
+        
+        let img_url = img_url.trim().to_string();
+        
+        // Clean up srcset if needed (take first URL)
+        if img_url.contains(" ") {
+            img_url.split_whitespace().next().unwrap_or("").to_string()
+        } else {
+            img_url
+        }
     }
 
     fn extract_manga_key(&self, url: &str) -> String {
