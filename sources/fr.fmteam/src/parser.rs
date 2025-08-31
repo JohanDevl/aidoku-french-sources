@@ -634,65 +634,32 @@ pub fn parse_chapter_list(manga_key: &str, html: &Document) -> Result<Vec<Chapte
 pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
 
-    // FMTeam specific image selectors
-    let image_selectors = [
-        ".reader img",
-        ".comic-reader img",
-        ".page-image img",
-        "#reader img", 
-        ".viewer img",
-        "img[src*=\"pages/\"]",
-        "img[src*=\"chapters/\"]",
-        "img[data-src*=\"pages/\"]",
-        "img[data-src*=\"chapters/\"]",
-    ];
+    // Try simpler selectors first
+    if let Some(all_images) = html.select("img") {
+        for img in all_images {
+            let img_src = img.attr("src")
+                .or_else(|| img.attr("data-src"))
+                .or_else(|| img.attr("data-original"))
+                .unwrap_or_default();
 
-    for selector in image_selectors {
-        if let Some(images) = html.select(selector) {
-            for img in images {
-                let img_src = img.attr("data-src")
-                    .or_else(|| img.attr("src"))
-                    .or_else(|| img.attr("data-original"))
-                    .or_else(|| img.attr("data-lazy-src"))
-                    .unwrap_or_default();
+            if !img_src.is_empty() && 
+               (img_src.ends_with(".jpg") || img_src.ends_with(".png") || 
+                img_src.ends_with(".webp") || img_src.ends_with(".jpeg")) {
+                
+                let full_url = if img_src.starts_with("http") {
+                    img_src.to_string()
+                } else if img_src.starts_with("/") {
+                    format!("{}{}", super::BASE_URL, img_src)
+                } else {
+                    format!("{}/{}", super::BASE_URL, img_src)
+                };
 
-                if !img_src.is_empty() && 
-                   (img_src.contains("pages") || img_src.contains("chapters") || img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp")) {
-                    let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
-                    pages.push(Page {
-                        content: PageContent::url(full_url),
-                        thumbnail: None,
-                        has_description: false,
-                        description: None,
-                    });
-                }
-            }
-            
-            if !pages.is_empty() {
-                break;
-            }
-        }
-    }
-
-    // Fallback: try to get all images if specific selectors didn't work
-    if pages.is_empty() {
-        if let Some(all_images) = html.select("img") {
-            for img in all_images {
-                let img_src = img.attr("data-src")
-                    .or_else(|| img.attr("src"))
-                    .unwrap_or_default();
-
-                if !img_src.is_empty() && 
-                   (img_src.contains("http") || img_src.starts_with("/")) &&
-                   (img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp") || img_src.ends_with(".jpeg")) {
-                    let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
-                    pages.push(Page {
-                        content: PageContent::url(full_url),
-                        thumbnail: None,
-                        has_description: false,
-                        description: None,
-                    });
-                }
+                pages.push(Page {
+                    content: PageContent::url(full_url),
+                    thumbnail: None,
+                    has_description: false,
+                    description: None,
+                });
             }
         }
     }
