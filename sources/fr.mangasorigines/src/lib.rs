@@ -228,6 +228,7 @@ impl MangasOrigines {
         let author = self.get_manga_author(&html);
         let description = self.get_manga_description(&html);
         let status = self.get_manga_status(&html);
+        let tags = self.get_manga_tags(&html);
 
         let mut manga = Manga {
             key: key.clone(),
@@ -240,7 +241,7 @@ impl MangasOrigines {
             authors: author,
             artists: None,
             description,
-            tags: None,
+            tags,
             chapters: None,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,
@@ -481,6 +482,41 @@ impl MangasOrigines {
         }
         
         MangaStatus::Unknown
+    }
+
+    fn get_manga_tags(&self, html: &Document) -> Option<Vec<String>> {
+        let mut tags: Vec<String> = Vec::new();
+        
+        let genre_selectors = [
+            ".genres-content a",       // Primary Madara genres selector
+            ".manga-genres a",         // Alternative genres selector
+            ".gnr a",                  // Short genres selector
+            ".mgen a",                 // Manga genres selector
+            ".seriestugenre a",        // Series genres selector
+            "div.tags a",              // Tags container
+            "div.manga-tags a",        // Manga tags
+            ".wp-manga-genres a",      // WordPress manga genres
+            ".post-content_item:contains('Genres') a", // Post content genres
+            ".summary-heading:contains('Genres') + .summary-content a" // Summary genres
+        ];
+        
+        for selector in &genre_selectors {
+            if let Some(genre_items) = html.select(selector) {
+                for genre in genre_items {
+                    if let Some(text) = genre.text() {
+                        let genre_text = text.trim().to_string();
+                        if !genre_text.is_empty() && !tags.contains(&genre_text) {
+                            tags.push(genre_text);
+                        }
+                    }
+                }
+                if !tags.is_empty() {
+                    break;
+                }
+            }
+        }
+        
+        if tags.is_empty() { None } else { Some(tags) }
     }
 
     fn parse_chapter_date(&self, date_str: &str) -> Option<i64> {
