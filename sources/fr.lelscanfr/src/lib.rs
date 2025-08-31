@@ -69,93 +69,79 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            // Back to aggressive pagination detection that worked in v22
             let mut total_pages = 1;
             
-            // Method 1: Look for "Page X of Y" pattern by scanning all elements
-            let selectors = ["div", "span", "p", "text", "*"];
-            for selector in selectors {
-                if let Some(elements) = html.select(selector) {
-                    for elem in elements {
-                        if let Some(text) = elem.text() {
-                            if text.contains("Page ") && text.contains(" of ") {
-                                // Look for pattern like "Page 1 of 6"
-                                let lines: Vec<&str> = text.split('\n').collect();
-                                for line in lines {
-                                    let trimmed = line.trim();
-                                    if trimmed.contains("Page ") && trimmed.contains(" of ") {
-                                        if let Some(of_pos) = trimmed.find(" of ") {
-                                            let after_of = &trimmed[of_pos + 4..]; // Skip " of "
-                                            if let Some(total_str) = after_of.split_whitespace().next() {
-                                                if let Ok(pages) = total_str.parse::<i32>() {
-                                                    total_pages = pages;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+            // Optimized pagination detection - target specific elements first
+            // Method 1: Look for pagination containers
+            let pagination_containers = [".pagination", ".page-numbers", ".pages", "nav"];
+            for selector in pagination_containers {
+                if let Some(pagination_element) = html.select(selector) {
+                    if let Some(text) = pagination_element.text() {
+                        // Look for "Page X of Y" pattern with regex-like logic
+                        if let Some(total) = helper::extract_pagination_total(&text) {
+                            total_pages = total;
+                            break;
                         }
-                    }
-                    if total_pages > 1 {
-                        break;
                     }
                 }
             }
             
-            // Method 2: If no pattern found, aggressively search for pagination
+            // Method 2: If no pagination container found, check common patterns
             if total_pages == 1 {
-                let pagination_selectors = ["div", "span", "p", ".pagination", ".page-numbers", ".pages", "nav"];
-                for selector in pagination_selectors {
-                    if let Some(elements) = html.select(selector) {
-                        for elem in elements {
-                            if let Some(text) = elem.text() {
-                                // Look for numbered page links 
-                                let numbers: Vec<i32> = text
-                                    .split_whitespace()
-                                    .filter_map(|s| s.parse().ok())
-                                    .filter(|&n| n > 1 && n < 50) // Reasonable page range
-                                    .collect();
-                                
-                                if !numbers.is_empty() {
-                                    let max_num = *numbers.iter().max().unwrap_or(&1);
-                                    if max_num > total_pages {
-                                        total_pages = max_num;
-                                    }
-                                }
-                                
-                                // Also check for ellipsis
-                                if text.contains("…") || text.contains("...") {
-                                    if total_pages < 10 {
-                                        total_pages = 10;
-                                    }
-                                }
+                // Look for "Page X of Y" in more limited scope
+                let limited_selectors = [".pagination-info", ".page-info", ".pagination-text"];
+                for selector in limited_selectors {
+                    if let Some(element) = html.select(selector) {
+                        if let Some(text) = element.text() {
+                            if let Some(total) = helper::extract_pagination_total(&text) {
+                                total_pages = total;
+                                break;
                             }
                         }
                     }
                 }
             }
             
-            // Fetch all chapter pages (keep the optimized memory approach)
+            // Method 3: Fallback - scan only pagination-related divs and spans
+            if total_pages == 1 {
+                if let Some(body) = html.select("body") {
+                    let body_text = body.text().unwrap_or_default();
+                    if let Some(total) = helper::extract_pagination_total(&body_text) {
+                        total_pages = total;
+                    }
+                }
+            }
+            
+            // Method 4: Heuristic fallback based on chapter count
+            if total_pages == 1 {
+                // Make a quick check for many chapters without parsing all
+                if let Some(chapter_links) = html.select("a[href*=\"/manga/\"]") {
+                    let mut chapter_count = 0;
+                    for _link in chapter_links {
+                        chapter_count += 1;
+                        if chapter_count >= 20 {
+                            total_pages = 5; // Conservative estimate for manga with many chapters
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Safety limit to prevent infinite loops
+            if total_pages > 50 {
+                total_pages = 50;
+            }
+            
+            // Fetch all chapter pages with optimized batching approach
             let mut all_chapters: Vec<Chapter> = Vec::new();
             
             // Process first page
             let page_chapters = parser::parse_chapter_list(&manga.key, vec![html])?;
             all_chapters.extend(page_chapters);
             
-            // Fetch additional pages
-            for page in 2..=total_pages {
-                let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
-                let page_html = Request::get(&page_url)?
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .html()?;
-                
-                // Parse immediately to save memory
-                let page_chapters = parser::parse_chapter_list(&manga.key, vec![page_html])?;
-                all_chapters.extend(page_chapters);
+            // Fetch additional pages using optimized batching
+            if total_pages > 1 {
+                all_chapters.extend(helper::fetch_pages_batch(&manga.key, 2, total_pages)?);
             }
             
             manga.chapters = Some(all_chapters);

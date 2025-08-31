@@ -346,63 +346,48 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 	let mut chapters: Vec<Chapter> = Vec::new();
 
 	for html in all_html {
-		// Get ALL links first to debug
-		if let Some(all_links) = html.select("a") {
-			for link in all_links {
-				let href = link.attr("href").unwrap_or_default();
-				let link_text = link.text().unwrap_or_default();
+		// Optimized approach: Use specific selectors for chapter links
+		// Try multiple strategies in order of performance
+		
+		// Strategy 1: Target chapter links directly with CSS selector
+		let chapter_selectors = [
+			&format!("a[href*=\"/manga/{}/\"]", manga_key), // Most specific
+			".chapter-list a",
+			".chapters a", 
+			"a[href*=\"/manga/\"]", // Broader fallback
+		];
+		
+		let mut found_chapters = false;
+		
+		for selector in chapter_selectors {
+			if let Some(chapter_links) = html.select(selector) {
+				let mut temp_chapters: Vec<Chapter> = Vec::new();
 				
-				// Very broad check - any link that looks like a chapter
-				if href.contains(&format!("/manga/{}/", manga_key)) && 
-				   (link_text.contains("Chapitre") || href.split('/').last().unwrap_or("").parse::<f32>().is_ok()) {
+				for link in chapter_links {
+					let href = link.attr("href").unwrap_or_default();
+					let link_text = link.text().unwrap_or_default();
+					
+					// Quick filter: must be for this manga
+					if !href.contains(&format!("/manga/{}/", manga_key)) {
+						continue;
+					}
+					
+					// Quick filter: must look like a chapter
+					if !link_text.contains("Chapitre") && !href.split('/').last().unwrap_or("").parse::<f32>().is_ok() {
+						continue;
+					}
 					
 					// Extract chapter number from URL (most reliable)
-					let chapter_number: f32 = if let Some(url_part) = href.split('/').last() {
-						url_part.parse().unwrap_or_else(|_| {
-							// Fallback to text extraction if URL parsing fails
-							if let Some(num_start) = link_text.find("Chapitre ") {
-								let after_chapitre = &link_text[num_start + 9..];
-								let num_str: String = after_chapitre
-									.chars()
-									.take_while(|c| c.is_ascii_digit() || *c == '.')
-									.collect();
-								num_str.parse().unwrap_or(0.0)
-							} else {
-								0.0
-							}
-						})
-					} else {
-						0.0
-					};
+					let chapter_number: f32 = extract_chapter_number(&href, &link_text);
 					
 					if chapter_number > 0.0 {
 						// Create clean chapter key (relative path)  
-						let chapter_key = if href.starts_with("http") {
-							href.replace("https://lelscanfr.com", "")
-						} else {
-							href
-						};
+						let chapter_key = normalize_chapter_url(&href);
 						
-						// Clean up chapter title - remove extra info like dates and view counts
-						let chapter_title = if !link_text.is_empty() && link_text.contains("Chapitre") {
-							// Extract clean title from messy text like "Ch.710 - Chapitre 710 il y a 1 an 3679"
-							if let Some(chapitre_pos) = link_text.find("Chapitre ") {
-								let from_chapitre = &link_text[chapitre_pos..];
-								// Take first two words: "Chapitre" + number
-								let words: Vec<&str> = from_chapitre.split_whitespace().collect();
-								if words.len() >= 2 {
-									format!("{} {}", words[0], words[1])
-								} else {
-									format!("Chapitre {}", chapter_number)
-								}
-							} else {
-								format!("Chapitre {}", chapter_number)
-							}
-						} else {
-							format!("Chapitre {}", chapter_number)
-						};
+						// Generate clean chapter title
+						let chapter_title = generate_chapter_title(&link_text, chapter_number);
 				
-						chapters.push(Chapter {
+						temp_chapters.push(Chapter {
 							key: chapter_key.clone(),
 							title: Some(chapter_title),
 							chapter_number: Some(chapter_number),
@@ -416,7 +401,18 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 						});
 					}
 				}
+				
+				if !temp_chapters.is_empty() {
+					chapters.extend(temp_chapters);
+					found_chapters = true;
+					break; // Use first successful selector strategy
+				}
 			}
+		}
+		
+		// Strategy 2: Fallback to all links only if specific selectors failed
+		if !found_chapters {
+			chapters.extend(parse_chapters_fallback(&html, manga_key)?);
 		}
 	}
 	
@@ -426,6 +422,98 @@ pub fn parse_chapter_list(manga_key: &str, all_html: Vec<Document>) -> Result<Ve
 		let b_num = b.chapter_number.unwrap_or(0.0);
 		b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
 	});
+	
+	Ok(chapters)
+}
+
+// Helper function to extract chapter number efficiently
+fn extract_chapter_number(href: &str, link_text: &str) -> f32 {
+	// Try URL first (most reliable)
+	if let Some(url_part) = href.split('/').last() {
+		if let Ok(num) = url_part.parse::<f32>() {
+			return num;
+		}
+	}
+	
+	// Fallback to text extraction
+	if let Some(num_start) = link_text.find("Chapitre ") {
+		let after_chapitre = &link_text[num_start + 9..];
+		let num_str: String = after_chapitre
+			.chars()
+			.take_while(|c| c.is_ascii_digit() || *c == '.')
+			.collect();
+		num_str.parse().unwrap_or(0.0)
+	} else {
+		0.0
+	}
+}
+
+// Helper function to normalize chapter URL
+fn normalize_chapter_url(href: &str) -> String {
+	if href.starts_with("http") {
+		href.replace("https://lelscanfr.com", "")
+	} else {
+		String::from(href)
+	}
+}
+
+// Helper function to generate clean chapter title
+fn generate_chapter_title(link_text: &str, chapter_number: f32) -> String {
+	if !link_text.is_empty() && link_text.contains("Chapitre") {
+		// Extract clean title from messy text like "Ch.710 - Chapitre 710 il y a 1 an 3679"
+		if let Some(chapitre_pos) = link_text.find("Chapitre ") {
+			let from_chapitre = &link_text[chapitre_pos..];
+			// Take first two words: "Chapitre" + number
+			let words: Vec<&str> = from_chapitre.split_whitespace().collect();
+			if words.len() >= 2 {
+				format!("{} {}", words[0], words[1])
+			} else {
+				format!("Chapitre {}", chapter_number)
+			}
+		} else {
+			format!("Chapitre {}", chapter_number)
+		}
+	} else {
+		format!("Chapitre {}", chapter_number)
+	}
+}
+
+// Fallback function that uses the old all-links approach (only when needed)
+fn parse_chapters_fallback(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Only as a last resort, scan all links
+	if let Some(all_links) = html.select("a") {
+		for link in all_links {
+			let href = link.attr("href").unwrap_or_default();
+			let link_text = link.text().unwrap_or_default();
+			
+			// Very broad check - any link that looks like a chapter
+			if href.contains(&format!("/manga/{}/", manga_key)) && 
+			   (link_text.contains("Chapitre") || href.split('/').last().unwrap_or("").parse::<f32>().is_ok()) {
+				
+				let chapter_number = extract_chapter_number(&href, &link_text);
+				
+				if chapter_number > 0.0 {
+					let chapter_key = normalize_chapter_url(&href);
+					let chapter_title = generate_chapter_title(&link_text, chapter_number);
+			
+					chapters.push(Chapter {
+						key: chapter_key.clone(),
+						title: Some(chapter_title),
+						chapter_number: Some(chapter_number),
+						volume_number: None,
+						date_uploaded: None,
+						scanlators: None,
+						language: Some(String::from("fr")),
+						locked: false,
+						thumbnail: None,
+						url: Some(super::helper::make_absolute_url("https://lelscanfr.com", &chapter_key)),
+					});
+				}
+			}
+		}
+	}
 	
 	Ok(chapters)
 }
