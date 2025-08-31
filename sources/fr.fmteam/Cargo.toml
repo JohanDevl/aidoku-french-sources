@@ -17,4 +17,4 @@ strip = true
 lto = true
 
 [dependencies]
-aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", rev = "7c084816" }

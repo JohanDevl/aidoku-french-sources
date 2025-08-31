@@ -1,312 +1,537 @@
 use aidoku::{
-	prelude::*, std::{ObjectRef, String, StringRef, Vec, current_date},
-	Manga, MangaPageResult, Chapter, MangaContentRating, MangaStatus, MangaViewer
+    Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
+    ContentRating, Viewer, UpdateStrategy,
+    alloc::{String, Vec, vec, format},
+    imports::html::Document,
 };
+use core::cmp::Ordering;
 
-use crate::BASE_URL;
+extern crate alloc;
 
-pub fn parse_manga_listing(json: ObjectRef, listing_type: &str, page: i32) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
+pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
+    let mut mangas: Vec<Manga> = Vec::new();
 
-	// FMTeam API returns {comics: [...]} structure
-	let comics = json.get("comics").as_array()?;
-	
-	let mut filtered_comics: Vec<ObjectRef> = Vec::new();
-	
-	if listing_type == "Populaire" {
-		// Sort by rating/views for popular (take highest rated first)
-		let mut comic_vec: Vec<ObjectRef> = Vec::new();
-		for comic in comics {
-			comic_vec.push(comic.as_object()?);
-		}
-		// Simple popularity filter - take first 20 (could be improved with actual sorting)
-		filtered_comics = comic_vec.into_iter().take(20).collect();
-	} else {
-		// For latest, filter comics that have last_chapter and sort by date
-		for comic in comics {
-			let comic_obj = comic.as_object()?;
-			if comic_obj.get("last_chapter").is_some() {
-				filtered_comics.push(comic_obj);
-			}
-		}
-		
-		// Take only a subset for pagination simulation
-		let start_index = ((page - 1) * 20) as usize;
-		let end_index = (start_index + 20).min(filtered_comics.len());
-		if start_index < filtered_comics.len() {
-			filtered_comics = filtered_comics[start_index..end_index].to_vec();
-		} else {
-			filtered_comics.clear();
-		}
-	}
+    // FMTeam specific selectors - try multiple approaches
+    let manga_selectors = [
+        "a[href*=\"/comics/\"]",
+        ".manga-item a",
+        ".comic-item a", 
+        ".manga-card a",
+        ".grid-item a",
+        ".card a[href*=\"comics\"]",
+    ];
 
-	for comic in filtered_comics {
-		// Use real slug from API instead of creating artificial ones
-		let title = comic.get("title").as_string()?.read();
-		let id = if comic.get("slug").is_some() {
-			comic.get("slug").as_string()?.read()
-		} else {
-			// Fallback to creating slug from title if slug field missing
-			title.to_lowercase().replace(" ", "-").replace("'", "")
-		};
-		
-		let cover = if comic.get("thumbnail").is_some() {
-			let thumbnail_url = comic.get("thumbnail").as_string()?.read();
-			// Use full URL if it starts with http, otherwise prepend base URL
-			if thumbnail_url.starts_with("http") {
-				Some(thumbnail_url)
-			} else {
-				Some(format!("{}{}", BASE_URL, thumbnail_url))
-			}
-		} else {
-			None
-		};
+    for selector in manga_selectors {
+        if let Some(manga_links) = html.select(selector) {
+            for item in manga_links {
+                // Get title from various possible locations
+                let title = if let Some(title_elem) = item.select("h2, h3, .title, .name, .manga-title").and_then(|elems| elems.first()) {
+                    title_elem.text().unwrap_or_default()
+                } else if let Some(img) = item.select("img").and_then(|imgs| imgs.first()) {
+                    img.attr("alt").unwrap_or_default()
+                } else {
+                    item.text().unwrap_or_default()
+                };
 
-		// Parse status from Italian/French/English
-		let status_str = comic.get("status").as_string()?.read();
-		let status = match status_str.get(0..7).unwrap_or("").to_lowercase().as_str() {
-			"ongoing" | "en cour" | "in cors" => MangaStatus::Ongoing,
-			"complet" | "termina" => MangaStatus::Completed,
-			"licenzi" => MangaStatus::Cancelled,
-			_ => MangaStatus::Unknown,
-		};
+                if title.is_empty() {
+                    continue;
+                }
 
-		mangas.push(Manga {
-			id,
-			title,
-			cover,
-			status,
-			nsfw: MangaContentRating::Safe,
-			viewer: MangaViewer::Scroll,
-			..Default::default()
-		});
-	}
+                // Get URL and validate
+                let url = item.attr("href").unwrap_or_default();
+                if url.is_empty() || url.contains("?") {
+                    continue;
+                }
 
-	// Simple pagination simulation
-	let has_next_page = if listing_type == "Populaire" {
-		false  // Popular shows only top results
-	} else {
-		mangas.len() == 20  // Has more if we got a full page
-	};
+                // Extract manga key from URL
+                let key = if url.starts_with("http") {
+                    super::helper::extract_id_from_url(&url)
+                } else {
+                    // Handle relative URLs like "/comics/title"
+                    let parts: Vec<&str> = url.split('/').collect();
+                    if parts.len() >= 3 && (parts[1] == "comics" || parts[1] == "manga") {
+                        String::from(parts[2].trim())
+                    } else {
+                        continue;
+                    }
+                };
 
-	Ok(MangaPageResult {
-		manga: mangas,
-		has_more: has_next_page,
-	})
+                if key.is_empty() {
+                    continue;
+                }
+
+                // Extract cover image
+                let cover = if let Some(img_elements) = item.select("img") {
+                    if let Some(img) = img_elements.first() {
+                        let img_src = img.attr("src")
+                            .or_else(|| img.attr("data-src"))
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .or_else(|| img.attr("data-original"))
+                            .unwrap_or_default();
+                        if img_src.is_empty() {
+                            None
+                        } else {
+                            Some(super::helper::make_absolute_url(super::BASE_URL, &img_src))
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                mangas.push(Manga {
+                    key: key.clone(),
+                    cover,
+                    title,
+                    authors: None,
+                    artists: None,
+                    description: None,
+                    tags: None,
+                    status: MangaStatus::Unknown,
+                    content_rating: ContentRating::Safe,
+                    viewer: Viewer::LeftToRight,
+                    chapters: None,
+                    url: Some(super::helper::make_absolute_url(super::BASE_URL, &url)),
+                    next_update_time: None,
+                    update_strategy: UpdateStrategy::Always,
+                });
+            }
+            
+            // If we found mangas with this selector, stop trying others
+            if !mangas.is_empty() {
+                break;
+            }
+        }
+    }
+
+    // Fallback: try to find any links with manga-like patterns
+    if mangas.is_empty() {
+        if let Some(all_links) = html.select("a") {
+            for link in all_links {
+                let href = link.attr("href").unwrap_or_default();
+                if href.contains("comics") || href.contains("manga") {
+                    let title = link.text().unwrap_or_default();
+                    if !title.is_empty() && title.len() > 2 {
+                        let key = super::helper::extract_id_from_url(&href);
+                        if !key.is_empty() {
+                            mangas.push(Manga {
+                                key: key.clone(),
+                                cover: None,
+                                title,
+                                authors: None,
+                                artists: None,
+                                description: None,
+                                tags: None,
+                                status: MangaStatus::Unknown,
+                                content_rating: ContentRating::Safe,
+                                viewer: Viewer::LeftToRight,
+                                chapters: None,
+                                url: Some(super::helper::make_absolute_url(super::BASE_URL, &href)),
+                                next_update_time: None,
+                                update_strategy: UpdateStrategy::Always,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check for pagination
+    let has_more = check_pagination(&html) || mangas.len() >= 10;
+
+    Ok(MangaPageResult {
+        entries: mangas,
+        has_next_page: has_more,
+    })
 }
 
-pub fn parse_manga_list(json: ObjectRef) -> Result<MangaPageResult> {
-	let mut mangas: Vec<Manga> = Vec::new();
-	
-	let comics = json.get("comics").as_array()?;
-	
-	for comic in comics {
-		let comic_obj = comic.as_object()?;
-		
-		// Use real slug from API instead of creating artificial ones
-		let title = comic_obj.get("title").as_string()?.read();
-		let id = if comic_obj.get("slug").is_some() {
-			comic_obj.get("slug").as_string()?.read()
-		} else {
-			// Fallback to creating slug from title if slug field missing
-			title.to_lowercase().replace(" ", "-").replace("'", "")
-		};
-		
-		let cover = if comic_obj.get("thumbnail").is_some() {
-			let thumbnail_url = comic_obj.get("thumbnail").as_string()?.read();
-			// Use full URL if it starts with http, otherwise prepend base URL
-			if thumbnail_url.starts_with("http") {
-				Some(thumbnail_url)
-			} else {
-				Some(format!("{}{}", BASE_URL, thumbnail_url))
-			}
-		} else {
-			None
-		};
-
-		// Parse status 
-		let status_str = comic_obj.get("status").as_string()?.read();
-		let status = match status_str.get(0..7).unwrap_or("").to_lowercase().as_str() {
-			"ongoing" | "en cour" | "in cors" => MangaStatus::Ongoing,
-			"complet" | "termina" => MangaStatus::Completed,
-			"licenzi" => MangaStatus::Cancelled,
-			_ => MangaStatus::Unknown,
-		};
-
-		mangas.push(Manga {
-			id,
-			title,
-			cover,
-			status,
-			nsfw: MangaContentRating::Safe,
-			viewer: MangaViewer::Scroll,
-			..Default::default()
-		});
-	}
-
-	Ok(MangaPageResult {
-		manga: mangas,
-		has_more: false,  // FMTeam API doesn't seem to have pagination info
-	})
+pub fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
+    // Extract cover with multiple selectors
+    let cover_selectors = [
+        ".manga-cover img",
+        ".comic-cover img",
+        ".cover img",
+        ".thumbnail img",
+        "main img",
+        ".hero img",
+        "img[src*=\"cover\"]",
+        "img[src*=\"thumb\"]",
+    ];
+    
+    for selector in cover_selectors {
+        if let Some(img_elements) = html.select(selector) {
+            if let Some(img) = img_elements.first() {
+                let img_src = img.attr("src")
+                    .or_else(|| img.attr("data-src"))
+                    .or_else(|| img.attr("data-original"))
+                    .unwrap_or_default();
+                if !img_src.is_empty() {
+                    manga.cover = Some(super::helper::make_absolute_url(super::BASE_URL, &img_src));
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Extract title
+    let title_selectors = [
+        "h1.title",
+        "h1.manga-title", 
+        "h1.comic-title",
+        ".title h1",
+        ".manga-info h1",
+        ".comic-info h1",
+        "h1",
+        ".hero-title",
+    ];
+    
+    for selector in title_selectors {
+        if let Some(elements) = html.select(selector) {
+            if let Some(elem) = elements.first() {
+                let title_text = elem.text().unwrap_or_default();
+                if !title_text.is_empty() && !title_text.to_lowercase().contains("fmteam") {
+                    manga.title = title_text;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Extract author and artist
+    let author_selectors = [
+        "*:contains(Auteur) + *",
+        "*:contains(Author) + *", 
+        "*:contains(Créateur) + *",
+        ".author",
+        ".creator",
+        ".manga-author",
+        ".comic-author",
+    ];
+    
+    for selector in author_selectors {
+        if let Some(author_elements) = html.select(selector) {
+            if let Some(author_elem) = author_elements.first() {
+                let author_text = author_elem.text().unwrap_or_default();
+                if !author_text.is_empty() && !author_text.to_lowercase().contains("auteur") {
+                    manga.authors = Some(vec![author_text]);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Extract description
+    let description_selectors = [
+        ".synopsis",
+        ".summary", 
+        ".description",
+        ".manga-synopsis",
+        ".comic-synopsis",
+        ".content p",
+        ".info .description",
+        "p:contains(Synopsis)",
+    ];
+    
+    for selector in description_selectors {
+        if let Some(desc_elements) = html.select(selector) {
+            if let Some(desc_elem) = desc_elements.first() {
+                let desc_text = desc_elem.text().unwrap_or_default();
+                if !desc_text.is_empty() && desc_text.len() > 10 {
+                    manga.description = Some(desc_text);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Extract tags/genres
+    let mut tags: Vec<String> = Vec::new();
+    let tag_selectors = [
+        ".genres a",
+        ".tags a", 
+        ".genre-list a",
+        ".tag-list a",
+        "a[href*=\"genre\"]",
+        "a[href*=\"tag\"]",
+        ".categories a",
+    ];
+    
+    for selector in tag_selectors {
+        if let Some(tag_elements) = html.select(selector) {
+            for tag_elem in tag_elements {
+                let tag_text = tag_elem.text().unwrap_or_default();
+                let clean_tag = tag_text.trim();
+                if !clean_tag.is_empty() && !tags.contains(&String::from(clean_tag)) {
+                    tags.push(String::from(clean_tag));
+                }
+            }
+            if !tags.is_empty() {
+                break;
+            }
+        }
+    }
+    
+    if !tags.is_empty() {
+        manga.tags = Some(tags);
+    }
+    
+    // Extract manga status
+    let status_selectors = [
+        "*:contains(Statut) + *",
+        "*:contains(Status) + *",
+        ".status",
+        ".manga-status", 
+        ".comic-status",
+    ];
+    
+    for selector in status_selectors {
+        if let Some(status_elements) = html.select(selector) {
+            if let Some(status_elem) = status_elements.first() {
+                let status_text = status_elem.text().unwrap_or_default();
+                let clean_status = status_text.trim().to_lowercase();
+                if !clean_status.is_empty() {
+                    manga.status = match clean_status.as_str() {
+                        "en cours" | "ongoing" | "publication" | "publiant" => MangaStatus::Ongoing,
+                        "terminé" | "completed" | "fini" | "achevé" | "complet" => MangaStatus::Completed,
+                        "annulé" | "cancelled" | "canceled" | "arrêté" => MangaStatus::Cancelled,
+                        "en pause" | "hiatus" | "pause" => MangaStatus::Hiatus,
+                        _ => MangaStatus::Unknown,
+                    };
+                    break;
+                }
+            }
+        }
+    }
+    
+    Ok(manga)
 }
 
-pub fn parse_search_list(json: ObjectRef) -> Result<MangaPageResult> {
-	// FMTeam search returns a single comic wrapped in {comics: [comic]}
-	// but we need to handle it as a list
-	parse_manga_list(json)
+pub fn parse_chapter_list(manga_key: &str, html: &Document) -> Result<Vec<Chapter>> {
+    let mut chapters: Vec<Chapter> = Vec::new();
+
+    // FMTeam specific chapter selectors
+    let chapter_selectors = [
+        &format!("a[href*=\"/read/{}/\"]", manga_key),
+        &format!("a[href*=\"/{}/ch/\"]", manga_key),
+        "a[href*=\"/read/\"]",
+        ".chapter-list a",
+        ".chapters a",
+        ".episode-list a", 
+        ".chapter-item a",
+    ];
+
+    for selector in chapter_selectors {
+        if let Some(chapter_links) = html.select(selector) {
+            for link in chapter_links {
+                let href = link.attr("href").unwrap_or_default();
+                let link_text = link.text().unwrap_or_default();
+                
+                // Extract chapter number from URL or text
+                let chapter_number: f32 = extract_chapter_number(&href, &link_text);
+                
+                if chapter_number > 0.0 {
+                    // Create clean chapter key
+                    let chapter_key = if href.starts_with("http") {
+                        href.replace(super::BASE_URL, "")
+                    } else {
+                        href
+                    };
+                    
+                    // Create chapter title
+                    let chapter_title = if !link_text.is_empty() {
+                        if link_text.to_lowercase().contains("chapitre") || link_text.to_lowercase().contains("chapter") {
+                            link_text
+                        } else {
+                            format!("Chapitre {}", chapter_number)
+                        }
+                    } else {
+                        format!("Chapitre {}", chapter_number)
+                    };
+
+                    chapters.push(Chapter {
+                        key: chapter_key.clone(),
+                        title: Some(chapter_title),
+                        chapter_number: Some(chapter_number),
+                        volume_number: None,
+                        date_uploaded: None,
+                        scanlators: None,
+                        language: Some(String::from("fr")),
+                        locked: false,
+                        thumbnail: None,
+                        url: Some(super::helper::make_absolute_url(super::BASE_URL, &chapter_key)),
+                    });
+                }
+            }
+            
+            if !chapters.is_empty() {
+                break;
+            }
+        }
+    }
+
+    // Sort chapters by number (descending - newest first)
+    chapters.sort_by(|a, b| {
+        let a_num = a.chapter_number.unwrap_or(0.0);
+        let b_num = b.chapter_number.unwrap_or(0.0);
+        b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+    });
+    
+    Ok(chapters)
 }
 
-pub fn parse_manga_details(manga_id: String, json: ObjectRef) -> Result<Manga> {	
-	// /comics/[slug] endpoint returns {"comic": {...}} structure
-	let comic = json.get("comic").as_object()?;
-	
-	// Get cover image using thumbnail field
-	let cover = if comic.get("thumbnail").is_some() {
-		let thumbnail_url = comic.get("thumbnail").as_string()?.read();
-		if thumbnail_url.starts_with("http") {
-			Some(thumbnail_url)
-		} else {
-			Some(format!("{}{}", BASE_URL, thumbnail_url))
-		}
-	} else {
-		None
-	};
-	
-	// Get title
-	let title = comic.get("title").as_string()?.read();
+pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
+    let mut pages: Vec<Page> = Vec::new();
 
-	// Get description
-	let description = if comic.get("description").is_some() && !comic.get("description").as_string()?.read().is_empty() {
-		Some(comic.get("description").as_string()?.read())
-	} else {
-		Some("Aucune description disponible.".into())
-	};
+    // FMTeam specific image selectors
+    let image_selectors = [
+        ".reader img",
+        ".comic-reader img",
+        ".page-image img",
+        "#reader img", 
+        ".viewer img",
+        "img[src*=\"pages/\"]",
+        "img[src*=\"chapters/\"]",
+        "img[data-src*=\"pages/\"]",
+        "img[data-src*=\"chapters/\"]",
+    ];
 
-	// Get URL
-	let url = Some(format!("{}/comics/{}", BASE_URL, manga_id));
+    for selector in image_selectors {
+        if let Some(images) = html.select(selector) {
+            for img in images {
+                let img_src = img.attr("data-src")
+                    .or_else(|| img.attr("src"))
+                    .or_else(|| img.attr("data-original"))
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .unwrap_or_default();
 
-	// Get manga status
-	let status_str = comic.get("status").as_string()?.read();
-	let status = match status_str.get(0..7).unwrap_or("").to_lowercase().as_str() {
-		"ongoing" | "en cour" | "in cors" => MangaStatus::Ongoing,
-		"complet" | "termina" => MangaStatus::Completed,
-		"licenzi" => MangaStatus::Cancelled,
-		_ => MangaStatus::Unknown,
-	};
+                if !img_src.is_empty() && 
+                   (img_src.contains("pages") || img_src.contains("chapters") || img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp")) {
+                    let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
+                    pages.push(Page {
+                        content: PageContent::Url(full_url, None),
+                        thumbnail: None,
+                        has_description: false,
+                        description: None,
+                    });
+                }
+            }
+            
+            if !pages.is_empty() {
+                break;
+            }
+        }
+    }
 
-	// Get categories (genres) - now called categories
-	let mut categories: Vec<String> = Vec::new();
-	if comic.get("genres").is_some() {
-		for item in comic.get("genres").as_array()? {
-			let genre = item.as_object()?;
-			categories.push(genre.get("name").as_string()?.read());
-		}
-	}
+    // Fallback: try to get all images if specific selectors didn't work
+    if pages.is_empty() {
+        if let Some(all_images) = html.select("img") {
+            for img in all_images {
+                let img_src = img.attr("data-src")
+                    .or_else(|| img.attr("src"))
+                    .unwrap_or_default();
 
-	// Get author if available
-	let author = if comic.get("author").is_some() {
-		Some(comic.get("author").as_string()?.read())
-	} else {
-		None
-	};
+                if !img_src.is_empty() && 
+                   (img_src.contains("http") || img_src.starts_with("/")) &&
+                   (img_src.ends_with(".jpg") || img_src.ends_with(".png") || img_src.ends_with(".webp") || img_src.ends_with(".jpeg")) {
+                    let full_url = super::helper::make_absolute_url(super::BASE_URL, &img_src);
+                    pages.push(Page {
+                        content: PageContent::Url(full_url, None),
+                        thumbnail: None,
+                        has_description: false,
+                        description: None,
+                    });
+                }
+            }
+        }
+    }
 
-	// Get artist if available  
-	let artist = if comic.get("artist").is_some() {
-		Some(comic.get("artist").as_string()?.read())
-	} else {
-		None
-	};
-
-	Ok(Manga {
-		id: manga_id,
-		title,
-		cover,
-		author,
-		artist,
-		description,
-		url,
-		categories: if categories.is_empty() { None } else { Some(categories) },
-		status,
-		nsfw: MangaContentRating::Safe,
-		viewer: MangaViewer::Scroll,
-		..Default::default()
-	})
+    Ok(pages)
 }
 
-pub fn parse_chapter_list(manga_id: String, json: ObjectRef) -> Result<Vec<Chapter>> {
-	let mut chapters: Vec<Chapter> = Vec::new();
-	
-	// /comics/[slug] endpoint returns {"comic": {...}} structure
-	let comic = json.get("comic").as_object()?;
-	
-	// Parse complete chapters array instead of just last_chapter
-	if comic.get("chapters").is_some() {
-		for chapter_item in comic.get("chapters").as_array()? {
-			let chapter_obj = chapter_item.as_object()?;
-			
-			// Get chapter number
-			let chapter_num = if chapter_obj.get("chapter").as_int().is_ok() {
-				Some(chapter_obj.get("chapter").as_int()? as f32)
-			} else if chapter_obj.get("chapter").as_float().is_ok() {
-				Some(chapter_obj.get("chapter").as_float()? as f32)
-			} else {
-				Some(1.0)  // Default if no chapter number
-			};
-			
-			// Create chapter key from manga_id and chapter number
-			let id = format!("{}/{}", manga_id, chapter_num.unwrap_or(1.0) as i32);
-			
-			// Get chapter title
-			let title = if chapter_obj.get("title").is_some() && !chapter_obj.get("title").as_string()?.read().is_empty() {
-				Some(chapter_obj.get("title").as_string()?.read())
-			} else {
-				Some(format!("Chapter {}", chapter_num.unwrap_or(1.0)))
-			};
-			
-			// Parse date if available
-			let date_updated = if chapter_obj.get("date").is_some() {
-				let date_str = chapter_obj.get("date").as_string()?.read();
-				Some(StringRef::from(&date_str)
-					.0
-					.as_date("yyyy-MM-dd'T'HH:mm:ss", Some("fr"), None)
-					.unwrap_or(current_date()))
-			} else {
-				Some(current_date())
-			};
-			
-			// Get teams if available
-			let scanlator = if chapter_obj.get("teams").is_some() {
-				let mut team_names: Vec<String> = Vec::new();
-				for team in chapter_obj.get("teams").as_array()? {
-					let team_obj = team.as_object()?;
-					if team_obj.get("name").is_some() {
-						team_names.push(team_obj.get("name").as_string()?.read());
-					}
-				}
-				if !team_names.is_empty() {
-					Some(team_names.join(", "))
-				} else {
-					Some("FMTeam".into())
-				}
-			} else {
-				Some("FMTeam".into())
-			};
-			
-			let chapter_url = Some(format!("{}/read/{}/fr/ch/{}", BASE_URL, manga_id, chapter_num.unwrap_or(1.0) as i32));
+// Helper function to check pagination
+fn check_pagination(html: &Document) -> bool {
+    // Method 1: Look for pagination text patterns
+    if let Some(pagination_elements) = html.select("div, span, p, .pagination, .page-numbers") {
+        for elem in pagination_elements {
+            if let Some(text) = elem.text() {
+                if text.contains("Page ") && text.contains(" of ") {
+                    return true;
+                }
+                if text.contains("Suivant") || text.contains("Next") || text.contains(">>") {
+                    return true;
+                }
+                if text.contains("…") || text.contains("...") {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    // Method 2: Look for pagination links
+    if let Some(links) = html.select("a") {
+        for link in links {
+            let href = link.attr("href").unwrap_or_default();
+            let text = link.text().unwrap_or_default();
+            if href.contains("page=") || text.contains("Suivant") || text.contains("Next") {
+                return true;
+            }
+        }
+    }
+    
+    false
+}
 
-			chapters.push(Chapter{
-				id,
-				title,
-				volume: None, // No volume info available
-				chapter: chapter_num,
-				date_updated,
-				scanlator,
-				url: chapter_url,
-				lang: "fr".into(),
-				..Default::default()
-			});
-		}
-	}
-
-	Ok(chapters)
+// Helper function to extract chapter number from URL or text
+fn extract_chapter_number(url: &str, text: &str) -> f32 {
+    // Try URL first - look for patterns like /ch/123 or /chapter/123
+    if let Some(ch_pos) = url.find("/ch/") {
+        let after_ch = &url[ch_pos + 4..];
+        if let Some(end_pos) = after_ch.find('/') {
+            let number_part = &after_ch[..end_pos];
+            if let Ok(num) = number_part.parse::<f32>() {
+                return num;
+            }
+        } else {
+            // No trailing slash, take the rest
+            if let Ok(num) = after_ch.parse::<f32>() {
+                return num;
+            }
+        }
+    }
+    
+    // Try URL parts - last segment might be chapter number
+    if let Some(last_part) = url.split('/').last() {
+        if let Ok(num) = last_part.parse::<f32>() {
+            return num;
+        }
+    }
+    
+    // Try text extraction
+    if text.to_lowercase().contains("chapitre") {
+        if let Some(ch_pos) = text.to_lowercase().find("chapitre") {
+            let after_ch = &text[ch_pos + 8..];
+            let number_str: String = after_ch.chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            if let Ok(num) = number_str.parse::<f32>() {
+                return num;
+            }
+        }
+    }
+    
+    if text.to_lowercase().contains("chapter") {
+        if let Some(ch_pos) = text.to_lowercase().find("chapter") {
+            let after_ch = &text[ch_pos + 7..];
+            let number_str: String = after_ch.chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            if let Ok(num) = number_str.parse::<f32>() {
+                return num;
+            }
+        }
+    }
+    
+    0.0
 }
