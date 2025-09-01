@@ -581,26 +581,46 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	}
 	
-	// Get total chapters from API
-	let total_chapters = match get_total_chapters_from_api(&manga_name) {
-		Ok(count) => {
-			// Si on a des mappings, être plus conservateur avec l'API
-			if !chapter_mappings.is_empty() {
-				let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
-				// Utiliser le maximum entre API et mappings + quelques chapitres de buffer
-				count.max(max_mapped_index + 20)
-			} else {
-				count
-			}
-		}
+	// Get total chapters from API (this is the highest chapter NUMBER, not index count)
+	let api_max_chapter = match get_total_chapters_from_api(&manga_name) {
+		Ok(count) => count,
 		Err(_) => {
-			// Fallback: use mappings or reasonable default
+			// Fallback: reasonable default
 			if !chapter_mappings.is_empty() {
 				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(100) + 50
 			} else {
 				200 // Reasonable default for most manga
 			}
 		}
+	};
+	
+	// Count special chapters that take indices but don't match sequential numbering
+	let special_chapter_count = chapter_mappings.iter().filter(|mapping| {
+		// A mapping is special if it's:
+		// - "One Shot", "Prologue", etc. (text-based)
+		// - Decimal chapter (.5) that doesn't match its index
+		// - Any chapter whose number doesn't match its expected sequential position
+		let is_text_chapter = mapping.title.contains("One Shot") 
+			|| mapping.title.contains("Prologue") 
+			|| mapping.title.contains("Epilogue")
+			|| mapping.title.contains("Extra")
+			|| mapping.title.contains("Special");
+		
+		// Check if it's a decimal chapter
+		let is_decimal = mapping.chapter_number != (mapping.chapter_number as i32 as f32);
+		
+		is_text_chapter || is_decimal
+	}).count() as i32;
+	
+	// Calculate total indices needed: API max chapter + special chapters
+	// This ensures we have enough indices to create all regular chapters (1 to api_max_chapter)
+	// even when special chapters occupy intermediate indices
+	let total_chapters = if !chapter_mappings.is_empty() {
+		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
+		// Use the maximum between calculated total and actual mappings + buffer
+		(api_max_chapter + special_chapter_count).max(max_mapped_index + 20)
+	} else {
+		api_max_chapter
 	};
 	
 	// Create chapters from 1 to total, using JavaScript mappings when available
