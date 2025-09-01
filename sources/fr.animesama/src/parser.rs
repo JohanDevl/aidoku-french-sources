@@ -106,53 +106,66 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Pour les indices non mappés après finirListe(), continuer la numérotation séquentielle
-	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 27, indice 29 = chapitre 28, etc.
+	// Pour les indices non mappés, utiliser la numérotation séquentielle normale
+	// En tenant compte des chapitres spéciaux qui "décalent" les indices
 	
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Trouver le dernier indice mappé
-	let mut last_mapped_index = 0;
-	for mapping in mappings {
-		if mapping.index > last_mapped_index {
-			last_mapped_index = mapping.index;
-		}
-	}
+	// Cas spécial : si on a seulement des mappings hardcodés (comme One Shot)
+	// et pas de vrai parsing JavaScript, utiliser une logique simplifiée
+	let has_only_special_mappings = mappings.iter().all(|m| {
+		m.title.contains("One Shot") || m.title.contains("Prologue") || 
+		m.title.contains("Epilogue") || m.title.contains("Extra") || 
+		m.title.contains("Special") || (m.chapter_number != (m.chapter_number as i32 as f32))
+	});
 	
-	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
-	let mut last_numeric_chapter = 0.0;
-	for mapping in mappings {
-		if mapping.title.chars().any(|c| c.is_ascii_digit()) && !mapping.title.contains("One Shot") {
-			// Extraire le numéro du titre "Chapitre 19.5"
-			let title_parts: Vec<&str> = mapping.title.split_whitespace().collect();
-			if title_parts.len() >= 2 {
-				if let Ok(chapter_num) = title_parts[1].parse::<f32>() {
-					if chapter_num > last_numeric_chapter {
-						last_numeric_chapter = chapter_num;
+	if has_only_special_mappings {
+		// Pour One Piece avec seulement le One Shot à l'indice 1046:
+		// - Indices 1-1045 → Chapitres 1-1045 (numérotation normale)
+		// - Indice 1046 → "One Shot" (mappé)
+		// - Indices 1047+ → Chapitres 1046+ (décalage de -1)
+		
+		let special_indices_before = mappings.iter()
+			.filter(|m| m.index < index)
+			.count() as i32;
+		
+		// Le numéro de chapitre = index - nombre_de_chapitres_spéciaux_avant
+		(index - special_indices_before) as f32
+	} else {
+		// Logique originale pour les vrais mappings JavaScript
+		let mut last_mapped_index = 0;
+		for mapping in mappings {
+			if mapping.index > last_mapped_index {
+				last_mapped_index = mapping.index;
+			}
+		}
+		
+		let mut last_numeric_chapter = 0.0;
+		for mapping in mappings {
+			if mapping.title.chars().any(|c| c.is_ascii_digit()) && !mapping.title.contains("One Shot") {
+				let title_parts: Vec<&str> = mapping.title.split_whitespace().collect();
+				if title_parts.len() >= 2 {
+					if let Ok(chapter_num) = title_parts[1].parse::<f32>() {
+						if chapter_num > last_numeric_chapter {
+							last_numeric_chapter = chapter_num;
+						}
 					}
 				}
 			}
 		}
+		
+		let chapters_after_last_numeric = index - last_mapped_index;
+		let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
+		let next_chapter_base = if fractional_part > 0.0 {
+			(last_numeric_chapter as i32 + 1) as f32
+		} else {
+			last_numeric_chapter + 1.0
+		};
+		
+		next_chapter_base + (chapters_after_last_numeric - 1) as f32
 	}
-	
-	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre suivant entier
-	// Si le dernier chapitre est 19.5, le suivant devrait être 20, pas 20.5
-	let chapters_after_last_numeric = index - last_mapped_index;
-	
-	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
-	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
-	let next_chapter_base = if fractional_part > 0.0 {
-		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
-		(last_numeric_chapter as i32 + 1) as f32
-	} else {
-		// Si c'est déjà un entier (ex: 19), le prochain est 20
-		last_numeric_chapter + 1.0
-	};
-	
-	// Les chapitres après reprennent une numérotation entière normale
-	next_chapter_base + (chapters_after_last_numeric - 1) as f32
 }
 
 // Chercher des chapitres décimaux dans une ligne HTML/JavaScript
@@ -560,10 +573,10 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		// Mappings spécifiques hardcodés pour One Piece
 		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
 			// One Shot de One Piece doit être entre les chapitres 1045 et 1046
-			// On le place à l'indice 1046 pour qu'il apparaisse après 1045
+			// On le place à l'indice 1046 avec un chapter_number de 1045.5 pour qu'il se place entre 1045 et 1046
 			chapter_mappings.push(ChapterMapping {
 				index: 1046,
-				chapter_number: 1046 as f32, // Utiliser l'index comme chapter_number pour les chapitres spéciaux
+				chapter_number: 1045.5, // Entre 1045 et 1046, ne perturbe pas la séquence
 				title: "Chapitre One Shot".to_string(),
 			});
 		} else {
