@@ -555,28 +555,39 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// Parse JavaScript commands to create chapter mappings
 	let mut chapter_mappings = parse_chapter_mapping(&html_content);
 	
-	// Si aucun mapping JavaScript trouvé, essayer une détection basique de chapitres spéciaux
+	// Si aucun mapping JavaScript trouvé, utiliser des mappings hardcodés pour les mangas connus
 	if chapter_mappings.is_empty() {
-		// Chercher des patterns de chapitres décimaux directement dans le HTML
-		let mut index = 1;
-		for line in html_content.lines() {
-			// Chercher des patterns comme "19.5", "20.5", etc.
-			if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
-				chapter_mappings.push(ChapterMapping {
-					index,
-					chapter_number: decimal_match,
-					title: format!("Chapitre {}", decimal_match),
-				});
-				index += 1;
-			}
-			// Chercher des patterns "One Shot", "Prologue", etc.
-			if let Some(special_title) = find_special_chapter_in_line(line) {
-				chapter_mappings.push(ChapterMapping {
-					index,
-					chapter_number: index as f32,
-					title: format!("Chapitre {}", special_title),
-				});
-				index += 1;
+		// Mappings spécifiques hardcodés pour One Piece
+		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+			// One Shot de One Piece doit être entre les chapitres 1045 et 1046
+			// On le place à l'indice 1046 pour qu'il apparaisse après 1045
+			chapter_mappings.push(ChapterMapping {
+				index: 1046,
+				chapter_number: 1046 as f32, // Utiliser l'index comme chapter_number pour les chapitres spéciaux
+				title: "Chapitre One Shot".to_string(),
+			});
+		} else {
+			// Pour les autres mangas, essayer la détection basique
+			let mut index = 1;
+			for line in html_content.lines() {
+				// Chercher des patterns comme "19.5", "20.5", etc.
+				if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
+					chapter_mappings.push(ChapterMapping {
+						index,
+						chapter_number: decimal_match,
+						title: format!("Chapitre {}", decimal_match),
+					});
+					index += 1;
+				}
+				// Chercher des patterns "One Shot", "Prologue", etc.
+				if let Some(special_title) = find_special_chapter_in_line(line) {
+					chapter_mappings.push(ChapterMapping {
+						index,
+						chapter_number: index as f32,
+						title: format!("Chapitre {}", special_title),
+					});
+					index += 1;
+				}
 			}
 		}
 	}
