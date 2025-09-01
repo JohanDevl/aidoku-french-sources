@@ -651,8 +651,17 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	for index in 1..=total_chapters {
 		if let Some(mapping) = chapter_mappings.iter().find(|m| m.index == index) {
 			// Use JavaScript mapping
+			// For special chapters, use a safe key that doesn't conflict
+			let chapter_key = if mapping.title.contains("One Shot") {
+				// One Shot: use a high number that won't conflict with regular chapters
+				"9999".to_string() // Safe key that won't conflict
+			} else {
+				// For other special chapters, use their chapter number
+				(mapping.chapter_number as i32).to_string()
+			};
+			
 			chapters.push(Chapter {
-				key: mapping.index.to_string(),
+				key: chapter_key,
 				title: Some(mapping.title.clone()),
 				chapter_number: Some(mapping.chapter_number),
 				volume_number: None,
@@ -666,7 +675,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings);
 			
 			chapters.push(Chapter {
-				key: index.to_string(),
+				key: (chapter_number as i32).to_string(), // Use calculated chapter number, not index
 				title: Some(format!("Chapitre {}", chapter_number as i32)),
 				chapter_number: Some(chapter_number),
 				volume_number: None,
@@ -720,7 +729,14 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 	}
 	
 	// Méthode 1: Chercher les variables d'épisode JavaScript (ex: eps1, eps2)
-	let episode_pattern = format!("eps{}", chapter_key);
+	// Special handling for One Shot chapter
+	let (episode_pattern, fallback_chapter) = if chapter_key == "9999" {
+		// One Shot: try to find it with a reasonable chapter number
+		("eps1045".to_string(), 1045) // One Shot might be stored as eps1045
+	} else {
+		(format!("eps{}", chapter_key), chapter_key.parse::<i32>().unwrap_or(1))
+	};
+	
 	if let Some(episode_start) = html_content.find(&episode_pattern) {
 		// Trouver la fin de la déclaration de variable
 		if let Some(episode_section) = html_content[episode_start..].find('[') {
@@ -756,7 +772,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 	
 	// Si toujours vide, utiliser les méthodes de l'ancienne version
 	if pages.is_empty() {
-		let chapter_index = chapter_key.parse::<i32>().unwrap_or(1);
+		let chapter_index = fallback_chapter;
 		
 		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
 		let manga_slug = manga_key.split('/').last().unwrap_or("manga");
