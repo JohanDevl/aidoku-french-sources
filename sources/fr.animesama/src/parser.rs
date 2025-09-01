@@ -891,7 +891,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			for i in 1..=page_count {
 				let page_url = format!("{}/{}/{}/{}.jpg", 
 					CDN_URL, 
-					helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+					helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 					chapter_index, 
 					i
 				);
@@ -911,7 +911,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				for i in 1..=api_page_count {
 					let page_url = format!("{}/{}/{}/{}.jpg", 
 						CDN_URL, 
-						helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+						helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 						chapter_index, 
 						i
 					);
@@ -933,7 +933,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		for i in 1..=20 {
 			let page_url = format!("{}/{}/{}/{}.jpg", 
 				CDN_URL, 
-				helper::urlencode(&manga_title), // URL encode complètement (espaces + caractères spéciaux)
+				helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 				chapter_index, 
 				i
 			);
