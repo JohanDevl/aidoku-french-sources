@@ -30,12 +30,18 @@ impl Source for AnimeSama {
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		// Construire l'URL de recherche pour anime-sama.fr
-		let mut url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
-		
-		// Ajouter la query de recherche si fournie
-		if let Some(search_query) = query {
-			url.push_str(&format!("&search={}", helper::urlencode(&search_query)));
-		}
+		// Essayer différents ordres de paramètres selon si on a une recherche ou pas
+		let url = if let Some(search_query) = query {
+			// Avec recherche : mettre search en premier
+			format!("{}/catalogue?search={}&type[0]=Scans&page={}", 
+				BASE_URL, 
+				helper::urlencode(&search_query), 
+				page
+			)
+		} else {
+			// Sans recherche : ordre normal
+			format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page)
+		};
 		
 		// Faire la requête HTTP
 		let html = Request::get(&url)?.html()?;

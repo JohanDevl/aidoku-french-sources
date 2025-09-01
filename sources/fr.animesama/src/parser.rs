@@ -6,8 +6,6 @@ use aidoku::{
 	imports::net::Request,
 };
 
-use core::cmp::Ordering;
-
 use crate::{BASE_URL, CDN_URL, helper};
 
 // Structure pour stocker les mappings de chapitres depuis JavaScript
@@ -108,46 +106,23 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Pour les indices non mappés après finirListe(), continuer la numérotation séquentielle
-	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 27, indice 29 = chapitre 28, etc.
-	
+	// Logique simplifiée : si pas de mapping, utiliser l'index
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Trouver le dernier indice mappé
-	let last_mapped_index = mappings.iter().map(|m| m.index).max().unwrap_or(0);
-	
-	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
-	let last_numeric_chapter = mappings.iter()
-		.filter(|m| m.title.chars().any(|c| c.is_ascii_digit()) && !m.title.contains("One Shot"))
-		.filter_map(|m| {
-			let title_parts: Vec<&str> = m.title.split_whitespace().collect();
-			if title_parts.len() >= 2 {
-				title_parts[1].parse::<f32>().ok()
-			} else {
-				None
-			}
-		})
-		.max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-		.unwrap_or(0.0);
-	
-	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre suivant entier
-	// Si le dernier chapitre est 19.5, le suivant devrait être 20, pas 20.5
-	let chapters_after_last_numeric = index - last_mapped_index;
-	
-	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
-	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
-	let next_chapter_base = if fractional_part > 0.0 {
-		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
-		(last_numeric_chapter as i32 + 1) as f32
+	// Si on a des mappings, chercher le plus proche
+	if let Some(closest_mapping) = mappings.iter()
+		.filter(|m| m.index <= index)
+		.max_by_key(|m| m.index) 
+	{
+		// Calculer l'offset depuis le mapping le plus proche
+		let offset = index - closest_mapping.index;
+		closest_mapping.chapter_number + offset as f32
 	} else {
-		// Si c'est déjà un entier (ex: 19), le prochain est 20
-		last_numeric_chapter + 1.0
-	};
-	
-	// Les chapitres après reprennent une numérotation entière normale
-	next_chapter_base + (chapters_after_last_numeric - 1) as f32
+		// Fallback : utiliser l'index
+		index as f32
+	}
 }
 
 // Version simplifiée des fonctions de parsing pour AnimeSama
@@ -499,7 +474,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				volume_number: None,
 				date_uploaded: None,
 				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
-				url: Some(build_chapter_url(&manga_key, mapping.index)),
+				url: Some(build_chapter_url(&manga_key)),
 				..Default::default()
 			});
 		} else {
@@ -513,7 +488,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				volume_number: None,
 				date_uploaded: None,
 				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
-				url: Some(build_chapter_url(&manga_key, index)),
+				url: Some(build_chapter_url(&manga_key)),
 				..Default::default()
 			});
 		}
@@ -802,15 +777,15 @@ fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
 	0 // Aucun pattern trouvé
 }
 
-// Construire l'URL d'un chapitre avec gestion du cas spécial One Piece
-fn build_chapter_url(manga_key: &str, chapter_index: i32) -> String {
+// Construire l'URL d'un chapitre avec gestion du cas spécial One Piece (sans paramètre id)
+fn build_chapter_url(manga_key: &str) -> String {
 	let is_one_piece = manga_key.contains("one-piece") || manga_key.contains("one_piece");
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
 	
 	if manga_key.starts_with("http") {
-		format!("{}{}?id={}", manga_key, scan_path, chapter_index)
+		format!("{}{}", manga_key, scan_path)
 	} else {
-		format!("{}{}{}?id={}", BASE_URL, manga_key, scan_path, chapter_index)
+		format!("{}{}{}", BASE_URL, manga_key, scan_path)
 	}
 }
 
