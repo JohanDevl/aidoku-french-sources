@@ -148,6 +148,25 @@ fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping], f
 		return index as f32;
 	}
 	
+	// Si on a des mappings mais pas de finir_liste_info (ex: One Piece avec One Shot)
+	if !mappings.is_empty() && finir_liste_info.is_none() {
+		// Compter combien de mappings spéciaux sont avant cet index
+		let special_before = mappings.iter()
+			.filter(|m| m.index <= index && (
+				m.title.contains("One Shot") ||
+				m.title.contains("Prologue") ||
+				m.title.contains("Epilogue") ||
+				m.title.contains("Extra") ||
+				m.title.contains("Special") ||
+				m.chapter_number != (m.chapter_number as i32 as f32) // Chapitres décimaux
+			))
+			.count() as i32;
+		
+		// Pour One Piece: après le One Shot, décaler les numéros
+		// Index 1047 → Chapter 1046, Index 1048 → Chapter 1047, etc.
+		return (index - special_before) as f32;
+	}
+	
 	// Si on a une info finirListe, utiliser cette logique
 	if let Some(finir_info) = finir_liste_info {
 		if index >= finir_info.start_index {
@@ -675,8 +694,9 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// This ensures we have enough indices to create all regular chapters (1 to api_max_chapter)
 	// even when special chapters occupy intermediate indices
 	let total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
-		// Cas spécial One Piece : exactement 1158 chapitres (le One Shot est inséré au milieu)
-		1158
+		// Cas spécial One Piece : 1159 indices pour avoir 1158 chapitres + One Shot
+		// Index 1-1045: Chapitres 1-1045, Index 1046: One Shot, Index 1047-1159: Chapitres 1046-1158
+		1159
 	} else if !chapter_mappings.is_empty() {
 		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
 		// Use the maximum between calculated total and actual mappings (no unnecessary buffer)
