@@ -7,6 +7,7 @@ use aidoku::{
 };
 
 use crate::{BASE_URL, CDN_URL, helper};
+use core::cmp::Ordering;
 
 // Structure pour stocker les mappings de chapitres depuis JavaScript
 #[derive(Debug, Clone)]
@@ -106,23 +107,59 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Logique simplifiée : si pas de mapping, utiliser l'index
+	// Logique complexe nécessaire pour gérer finirListe() et les chapitres .5
+	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 20, indice 29 = chapitre 21
+	// (si le dernier chapitre mappé était 19.5, le suivant doit être 20 entier, pas 20.5)
+	
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Si on a des mappings, chercher le plus proche
-	if let Some(closest_mapping) = mappings.iter()
-		.filter(|m| m.index <= index)
-		.max_by_key(|m| m.index) 
-	{
-		// Calculer l'offset depuis le mapping le plus proche
-		let offset = index - closest_mapping.index;
-		closest_mapping.chapter_number + offset as f32
-	} else {
-		// Fallback : utiliser l'index
-		index as f32
+	// Trouver le dernier indice mappé
+	let last_mapped_index = mappings.iter().map(|m| m.index).max().unwrap_or(0);
+	
+	// Si l'index demandé a un mapping direct, l'utiliser
+	if let Some(direct_mapping) = mappings.iter().find(|m| m.index == index) {
+		return direct_mapping.chapter_number;
 	}
+	
+	// Si l'index est avant les mappings, utiliser l'index
+	if index <= last_mapped_index {
+		return index as f32;
+	}
+	
+	// Pour les indices après finirListe() : logique complexe
+	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
+	let last_numeric_chapter = mappings.iter()
+		.filter(|m| m.title.chars().any(|c| c.is_ascii_digit()) && !m.title.contains("One Shot"))
+		.filter_map(|m| {
+			// Parser "Chapitre 19.5" → 19.5
+			let title_parts: Vec<&str> = m.title.split_whitespace().collect();
+			if title_parts.len() >= 2 {
+				title_parts[1].parse::<f32>().ok()
+			} else {
+				None
+			}
+		})
+		.max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+		.unwrap_or(0.0);
+	
+	// Calculer combien de chapitres après le dernier mapping
+	let chapters_after_last_mapping = index - last_mapped_index;
+	
+	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
+	// Si le dernier chapitre est 19.5, le prochain entier est 20, pas 20.5
+	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
+	let next_chapter_base = if fractional_part > 0.0 {
+		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
+		(last_numeric_chapter as i32 + 1) as f32
+	} else {
+		// Si c'est déjà un entier (ex: 19), le prochain est 20
+		last_numeric_chapter + 1.0
+	};
+	
+	// Les chapitres après reprennent une numérotation entière normale
+	next_chapter_base + (chapters_after_last_mapping - 1) as f32
 }
 
 // Version simplifiée des fonctions de parsing pour AnimeSama
@@ -598,25 +635,9 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			}
 		}
 		
-		// Fallback final: convertir le slug en titre avec gestion des cas spéciaux
+		// Fallback final: utiliser manga_key_to_title avec gestion des cas spéciaux
 		if manga_title.is_empty() {
-			manga_title = match manga_slug {
-				"kaiju-n8" => "Kaiju N°8".to_string(), // Cas spécial avec symbole degré
-				_ => {
-					// Conversion générique: slug -> Title Case
-					manga_slug.replace('-', " ")
-						.split_whitespace()
-						.map(|word| {
-							let mut chars = word.chars();
-							match chars.next() {
-								None => String::new(),
-								Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-							}
-						})
-						.collect::<Vec<String>>()
-						.join(" ")
-				}
-			};
+			manga_title = manga_key_to_title(manga_slug);
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
