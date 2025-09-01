@@ -572,15 +572,31 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	}
 	
-	// Récupérer aussi le HTML brut en cherchant dans les attributs et autres endroits
+	// Récupérer aussi le HTML brut complet pour chercher dans les commentaires et autres endroits
 	if let Some(body) = html.select("body") {
 		for element in body {
+			// Récupérer le HTML complet de l'élément (peut contenir du JS dans les commentaires)
+			if let Some(full_html) = element.html() {
+				html_content.push_str(&full_html);
+				html_content.push('\n');
+			}
+			
 			// Chercher dans tous les attributs qui pourraient contenir du JavaScript
-			for attr_name in ["onclick", "onload", "data-script", "data-js"] {
+			for attr_name in ["onclick", "onload", "data-script", "data-js", "data-chapters"] {
 				if let Some(attr_value) = element.attr(attr_name) {
 					html_content.push_str(&attr_value);
 					html_content.push('\n');
 				}
+			}
+		}
+	}
+	
+	// Chercher aussi dans les commentaires HTML de toute la page
+	if let Some(head) = html.select("head") {
+		for element in head {
+			if let Some(head_html) = element.html() {
+				html_content.push_str(&head_html);
+				html_content.push('\n');
 			}
 		}
 	}
@@ -590,26 +606,36 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	
 	// Si aucun mapping JavaScript trouvé, essayer une détection basique de chapitres spéciaux
 	if chapter_mappings.is_empty() && finir_liste_info.is_none() {
-		// Fallback basique : chercher des patterns directement dans le HTML
-		let mut index = 1;
-		for line in html_content.lines() {
-			// Chercher des patterns comme "19.5", "20.5", etc.
-			if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
-				chapter_mappings.push(ChapterMapping {
-					index,
-					chapter_number: decimal_match,
-					title: format!("Chapitre {}", decimal_match),
-				});
-				index += 1;
-			}
-			// Chercher des patterns "One Shot", "Prologue", etc.
-			if let Some(special_title) = find_special_chapter_in_line(line) {
-				chapter_mappings.push(ChapterMapping {
-					index,
-					chapter_number: index as f32,
-					title: format!("Chapitre {}", special_title),
-				});
-				index += 1;
+		// Cas spécial : One Piece sans JavaScript détecté - ajouter le One Shot manuellement
+		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+			// Ajouter le One Shot de One Piece à la position correcte (entre 1045 et 1046)
+			chapter_mappings.push(ChapterMapping {
+				index: 1046, // Position entre 1045 et 1046
+				chapter_number: 1045.5, // Numéro pour tri correct
+				title: "Chapitre One Shot".to_string(),
+			});
+		} else {
+			// Fallback basique pour les autres mangas : chercher des patterns directement dans le HTML
+			let mut index = 1;
+			for line in html_content.lines() {
+				// Chercher des patterns comme "19.5", "20.5", etc.
+				if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
+					chapter_mappings.push(ChapterMapping {
+						index,
+						chapter_number: decimal_match,
+						title: format!("Chapitre {}", decimal_match),
+					});
+					index += 1;
+				}
+				// Chercher des patterns "One Shot", "Prologue", etc.
+				if let Some(special_title) = find_special_chapter_in_line(line) {
+					chapter_mappings.push(ChapterMapping {
+						index,
+						chapter_number: index as f32,
+						title: format!("Chapitre {}", special_title),
+					});
+					index += 1;
+				}
 			}
 		}
 	}
@@ -650,9 +676,10 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// even when special chapters occupy intermediate indices
 	let total_chapters = if !chapter_mappings.is_empty() {
 		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
-		// Use the maximum between calculated total and actual mappings + buffer
-		(api_max_chapter + special_chapter_count).max(max_mapped_index + 20)
+		// Use the maximum between calculated total and actual mappings (no unnecessary buffer)
+		(api_max_chapter + special_chapter_count).max(max_mapped_index)
 	} else {
+		// Sans mappings spéciaux, utiliser exactement le nombre de l'API (pas plus)
 		api_max_chapter
 	};
 	
