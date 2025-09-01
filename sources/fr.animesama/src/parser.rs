@@ -106,16 +106,35 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Cette fonction ne devrait être appelée QUE pour les chapitres sans mapping direct
-	// Les chapitres .5, "One Shot", etc. ont leurs propres mappings et ne passent jamais par ici
+	// Cette fonction calcule le vrai numéro de chapitre en excluant les chapitres spéciaux
+	// Exemple: si index 500 est "One Shot", alors index 501 = chapitre 500, pas 501
 	
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Pour les chapitres après les mappings, continuer la numérotation normalement
-	// Ex: Si le dernier mapping est à l'index 20, l'index 21 = chapitre 21
-	index as f32
+	// Compter combien de mappings spéciaux (non-séquentiels) existent avant cet index
+	let mut special_chapters_before = 0;
+	
+	for mapping in mappings {
+		if mapping.index < index {
+			// Un mapping est spécial si c'est un "One Shot", ou si le chapter_number 
+			// n'est pas égal à l'index (comme un .5)
+			let is_special = mapping.title.contains("One Shot") 
+				|| mapping.title.contains("Prologue") 
+				|| mapping.title.contains("Epilogue")
+				|| mapping.title.contains("Extra")
+				|| mapping.title.contains("Special")
+				|| (mapping.chapter_number != mapping.index as f32);
+			
+			if is_special {
+				special_chapters_before += 1;
+			}
+		}
+	}
+	
+	// Le vrai numéro de chapitre = index - nombre_de_chapitres_spéciaux_avant
+	(index - special_chapters_before) as f32
 }
 
 // Chercher des chapitres décimaux dans une ligne HTML/JavaScript
