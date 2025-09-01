@@ -674,7 +674,10 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// Calculate total indices needed: API max chapter + special chapters
 	// This ensures we have enough indices to create all regular chapters (1 to api_max_chapter)
 	// even when special chapters occupy intermediate indices
-	let total_chapters = if !chapter_mappings.is_empty() {
+	let total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+		// Cas spécial One Piece : exactement 1158 chapitres (le One Shot est inséré au milieu)
+		1158
+	} else if !chapter_mappings.is_empty() {
 		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
 		// Use the maximum between calculated total and actual mappings (no unnecessary buffer)
 		(api_max_chapter + special_chapter_count).max(max_mapped_index)
