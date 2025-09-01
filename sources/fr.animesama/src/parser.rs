@@ -734,7 +734,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings, &finir_liste_info);
 			
 			chapters.push(Chapter {
-				key: (chapter_number as i32).to_string(), // Use calculated chapter number, not index
+				key: index.to_string(), // Use API index for accessing images, not calculated chapter_number
 				title: Some(format!("Chapitre {}", chapter_number as i32)),
 				chapter_number: Some(chapter_number),
 				volume_number: None,
