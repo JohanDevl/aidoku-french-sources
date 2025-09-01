@@ -106,35 +106,53 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Cette fonction calcule le vrai numéro de chapitre en excluant les chapitres spéciaux
-	// Exemple: si index 500 est "One Shot", alors index 501 = chapitre 500, pas 501
+	// Pour les indices non mappés après finirListe(), continuer la numérotation séquentielle
+	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 27, indice 29 = chapitre 28, etc.
 	
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Compter combien de mappings spéciaux (non-séquentiels) existent avant cet index
-	let mut special_chapters_before = 0;
-	
+	// Trouver le dernier indice mappé
+	let mut last_mapped_index = 0;
 	for mapping in mappings {
-		if mapping.index < index {
-			// Un mapping est spécial si c'est un "One Shot", ou si le chapter_number 
-			// n'est pas égal à l'index (comme un .5)
-			let is_special = mapping.title.contains("One Shot") 
-				|| mapping.title.contains("Prologue") 
-				|| mapping.title.contains("Epilogue")
-				|| mapping.title.contains("Extra")
-				|| mapping.title.contains("Special")
-				|| (mapping.chapter_number != mapping.index as f32);
-			
-			if is_special {
-				special_chapters_before += 1;
+		if mapping.index > last_mapped_index {
+			last_mapped_index = mapping.index;
+		}
+	}
+	
+	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
+	let mut last_numeric_chapter = 0.0;
+	for mapping in mappings {
+		if mapping.title.chars().any(|c| c.is_ascii_digit()) && !mapping.title.contains("One Shot") {
+			// Extraire le numéro du titre "Chapitre 19.5"
+			let title_parts: Vec<&str> = mapping.title.split_whitespace().collect();
+			if title_parts.len() >= 2 {
+				if let Ok(chapter_num) = title_parts[1].parse::<f32>() {
+					if chapter_num > last_numeric_chapter {
+						last_numeric_chapter = chapter_num;
+					}
+				}
 			}
 		}
 	}
 	
-	// Le vrai numéro de chapitre = index - nombre_de_chapitres_spéciaux_avant
-	(index - special_chapters_before) as f32
+	// Pour finirListe(27), les indices après le dernier mapping commencent au chapitre suivant entier
+	// Si le dernier chapitre est 19.5, le suivant devrait être 20, pas 20.5
+	let chapters_after_last_numeric = index - last_mapped_index;
+	
+	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
+	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
+	let next_chapter_base = if fractional_part > 0.0 {
+		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
+		(last_numeric_chapter as i32 + 1) as f32
+	} else {
+		// Si c'est déjà un entier (ex: 19), le prochain est 20
+		last_numeric_chapter + 1.0
+	};
+	
+	// Les chapitres après reprennent une numérotation entière normale
+	next_chapter_base + (chapters_after_last_numeric - 1) as f32
 }
 
 // Chercher des chapitres décimaux dans une ligne HTML/JavaScript
