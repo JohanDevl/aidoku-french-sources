@@ -769,14 +769,29 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 	
 	// Méthode 1: Chercher les variables d'épisode JavaScript (ex: eps1, eps2)
 	// Special handling for One Shot chapter
-	let (episode_pattern, fallback_chapter) = if chapter_key == "9999" {
-		// One Shot: try to find it with a reasonable chapter number
-		("eps1045".to_string(), 1045) // One Shot might be stored as eps1045
+	let mut episode_patterns = Vec::new();
+	let fallback_chapter = if chapter_key == "9999" {
+		// One Shot: essayer plusieurs patterns possibles
+		episode_patterns.push("eps1045".to_string()); // Peut être stocké comme 1045
+		episode_patterns.push("epsOneShot".to_string()); // Peut être nommé OneShot
+		episode_patterns.push("epsOS".to_string()); // Abbreviation possible
+		episode_patterns.push("eps0".to_string()); // Peut être à l'index 0
+		1045 // Fallback vers 1045
 	} else {
-		(format!("eps{}", chapter_key), chapter_key.parse::<i32>().unwrap_or(1))
+		episode_patterns.push(format!("eps{}", chapter_key));
+		chapter_key.parse::<i32>().unwrap_or(1)
 	};
 	
-	if let Some(episode_start) = html_content.find(&episode_pattern) {
+	// Essayer tous les patterns jusqu'à en trouver un qui fonctionne
+	let mut found_episode_section = None;
+	for pattern in &episode_patterns {
+		if let Some(episode_start) = html_content.find(pattern) {
+			found_episode_section = Some((episode_start, pattern.clone()));
+			break;
+		}
+	}
+	
+	if let Some((episode_start, _pattern)) = found_episode_section {
 		// Trouver la fin de la déclaration de variable
 		if let Some(episode_section) = html_content[episode_start..].find('[') {
 			let array_start = episode_start + episode_section;
@@ -858,7 +873,18 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
-		let page_count = parse_episodes_js_from_html(&html_content, chapter_index);
+		let mut page_count = parse_episodes_js_from_html(&html_content, chapter_index);
+		
+		// Si c'est le One Shot et qu'on n'a pas trouvé de pages, essayer d'autres indices
+		if page_count == 0 && chapter_key == "9999" {
+			// Essayer différents indices pour le One Shot
+			for test_index in [1045, 1046, 0, 9999] {
+				page_count = parse_episodes_js_from_html(&html_content, test_index);
+				if page_count > 0 {
+					break;
+				}
+			}
+		}
 		
 		if page_count > 0 {
 			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
@@ -1073,6 +1099,7 @@ fn manga_key_to_title(manga_key: &str) -> String {
 	// Cas spéciaux avec caractères spéciaux
 	match manga_slug {
 		"kaiju-n8" => String::from("Kaiju N°8"), // Cas spécial avec symbole degré
+		"one-piece" | "one_piece" => String::from("One Piece"), // Cas spécial One Piece
 		_ => {
 			// Conversion générique: slug -> Title Case
 			manga_slug
