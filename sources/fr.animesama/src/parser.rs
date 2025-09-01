@@ -7,7 +7,6 @@ use aidoku::{
 };
 
 use crate::{BASE_URL, CDN_URL, helper};
-use core::cmp::Ordering;
 
 // Structure pour stocker les mappings de chapitres depuis JavaScript
 #[derive(Debug, Clone)]
@@ -107,59 +106,76 @@ fn parse_chapter_mapping(html_content: &str) -> Vec<ChapterMapping> {
 }
 
 fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping]) -> f32 {
-	// Logique complexe nécessaire pour gérer finirListe() et les chapitres .5
-	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 20, indice 29 = chapitre 21
-	// (si le dernier chapitre mappé était 19.5, le suivant doit être 20 entier, pas 20.5)
+	// Cette fonction ne devrait être appelée QUE pour les chapitres sans mapping direct
+	// Les chapitres .5, "One Shot", etc. ont leurs propres mappings et ne passent jamais par ici
 	
 	if mappings.is_empty() {
 		return index as f32;
 	}
 	
-	// Trouver le dernier indice mappé
-	let last_mapped_index = mappings.iter().map(|m| m.index).max().unwrap_or(0);
+	// Pour les chapitres après les mappings, continuer la numérotation normalement
+	// Ex: Si le dernier mapping est à l'index 20, l'index 21 = chapitre 21
+	index as f32
+}
+
+// Chercher des chapitres décimaux dans une ligne HTML/JavaScript
+fn find_decimal_chapter_in_line(line: &str) -> Option<f32> {
+	// Chercher des patterns comme "19.5", "20.5" dans du JavaScript ou HTML
+	let mut chars = line.chars().peekable();
+	let mut current_number = String::new();
 	
-	// Si l'index demandé a un mapping direct, l'utiliser
-	if let Some(direct_mapping) = mappings.iter().find(|m| m.index == index) {
-		return direct_mapping.chapter_number;
-	}
-	
-	// Si l'index est avant les mappings, utiliser l'index
-	if index <= last_mapped_index {
-		return index as f32;
-	}
-	
-	// Pour les indices après finirListe() : logique complexe
-	// Trouver le dernier chapitre numérique (ignorer "One Shot", etc.)
-	let last_numeric_chapter = mappings.iter()
-		.filter(|m| m.title.chars().any(|c| c.is_ascii_digit()) && !m.title.contains("One Shot"))
-		.filter_map(|m| {
-			// Parser "Chapitre 19.5" → 19.5
-			let title_parts: Vec<&str> = m.title.split_whitespace().collect();
-			if title_parts.len() >= 2 {
-				title_parts[1].parse::<f32>().ok()
-			} else {
-				None
+	while let Some(ch) = chars.next() {
+		if ch.is_ascii_digit() {
+			current_number.push(ch);
+			
+			// Chercher le point décimal
+			if chars.peek() == Some(&'.') {
+				current_number.push(chars.next().unwrap()); // Consommer le '.'
+				
+				// Chercher le chiffre après le point
+				if let Some(next_ch) = chars.peek() {
+					if next_ch.is_ascii_digit() {
+						current_number.push(chars.next().unwrap());
+						
+						// Parser le nombre décimal
+						if let Ok(decimal_num) = current_number.parse::<f32>() {
+							// Vérifier que c'est un chapitre plausible (entre 0.1 et 999.9)
+							// Et que ce n'est pas un ".0" (comme "19.0")
+							if decimal_num >= 0.1 && decimal_num <= 999.9 && !current_number.ends_with(".0") {
+								return Some(decimal_num);
+							}
+						}
+					}
+				}
 			}
-		})
-		.max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-		.unwrap_or(0.0);
+			
+			// Si pas de décimal, continuer
+			current_number.clear();
+		} else {
+			current_number.clear();
+		}
+	}
 	
-	// Calculer combien de chapitres après le dernier mapping
-	let chapters_after_last_mapping = index - last_mapped_index;
+	None
+}
+
+// Chercher des chapitres spéciaux dans une ligne HTML/JavaScript
+fn find_special_chapter_in_line(line: &str) -> Option<&str> {
+	let special_patterns = [
+		"One Shot", "one shot", "One shot", "ONE SHOT",
+		"Prologue", "prologue", "PROLOGUE", 
+		"Epilogue", "epilogue", "EPILOGUE",
+		"Extra", "extra", "EXTRA",
+		"Special", "special", "SPECIAL"
+	];
 	
-	// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
-	// Si le dernier chapitre est 19.5, le prochain entier est 20, pas 20.5
-	let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
-	let next_chapter_base = if fractional_part > 0.0 {
-		// Si c'est un décimal (ex: 19.5), le prochain entier est 20
-		(last_numeric_chapter as i32 + 1) as f32
-	} else {
-		// Si c'est déjà un entier (ex: 19), le prochain est 20
-		last_numeric_chapter + 1.0
-	};
+	for pattern in &special_patterns {
+		if line.contains(pattern) {
+			return Some(pattern);
+		}
+	}
 	
-	// Les chapitres après reprennent une numérotation entière normale
-	next_chapter_base + (chapters_after_last_mapping - 1) as f32
+	None
 }
 
 // Version simplifiée des fonctions de parsing pour AnimeSama
@@ -500,7 +516,33 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	}
 	
 	// Parse JavaScript commands to create chapter mappings
-	let chapter_mappings = parse_chapter_mapping(&html_content);
+	let mut chapter_mappings = parse_chapter_mapping(&html_content);
+	
+	// Si aucun mapping JavaScript trouvé, essayer une détection basique de chapitres spéciaux
+	if chapter_mappings.is_empty() {
+		// Chercher des patterns de chapitres décimaux directement dans le HTML
+		let mut index = 1;
+		for line in html_content.lines() {
+			// Chercher des patterns comme "19.5", "20.5", etc.
+			if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
+				chapter_mappings.push(ChapterMapping {
+					index,
+					chapter_number: decimal_match,
+					title: format!("Chapitre {}", decimal_match),
+				});
+				index += 1;
+			}
+			// Chercher des patterns "One Shot", "Prologue", etc.
+			if let Some(special_title) = find_special_chapter_in_line(line) {
+				chapter_mappings.push(ChapterMapping {
+					index,
+					chapter_number: index as f32,
+					title: format!("Chapitre {}", special_title),
+				});
+				index += 1;
+			}
+		}
+	}
 	
 	// Get total chapters from API
 	let total_chapters = match get_total_chapters_from_api(&manga_name) {
