@@ -473,23 +473,47 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
 	
 	// Parse JavaScript content for chapter mappings
-	let html_content = html.select("script").and_then(|scripts| {
+	// IMPORTANT: Récupérer TOUT le contenu de la page, y compris les scripts inline
+	let mut html_content = String::new();
+	
+	// Récupérer le contenu des scripts
+	if let Some(scripts) = html.select("script") {
 		for script in scripts {
 			if let Some(script_text) = script.text() {
-				if script_text.contains("creerListe") || script_text.contains("newSP") {
-					return Some(script_text);
+				html_content.push_str(&script_text);
+				html_content.push('\n');
+			}
+		}
+	}
+	
+	// Récupérer aussi le HTML brut en cherchant dans les attributs et autres endroits
+	if let Some(body) = html.select("body") {
+		for element in body {
+			// Chercher dans tous les attributs qui pourraient contenir du JavaScript
+			for attr_name in ["onclick", "onload", "data-script", "data-js"] {
+				if let Some(attr_value) = element.attr(attr_name) {
+					html_content.push_str(&attr_value);
+					html_content.push('\n');
 				}
 			}
 		}
-		None
-	}).unwrap_or_default();
+	}
 	
 	// Parse JavaScript commands to create chapter mappings
 	let chapter_mappings = parse_chapter_mapping(&html_content);
 	
 	// Get total chapters from API
 	let total_chapters = match get_total_chapters_from_api(&manga_name) {
-		Ok(count) => count,
+		Ok(count) => {
+			// Si on a des mappings, être plus conservateur avec l'API
+			if !chapter_mappings.is_empty() {
+				let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
+				// Utiliser le maximum entre API et mappings + quelques chapitres de buffer
+				count.max(max_mapped_index + 20)
+			} else {
+				count
+			}
+		}
 		Err(_) => {
 			// Fallback: use mappings or reasonable default
 			if !chapter_mappings.is_empty() {
@@ -546,13 +570,28 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
-	// Récupérer le contenu JavaScript complet pour chercher les variables eps
+	// Récupérer TOUT le contenu HTML pour chercher les variables eps
+	// Les variables JavaScript peuvent être inline ou dans différents endroits
 	let mut html_content = String::new();
+	
+	// Récupérer le contenu des scripts
 	if let Some(scripts) = html.select("script") {
 		for script in scripts {
 			if let Some(script_text) = script.text() {
 				html_content.push_str(&script_text);
 				html_content.push('\n');
+			}
+		}
+	}
+	
+	// Récupérer aussi le JavaScript inline dans les attributs
+	if let Some(body) = html.select("body") {
+		for element in body {
+			for attr_name in ["onclick", "onload", "data-script", "data-js"] {
+				if let Some(attr_value) = element.attr(attr_name) {
+					html_content.push_str(&attr_value);
+					html_content.push('\n');
+				}
 			}
 		}
 	}
