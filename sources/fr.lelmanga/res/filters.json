@@ -1,1 +1,47 @@
-[]
+[
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Status",
+    "options": ["All", "En cours", "En pause", "Annulé", "Terminé"]
+  },
+  {
+    "type": "select",
+    "id": "genre",
+    "title": "Genre",
+    "isGenre": true,
+    "options": [
+      "All",
+      "Action",
+      "Aventure",
+      "Combat",
+      "Comédie",
+      "Drama",
+      "Drame",
+      "Ecchi",
+      "Fantasy",
+      "Harem",
+      "Historique",
+      "Horreur",
+      "Isekai",
+      "Josei",
+      "Magie",
+      "Manga",
+      "Manhua",
+      "Manhwa",
+      "Mature",
+      "Mystère",
+      "Psychologique",
+      "Romance",
+      "Sci-fi",
+      "Seinen",
+      "Shojo",
+      "Shonen",
+      "Slice of Life",
+      "Sport",
+      "Supernaturel",
+      "Tragédie",
+      "Yuri"
+    ]
+  }
+]
