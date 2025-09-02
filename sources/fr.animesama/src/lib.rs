@@ -16,6 +16,17 @@ pub mod helper;
 pub const BASE_URL: &str = "https://anime-sama.fr";
 pub const CDN_URL: &str = "https://s22.anime-sama.me/s1/scans";
 
+// Vérifier si un ID de genre est valide
+fn is_valid_genre_id(genre_id: &str) -> bool {
+	matches!(genre_id, 
+		"action" | "aventure" | "combat" | "comedie" | "drame" | "ecchi" | "fantasy" |
+		"harem" | "historique" | "horreur" | "isekai" | "josei" | "magie" | "arts-martiaux" |
+		"mature" | "mystere" | "psychologique" | "romance" | "school-life" | "sci-fi" |
+		"seinen" | "shoujo" | "shounen" | "slice-of-life" | "sports" | "supernatural" |
+		"thriller" | "tragedie"
+	)
+}
+
 struct AnimeSama;
 
 impl Source for AnimeSama {
@@ -27,20 +38,63 @@ impl Source for AnimeSama {
 		&self,
 		query: Option<String>,
 		page: i32,
-		_filters: Vec<FilterValue>,
+		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		// Construire les paramètres de filtre
+		let mut filter_params = String::new();
+		
+		// Traiter chaque filtre - utiliser le pattern matching sur FilterValue
+		for filter in &filters {
+			match filter {
+				FilterValue::Select { id, value } => {
+					// Vérifier que c'est le filtre de genre et qu'il a une valeur
+					if id == "genre" && !value.is_empty() {
+						// Essayer de parser la valeur comme un index
+						if let Ok(selected_index) = value.parse::<i32>() {
+							// Mapping des indices vers les IDs de genre (basé sur filters.json)
+							let genre_ids = [
+								"action", "aventure", "combat", "comedie", "drame", "ecchi", "fantasy", 
+								"harem", "historique", "horreur", "isekai", "josei", "magie", "arts-martiaux",
+								"mature", "mystere", "psychologique", "romance", "school-life", "sci-fi",
+								"seinen", "shoujo", "shounen", "slice-of-life", "sports", "supernatural", 
+								"thriller", "tragedie"
+							];
+							
+							if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
+								let genre_id = genre_ids[selected_index as usize];
+								filter_params.push_str(&format!("&genre[]={}", helper::urlencode(genre_id)));
+							}
+						} else if is_valid_genre_id(value) {
+							// Si ce n'est pas un index, peut-être que c'est directement l'ID
+							filter_params.push_str(&format!("&genre[]={}", helper::urlencode(value)));
+						}
+					}
+				}
+				FilterValue::Text { id, value } => {
+					// Les filtres Text avec ID genre
+					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
+						filter_params.push_str(&format!("&genre[]={}", helper::urlencode(value)));
+					}
+				}
+				_ => {
+					// Autres types de filtres ignorés pour l'instant
+				}
+			}
+		}
+		
 		// Construire l'URL de recherche pour anime-sama.fr
 		// Essayer différents ordres de paramètres selon si on a une recherche ou pas
 		let url = if let Some(search_query) = query {
 			// Avec recherche : mettre search en premier
-			format!("{}/catalogue?search={}&type[0]=Scans&page={}", 
+			format!("{}/catalogue?search={}&type[0]=Scans{}&page={}", 
 				BASE_URL, 
-				helper::urlencode(&search_query), 
+				helper::urlencode(&search_query),
+				filter_params,
 				page
 			)
 		} else {
 			// Sans recherche : ordre normal
-			format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page)
+			format!("{}/catalogue?type[0]=Scans{}&page={}", BASE_URL, filter_params, page)
 		};
 		
 		// Faire la requête HTTP
