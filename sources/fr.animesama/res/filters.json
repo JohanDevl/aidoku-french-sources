@@ -5,7 +5,6 @@
     "title": "Genre",
     "isGenre": true,
     "options": [
-      "All",
       "Action",
       "Aventure",
       "Combat",
@@ -34,6 +33,36 @@
       "Supernatural",
       "Thriller",
       "Tragédie"
+    ],
+    "ids": [
+      "action",
+      "aventure",
+      "combat",
+      "comedie",
+      "drame",
+      "ecchi",
+      "fantasy",
+      "harem",
+      "historique",
+      "horreur",
+      "isekai",
+      "josei",
+      "magie",
+      "arts-martiaux",
+      "mature",
+      "mystere",
+      "psychologique",
+      "romance",
+      "school-life",
+      "sci-fi",
+      "seinen",
+      "shoujo",
+      "shounen",
+      "slice-of-life",
+      "sports",
+      "supernatural",
+      "thriller",
+      "tragedie"
     ]
   }
 ]

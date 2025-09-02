@@ -3,7 +3,7 @@
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["All", "En cours", "En pause", "Annulé", "Terminé"]
+    "options": ["En cours", "En pause", "Annulé", "Terminé"]
   },
   {
     "type": "select",
@@ -11,7 +11,6 @@
     "title": "Genre",
     "isGenre": true,
     "options": [
-      "All",
       "Action",
       "Aventure",
       "Combat",
@@ -42,6 +41,38 @@
       "Supernaturel",
       "Tragédie",
       "Yuri"
+    ],
+    "ids": [
+      "action",
+      "aventure",
+      "combat",
+      "comedie",
+      "drama",
+      "drame",
+      "ecchi",
+      "fantasy",
+      "harem",
+      "historique",
+      "horreur",
+      "isekai",
+      "josei",
+      "magie",
+      "manga",
+      "manhua",
+      "manhwa",
+      "mature",
+      "mystere",
+      "psychologique",
+      "romance",
+      "sci-fi",
+      "seinen",
+      "shojo",
+      "shonen",
+      "slice-of-life",
+      "sport",
+      "supernaturel",
+      "tragedie",
+      "yuri"
     ]
   }
 ]
