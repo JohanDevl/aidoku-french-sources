@@ -1126,44 +1126,32 @@ fn clean_extracted_title(title: &str) -> String {
 		.to_string()
 }
 
-// Générer l'URL d'image en testant différents formats automatiquement
+// Générer l'URL d'image selon le manga spécifique (logique déterministe)
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
 	
-	// Essayer différents formats dans l'ordre de probabilité
-	let formats = [
-		// Format 1: Simple {page}.jpg (le plus commun)
-		format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page),
-		// Format 2: Préfixé {chapter}_{page}.jpg (One Piece style)
-		format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page),
-		// Format 3: Avec padding à 3 chiffres
-		format!("{}/{}/{}/{:03}.jpg", CDN_URL, encoded_title, chapter_index, page),
-		// Format 4: Avec padding à 2 chiffres
-		format!("{}/{}/{}/{:02}.jpg", CDN_URL, encoded_title, chapter_index, page),
-		// Format 5: Dragon Ball webp spécial (uniquement pour la première page)
-		format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, encoded_title, page),
-	];
-	
-	// Tester chaque format pour voir lequel fonctionne
-	for format_url in &formats {
-		if test_image_url_exists(format_url) {
-			return format_url.clone();
+	// Détection basée sur le titre du manga pour éviter les requêtes réseau
+	match manga_title {
+		"One Piece" => {
+			// One Piece utilise le format préfixé: {chapter}_{page}.jpg
+			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
 		}
-	}
-	
-	// Si aucun format ne fonctionne, retourner le premier par défaut
-	formats[0].clone()
-}
-
-// Tester si une URL d'image existe (retour rapide)
-fn test_image_url_exists(url: &str) -> bool {
-	// Faire une requête HEAD pour tester l'existence sans télécharger l'image
-	match Request::head(url) {
-		Ok(_) => {
-			// Considérer comme valide si la requête réussit
-			true
+		"Dragon Ball" => {
+			// Dragon Ball utilise un format webp spécial avec tome fixe
+			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, encoded_title, page)
 		}
-		Err(_) => false,
+		"Naruto" | "Bleach" | "Hunter x Hunter" | "Death Note" => {
+			// Ces mangas populaires utilisent souvent le format avec padding
+			format!("{}/{}/{}/{:03}.jpg", CDN_URL, encoded_title, chapter_index, page)
+		}
+		"Jujutsu Kaisen" | "Chainsaw Man" | "My Hero Academia" | "Attack on Titan" => {
+			// Mangas récents avec format préfixé comme One Piece
+			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
+		}
+		_ => {
+			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
+			format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page)
+		}
 	}
 }
 
@@ -1177,6 +1165,9 @@ fn manga_key_to_title(manga_key: &str) -> String {
 		"20th-century-boys" => String::from("20th Century Boys"),
 		"21st-century-boys" => String::from("21st Century Boys"),
 		"dragon-ball" => String::from("Dragon Ball"),
+		"naruto" => String::from("Naruto"),
+		"bleach" => String::from("Bleach"),
+		"hunter-x-hunter" | "hunter_x_hunter" => String::from("Hunter x Hunter"),
 		"a-couple-of-cuckoos" => String::from("A Couple of Cuckoos"),
 		"a-sign-of-affection" => String::from("A Sign of Affection"),
 		"blue-lock" => String::from("Blue Lock"),
