@@ -892,6 +892,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			manga_title = manga_key_to_title(manga_slug);
 		}
 		
+		// DEBUG: Forcer "One Piece" pour les tests si c'est le manga one-piece
+		if manga_slug == "one-piece" {
+			manga_title = String::from("One Piece");
+		}
+		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
 		let mut page_count = parse_episodes_js_from_html(&html_content, chapter_index);
 		
@@ -911,7 +916,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			for i in 1..=page_count {
 				let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 					CDN_URL, 
-					helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
+					&manga_title, // Test sans encodage
 					chapter_index, 
 					chapter_index, // Format: {chapter_id}_{page}.jpg
 					i
@@ -932,7 +937,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				for i in 1..=api_page_count {
 					let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 						CDN_URL, 
-						helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
+						&manga_title, // Test sans encodage
 						chapter_index, 
 						chapter_index, // Format: {chapter_id}_{page}.jpg
 						i
@@ -955,7 +960,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		for i in 1..=20 {
 			let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 				CDN_URL, 
-				helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
+				&manga_title, // Test sans encodage
 				chapter_index, 
 				chapter_index, // Format: {chapter_id}_{page}.jpg
 				i
