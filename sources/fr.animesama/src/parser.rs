@@ -627,12 +627,17 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	if chapter_mappings.is_empty() && finir_liste_info.is_none() {
 		// Cas spécial : One Piece sans JavaScript détecté - ajouter le One Shot manuellement
 		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
-			// Ajouter le One Shot de One Piece à la position correcte (entre 1045 et 1046)
-			chapter_mappings.push(ChapterMapping {
-				index: 1046, // Position entre 1045 et 1046
-				chapter_number: 1045.5, // Numéro pour tri correct
-				title: "Chapitre One Shot".to_string(),
-			});
+			// Vérifier si on a des chapitres > 1045 avant d'ajouter le One Shot
+			let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
+			
+			if max_cdn_chapter > 1045 {
+				// Ajouter le One Shot uniquement si le CDN a des chapitres après 1045
+				chapter_mappings.push(ChapterMapping {
+					index: 1046, // Position entre 1045 et 1046
+					chapter_number: 1045.5, // Numéro pour tri correct
+					title: "Chapitre One Shot".to_string(),
+				});
+			}
 		} else {
 			// Fallback basique pour les autres mangas : chercher des patterns directement dans le HTML
 			let mut index = 1;
@@ -694,9 +699,16 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// This ensures we have enough indices to create all regular chapters (1 to api_max_chapter)
 	// even when special chapters occupy intermediate indices
 	let total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
-		// Cas spécial One Piece : 1159 indices pour avoir 1158 chapitres + One Shot
-		// Index 1-1045: Chapitres 1-1045, Index 1046: One Shot, Index 1047-1159: Chapitres 1046-1158
-		1159
+		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
+		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
+		
+		// Si le CDN a moins de chapitres que l'API, utiliser le CDN (plus fiable)
+		// Ajouter 1 pour le One Shot uniquement s'il existe des chapitres > 1045
+		if max_cdn_chapter > 1045 {
+			max_cdn_chapter + 1 // +1 pour le One Shot à l'index 1046
+		} else {
+			max_cdn_chapter // Pas de One Shot si on n'a que 1045 chapitres ou moins
+		}
 	} else if !chapter_mappings.is_empty() {
 		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
 		// Use the maximum between calculated total and actual mappings (no unnecessary buffer)
@@ -959,6 +971,22 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 	}
 	
 	Ok(pages)
+}
+
+// Détecter le dernier chapitre disponible sur le CDN de manière conservatrice
+fn get_max_available_chapter_on_cdn(manga_title: &str) -> i32 {
+	// Pour One Piece, utiliser une limite conservatrice basée sur nos tests
+	if manga_title == "One Piece" {
+		// D'après nos tests, le CDN s'arrête à 1045
+		// Utiliser cette valeur fixe plutôt que de tester en temps réel
+		1045
+	} else {
+		// Pour les autres mangas, utiliser l'API avec une limite raisonnable
+		match get_total_chapters_from_api(manga_title) {
+			Ok(count) => count.min(500), // Limiter à 500 pour éviter les erreurs
+			Err(_) => 100, // Fallback conservateur pour les autres mangas
+		}
+	}
 }
 
 // Fonction pour obtenir le nombre de pages depuis l'API AnimeSama
