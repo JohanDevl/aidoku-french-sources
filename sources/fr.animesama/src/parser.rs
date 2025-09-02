@@ -909,10 +909,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		if page_count > 0 {
 			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
 			for i in 1..=page_count {
-				let page_url = format!("{}/{}/{}/{}.jpg", 
+				let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 					CDN_URL, 
 					helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 					chapter_index, 
+					chapter_index, // Format: {chapter_id}_{page}.jpg
 					i
 				);
 				pages.push(Page {
@@ -929,10 +930,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		match get_page_count_from_api(&manga_title, chapter_index) {
 			Ok(api_page_count) => {
 				for i in 1..=api_page_count {
-					let page_url = format!("{}/{}/{}/{}.jpg", 
+					let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 						CDN_URL, 
 						helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 						chapter_index, 
+						chapter_index, // Format: {chapter_id}_{page}.jpg
 						i
 					);
 					pages.push(Page {
@@ -951,10 +953,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		
 		// PRIORITÉ 3 : Fallback ultime - 20 pages par défaut
 		for i in 1..=20 {
-			let page_url = format!("{}/{}/{}/{}.jpg", 
+			let page_url = format!("{}/{}/{}/{}_{}.jpg", 
 				CDN_URL, 
 				helper::urlencode_path(&manga_title), // Utiliser %20 pour les espaces dans les chemins CDN
 				chapter_index, 
+				chapter_index, // Format: {chapter_id}_{page}.jpg
 				i
 			);
 			pages.push(Page {

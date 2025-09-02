@@ -14,7 +14,7 @@ pub mod parser;
 pub mod helper;
 
 pub const BASE_URL: &str = "https://anime-sama.fr";
-pub const CDN_URL: &str = "https://anime-sama.fr/s2/scans";
+pub const CDN_URL: &str = "https://s22.anime-sama.me/s1/scans";
 
 struct AnimeSama;
 
