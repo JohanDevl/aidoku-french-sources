@@ -1130,16 +1130,23 @@ fn clean_extracted_title(title: &str) -> String {
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	match manga_title {
 		"Dragon Ball" => {
-			// Dragon Ball utilise un format .webp spécial
+			// Dragon Ball utilise un format .webp spécial avec tome fixe
 			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, manga_title, page)
 		}
-		"One Piece" | "20th Century Boys" | "21st Century Boys" => {
-			// Format standard: {chapter}_{page}.jpg
+		"One Piece" => {
+			// One Piece utilise le format préfixé: {chapter}_{page}.jpg
 			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, manga_title, chapter_index, chapter_index, page)
 		}
+		"20th Century Boys" | "21st Century Boys" | "Chainsaw Man" | "Attack on Titan" | 
+		"Tokyo Ghoul" | "Death Note" | "Black Clover" | "Fire Force" | "Blue Lock" |
+		"My Hero Academia" | "Jujutsu Kaisen" | "Demon Slayer" | "A Couple of Cuckoos" |
+		"A Sign of Affection" | "Dr. Stone" => {
+			// Format simple: {page}.jpg (plus commun)
+			format!("{}/{}/{}/{}.jpg", CDN_URL, manga_title, chapter_index, page)
+		}
 		_ => {
-			// Format par défaut pour la plupart des mangas
-			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, manga_title, chapter_index, chapter_index, page)
+			// Par défaut, essayer le format simple (plus répandu)
+			format!("{}/{}/{}/{}.jpg", CDN_URL, manga_title, chapter_index, page)
 		}
 	}
 }
