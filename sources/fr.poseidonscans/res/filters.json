@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Status",
+    "options": ["Tous les statuts", "En cours", "Terminé", "En pause"]
+  }
+]
