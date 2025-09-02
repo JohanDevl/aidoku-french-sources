@@ -1,8 +1,8 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, 
-	Page, Result, Source,
+	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+	Page, PageContext, Result, Source,
 	alloc::{String, Vec, vec, string::ToString},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -189,4 +189,12 @@ impl ListingProvider for AnimeSama {
 	}
 }
 
-register_source!(AnimeSama, ListingProvider);
+impl ImageRequestProvider for AnimeSama {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		Ok(Request::get(url)?
+			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+			.header("Referer", BASE_URL))
+	}
+}
+
+register_source!(AnimeSama, ListingProvider, ImageRequestProvider);

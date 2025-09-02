@@ -1133,8 +1133,14 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
 		"One Piece" => {
-			// One Piece utilise le format préfixé: {chapter}_{page}.jpg
-			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
+			if chapter_index <= 952 {
+				// Chapitres 1-952 : format normal {chapter}_{page}.jpg
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
+			} else {
+				// Chapitres 953+ : prefix avec décalage -952
+				let prefix = chapter_index - 952;
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, prefix, page)
+			}
 		}
 		"Dragon Ball" => {
 			// Dragon Ball utilise un format webp spécial avec tome fixe
@@ -1143,10 +1149,6 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 		"Naruto" | "Bleach" | "Hunter x Hunter" | "Death Note" => {
 			// Ces mangas populaires utilisent souvent le format avec padding
 			format!("{}/{}/{}/{:03}.jpg", CDN_URL, encoded_title, chapter_index, page)
-		}
-		"Jujutsu Kaisen" | "Chainsaw Man" | "My Hero Academia" | "Attack on Titan" => {
-			// Mangas récents avec format préfixé comme One Piece
-			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
 		}
 		_ => {
 			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
