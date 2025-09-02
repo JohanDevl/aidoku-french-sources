@@ -857,8 +857,9 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		// Méthode 1: Chercher #titreOeuvre (page principale manga)
 		if let Some(title_elem) = html.select("#titreOeuvre").and_then(|els| els.first()) {
 			if let Some(title_text) = title_elem.text() {
-				if !title_text.trim().is_empty() {
-					manga_title = title_text.trim().to_string();
+				let cleaned_title = clean_extracted_title(title_text.trim());
+				if !cleaned_title.is_empty() {
+					manga_title = cleaned_title;
 				}
 			}
 		}
@@ -870,7 +871,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 					let page_title = page_title.trim();
 					if !page_title.is_empty() && page_title.contains(" - ") {
 						// Extraire la partie avant " - Scans" ou " - "
-						manga_title = page_title.split(" - ").next().unwrap_or("").trim().to_string();
+						let extracted = page_title.split(" - ").next().unwrap_or("").trim();
+						let cleaned_title = clean_extracted_title(extracted);
+						if !cleaned_title.is_empty() {
+							manga_title = cleaned_title;
+						}
 					}
 				}
 			}
@@ -880,8 +885,9 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		if manga_title.is_empty() {
 			if let Some(h1_elem) = html.select("h1").and_then(|els| els.first()) {
 				if let Some(h1_text) = h1_elem.text() {
-					if !h1_text.trim().is_empty() {
-						manga_title = h1_text.trim().to_string();
+					let cleaned_title = clean_extracted_title(h1_text.trim());
+					if !cleaned_title.is_empty() {
+						manga_title = cleaned_title;
 					}
 				}
 			}
@@ -890,11 +896,6 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		// Fallback final: utiliser manga_key_to_title avec gestion des cas spéciaux
 		if manga_title.is_empty() {
 			manga_title = manga_key_to_title(manga_slug);
-		}
-		
-		// DEBUG: Forcer "One Piece" pour les tests si c'est le manga one-piece
-		if manga_slug == "one-piece" {
-			manga_title = String::from("One Piece");
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
@@ -914,13 +915,8 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		if page_count > 0 {
 			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
 			for i in 1..=page_count {
-				let page_url = format!("{}/{}/{}/{}_{}.jpg", 
-					CDN_URL, 
-					&manga_title, // Test sans encodage
-					chapter_index, 
-					chapter_index, // Format: {chapter_id}_{page}.jpg
-					i
-				);
+				// Essayer différents formats d'images selon le manga
+				let page_url = generate_image_url(&manga_title, chapter_index, i);
 				pages.push(Page {
 					content: PageContent::url(page_url),
 					thumbnail: None,
@@ -935,13 +931,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		match get_page_count_from_api(&manga_title, chapter_index) {
 			Ok(api_page_count) => {
 				for i in 1..=api_page_count {
-					let page_url = format!("{}/{}/{}/{}_{}.jpg", 
-						CDN_URL, 
-						&manga_title, // Test sans encodage
-						chapter_index, 
-						chapter_index, // Format: {chapter_id}_{page}.jpg
-						i
-					);
+					let page_url = generate_image_url(&manga_title, chapter_index, i);
 					pages.push(Page {
 						content: PageContent::url(page_url),
 						thumbnail: None,
@@ -958,13 +948,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		
 		// PRIORITÉ 3 : Fallback ultime - 20 pages par défaut
 		for i in 1..=20 {
-			let page_url = format!("{}/{}/{}/{}_{}.jpg", 
-				CDN_URL, 
-				&manga_title, // Test sans encodage
-				chapter_index, 
-				chapter_index, // Format: {chapter_id}_{page}.jpg
-				i
-			);
+			let page_url = generate_image_url(&manga_title, chapter_index, i);
 			pages.push(Page {
 				content: PageContent::url(page_url),
 				thumbnail: None,
@@ -1121,27 +1105,102 @@ fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
 }
 
 // Convertir manga_key en titre formaté avec gestion des cas spéciaux
+// Nettoyer un titre extrait du HTML
+fn clean_extracted_title(title: &str) -> String {
+	title
+		.trim()
+		.replace("\n", " ")
+		.replace("\t", " ")
+		.replace("  ", " ") // Réduire les espaces multiples
+		.replace("&#039;", "'") // Nettoyer les entités HTML
+		.replace("&quot;", "\"")
+		.replace("&amp;", "&")
+		.replace("&lt;", "<")
+		.replace("&gt;", ">")
+		.replace("(Scan)", "") // Enlever les mentions parasites
+		.replace("- Scan", "")
+		.replace("- Scans", "")
+		.replace("Scan -", "")
+		.replace("Scans -", "")
+		.trim()
+		.to_string()
+}
+
+// Générer l'URL d'image selon le manga et son format spécifique
+fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
+	match manga_title {
+		"Dragon Ball" => {
+			// Dragon Ball utilise un format .webp spécial
+			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, manga_title, page)
+		}
+		"One Piece" | "20th Century Boys" | "21st Century Boys" => {
+			// Format standard: {chapter}_{page}.jpg
+			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, manga_title, chapter_index, chapter_index, page)
+		}
+		_ => {
+			// Format par défaut pour la plupart des mangas
+			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, manga_title, chapter_index, chapter_index, page)
+		}
+	}
+}
+
 fn manga_key_to_title(manga_key: &str) -> String {
 	let manga_slug = manga_key.split('/').last().unwrap_or("Manga");
 	
-	// Cas spéciaux avec caractères spéciaux
+	// Cas spéciaux avec caractères spéciaux et titres exacts du CDN
 	match manga_slug {
-		"kaiju-n8" => String::from("Kaiju N°8"), // Cas spécial avec symbole degré
-		"one-piece" | "one_piece" => String::from("One Piece"), // Cas spécial One Piece
+		"kaiju-n8" => String::from("Kaiju N°8"),
+		"one-piece" | "one_piece" => String::from("One Piece"),
+		"20th-century-boys" => String::from("20th Century Boys"),
+		"21st-century-boys" => String::from("21st Century Boys"),
+		"dragon-ball" => String::from("Dragon Ball"),
+		"a-couple-of-cuckoos" => String::from("A Couple of Cuckoos"),
+		"a-sign-of-affection" => String::from("A Sign of Affection"),
+		"blue-lock" => String::from("Blue Lock"),
+		"chainsaw-man" => String::from("Chainsaw Man"),
+		"demon-slayer" => String::from("Demon Slayer"),
+		"my-hero-academia" => String::from("My Hero Academia"),
+		"attack-on-titan" => String::from("Attack on Titan"),
+		"tokyo-ghoul" => String::from("Tokyo Ghoul"),
+		"death-note" => String::from("Death Note"),
+		"spy-family" => String::from("Spy x Family"),
+		"jujutsu-kaisen" => String::from("Jujutsu Kaisen"),
+		"boruto" => String::from("Boruto"),
+		"black-clover" => String::from("Black Clover"),
+		"fire-force" => String::from("Fire Force"),
+		"dr-stone" => String::from("Dr. Stone"),
 		_ => {
-			// Conversion générique: slug -> Title Case
+			// Conversion générique améliorée: slug -> Title Case
 			manga_slug
 				.replace("-", " ")
+				.replace("_", " ")
 				.split_whitespace()
 				.map(|word| {
-					let mut chars = word.chars();
-					match chars.next() {
-						None => String::new(),
-						Some(first) => first.to_uppercase().chain(chars).collect(),
+					// Cas spéciaux pour certains mots
+					match word.to_lowercase().as_str() {
+						"n" => String::from("N°"), // Pour les numéros
+						"dr" => String::from("Dr."),
+						"mr" => String::from("Mr."),
+						"ms" => String::from("Ms."),
+						"x" => String::from("x"), // Pour "Spy x Family"
+						"vs" => String::from("vs"),
+						"of" | "the" | "and" | "in" | "on" | "at" | "to" | "for" => {
+							// Articles et prépositions en minuscules (sauf début)
+							word.to_lowercase()
+						},
+						_ => {
+							// Title Case normal
+							let mut chars = word.chars();
+							match chars.next() {
+								None => String::new(),
+								Some(first) => first.to_uppercase().chain(chars).collect(),
+							}
+						}
 					}
 				})
 				.collect::<Vec<String>>()
 				.join(" ")
+				.replace(" N ", " N°") // Remplacer "N " par "N°"
 		}
 	}
 }
