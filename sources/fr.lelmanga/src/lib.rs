@@ -13,6 +13,7 @@ use alloc::{string::ToString, vec};
 
 pub static BASE_URL: &str = "https://www.lelmanga.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1";
+static FILTERS_JSON: &str = include_str!("../res/filters.json");
 
 pub struct LelManga;
 
@@ -25,17 +26,97 @@ impl Source for LelManga {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
 
-        let url = if let Some(search_query) = query {
-            if search_query.is_empty() {
-                format!("{}/manga/?page={}", BASE_URL, page)
+        let mut selected_genre = String::new();
+        let mut selected_status = String::new();
+        
+        // Process filters
+        for filter in &filters {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "genre" && !value.is_empty() {
+                        if let Ok(selected_index) = value.parse::<i32>() {
+                            let genre_ids = Self::get_genre_ids();
+                            if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
+                                selected_genre = genre_ids[selected_index as usize].to_string();
+                            }
+                        }
+                    } else if id == "status" && !value.is_empty() {
+                        if let Ok(selected_index) = value.parse::<i32>() {
+                            let status_values = Self::get_status_values();
+                            if selected_index >= 0 && (selected_index as usize) < status_values.len() {
+                                selected_status = match status_values[selected_index as usize] {
+                                    "En cours" => "ongoing".to_string(),
+                                    "En pause" => "hiatus".to_string(),
+                                    "Annulé" => "cancelled".to_string(),
+                                    "Terminé" => "completed".to_string(),
+                                    _ => String::new(),
+                                };
+                            }
+                        }
+                    }
+                }
+                FilterValue::Text { id, value } => {
+                    if id == "genre" && !value.is_empty() {
+                        let genre_ids = Self::get_genre_ids();
+                        if genre_ids.contains(&value.as_str()) {
+                            selected_genre = value.clone();
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Construct URL based on filters and query
+        let url = if !selected_genre.is_empty() {
+            // Genre-based URL
+            if let Some(search_query) = query {
+                if search_query.is_empty() {
+                    if !selected_status.is_empty() {
+                        format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
+                    } else {
+                        format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
+                    }
+                } else {
+                    if !selected_status.is_empty() {
+                        format!("{}/genres/{}/?s={}&status={}&page={}", BASE_URL, selected_genre, search_query, selected_status, page)
+                    } else {
+                        format!("{}/genres/{}/?s={}&page={}", BASE_URL, selected_genre, search_query, page)
+                    }
+                }
             } else {
-                format!("{}/?s={}&page={}", BASE_URL, search_query, page)
+                if !selected_status.is_empty() {
+                    format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
+                } else {
+                    format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
+                }
             }
         } else {
-            format!("{}/manga/?page={}", BASE_URL, page)
+            // Standard URL (no genre filter)
+            if let Some(search_query) = query {
+                if search_query.is_empty() {
+                    if !selected_status.is_empty() {
+                        format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
+                    } else {
+                        format!("{}/manga/?page={}", BASE_URL, page)
+                    }
+                } else {
+                    if !selected_status.is_empty() {
+                        format!("{}/?s={}&status={}&page={}", BASE_URL, search_query, selected_status, page)
+                    } else {
+                        format!("{}/?s={}&page={}", BASE_URL, search_query, page)
+                    }
+                }
+            } else {
+                if !selected_status.is_empty() {
+                    format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
+                } else {
+                    format!("{}/manga/?page={}", BASE_URL, page)
+                }
+            }
         };
 
         self.get_manga_from_page(&url)
@@ -117,6 +198,114 @@ impl ImageRequestProvider for LelManga {
 }
 
 impl LelManga {
+    fn get_genre_ids() -> Vec<&'static str> {
+        let mut genre_ids = Vec::new();
+        
+        if let Some(start) = FILTERS_JSON.find("\"genre\"") {
+            let after_genre = &FILTERS_JSON[start..];
+            if let Some(ids_start) = after_genre.find("\"ids\":[") {
+                let ids_section = &after_genre[ids_start + 7..];
+                if let Some(ids_end) = ids_section.find(']') {
+                    let ids_content = &ids_section[..ids_end];
+                    
+                    let mut in_quotes = false;
+                    let mut current_id = String::new();
+                    
+                    for ch in ids_content.chars() {
+                        match ch {
+                            '"' => in_quotes = !in_quotes,
+                            ',' | ' ' | '\n' | '\t' => {
+                                if !in_quotes && !current_id.is_empty() {
+                                    match current_id.as_str() {
+                                        "action" => genre_ids.push("action"),
+                                        "aventure" => genre_ids.push("aventure"),
+                                        "combat" => genre_ids.push("combat"),
+                                        "comedie" => genre_ids.push("comedie"),
+                                        "drama" => genre_ids.push("drama"),
+                                        "drame" => genre_ids.push("drame"),
+                                        "ecchi" => genre_ids.push("ecchi"),
+                                        "fantasy" => genre_ids.push("fantasy"),
+                                        "harem" => genre_ids.push("harem"),
+                                        "historique" => genre_ids.push("historique"),
+                                        "horreur" => genre_ids.push("horreur"),
+                                        "isekai" => genre_ids.push("isekai"),
+                                        "josei" => genre_ids.push("josei"),
+                                        "magie" => genre_ids.push("magie"),
+                                        "manga" => genre_ids.push("manga"),
+                                        "manhua" => genre_ids.push("manhua"),
+                                        "manhwa" => genre_ids.push("manhwa"),
+                                        "mature" => genre_ids.push("mature"),
+                                        "mystere" => genre_ids.push("mystere"),
+                                        "psychologique" => genre_ids.push("psychologique"),
+                                        "romance" => genre_ids.push("romance"),
+                                        "sci-fi" => genre_ids.push("sci-fi"),
+                                        "seinen" => genre_ids.push("seinen"),
+                                        "shojo" => genre_ids.push("shojo"),
+                                        "shonen" => genre_ids.push("shonen"),
+                                        "slice-of-life" => genre_ids.push("slice-of-life"),
+                                        "sport" => genre_ids.push("sport"),
+                                        "supernaturel" => genre_ids.push("supernaturel"),
+                                        "tragedie" => genre_ids.push("tragedie"),
+                                        "yuri" => genre_ids.push("yuri"),
+                                        _ => {}
+                                    }
+                                    current_id.clear();
+                                }
+                            }
+                            _ => {
+                                if in_quotes {
+                                    current_id.push(ch);
+                                }
+                            }
+                        }
+                    }
+                    
+                    if !current_id.is_empty() {
+                        match current_id.as_str() {
+                            "action" => genre_ids.push("action"),
+                            "aventure" => genre_ids.push("aventure"),
+                            "combat" => genre_ids.push("combat"),
+                            "comedie" => genre_ids.push("comedie"),
+                            "drama" => genre_ids.push("drama"),
+                            "drame" => genre_ids.push("drame"),
+                            "ecchi" => genre_ids.push("ecchi"),
+                            "fantasy" => genre_ids.push("fantasy"),
+                            "harem" => genre_ids.push("harem"),
+                            "historique" => genre_ids.push("historique"),
+                            "horreur" => genre_ids.push("horreur"),
+                            "isekai" => genre_ids.push("isekai"),
+                            "josei" => genre_ids.push("josei"),
+                            "magie" => genre_ids.push("magie"),
+                            "manga" => genre_ids.push("manga"),
+                            "manhua" => genre_ids.push("manhua"),
+                            "manhwa" => genre_ids.push("manhwa"),
+                            "mature" => genre_ids.push("mature"),
+                            "mystere" => genre_ids.push("mystere"),
+                            "psychologique" => genre_ids.push("psychologique"),
+                            "romance" => genre_ids.push("romance"),
+                            "sci-fi" => genre_ids.push("sci-fi"),
+                            "seinen" => genre_ids.push("seinen"),
+                            "shojo" => genre_ids.push("shojo"),
+                            "shonen" => genre_ids.push("shonen"),
+                            "slice-of-life" => genre_ids.push("slice-of-life"),
+                            "sport" => genre_ids.push("sport"),
+                            "supernaturel" => genre_ids.push("supernaturel"),
+                            "tragedie" => genre_ids.push("tragedie"),
+                            "yuri" => genre_ids.push("yuri"),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        
+        genre_ids
+    }
+    
+    fn get_status_values() -> Vec<&'static str> {
+        vec!["En cours", "En pause", "Annulé", "Terminé"]
+    }
+
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
             .header("User-Agent", USER_AGENT)
