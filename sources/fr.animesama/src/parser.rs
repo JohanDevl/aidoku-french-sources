@@ -1126,30 +1126,44 @@ fn clean_extracted_title(title: &str) -> String {
 		.to_string()
 }
 
-// Générer l'URL d'image selon le manga et son format spécifique
+// Générer l'URL d'image en testant différents formats automatiquement
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
 	
-	match manga_title {
-		"Dragon Ball" => {
-			// Dragon Ball utilise un format .webp spécial avec tome fixe
-			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, encoded_title, page)
+	// Essayer différents formats dans l'ordre de probabilité
+	let formats = [
+		// Format 1: Simple {page}.jpg (le plus commun)
+		format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page),
+		// Format 2: Préfixé {chapter}_{page}.jpg (One Piece style)
+		format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page),
+		// Format 3: Avec padding à 3 chiffres
+		format!("{}/{}/{}/{:03}.jpg", CDN_URL, encoded_title, chapter_index, page),
+		// Format 4: Avec padding à 2 chiffres
+		format!("{}/{}/{}/{:02}.jpg", CDN_URL, encoded_title, chapter_index, page),
+		// Format 5: Dragon Ball webp spécial (uniquement pour la première page)
+		format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, encoded_title, page),
+	];
+	
+	// Tester chaque format pour voir lequel fonctionne
+	for format_url in &formats {
+		if test_image_url_exists(format_url) {
+			return format_url.clone();
 		}
-		"One Piece" => {
-			// One Piece utilise le format préfixé: {chapter}_{page}.jpg
-			format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
+	}
+	
+	// Si aucun format ne fonctionne, retourner le premier par défaut
+	formats[0].clone()
+}
+
+// Tester si une URL d'image existe (retour rapide)
+fn test_image_url_exists(url: &str) -> bool {
+	// Faire une requête HEAD pour tester l'existence sans télécharger l'image
+	match Request::head(url) {
+		Ok(_) => {
+			// Considérer comme valide si la requête réussit
+			true
 		}
-		"20th Century Boys" | "21st Century Boys" | "Chainsaw Man" | "Attack on Titan" | 
-		"Tokyo Ghoul" | "Death Note" | "Black Clover" | "Fire Force" | "Blue Lock" |
-		"My Hero Academia" | "Jujutsu Kaisen" | "Demon Slayer" | "A Couple of Cuckoos" |
-		"A Sign of Affection" | "Dr. Stone" => {
-			// Format simple: {page}.jpg (plus commun)
-			format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page)
-		}
-		_ => {
-			// Par défaut, essayer le format simple (plus répandu)
-			format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page)
-		}
+		Err(_) => false,
 	}
 }
 
