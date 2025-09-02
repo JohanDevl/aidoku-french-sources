@@ -1,1 +1,39 @@
-[]
+[
+  {
+    "type": "select",
+    "id": "genre",
+    "title": "Genre",
+    "isGenre": true,
+    "options": [
+      "All",
+      "Action",
+      "Aventure",
+      "Combat",
+      "Comédie",
+      "Drame",
+      "Ecchi",
+      "Fantasy",
+      "Harem",
+      "Historique",
+      "Horreur",
+      "Isekai",
+      "Josei",
+      "Magie",
+      "Arts Martiaux",
+      "Mature",
+      "Mystère",
+      "Psychologique",
+      "Romance",
+      "School Life",
+      "Sci-Fi",
+      "Seinen",
+      "Shoujo",
+      "Shounen",
+      "Slice of Life",
+      "Sports",
+      "Supernatural",
+      "Thriller",
+      "Tragédie"
+    ]
+  }
+]
