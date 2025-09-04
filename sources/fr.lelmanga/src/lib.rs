@@ -28,7 +28,8 @@ impl Source for LelManga {
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
 
-        let mut filter_params = String::new();
+        let mut selected_genre = String::new();
+        let mut selected_status = String::new();
         
         // Process filters
         for filter in &filters {
@@ -38,15 +39,14 @@ impl Source for LelManga {
                         if let Ok(selected_index) = value.parse::<i32>() {
                             let genre_ids = Self::get_genre_ids();
                             if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
-                                let genre_id = genre_ids[selected_index as usize];
-                                filter_params.push_str(&format!("&genre[]={}", Self::urlencode(genre_id)));
+                                selected_genre = genre_ids[selected_index as usize].to_string();
                             }
                         }
                     } else if id == "status" && !value.is_empty() {
                         if let Ok(selected_index) = value.parse::<i32>() {
                             let status_values = ["ongoing", "hiatus", "cancelled", "completed"];
                             if selected_index >= 0 && (selected_index as usize) < status_values.len() {
-                                filter_params.push_str(&format!("&status={}", status_values[selected_index as usize]));
+                                selected_status = status_values[selected_index as usize].to_string();
                             }
                         }
                     }
@@ -55,12 +55,12 @@ impl Source for LelManga {
                     if id == "genre" && !value.is_empty() {
                         let genre_ids = Self::get_genre_ids();
                         if genre_ids.contains(&value.as_str()) {
-                            filter_params.push_str(&format!("&genre[]={}", Self::urlencode(value)));
+                            selected_genre = value.clone();
                         }
                     } else if id == "status" && !value.is_empty() {
                         let valid_statuses = ["ongoing", "hiatus", "cancelled", "completed"];
                         if valid_statuses.contains(&value.as_str()) {
-                            filter_params.push_str(&format!("&status={}", value));
+                            selected_status = value.clone();
                         }
                     }
                 }
@@ -68,15 +68,53 @@ impl Source for LelManga {
             }
         }
 
-        // Construct URL
-        let url = if let Some(search_query) = query {
-            if search_query.is_empty() {
-                format!("{}/manga/?page={}{}", BASE_URL, page, filter_params)
+        // Construct URL using LelManga's actual patterns
+        let url = if !selected_genre.is_empty() {
+            // Use /genres/{genre} route (verified working)
+            if let Some(search_query) = query {
+                if !search_query.is_empty() {
+                    if !selected_status.is_empty() {
+                        format!("{}/genres/{}/?s={}&status={}&page={}", BASE_URL, selected_genre, Self::urlencode(&search_query), selected_status, page)
+                    } else {
+                        format!("{}/genres/{}/?s={}&page={}", BASE_URL, selected_genre, Self::urlencode(&search_query), page)
+                    }
+                } else {
+                    if !selected_status.is_empty() {
+                        format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
+                    } else {
+                        format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
+                    }
+                }
             } else {
-                format!("{}/?s={}&page={}{}", BASE_URL, Self::urlencode(&search_query), page, filter_params)
+                if !selected_status.is_empty() {
+                    format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
+                } else {
+                    format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
+                }
             }
         } else {
-            format!("{}/manga/?page={}{}", BASE_URL, page, filter_params)
+            // No genre selected, use standard routes
+            if let Some(search_query) = query {
+                if !search_query.is_empty() {
+                    if !selected_status.is_empty() {
+                        format!("{}/?s={}&status={}&page={}", BASE_URL, Self::urlencode(&search_query), selected_status, page)
+                    } else {
+                        format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
+                    }
+                } else {
+                    if !selected_status.is_empty() {
+                        format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
+                    } else {
+                        format!("{}/manga/?page={}", BASE_URL, page)
+                    }
+                }
+            } else {
+                if !selected_status.is_empty() {
+                    format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
+                } else {
+                    format!("{}/manga/?page={}", BASE_URL, page)
+                }
+            }
         };
 
         self.get_manga_from_page(&url)
