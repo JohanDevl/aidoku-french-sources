@@ -120,36 +120,13 @@ impl Source for LelManga {
             }
         };
         
-        println!("DEBUG: SERVER-SIDE filtering - genre: '{}', status: '{}'", selected_genre, selected_status);
-        println!("DEBUG: URL params: {:?}", url_params);
-        println!("DEBUG: Using limit=50 to increase items per page (discovered via WebFetch)");
-        
-        // Indicate which filtering approach is being used
-        if let Some(_) = query {
-            println!("DEBUG: Using SEARCH mode filtering with limit=50");
-        } else if !selected_genre.is_empty() && selected_genre != "Tous" {
-            println!("DEBUG: Using URL PATH approach for genre: /genres/{} with limit=50", selected_genre.to_lowercase().replace(" ", "-"));
-        } else if !url_params.is_empty() {
-            println!("DEBUG: Using URL PARAMETER approach for status only with limit=50");
-        } else {
-            println!("DEBUG: No filtering applied - standard listing with limit=50");
+        // Simplified debug info
+        if !selected_genre.is_empty() && selected_genre != "Tous" {
+            println!("DEBUG: Genre filter '{}' → /genres/{}", selected_genre, selected_genre.to_lowercase().replace(" ", "-"));
         }
-
-        println!("DEBUG: Final URL generated: {}", url);
         
-        // Get all manga from the page
-        let result = self.get_manga_from_page(&url)?;
-        
-        // NO CLIENT-SIDE FILTERING - Genres not available in listing HTML (confirmed by logs)
-        // Only server-side filtering can work since listing items only contain: "Title Chapitre X Rating"
-        println!("DEBUG: Returned {} manga from server (server-side filtering applied if URL had params)", result.entries.len());
-        
-        if !url_params.is_empty() {
-            println!("DEBUG: Server-side filtering was attempted with params: {:?}", url_params);
-            if result.entries.len() < 10 {
-                println!("DEBUG: Fewer results returned - server filtering might be working");
-            }
-        }
+        // Get manga from multiple pages to increase results (combiner 2-3 pages)
+        let result = self.get_manga_from_multiple_pages(&url, page)?;
         
         Ok(result)
     }
@@ -243,6 +220,62 @@ impl LelManga {
     }
 
 
+    fn get_manga_from_multiple_pages(&self, base_url: &str, start_page: i32) -> Result<MangaPageResult> {
+        let mut all_entries: Vec<Manga> = Vec::new();
+        let mut has_next = false;
+        
+        // Combiner 3 pages pour avoir plus de résultats
+        for page_offset in 0..3 {
+            let current_page = start_page + page_offset;
+            
+            // Construire l'URL pour chaque page
+            let page_url = if base_url.contains('?') {
+                if base_url.contains("&page=") || base_url.contains("page=") {
+                    // Remplacer la page existante  
+                    base_url.replace(&format!("page={}", start_page), &format!("page={}", current_page))
+                } else {
+                    // Ajouter la page
+                    format!("{}&page={}", base_url, current_page)
+                }
+            } else {
+                format!("{}?page={}", base_url, current_page)
+            };
+            
+            println!("DEBUG: Fetching page {} from: {}", current_page, page_url);
+            
+            match self.get_manga_from_page(&page_url) {
+                Ok(page_result) => {
+                    println!("DEBUG: Page {} returned {} manga", current_page, page_result.entries.len());
+                    
+                    // Si la page est vide, arrêter
+                    if page_result.entries.is_empty() {
+                        break;
+                    }
+                    
+                    // Éviter les doublons (même key)
+                    for manga in page_result.entries {
+                        if !all_entries.iter().any(|existing| existing.key == manga.key) {
+                            all_entries.push(manga);
+                        }
+                    }
+                    
+                    has_next = page_result.has_next_page;
+                },
+                Err(e) => {
+                    println!("DEBUG: Error fetching page {}: {:?}", current_page, e);
+                    break;
+                }
+            }
+        }
+        
+        println!("DEBUG: Combined {} manga from multiple pages", all_entries.len());
+        
+        Ok(MangaPageResult {
+            entries: all_entries,
+            has_next_page: has_next,
+        })
+    }
+
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
             .header("User-Agent", USER_AGENT)
@@ -269,7 +302,6 @@ impl LelManga {
             if let Some(items) = html.select(selector) {
                 items_vec = items.collect();
                 if !items_vec.is_empty() {
-                    println!("DEBUG: Found {} items using selector '{}'", items_vec.len(), selector);
                     found_items = true;
                     break;
                 }
@@ -288,8 +320,7 @@ impl LelManga {
         }
 
         if found_items {
-            for (i, item) in items_vec.iter().enumerate() {
-                println!("DEBUG: Processing item {}", i + 1);
+            for item in items_vec.iter() {
                 let link = if let Some(a_element) = item.select("a") {
                     if let Some(first_link) = a_element.first() {
                         first_link
@@ -383,15 +414,10 @@ impl LelManga {
                     update_strategy: UpdateStrategy::Never,
                 });
             }
-        } else {
-            println!("DEBUG: No items found to process");
         }
-
-        println!("DEBUG: Total manga entries extracted: {}", entries.len());
 
         // Check for pagination
         let has_next_page = html.select(".pagination .next, .hpage .r").is_some();
-        println!("DEBUG: Has next page: {}", has_next_page);
 
         Ok(MangaPageResult {
             entries,
