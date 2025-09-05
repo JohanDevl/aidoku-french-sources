@@ -82,7 +82,7 @@ impl Source for LelManga {
         
         // Add genre parameters - new format: genre[]=ID (URL encoded)
         for genre_id in &selected_genres {
-            if !genre_id.is_empty() && genre_id != "Tous" {
+            if !genre_id.is_empty() && genre_id != "Tout" {
                 url_params.push(format!("genre%5B%5D={}", genre_id));
             }
         }
@@ -338,8 +338,9 @@ impl LelManga {
             }
         }
 
-        // Check for pagination with multiple selectors
-        let has_next_page = html.select(".pagination .next, .hpage .r, .wp-pagenavi .next, .nav-links .next, .page-numbers .next, a[rel=next]").is_some();
+        // Check for pagination - WebFetch confirmed "Suivante" link exists
+        let has_next_page = html.select("a:contains(Suivante), a:contains(Next), .pagination .next, .hpage .r, .wp-pagenavi .next, .nav-links .next").is_some() 
+            || entries.len() >= 20; // Fallback: if we have 20+ entries, assume there might be more pages
 
         Ok(MangaPageResult {
             entries,
