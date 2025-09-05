@@ -3,7 +3,7 @@
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["En cours", "En pause", "Annulé", "Terminé"]
+    "options": ["Tous", "En cours", "En pause", "Annulé", "Terminé"]
   },
   {
     "type": "select",
@@ -11,6 +11,7 @@
     "title": "Genre",
     "isGenre": true,
     "options": [
+      "Tous",
       "Action",
       "Aventure",
       "Combat",
@@ -43,6 +44,7 @@
       "Yuri"
     ],
     "ids": [
+      "",
       "action",
       "aventure",
       "combat",
