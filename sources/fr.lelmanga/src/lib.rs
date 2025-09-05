@@ -91,46 +91,48 @@ impl Source for LelManga {
         }
         
         let url = if let Some(ref search_query) = query {
-            // Search mode - use search parameters
+            // Search mode - use search parameters with limit for more results
             if search_query.is_empty() {
                 if url_params.is_empty() {
-                    format!("{}/manga/?page={}", BASE_URL, page)
+                    format!("{}/manga/?limit=50&page={}", BASE_URL, page)
                 } else {
-                    format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
+                    format!("{}/manga/?{}&limit=50&page={}", BASE_URL, url_params.join("&"), page)
                 }
             } else {
                 if url_params.is_empty() {
-                    format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
+                    format!("{}/?s={}&limit=50&page={}", BASE_URL, Self::urlencode(&search_query), page)
                 } else {
-                    format!("{}/?s={}&{}&page={}", BASE_URL, Self::urlencode(&search_query), url_params.join("&"), page)
+                    format!("{}/?s={}&{}&limit=50&page={}", BASE_URL, Self::urlencode(&search_query), url_params.join("&"), page)
                 }
             }
         } else if !selected_genre.is_empty() && selected_genre != "Tous" {
             // Use ACTUAL URL structure found by WebFetch: /genres/action (not /genre/action/)
             let genre_slug = selected_genre.to_lowercase().replace(" ", "-");
             // Always use URL path approach - parameters don't work (confirmed by logs)
-            format!("{}/genres/{}?page={}", BASE_URL, genre_slug, page)
+            // Add limit parameter to increase items per page (WebFetch found pagination uses ?limit=50)
+            format!("{}/genres/{}?limit=50&page={}", BASE_URL, genre_slug, page)
         } else {
-            // Normal listing with possible status filter
+            // Normal listing with possible status filter and increased limit
             if url_params.is_empty() {
-                format!("{}/manga/?page={}", BASE_URL, page)
+                format!("{}/manga/?limit=50&page={}", BASE_URL, page)
             } else {
-                format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
+                format!("{}/manga/?{}&limit=50&page={}", BASE_URL, url_params.join("&"), page)
             }
         };
         
         println!("DEBUG: SERVER-SIDE filtering - genre: '{}', status: '{}'", selected_genre, selected_status);
         println!("DEBUG: URL params: {:?}", url_params);
+        println!("DEBUG: Using limit=50 to increase items per page (discovered via WebFetch)");
         
         // Indicate which filtering approach is being used
         if let Some(_) = query {
-            println!("DEBUG: Using SEARCH mode filtering");
+            println!("DEBUG: Using SEARCH mode filtering with limit=50");
         } else if !selected_genre.is_empty() && selected_genre != "Tous" {
-            println!("DEBUG: Using URL PATH approach for genre: /genres/{}", selected_genre.to_lowercase().replace(" ", "-"));
+            println!("DEBUG: Using URL PATH approach for genre: /genres/{} with limit=50", selected_genre.to_lowercase().replace(" ", "-"));
         } else if !url_params.is_empty() {
-            println!("DEBUG: Using URL PARAMETER approach for status only");
+            println!("DEBUG: Using URL PARAMETER approach for status only with limit=50");
         } else {
-            println!("DEBUG: No filtering applied - standard listing");
+            println!("DEBUG: No filtering applied - standard listing with limit=50");
         }
 
         println!("DEBUG: Final URL generated: {}", url);
@@ -193,20 +195,16 @@ impl ListingProvider for LelManga {
 
         let mut url = format!("{}/manga/", BASE_URL);
 
-        // Add sorting parameter based on listing type
+        // Add sorting parameter based on listing type with increased limit
         match listing.name.as_str() {
-            "Populaire" => url.push_str("?order=popular"),
-            "Tendance" => url.push_str("?order=update"),
-            _ => url.push_str("?order=latest"),
+            "Populaire" => url.push_str("?order=popular&limit=50"),
+            "Tendance" => url.push_str("?order=update&limit=50"),
+            _ => url.push_str("?order=latest&limit=50"),
         }
 
         // Add page parameter
         if page > 1 {
-            if url.contains('?') {
-                url.push_str(&format!("&page={}", page));
-            } else {
-                url.push_str(&format!("?page={}", page));
-            }
+            url.push_str(&format!("&page={}", page));
         }
 
         self.get_manga_from_page(&url)
