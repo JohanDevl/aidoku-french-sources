@@ -71,40 +71,17 @@ impl Source for LelManga {
             }
         }
 
-        // Try server-side filtering first, then fall back to client-side if needed
-        let mut url_params = Vec::new();
-        
-        // Try server-side genre filtering
-        if !selected_genre.is_empty() && selected_genre != "Tous" {
-            // Test server-side filtering - try different parameter formats
-            url_params.push(format!("genre={}", Self::urlencode(&selected_genre.to_lowercase())));
-        }
-        
-        // Try server-side status filtering  
-        if !selected_status.is_empty() && selected_status != "Tous" {
-            url_params.push(format!("status={}", Self::urlencode(&selected_status)));
-        }
+        // TEMPORARILY DISABLE ALL FILTERING - Just use basic URLs
+        println!("DEBUG: FILTERS DISABLED - selected_genre: '{}', selected_status: '{}'", selected_genre, selected_status);
         
         let url = if let Some(search_query) = query {
             if search_query.is_empty() {
-                if url_params.is_empty() {
-                    format!("{}/manga/?page={}", BASE_URL, page)
-                } else {
-                    format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
-                }
-            } else {
-                if url_params.is_empty() {
-                    format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
-                } else {
-                    format!("{}/?s={}&{}&page={}", BASE_URL, Self::urlencode(&search_query), url_params.join("&"), page)
-                }
-            }
-        } else {
-            if url_params.is_empty() {
                 format!("{}/manga/?page={}", BASE_URL, page)
             } else {
-                format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
+                format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
             }
+        } else {
+            format!("{}/manga/?page={}", BASE_URL, page)
         };
 
         println!("DEBUG: Final URL generated: {}", url);
@@ -112,51 +89,12 @@ impl Source for LelManga {
         // Get all manga from the page
         let mut result = self.get_manga_from_page(&url)?;
         
-        // Apply client-side filtering only if server-side didn't work or as a fallback
-        if (!selected_genre.is_empty() && selected_genre != "Tous") || (!selected_status.is_empty() && selected_status != "Tous") {
-            println!("DEBUG: Checking if server-side filtering worked. URL had params: {}", url_params.len() > 0);
-            
-            // If we have filters but server-side might not have worked, do minimal client-side filtering
-            if url_params.is_empty() || result.entries.len() > 0 {  // Only do client filtering if server didn't handle it
-                println!("DEBUG: Applying minimal client-side filters - genre: '{}', status: '{}'", selected_genre, selected_status);
-                
-                let original_count = result.entries.len();
-                
-                result.entries.retain(|manga| {
-                    let genre_match = if selected_genre.is_empty() || selected_genre == "Tous" {
-                        true // No genre filter or "All" selected
-                    } else if let Some(tags) = &manga.tags {
-                        if tags.is_empty() {
-                            true // Keep manga with empty tags (very permissive)
-                        } else {
-                            // Very loose matching - check if any word in genre appears in tags
-                            let selected_lower = selected_genre.to_lowercase();
-                            let found = tags.iter().any(|tag| {
-                                let tag_lower = tag.to_lowercase();
-                                tag_lower.contains(&selected_lower) || selected_lower.contains(&tag_lower)
-                            });
-                            if found {
-                                println!("DEBUG: Manga '{}' tags: {:?}, matched genre: '{}'", manga.title, tags, selected_genre);
-                            }
-                            found
-                        }
-                    } else {
-                        true // No tags, keep it (very permissive)
-                    };
-                    
-                    // For now, don't filter by status to avoid removing everything
-                    let status_match = true; // Disable status filtering temporarily
-                    
-                    let matches = genre_match && status_match;
-                    matches
-                });
-                
-                println!("DEBUG: Applied client-side filters, kept {} manga out of {}", result.entries.len(), original_count);
-            } else {
-                println!("DEBUG: Server-side filtering appears to have worked, keeping all {} results", result.entries.len());
-            }
-        } else {
-            println!("DEBUG: No filters selected, keeping all {} manga", result.entries.len());
+        // TEMPORARILY DISABLE ALL FILTERING - Just return all results
+        println!("DEBUG: FILTERING COMPLETELY DISABLED - returning all {} manga from page", result.entries.len());
+        
+        // Show filter values for debugging but don't actually filter
+        if !selected_genre.is_empty() || !selected_status.is_empty() {
+            println!("DEBUG: Filter values received (but ignored): genre='{}', status='{}'", selected_genre, selected_status);
         }
         
         Ok(result)
@@ -264,13 +202,44 @@ impl LelManga {
 
         let mut entries: Vec<Manga> = Vec::new();
 
-        // Use MangaThemesia selectors
-        let selector = ".utao .uta .imgu, .listupd .bs .bsx, .page-listing-item";
+        // Use MangaThemesia selectors with debugging
+        let selectors = [
+            ".utao .uta .imgu", 
+            ".listupd .bs .bsx", 
+            ".page-listing-item",
+            ".manga-item",
+            ".manga-list .manga-item",
+            ".post"
+        ];
+        
+        let mut found_items = false;
+        let mut items_vec = Vec::new();
+        
+        for selector in &selectors {
+            if let Some(items) = html.select(selector) {
+                items_vec = items.collect();
+                if !items_vec.is_empty() {
+                    println!("DEBUG: Found {} items using selector '{}'", items_vec.len(), selector);
+                    found_items = true;
+                    break;
+                }
+            }
+        }
+        
+        if !found_items {
+            println!("DEBUG: No manga items found with any selector. Page might be empty or have different structure.");
+            // Try to see what's actually on the page
+            if let Some(body) = html.select("body") {
+                if let Some(first_body) = body.first() {
+                    let body_text = first_body.text().unwrap_or_default();
+                    println!("DEBUG: Page body contains text: {}", &body_text[..body_text.len().min(200)]);
+                }
+            }
+        }
 
-        if let Some(items) = html.select(selector) {
-            let items_vec: Vec<_> = items.collect();
-
-            for item in items_vec {
+        if found_items {
+            for (i, item) in items_vec.iter().enumerate() {
+                println!("DEBUG: Processing item {}", i + 1);
                 let link = if let Some(a_element) = item.select("a") {
                     if let Some(first_link) = a_element.first() {
                         first_link
@@ -393,10 +362,15 @@ impl LelManga {
                     update_strategy: UpdateStrategy::Never,
                 });
             }
+        } else {
+            println!("DEBUG: No items found to process");
         }
+
+        println!("DEBUG: Total manga entries extracted: {}", entries.len());
 
         // Check for pagination
         let has_next_page = html.select(".pagination .next, .hpage .r").is_some();
+        println!("DEBUG: Has next page: {}", has_next_page);
 
         Ok(MangaPageResult {
             entries,
