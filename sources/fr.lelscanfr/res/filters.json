@@ -3,28 +3,21 @@
     "type": "select",
     "id": "type",
     "title": "Type",
-    "options": ["Manga", "Manhua", "Manhwa", "Bande Dessinée"]
-  },
-  {
-    "type": "select",
-    "id": "op",
-    "title": "Genre condition",
-    "hideFromHeader": true,
-    "default": "OR",
-    "options": ["AND", "OR"]
+    "options": ["Tout", "Manga", "Manhua", "Manhwa", "Bande Dessinée"]
   },
   {
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["En cours", "Terminé"]
+    "options": ["Tout", "En cours", "En pause", "Terminé"]
   },
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "genre",
     "title": "Genre",
     "isGenre": true,
     "options": [
+      "Tout",
       "Académie",
       "Action",
       "Adolescence",
@@ -157,6 +150,7 @@
       "Zombies"
     ],
     "ids": [
+      "",
       "Académie",
       "Action",
       "Adolescence",
