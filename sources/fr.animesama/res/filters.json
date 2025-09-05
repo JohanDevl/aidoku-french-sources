@@ -5,6 +5,7 @@
     "title": "Genre",
     "isGenre": true,
     "options": [
+      "Tout",
       "Action",
       "Aventure",
       "Combat",
@@ -35,6 +36,7 @@
       "Tragédie"
     ],
     "ids": [
+      "",
       "action",
       "aventure",
       "combat",
