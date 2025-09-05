@@ -69,6 +69,11 @@ impl Source for LelManga {
         // Build URL parameters
         let mut url_params = Vec::new();
         
+        // Add page parameter first if not first page
+        if page > 1 {
+            url_params.push(format!("page={}", page));
+        }
+        
         // Add genre parameters - new format: genre[]=ID
         for genre_id in &selected_genres {
             url_params.push(format!("genre[]={}", genre_id));
@@ -79,10 +84,9 @@ impl Source for LelManga {
             url_params.push(format!("status={}", Self::urlencode(&selected_status)));
         }
         
-        // Add page parameter if not first page
-        if page > 1 {
-            url_params.push(format!("page={}", page));
-        }
+        // Add required type and order parameters for proper pagination
+        url_params.push("type=".to_string());
+        url_params.push("order=".to_string());
         
         let url = if let Some(ref search_query) = query {
             // Search mode
@@ -99,11 +103,7 @@ impl Source for LelManga {
             }
         } else {
             // Browse/filter mode using /manga endpoint
-            if url_params.is_empty() {
-                format!("{}/manga/", BASE_URL)
-            } else {
-                format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
-            }
+            format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
         };
         
         self.get_manga_from_page(&url)
@@ -332,8 +332,8 @@ impl LelManga {
             }
         }
 
-        // Check for pagination
-        let has_next_page = html.select(".pagination .next, .hpage .r").is_some();
+        // Check for pagination with multiple selectors
+        let has_next_page = html.select(".pagination .next, .hpage .r, .wp-pagenavi .next, .nav-links .next, .page-numbers .next, a[rel=next]").is_some();
 
         Ok(MangaPageResult {
             entries,
