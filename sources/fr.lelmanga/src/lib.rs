@@ -98,7 +98,7 @@ impl Source for LelManga {
             url_params.push(format!("status={}", Self::urlencode(status_param)));
         }
         
-        let url = if let Some(search_query) = query {
+        let url = if let Some(ref search_query) = query {
             // Search mode - use search parameters
             if search_query.is_empty() {
                 if url_params.is_empty() {
@@ -153,7 +153,7 @@ impl Source for LelManga {
         println!("DEBUG: Final URL generated: {}", url);
         
         // Get all manga from the page
-        let mut result = self.get_manga_from_page(&url)?;
+        let result = self.get_manga_from_page(&url)?;
         
         // NO CLIENT-SIDE FILTERING - Genres not available in listing HTML (confirmed by logs)
         // Only server-side filtering can work since listing items only contain: "Title Chapitre X Rating"
