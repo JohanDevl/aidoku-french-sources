@@ -28,109 +28,87 @@ impl Source for LelManga {
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
 
-        let mut selected_genre = String::new();
+        let mut selected_genres: Vec<String> = Vec::new();
         let mut selected_status = String::new();
         
         // Process filters
         for filter in &filters {
             match filter {
                 FilterValue::Select { id, value } => {
-                    // DEBUG: Log filter values
-                    println!("DEBUG: Filter id='{}', value='{}'", id, value);
-                    
                     if id == "genre" && !value.is_empty() {
-                        // Aidoku passes values directly, not indexes
-                        selected_genre = value.clone();
-                        println!("DEBUG: Selected genre='{}'", selected_genre);
-                    } else if id == "status" && !value.is_empty() {
-                        // Map French status values to English
+                        selected_genres.push(value.clone());
+                    } else if id == "status" && !value.is_empty() && value != "Tous" {
+                        // Map French status values to English for server
                         selected_status = match value.as_str() {
                             "En cours" => "ongoing".to_string(),
                             "En pause" => "hiatus".to_string(), 
                             "Annulé" => "cancelled".to_string(),
                             "Terminé" => "completed".to_string(),
-                            _ => value.clone(), // fallback to original value
+                            _ => value.clone(),
                         };
-                        println!("DEBUG: Selected status='{}' (mapped from '{}')", selected_status, value);
                     }
                 }
                 FilterValue::Text { id, value } => {
-                    println!("DEBUG: Text filter id='{}', value='{}'", id, value);
-                    
                     if id == "genre" && !value.is_empty() {
-                        selected_genre = value.clone();
-                        println!("DEBUG: Text genre selected: '{}'", selected_genre);
-                    } else if id == "status" && !value.is_empty() {
+                        selected_genres.push(value.clone());
+                    } else if id == "status" && !value.is_empty() && value != "Tous" {
                         selected_status = value.clone();
-                        println!("DEBUG: Text status selected: '{}'", selected_status);
                     }
                 }
-                _ => {
-                    println!("DEBUG: Unknown filter type encountered");
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
+                    if id == "genre" {
+                        for value in included {
+                            if !value.is_empty() {
+                                selected_genres.push(value.clone());
+                            }
+                        }
+                    }
                 }
+                _ => {}
             }
         }
 
-        // Use SERVER-SIDE filtering only (client-side impossible - no genres in listing HTML)
+        // Build URL parameters
         let mut url_params = Vec::new();
         
-        // GENRE filtering uses URL path approach (confirmed by WebFetch analysis)
-        // Parameter approach doesn't work (confirmed by logs showing identical results)
-        // Only add parameters for non-genre filters
+        // Add genre parameters - new format: genre[]=ID
+        for genre_id in &selected_genres {
+            url_params.push(format!("genre[]={}", genre_id));
+        }
         
-        if !selected_status.is_empty() && selected_status != "Tous" {
-            // Map to what the server might expect (try French first, then English)
-            let status_param = match selected_status.as_str() {
-                "ongoing" => "En cours",   // Try French first
-                "completed" => "Terminé", 
-                "cancelled" => "Annulé",
-                "hiatus" => "En pause",
-                _ => &selected_status,
-            };
-            url_params.push(format!("status={}", Self::urlencode(status_param)));
+        // Add status parameter
+        if !selected_status.is_empty() {
+            url_params.push(format!("status={}", Self::urlencode(&selected_status)));
+        }
+        
+        // Add page parameter if not first page
+        if page > 1 {
+            url_params.push(format!("page={}", page));
         }
         
         let url = if let Some(ref search_query) = query {
-            // Search mode - use search parameters with limit for more results
+            // Search mode
             if search_query.is_empty() {
                 if url_params.is_empty() {
-                    format!("{}/manga/?limit=50&page={}", BASE_URL, page)
+                    format!("{}/manga/", BASE_URL)
                 } else {
-                    format!("{}/manga/?{}&limit=50&page={}", BASE_URL, url_params.join("&"), page)
+                    format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
                 }
             } else {
-                if url_params.is_empty() {
-                    format!("{}/?s={}&limit=50&page={}", BASE_URL, Self::urlencode(&search_query), page)
-                } else {
-                    format!("{}/?s={}&{}&limit=50&page={}", BASE_URL, Self::urlencode(&search_query), url_params.join("&"), page)
-                }
+                let mut search_params = vec![format!("s={}", Self::urlencode(&search_query))];
+                search_params.extend(url_params);
+                format!("{}/?{}", BASE_URL, search_params.join("&"))
             }
-        } else if !selected_genre.is_empty() && selected_genre != "Tous" {
-            // Use ACTUAL URL structure found by WebFetch: /genres/action (not /genre/action/)
-            let genre_slug = selected_genre.to_lowercase().replace(" ", "-");
-            // Always use URL path approach - parameters don't work (confirmed by logs)
-            // Add limit parameter to increase items per page (WebFetch found pagination uses ?limit=50)
-            format!("{}/genres/{}?limit=50&page={}", BASE_URL, genre_slug, page)
         } else {
-            // Normal listing with possible status filter and increased limit
+            // Browse/filter mode using /manga endpoint
             if url_params.is_empty() {
-                format!("{}/manga/?limit=50&page={}", BASE_URL, page)
+                format!("{}/manga/", BASE_URL)
             } else {
-                format!("{}/manga/?{}&limit=50&page={}", BASE_URL, url_params.join("&"), page)
+                format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
             }
         };
         
-        // Debug info with corrected URL structure
-        if !selected_genre.is_empty() && selected_genre != "Tous" {
-            println!("DEBUG: Genre filter '{}' → using /page/X URL structure", selected_genre);
-        } else {
-            println!("DEBUG: Using multi-page strategy with ?page=X parameters");
-        }
-        
-        // Use multi-page for all cases now that URL structure is fixed
-        let result = self.get_manga_from_multiple_pages(&url, page)?;
-        
-        Ok(result)
+        self.get_manga_from_page(&url)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
@@ -174,11 +152,11 @@ impl ListingProvider for LelManga {
 
         let mut url = format!("{}/manga/", BASE_URL);
 
-        // Add sorting parameter based on listing type with increased limit
+        // Add sorting parameter based on listing type
         match listing.name.as_str() {
-            "Populaire" => url.push_str("?order=popular&limit=50"),
-            "Tendance" => url.push_str("?order=update&limit=50"),
-            _ => url.push_str("?order=latest&limit=50"),
+            "Populaire" => url.push_str("?order=popular"),
+            "Tendance" => url.push_str("?order=update"),
+            _ => url.push_str("?order=latest"),
         }
 
         // Add page parameter
@@ -222,80 +200,6 @@ impl LelManga {
     }
 
 
-    fn get_manga_from_multiple_pages(&self, base_url: &str, start_page: i32) -> Result<MangaPageResult> {
-        let mut all_entries: Vec<Manga> = Vec::new();
-        let mut has_next = false;
-        
-        // Combiner 3 pages pour avoir plus de résultats
-        for page_offset in 0..3 {
-            let current_page = start_page + page_offset;
-            
-            // Construire l'URL selon le type (genre vs normal)
-            let page_url = if base_url.contains("/genres/") {
-                // Genre URLs use /page/X structure: /genres/action/page/2
-                if current_page == 1 {
-                    base_url.to_string()
-                } else {
-                    // Remove existing page parameter if any, then add /page/X
-                    if base_url.contains("?limit=") {
-                        // Keep limit parameter: /genres/action?limit=50 → /genres/action/page/2?limit=50
-                        let parts: Vec<&str> = base_url.split('?').collect();
-                        let base_part = parts[0];
-                        let query_part = if parts.len() > 1 { format!("?{}", parts[1]) } else { String::new() };
-                        format!("{}/page/{}{}", base_part, current_page, query_part)
-                    } else {
-                        format!("{}/page/{}", base_url, current_page)
-                    }
-                }
-            } else {
-                // Normal URLs use ?page=X parameter structure
-                if base_url.contains('?') {
-                    if base_url.contains("&page=") || base_url.contains("page=") {
-                        // Remplacer la page existante  
-                        base_url.replace(&format!("page={}", start_page), &format!("page={}", current_page))
-                    } else {
-                        // Ajouter la page
-                        format!("{}&page={}", base_url, current_page)
-                    }
-                } else {
-                    format!("{}?page={}", base_url, current_page)
-                }
-            };
-            
-            println!("DEBUG: Fetching page {} from: {}", current_page, page_url);
-            
-            match self.get_manga_from_page(&page_url) {
-                Ok(page_result) => {
-                    println!("DEBUG: Page {} returned {} manga", current_page, page_result.entries.len());
-                    
-                    // Si la page est vide, arrêter
-                    if page_result.entries.is_empty() {
-                        break;
-                    }
-                    
-                    // Éviter les doublons (même key)
-                    for manga in page_result.entries {
-                        if !all_entries.iter().any(|existing| existing.key == manga.key) {
-                            all_entries.push(manga);
-                        }
-                    }
-                    
-                    has_next = page_result.has_next_page;
-                },
-                Err(e) => {
-                    println!("DEBUG: Error fetching page {}: {:?}", current_page, e);
-                    break;
-                }
-            }
-        }
-        
-        println!("DEBUG: Combined {} manga from multiple pages", all_entries.len());
-        
-        Ok(MangaPageResult {
-            entries: all_entries,
-            has_next_page: has_next,
-        })
-    }
 
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
@@ -330,14 +234,7 @@ impl LelManga {
         }
         
         if !found_items {
-            println!("DEBUG: No manga items found with any selector. Page might be empty or have different structure.");
-            // Try to see what's actually on the page
-            if let Some(body) = html.select("body") {
-                if let Some(first_body) = body.first() {
-                    let body_text = first_body.text().unwrap_or_default();
-                    println!("DEBUG: Page body contains text: {}", &body_text[..body_text.len().min(200)]);
-                }
-            }
+            // No items found - page might be empty or have different structure
         }
 
         if found_items {
