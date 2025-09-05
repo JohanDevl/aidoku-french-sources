@@ -3,7 +3,14 @@
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["Tous", "En cours", "Terminé"]
+    "options": ["Tout", "En cours", "Terminé"]
+  },
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": ["Tout", "Manga", "Manhwa", "Manhua", "Comic", "Novel"],
+    "ids": ["", "manga", "manhwa", "manhua", "comic", "novel"]
   },
   {
     "type": "select",
@@ -11,6 +18,7 @@
     "title": "Genre",
     "isGenre": true,
     "options": [
+      "Tous",
       "Action",
       "Aliens",
       "Amitié",
@@ -96,6 +104,7 @@
       "Yuri"
     ],
     "ids": [
+      "",
       "11",
       "150",
       "24",

@@ -30,33 +30,39 @@ impl Source for LelManga {
 
         let mut selected_genres: Vec<String> = Vec::new();
         let mut selected_status = String::new();
+        let mut selected_type = String::new();
         
         // Process filters
         for filter in &filters {
             match filter {
                 FilterValue::Select { id, value } => {
-                    if id == "genre" && !value.is_empty() && value != "Tous" {
+                    if id == "genre" && !value.is_empty() && value != "Tout" {
                         selected_genres.push(value.clone());
-                    } else if id == "status" && !value.is_empty() && value != "Tous" {
+                    } else if id == "status" && !value.is_empty() && value != "Tout" {
                         // Map French status values to English for server
                         selected_status = match value.as_str() {
                             "En cours" => "ongoing".to_string(),
                             "Terminé" => "completed".to_string(),
                             _ => value.clone(),
                         };
+                    } else if id == "type" && !value.is_empty() && value != "Tout" {
+                        // Map type filter values to server values
+                        selected_type = value.to_lowercase();
                     }
                 }
                 FilterValue::Text { id, value } => {
-                    if id == "genre" && !value.is_empty() && value != "Tous" {
+                    if id == "genre" && !value.is_empty() && value != "Tout" {
                         selected_genres.push(value.clone());
-                    } else if id == "status" && !value.is_empty() && value != "Tous" {
+                    } else if id == "status" && !value.is_empty() && value != "Tout" {
                         selected_status = value.clone();
+                    } else if id == "type" && !value.is_empty() && value != "Tout" {
+                        selected_type = value.to_lowercase();
                     }
                 }
                 FilterValue::MultiSelect { id, included, excluded: _ } => {
                     if id == "genre" {
                         for value in included {
-                            if !value.is_empty() && value != "Tous" {
+                            if !value.is_empty() && value != "Tout" {
                                 selected_genres.push(value.clone());
                             }
                         }
@@ -85,8 +91,11 @@ impl Source for LelManga {
         let status_value = if selected_status.is_empty() { "" } else { &selected_status };
         url_params.push(format!("status={}", Self::urlencode(status_value)));
         
-        // Always add required type and order parameters (empty for proper pagination)
-        url_params.push("type=".to_string());
+        // Always add type parameter (empty if not set)
+        let type_value = if selected_type.is_empty() { "" } else { &selected_type };
+        url_params.push(format!("type={}", Self::urlencode(type_value)));
+        
+        // Always add order parameter (empty for proper pagination)
         url_params.push("order=".to_string());
         
         let url = if let Some(ref search_query) = query {
