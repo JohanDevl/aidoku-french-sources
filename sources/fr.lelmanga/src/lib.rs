@@ -38,52 +38,31 @@ impl Source for LelManga {
                     // DEBUG: Log filter values
                     println!("DEBUG: Filter id='{}', value='{}'", id, value);
                     
-                    if id == "genre" {
-                        // Accept value including "0" (first element)
-                        if !value.is_empty() && value != "-1" {
-                            if let Ok(selected_index) = value.parse::<i32>() {
-                                let genre_options = Self::get_genre_options();
-                                println!("DEBUG: Genre index={}, total_genres={}", selected_index, genre_options.len());
-                                
-                                if selected_index >= 0 && (selected_index as usize) < genre_options.len() {
-                                    selected_genre = genre_options[selected_index as usize].to_string();
-                                    println!("DEBUG: Selected genre='{}'", selected_genre);
-                                }
-                            } else {
-                                println!("DEBUG: Failed to parse genre index: '{}'", value);
-                            }
-                        }
-                    } else if id == "status" {
-                        if !value.is_empty() && value != "-1" {
-                            if let Ok(selected_index) = value.parse::<i32>() {
-                                let status_values = ["ongoing", "hiatus", "cancelled", "completed"];
-                                println!("DEBUG: Status index={}, total_status={}", selected_index, status_values.len());
-                                
-                                if selected_index >= 0 && (selected_index as usize) < status_values.len() {
-                                    selected_status = status_values[selected_index as usize].to_string();
-                                    println!("DEBUG: Selected status='{}'", selected_status);
-                                }
-                            } else {
-                                println!("DEBUG: Failed to parse status index: '{}'", value);
-                            }
-                        }
+                    if id == "genre" && !value.is_empty() {
+                        // Aidoku passes values directly, not indexes
+                        selected_genre = value.clone();
+                        println!("DEBUG: Selected genre='{}'", selected_genre);
+                    } else if id == "status" && !value.is_empty() {
+                        // Map French status values to English
+                        selected_status = match value.as_str() {
+                            "En cours" => "ongoing".to_string(),
+                            "En pause" => "hiatus".to_string(), 
+                            "Annulé" => "cancelled".to_string(),
+                            "Terminé" => "completed".to_string(),
+                            _ => value.clone(), // fallback to original value
+                        };
+                        println!("DEBUG: Selected status='{}' (mapped from '{}')", selected_status, value);
                     }
                 }
                 FilterValue::Text { id, value } => {
                     println!("DEBUG: Text filter id='{}', value='{}'", id, value);
                     
                     if id == "genre" && !value.is_empty() {
-                        let genre_options = Self::get_genre_options();
-                        if genre_options.contains(&value.as_str()) {
-                            selected_genre = value.clone();
-                            println!("DEBUG: Text genre selected: '{}'", selected_genre);
-                        }
+                        selected_genre = value.clone();
+                        println!("DEBUG: Text genre selected: '{}'", selected_genre);
                     } else if id == "status" && !value.is_empty() {
-                        let valid_statuses = ["ongoing", "hiatus", "cancelled", "completed"];
-                        if valid_statuses.contains(&value.as_str()) {
-                            selected_status = value.clone();
-                            println!("DEBUG: Text status selected: '{}'", selected_status);
-                        }
+                        selected_status = value.clone();
+                        println!("DEBUG: Text status selected: '{}'", selected_status);
                     }
                 }
                 _ => {
@@ -242,14 +221,6 @@ impl LelManga {
         result
     }
 
-    fn get_genre_options() -> Vec<&'static str> {
-        vec![
-            "Action", "Aventure", "Combat", "Comédie", "Drama", "Drame", "Ecchi", "Fantasy",
-            "Harem", "Historique", "Horreur", "Isekai", "Josei", "Magie", "Manga", "Manhua",
-            "Manhwa", "Mature", "Mystère", "Psychologique", "Romance", "Sci-fi", "Seinen", 
-            "Shojo", "Shonen", "Slice of Life", "Sport", "Supernaturel", "Tragédie", "Yuri"
-        ]
-    }
 
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
