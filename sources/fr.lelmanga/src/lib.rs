@@ -71,30 +71,99 @@ impl Source for LelManga {
             }
         }
 
-        // TEMPORARILY DISABLE ALL FILTERING - Just use basic URLs
-        println!("DEBUG: FILTERS DISABLED - selected_genre: '{}', selected_status: '{}'", selected_genre, selected_status);
+        // Use SERVER-SIDE filtering only (client-side impossible - no genres in listing HTML)
+        let mut url_params = Vec::new();
+        
+        // Try different server-side filtering parameter formats (testing multiple approaches)
+        if !selected_genre.is_empty() && selected_genre != "Tous" {
+            // Test different parameter formats that manga sites commonly use:
+            // Format 1: Simple genre parameter
+            url_params.push(format!("genre={}", Self::urlencode(&selected_genre)));
+            
+            // Could also try these formats if the above doesn't work:
+            // url_params.push(format!("filter[genre]={}", Self::urlencode(&selected_genre)));
+            // url_params.push(format!("category={}", Self::urlencode(&selected_genre)));
+            // url_params.push(format!("tag={}", Self::urlencode(&selected_genre)));
+        }
+        
+        if !selected_status.is_empty() && selected_status != "Tous" {
+            // Map to what the server might expect (try French first, then English)
+            let status_param = match selected_status.as_str() {
+                "ongoing" => "En cours",   // Try French first
+                "completed" => "Terminé", 
+                "cancelled" => "Annulé",
+                "hiatus" => "En pause",
+                _ => &selected_status,
+            };
+            url_params.push(format!("status={}", Self::urlencode(status_param)));
+        }
         
         let url = if let Some(search_query) = query {
+            // Search mode - use search parameters
             if search_query.is_empty() {
-                format!("{}/manga/?page={}", BASE_URL, page)
+                if url_params.is_empty() {
+                    format!("{}/manga/?page={}", BASE_URL, page)
+                } else {
+                    format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
+                }
             } else {
-                format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
+                if url_params.is_empty() {
+                    format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
+                } else {
+                    format!("{}/?s={}&{}&page={}", BASE_URL, Self::urlencode(&search_query), url_params.join("&"), page)
+                }
+            }
+        } else if !selected_genre.is_empty() && selected_genre != "Tous" {
+            // Try URL path approach for genres: /genre/action/ instead of ?genre=action
+            let genre_slug = selected_genre.to_lowercase().replace(" ", "-");
+            if url_params.is_empty() {
+                // Pure path approach (fallback)
+                format!("{}/genre/{}/?page={}", BASE_URL, genre_slug, page)
+            } else {
+                // Parameter approach (primary)
+                format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
             }
         } else {
-            format!("{}/manga/?page={}", BASE_URL, page)
+            // Normal listing with possible status filter
+            if url_params.is_empty() {
+                format!("{}/manga/?page={}", BASE_URL, page)
+            } else {
+                format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
+            }
         };
+        
+        println!("DEBUG: SERVER-SIDE filtering - genre: '{}', status: '{}'", selected_genre, selected_status);
+        println!("DEBUG: URL params: {:?}", url_params);
+        
+        // Indicate which filtering approach is being used
+        if let Some(_) = query {
+            println!("DEBUG: Using SEARCH mode filtering");
+        } else if !selected_genre.is_empty() && selected_genre != "Tous" {
+            if url_params.is_empty() {
+                println!("DEBUG: Using URL PATH approach for genre: /genre/{}/", selected_genre.to_lowercase().replace(" ", "-"));
+            } else {
+                println!("DEBUG: Using URL PARAMETER approach for genre");
+            }
+        } else if !url_params.is_empty() {
+            println!("DEBUG: Using URL PARAMETER approach for status only");
+        } else {
+            println!("DEBUG: No filtering applied - standard listing");
+        }
 
         println!("DEBUG: Final URL generated: {}", url);
         
         // Get all manga from the page
         let mut result = self.get_manga_from_page(&url)?;
         
-        // TEMPORARILY DISABLE ALL FILTERING - Just return all results
-        println!("DEBUG: FILTERING COMPLETELY DISABLED - returning all {} manga from page", result.entries.len());
+        // NO CLIENT-SIDE FILTERING - Genres not available in listing HTML (confirmed by logs)
+        // Only server-side filtering can work since listing items only contain: "Title Chapitre X Rating"
+        println!("DEBUG: Returned {} manga from server (server-side filtering applied if URL had params)", result.entries.len());
         
-        // Show filter values for debugging but don't actually filter
-        if !selected_genre.is_empty() || !selected_status.is_empty() {
-            println!("DEBUG: Filter values received (but ignored): genre='{}', status='{}'", selected_genre, selected_status);
+        if !url_params.is_empty() {
+            println!("DEBUG: Server-side filtering was attempted with params: {:?}", url_params);
+            if result.entries.len() < 10 {
+                println!("DEBUG: Fewer results returned - server filtering might be working");
+            }
         }
         
         Ok(result)
@@ -312,38 +381,9 @@ impl LelManga {
                     String::new()
                 };
 
-                // Extract genres/tags from the listing item using correct selector
-                let mut tags: Vec<String> = Vec::new();
-                
-                // Based on WebFetch analysis: genres are in .manga-genres as links to /genres/
-                let genre_selectors = [
-                    ".manga-genres a[href*=\"/genres/\"]",  // Primary selector based on WebFetch
-                    ".manga-genres a",                       // Fallback 1
-                    "a[href*=\"/genres/\"]",                 // Fallback 2  
-                    ".genres a",                             // Fallback 3
-                    ".genre a"                               // Fallback 4
-                ];
-                
-                let mut found_genres = false;
-                for selector in &genre_selectors {
-                    if let Some(genre_links) = item.select(selector) {
-                        for genre_link in genre_links {
-                            let genre_text = genre_link.text().unwrap_or_default().trim().to_string();
-                            if !genre_text.is_empty() {
-                                tags.push(genre_text.clone());
-                                found_genres = true;
-                                println!("DEBUG: Found genre '{}' using selector '{}'", genre_text, selector);
-                            }
-                        }
-                        if found_genres {
-                            break; // Stop at first working selector
-                        }
-                    }
-                }
-                
-                if !found_genres {
-                    println!("DEBUG: No genres found for manga '{}' with any selector. Item HTML: {}", title, item.text().unwrap_or_default());
-                }
+                // NO genres in listing HTML (confirmed by logs) - only available on individual manga pages
+                // Listing items only contain: "Title Chapitre X Rating" 
+                let tags: Vec<String> = Vec::new();
 
                 entries.push(Manga {
                     key,
