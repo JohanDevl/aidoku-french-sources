@@ -120,21 +120,15 @@ impl Source for LelManga {
             }
         };
         
-        // Debug info with pagination strategy
+        // Debug info with corrected URL structure
         if !selected_genre.is_empty() && selected_genre != "Tous" {
-            println!("DEBUG: Genre filter '{}' → single page (genre pages return identical content)", selected_genre);
+            println!("DEBUG: Genre filter '{}' → using /page/X URL structure", selected_genre);
         } else {
-            println!("DEBUG: Using multi-page strategy for better results");
+            println!("DEBUG: Using multi-page strategy with ?page=X parameters");
         }
         
-        // Use multi-page only for non-genre listings (genres return identical pages)
-        let result = if !selected_genre.is_empty() && selected_genre != "Tous" {
-            // Genre pages return identical content - single page only
-            self.get_manga_from_page(&url)?
-        } else {
-            // Normal listing and search - combine multiple pages
-            self.get_manga_from_multiple_pages(&url, page)?
-        };
+        // Use multi-page for all cases now that URL structure is fixed
+        let result = self.get_manga_from_multiple_pages(&url, page)?;
         
         Ok(result)
     }
@@ -236,17 +230,36 @@ impl LelManga {
         for page_offset in 0..3 {
             let current_page = start_page + page_offset;
             
-            // Construire l'URL pour chaque page
-            let page_url = if base_url.contains('?') {
-                if base_url.contains("&page=") || base_url.contains("page=") {
-                    // Remplacer la page existante  
-                    base_url.replace(&format!("page={}", start_page), &format!("page={}", current_page))
+            // Construire l'URL selon le type (genre vs normal)
+            let page_url = if base_url.contains("/genres/") {
+                // Genre URLs use /page/X structure: /genres/action/page/2
+                if current_page == 1 {
+                    base_url.to_string()
                 } else {
-                    // Ajouter la page
-                    format!("{}&page={}", base_url, current_page)
+                    // Remove existing page parameter if any, then add /page/X
+                    if base_url.contains("?limit=") {
+                        // Keep limit parameter: /genres/action?limit=50 → /genres/action/page/2?limit=50
+                        let parts: Vec<&str> = base_url.split('?').collect();
+                        let base_part = parts[0];
+                        let query_part = if parts.len() > 1 { format!("?{}", parts[1]) } else { String::new() };
+                        format!("{}/page/{}{}", base_part, current_page, query_part)
+                    } else {
+                        format!("{}/page/{}", base_url, current_page)
+                    }
                 }
             } else {
-                format!("{}?page={}", base_url, current_page)
+                // Normal URLs use ?page=X parameter structure
+                if base_url.contains('?') {
+                    if base_url.contains("&page=") || base_url.contains("page=") {
+                        // Remplacer la page existante  
+                        base_url.replace(&format!("page={}", start_page), &format!("page={}", current_page))
+                    } else {
+                        // Ajouter la page
+                        format!("{}&page={}", base_url, current_page)
+                    }
+                } else {
+                    format!("{}?page={}", base_url, current_page)
+                }
             };
             
             println!("DEBUG: Fetching page {} from: {}", current_page, page_url);
