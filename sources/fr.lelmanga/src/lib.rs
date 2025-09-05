@@ -35,7 +35,7 @@ impl Source for LelManga {
         for filter in &filters {
             match filter {
                 FilterValue::Select { id, value } => {
-                    if id == "genre" && !value.is_empty() {
+                    if id == "genre" && !value.is_empty() && value != "Tous" {
                         selected_genres.push(value.clone());
                     } else if id == "status" && !value.is_empty() && value != "Tous" {
                         // Map French status values to English for server
@@ -47,7 +47,7 @@ impl Source for LelManga {
                     }
                 }
                 FilterValue::Text { id, value } => {
-                    if id == "genre" && !value.is_empty() {
+                    if id == "genre" && !value.is_empty() && value != "Tous" {
                         selected_genres.push(value.clone());
                     } else if id == "status" && !value.is_empty() && value != "Tous" {
                         selected_status = value.clone();
@@ -56,7 +56,7 @@ impl Source for LelManga {
                 FilterValue::MultiSelect { id, included, excluded: _ } => {
                     if id == "genre" {
                         for value in included {
-                            if !value.is_empty() {
+                            if !value.is_empty() && value != "Tous" {
                                 selected_genres.push(value.clone());
                             }
                         }
@@ -74,28 +74,25 @@ impl Source for LelManga {
             url_params.push(format!("page={}", page));
         }
         
-        // Add genre parameters - new format: genre[]=ID
+        // Add genre parameters - new format: genre[]=ID (URL encoded)
         for genre_id in &selected_genres {
-            url_params.push(format!("genre[]={}", genre_id));
+            if !genre_id.is_empty() && genre_id != "Tous" {
+                url_params.push(format!("genre%5B%5D={}", genre_id));
+            }
         }
         
-        // Add status parameter
-        if !selected_status.is_empty() {
-            url_params.push(format!("status={}", Self::urlencode(&selected_status)));
-        }
+        // Always add status parameter (empty if not set)
+        let status_value = if selected_status.is_empty() { "" } else { &selected_status };
+        url_params.push(format!("status={}", Self::urlencode(status_value)));
         
-        // Add required type and order parameters for proper pagination
+        // Always add required type and order parameters (empty for proper pagination)
         url_params.push("type=".to_string());
         url_params.push("order=".to_string());
         
         let url = if let Some(ref search_query) = query {
             // Search mode
             if search_query.is_empty() {
-                if url_params.is_empty() {
-                    format!("{}/manga/", BASE_URL)
-                } else {
-                    format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
-                }
+                format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
             } else {
                 let mut search_params = vec![format!("s={}", Self::urlencode(&search_query))];
                 search_params.extend(url_params);
