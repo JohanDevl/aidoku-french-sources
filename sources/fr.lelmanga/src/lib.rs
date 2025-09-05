@@ -120,13 +120,21 @@ impl Source for LelManga {
             }
         };
         
-        // Simplified debug info
+        // Debug info with pagination strategy
         if !selected_genre.is_empty() && selected_genre != "Tous" {
-            println!("DEBUG: Genre filter '{}' → /genres/{}", selected_genre, selected_genre.to_lowercase().replace(" ", "-"));
+            println!("DEBUG: Genre filter '{}' → single page (genre pages return identical content)", selected_genre);
+        } else {
+            println!("DEBUG: Using multi-page strategy for better results");
         }
         
-        // Get manga from multiple pages to increase results (combiner 2-3 pages)
-        let result = self.get_manga_from_multiple_pages(&url, page)?;
+        // Use multi-page only for non-genre listings (genres return identical pages)
+        let result = if !selected_genre.is_empty() && selected_genre != "Tous" {
+            // Genre pages return identical content - single page only
+            self.get_manga_from_page(&url)?
+        } else {
+            // Normal listing and search - combine multiple pages
+            self.get_manga_from_multiple_pages(&url, page)?
+        };
         
         Ok(result)
     }
