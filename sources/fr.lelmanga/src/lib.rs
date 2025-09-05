@@ -59,11 +59,18 @@ impl Source for LelManga {
                         selected_type = value.to_lowercase();
                     }
                 }
-                FilterValue::MultiSelect { id, included, excluded: _ } => {
+                FilterValue::MultiSelect { id, included, excluded } => {
                     if id == "genre" {
+                        // Add included genres (positive IDs)
                         for value in included {
                             if !value.is_empty() && value != "Tout" {
                                 selected_genres.push(value.clone());
+                            }
+                        }
+                        // Add excluded genres with "-" prefix (negative IDs)
+                        for value in excluded {
+                            if !value.is_empty() && value != "Tout" {
+                                selected_genres.push(format!("-{}", value));
                             }
                         }
                     }
