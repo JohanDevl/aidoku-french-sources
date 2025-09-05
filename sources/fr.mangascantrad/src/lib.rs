@@ -25,12 +25,42 @@ impl Source for MangaScantrad {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
+        // Process filters to build search parameters
+        let mut status_filters = Vec::new();
+        let mut genre_filters = Vec::new();
+        let mut genre_op = String::from(""); // Default to OR
         
-        if let Some(search_query) = query {
-            // Use AJAX for search
-            self.ajax_search(&search_query, page)
+        for filter in &filters {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "status" && !value.is_empty() && value != "Tout" {
+                        // Map French status names to Madara status codes
+                        match value.as_str() {
+                            "En cours" => status_filters.push("ongoing"),
+                            "Terminé" => status_filters.push("end"),
+                            "Annulé" => status_filters.push("canceled"), 
+                            "En pause" => status_filters.push("on-hold"),
+                            _ => {}
+                        }
+                    } else if id == "op" {
+                        // Set genre condition (AND/OR)
+                        genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
+                    } else if id == "genres" && !value.is_empty() && value != "Tout" {
+                        // Map genre display name to slug using filters.json mapping
+                        if let Some(genre_slug) = self.get_genre_slug(value) {
+                            genre_filters.push(genre_slug);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Use filtered search if filters are applied or query is present
+        if query.is_some() || !status_filters.is_empty() || !genre_filters.is_empty() {
+            self.ajax_filtered_search(query, page, status_filters, genre_filters, &genre_op)
         } else {
             // Use AJAX for manga list
             self.ajax_manga_list(page)
@@ -155,18 +185,121 @@ impl MangaScantrad {
         self.parse_ajax_response(html_doc)
     }
     
-    fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        
+    fn get_genre_slug(&self, genre_name: &str) -> Option<String> {
+        // Map genre display names to their slugs based on filters.json
+        match genre_name {
+            "4-koma" => Some("4-koma".to_string()),
+            "Action" => Some("action".to_string()),
+            "Adulte" => Some("adulte".to_string()),
+            "Amitié" => Some("amitie".to_string()),
+            "Amour" => Some("amour".to_string()),
+            "Animation" => Some("animation".to_string()),
+            "Arts Martiaux" => Some("arts-martiaux".to_string()),
+            "Aventure" => Some("aventure".to_string()),
+            "Boxe" => Some("boxe".to_string()),
+            "Combat" => Some("combat".to_string()),
+            "Comédie" => Some("comedie".to_string()),
+            "comedy" => Some("comedy".to_string()),
+            "crime" => Some("crime".to_string()),
+            "cybernétique" => Some("cybernetique".to_string()),
+            "démons" => Some("demons".to_string()),
+            "Doujinshi" => Some("doujinshi".to_string()),
+            "Drame" => Some("drame".to_string()),
+            "E-sport" => Some("e-sport".to_string()),
+            "Ecchi" => Some("ecchi".to_string()),
+            "Espionnage" => Some("espionnage".to_string()),
+            "Famille" => Some("famille".to_string()),
+            "Fantaisie" => Some("fantaisie".to_string()),
+            "Fantastique" => Some("fantastique".to_string()),
+            "Gender Bender" => Some("gender-bender".to_string()),
+            "Guerre" => Some("guerre".to_string()),
+            "Harcèlement" => Some("harcelement".to_string()),
+            "Harem" => Some("harem".to_string()),
+            "Hentai" => Some("hentai".to_string()),
+            "Historique" => Some("historique".to_string()),
+            "Horreur" => Some("horreur".to_string()),
+            "isekaï" => Some("isekai".to_string()),
+            "Jeux vidéo" => Some("jeux-video".to_string()),
+            "Josei" => Some("josei".to_string()),
+            "Magical Girls" => Some("magical-girls".to_string()),
+            "magie" => Some("magie".to_string()),
+            "Mature" => Some("mature".to_string()),
+            "Mecha" => Some("mecha".to_string()),
+            "Monstres" => Some("monstres".to_string()),
+            "Mystère" => Some("mystere".to_string()),
+            "One Shot" => Some("one-shot".to_string()),
+            "Organisation secrète" => Some("organisation-secrete".to_string()),
+            "Parodie" => Some("parodie".to_string()),
+            "Policier" => Some("policier".to_string()),
+            "Psychologique" => Some("psychologique".to_string()),
+            "Realité Virtuel" => Some("realite-virtuel".to_string()),
+            "Réincarnation" => Some("reincarnation".to_string()),
+            "Returner" => Some("returner".to_string()),
+            "Romance" => Some("romance".to_string()),
+            "Science-fiction" => Some("science-fiction".to_string()),
+            "Seinen" => Some("seinen".to_string()),
+            "Shôjo" => Some("shojo".to_string()),
+            "Shôjo Ai" => Some("shojo-ai".to_string()),
+            "Shonen" => Some("shonen".to_string()),
+            "Shônen Ai" => Some("shonen-ai".to_string()),
+            "Smut" => Some("smut".to_string()),
+            "Sport" => Some("sport".to_string()),
+            "Sports" => Some("sports".to_string()),
+            "Steampunk" => Some("steampunk".to_string()),
+            "Super héros" => Some("super-heros".to_string()),
+            "Surnaturel" => Some("surnaturel".to_string()),
+            "Technologie" => Some("technologie".to_string()),
+            "Tournoi" => Some("tournoi".to_string()),
+            "Tragédie" => Some("tragedie".to_string()),
+            "Tranches de vie" => Some("tranches-de-vie".to_string()),
+            "vampires" => Some("vampires".to_string()),
+            "Vengeance" => Some("vengeance".to_string()),
+            "Vie scolaire" => Some("vie-scolaire".to_string()),
+            "Virtuel world" => Some("virtuel-world".to_string()),
+            "Voyage Temporel" => Some("voyage-temporel".to_string()),
+            "Webtoons" => Some("webtoons".to_string()),
+            "Yaoi" => Some("yaoi".to_string()),
+            "Yuri" => Some("yuri".to_string()),
+            _ => None
+        }
+    }
+    
+    fn ajax_filtered_search(
+        &self, 
+        query: Option<String>, 
+        page: i32, 
+        status_filters: Vec<&str>, 
+        genre_filters: Vec<String>,
+        genre_op: &str
+    ) -> Result<MangaPageResult> {
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
-        // Madara AJAX search payload with more results per page
-        let body = format!(
-            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bs%5D={}&vars%5Borderby%5D=&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+        // Base Madara AJAX payload
+        let mut body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
             page - 1,
-            query,
             page
         );
         
+        // Add search query if present
+        if let Some(search_query) = query {
+            body.push_str(&format!("&vars%5Bs%5D={}", search_query));
+        }
+        
+        // Add status filters
+        for status in &status_filters {
+            body.push_str(&format!("&status%5B%5D={}", status));
+        }
+        
+        // Add genre filters  
+        for genre in &genre_filters {
+            body.push_str(&format!("&genre%5B%5D={}", genre));
+        }
+        
+        // Add genre condition (AND/OR)
+        if !genre_op.is_empty() {
+            body.push_str(&format!("&op={}", genre_op));
+        }
         
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
@@ -177,9 +310,13 @@ impl MangaScantrad {
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
             .html()?;
-        
-        
+            
         self.parse_ajax_response(html_doc)
+    }
+    
+    fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
+        // Use the new filtered search method with empty filters
+        self.ajax_filtered_search(Some(query.to_string()), page, Vec::new(), Vec::new(), "")
     }
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {

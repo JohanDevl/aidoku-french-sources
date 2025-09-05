@@ -3,7 +3,7 @@
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["En cours", "En pause", "Annulé", "Terminé"]
+    "options": ["Tout", "En cours", "En pause", "Annulé", "Terminé"]
   },
   {
     "type": "select",
@@ -19,6 +19,7 @@
     "title": "Genres",
     "isGenre": true,
     "options": [
+      "Tout",
       "4-koma",
       "Action",
       "Adulte",
@@ -93,6 +94,7 @@
       "Yuri"
     ],
     "ids": [
+      "",
       "4-koma",
       "action",
       "adulte",
