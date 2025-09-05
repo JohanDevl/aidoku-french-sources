@@ -38,7 +38,7 @@ impl Source for MangaScantrad {
                     if id == "status" && !value.is_empty() && value != "Tout" {
                         // Map French status names to Madara status codes
                         match value.as_str() {
-                            "En cours" => status_filters.push("ongoing"),
+                            "En cours" => status_filters.push("on-going"),
                             "Terminé" => status_filters.push("end"),
                             "Annulé" => status_filters.push("canceled"), 
                             "En pause" => status_filters.push("on-hold"),
@@ -115,6 +115,15 @@ impl ImageRequestProvider for MangaScantrad {
 }
 
 impl MangaScantrad {
+    fn urlencode(input: &str) -> String {
+        input.chars().map(|c| {
+            match c {
+                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
+                ' ' => "%20".to_string(),
+                _ => format!("%{:02X}", c as u8)
+            }
+        }).collect()
+    }
     fn ajax_manga_list(&self, page: i32) -> Result<MangaPageResult> {
         
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
@@ -272,46 +281,47 @@ impl MangaScantrad {
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        
-        // Base Madara AJAX payload
-        let mut body = format!(
-            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
-            page - 1,
-            page
-        );
+        // Build search URL with parameters like the old Madara implementation
+        let mut url = format!("{}/page/{}/", BASE_URL, page);
+        let mut params = Vec::new();
         
         // Add search query if present
         if let Some(search_query) = query {
-            body.push_str(&format!("&vars%5Bs%5D={}", search_query));
+            params.push(format!("s={}", Self::urlencode(&search_query)));
         }
+        
+        // Add post_type parameter
+        params.push("post_type=wp-manga".to_string());
         
         // Add status filters
         for status in &status_filters {
-            body.push_str(&format!("&status%5B%5D={}", status));
+            params.push(format!("status[]={}", status));
         }
         
-        // Add genre filters  
+        // Add genre filters
         for genre in &genre_filters {
-            body.push_str(&format!("&genre%5B%5D={}", genre));
+            params.push(format!("genre[]={}", Self::urlencode(genre)));
         }
         
         // Add genre condition (AND/OR)
         if !genre_op.is_empty() {
-            body.push_str(&format!("&op={}", genre_op));
+            params.push(format!("op={}", genre_op));
         }
         
-        let html_doc = Request::post(&url)?
+        // Construct final URL
+        if !params.is_empty() {
+            url.push('?');
+            url.push_str(&params.join("&"));
+        }
+        
+        let html_doc = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
             .html()?;
             
-        self.parse_ajax_response(html_doc)
+        self.parse_manga_page(html_doc)
     }
     
     fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
@@ -693,6 +703,12 @@ impl MangaScantrad {
             entries,
             has_next_page,
         })
+    }
+    
+    fn parse_manga_page(&self, html: Document) -> Result<MangaPageResult> {
+        // For normal HTML pages, use the same parsing logic as AJAX but with broader selectors
+        // This handles search/filter results from GET requests
+        self.parse_ajax_response(html)
     }
     
     fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
