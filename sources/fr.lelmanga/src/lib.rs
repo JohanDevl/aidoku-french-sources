@@ -31,6 +31,7 @@ impl Source for LelManga {
         let mut selected_genres: Vec<String> = Vec::new();
         let mut selected_status = String::new();
         let mut selected_type = String::new();
+        let mut selected_order = String::new();
         
         // Process filters
         for filter in &filters {
@@ -48,6 +49,9 @@ impl Source for LelManga {
                     } else if id == "type" && !value.is_empty() && value != "Tout" {
                         // Map type filter values to server values
                         selected_type = value.to_lowercase();
+                    } else if id == "order" && !value.is_empty() && value != "Default" {
+                        // Map order filter values to server values
+                        selected_order = value.clone();
                     }
                 }
                 FilterValue::Text { id, value } => {
@@ -57,6 +61,8 @@ impl Source for LelManga {
                         selected_status = value.clone();
                     } else if id == "type" && !value.is_empty() && value != "Tout" {
                         selected_type = value.to_lowercase();
+                    } else if id == "order" && !value.is_empty() && value != "Default" {
+                        selected_order = value.clone();
                     }
                 }
                 FilterValue::MultiSelect { id, included, excluded } => {
@@ -102,8 +108,9 @@ impl Source for LelManga {
         let type_value = if selected_type.is_empty() { "" } else { &selected_type };
         url_params.push(format!("type={}", Self::urlencode(type_value)));
         
-        // Always add order parameter (empty for proper pagination)
-        url_params.push("order=".to_string());
+        // Always add order parameter (use selected value or empty)
+        let order_value = if selected_order.is_empty() { "" } else { &selected_order };
+        url_params.push(format!("order={}", Self::urlencode(order_value)));
         
         let url = if let Some(ref search_query) = query {
             // Search mode

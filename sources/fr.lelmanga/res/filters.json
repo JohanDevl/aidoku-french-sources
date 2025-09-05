@@ -1,6 +1,20 @@
 [
   {
     "type": "select",
+    "id": "order",
+    "title": "Tri",
+    "options": [
+      "Default",
+      "A-Z",
+      "Z-A",
+      "Mettre à jour",
+      "Ajouté(e)",
+      "Populaire"
+    ],
+    "ids": ["", "title", "titlereverse", "update", "latest", "popular"]
+  },
+  {
+    "type": "select",
     "id": "status",
     "title": "Status",
     "options": ["Tout", "En cours", "Terminé"]
