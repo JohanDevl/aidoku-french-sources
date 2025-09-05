@@ -41,8 +41,6 @@ impl Source for LelManga {
                         // Map French status values to English for server
                         selected_status = match value.as_str() {
                             "En cours" => "ongoing".to_string(),
-                            "En pause" => "hiatus".to_string(), 
-                            "Annulé" => "cancelled".to_string(),
                             "Terminé" => "completed".to_string(),
                             _ => value.clone(),
                         };

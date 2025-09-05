@@ -3,7 +3,7 @@
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["Tous", "En cours", "En pause", "Annulé", "Terminé"]
+    "options": ["Tous", "En cours", "Terminé"]
   },
   {
     "type": "select",
