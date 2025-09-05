@@ -74,17 +74,9 @@ impl Source for LelManga {
         // Use SERVER-SIDE filtering only (client-side impossible - no genres in listing HTML)
         let mut url_params = Vec::new();
         
-        // Try different server-side filtering parameter formats (testing multiple approaches)
-        if !selected_genre.is_empty() && selected_genre != "Tous" {
-            // Test different parameter formats that manga sites commonly use:
-            // Format 1: Simple genre parameter
-            url_params.push(format!("genre={}", Self::urlencode(&selected_genre)));
-            
-            // Could also try these formats if the above doesn't work:
-            // url_params.push(format!("filter[genre]={}", Self::urlencode(&selected_genre)));
-            // url_params.push(format!("category={}", Self::urlencode(&selected_genre)));
-            // url_params.push(format!("tag={}", Self::urlencode(&selected_genre)));
-        }
+        // GENRE filtering uses URL path approach (confirmed by WebFetch analysis)
+        // Parameter approach doesn't work (confirmed by logs showing identical results)
+        // Only add parameters for non-genre filters
         
         if !selected_status.is_empty() && selected_status != "Tous" {
             // Map to what the server might expect (try French first, then English)
@@ -114,15 +106,10 @@ impl Source for LelManga {
                 }
             }
         } else if !selected_genre.is_empty() && selected_genre != "Tous" {
-            // Try URL path approach for genres: /genre/action/ instead of ?genre=action
+            // Use ACTUAL URL structure found by WebFetch: /genres/action (not /genre/action/)
             let genre_slug = selected_genre.to_lowercase().replace(" ", "-");
-            if url_params.is_empty() {
-                // Pure path approach (fallback)
-                format!("{}/genre/{}/?page={}", BASE_URL, genre_slug, page)
-            } else {
-                // Parameter approach (primary)
-                format!("{}/manga/?{}&page={}", BASE_URL, url_params.join("&"), page)
-            }
+            // Always use URL path approach - parameters don't work (confirmed by logs)
+            format!("{}/genres/{}?page={}", BASE_URL, genre_slug, page)
         } else {
             // Normal listing with possible status filter
             if url_params.is_empty() {
@@ -139,11 +126,7 @@ impl Source for LelManga {
         if let Some(_) = query {
             println!("DEBUG: Using SEARCH mode filtering");
         } else if !selected_genre.is_empty() && selected_genre != "Tous" {
-            if url_params.is_empty() {
-                println!("DEBUG: Using URL PATH approach for genre: /genre/{}/", selected_genre.to_lowercase().replace(" ", "-"));
-            } else {
-                println!("DEBUG: Using URL PARAMETER approach for genre");
-            }
+            println!("DEBUG: Using URL PATH approach for genre: /genres/{}", selected_genre.to_lowercase().replace(" ", "-"));
         } else if !url_params.is_empty() {
             println!("DEBUG: Using URL PARAMETER approach for status only");
         } else {
