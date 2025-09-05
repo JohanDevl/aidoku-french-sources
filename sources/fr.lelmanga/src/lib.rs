@@ -42,11 +42,11 @@ impl Source for LelManga {
                         // Accept value including "0" (first element)
                         if !value.is_empty() && value != "-1" {
                             if let Ok(selected_index) = value.parse::<i32>() {
-                                let genre_ids = Self::get_genre_ids();
-                                println!("DEBUG: Genre index={}, total_genres={}", selected_index, genre_ids.len());
+                                let genre_options = Self::get_genre_options();
+                                println!("DEBUG: Genre index={}, total_genres={}", selected_index, genre_options.len());
                                 
-                                if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
-                                    selected_genre = genre_ids[selected_index as usize].to_string();
+                                if selected_index >= 0 && (selected_index as usize) < genre_options.len() {
+                                    selected_genre = genre_options[selected_index as usize].to_string();
                                     println!("DEBUG: Selected genre='{}'", selected_genre);
                                 }
                             } else {
@@ -73,8 +73,8 @@ impl Source for LelManga {
                     println!("DEBUG: Text filter id='{}', value='{}'", id, value);
                     
                     if id == "genre" && !value.is_empty() {
-                        let genre_ids = Self::get_genre_ids();
-                        if genre_ids.contains(&value.as_str()) {
+                        let genre_options = Self::get_genre_options();
+                        if genre_options.contains(&value.as_str()) {
                             selected_genre = value.clone();
                             println!("DEBUG: Text genre selected: '{}'", selected_genre);
                         }
@@ -92,57 +92,62 @@ impl Source for LelManga {
             }
         }
 
-        // Construct URL using LelManga's actual patterns
-        let url = if !selected_genre.is_empty() {
-            // Use /genres/{genre} route (verified working)
-            if let Some(search_query) = query {
-                if !search_query.is_empty() {
-                    if !selected_status.is_empty() {
-                        format!("{}/genres/{}/?s={}&status={}&page={}", BASE_URL, selected_genre, Self::urlencode(&search_query), selected_status, page)
-                    } else {
-                        format!("{}/genres/{}/?s={}&page={}", BASE_URL, selected_genre, Self::urlencode(&search_query), page)
-                    }
-                } else {
-                    if !selected_status.is_empty() {
-                        format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
-                    } else {
-                        format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
-                    }
-                }
+        // Use simple URL construction - no complex filtering by URL
+        let url = if let Some(search_query) = query {
+            if search_query.is_empty() {
+                format!("{}/manga/?page={}", BASE_URL, page)
             } else {
-                if !selected_status.is_empty() {
-                    format!("{}/genres/{}/?status={}&page={}", BASE_URL, selected_genre, selected_status, page)
-                } else {
-                    format!("{}/genres/{}/?page={}", BASE_URL, selected_genre, page)
-                }
+                format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
             }
         } else {
-            // No genre selected, use standard routes
-            if let Some(search_query) = query {
-                if !search_query.is_empty() {
-                    if !selected_status.is_empty() {
-                        format!("{}/?s={}&status={}&page={}", BASE_URL, Self::urlencode(&search_query), selected_status, page)
-                    } else {
-                        format!("{}/?s={}&page={}", BASE_URL, Self::urlencode(&search_query), page)
-                    }
-                } else {
-                    if !selected_status.is_empty() {
-                        format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
-                    } else {
-                        format!("{}/manga/?page={}", BASE_URL, page)
-                    }
-                }
-            } else {
-                if !selected_status.is_empty() {
-                    format!("{}/manga/?status={}&page={}", BASE_URL, selected_status, page)
-                } else {
-                    format!("{}/manga/?page={}", BASE_URL, page)
-                }
-            }
+            format!("{}/manga/?page={}", BASE_URL, page)
         };
 
         println!("DEBUG: Final URL generated: {}", url);
-        self.get_manga_from_page(&url)
+        
+        // Get all manga from the page
+        let mut result = self.get_manga_from_page(&url)?;
+        
+        // Apply client-side filtering
+        if !selected_genre.is_empty() || !selected_status.is_empty() {
+            println!("DEBUG: Applying client-side filters - genre: '{}', status: '{}'", selected_genre, selected_status);
+            
+            result.entries.retain(|manga| {
+                let genre_match = if selected_genre.is_empty() {
+                    true // No genre filter
+                } else if let Some(tags) = &manga.tags {
+                    // Check if any tag matches the selected genre (case insensitive)
+                    tags.iter().any(|tag| tag.to_lowercase() == selected_genre.to_lowercase())
+                } else {
+                    false // No tags available, can't match
+                };
+                
+                let status_match = if selected_status.is_empty() {
+                    true // No status filter
+                } else {
+                    // Match status (convert status enum to string for comparison)
+                    let manga_status_str = match manga.status {
+                        MangaStatus::Ongoing => "ongoing",
+                        MangaStatus::Completed => "completed", 
+                        MangaStatus::Cancelled => "cancelled",
+                        MangaStatus::Hiatus => "hiatus",
+                        _ => "unknown",
+                    };
+                    manga_status_str == selected_status
+                };
+                
+                let matches = genre_match && status_match;
+                if matches {
+                    println!("DEBUG: Manga '{}' matches filters", manga.title);
+                }
+                
+                matches
+            });
+            
+            println!("DEBUG: Applied filters, kept {} manga", result.entries.len());
+        }
+        
+        Ok(result)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
@@ -237,12 +242,12 @@ impl LelManga {
         result
     }
 
-    fn get_genre_ids() -> Vec<&'static str> {
+    fn get_genre_options() -> Vec<&'static str> {
         vec![
-            "action", "aventure", "combat", "comedie", "drama", "drame", "ecchi", "fantasy",
-            "harem", "historique", "horreur", "isekai", "josei", "magie", "manga", "manhua",
-            "manhwa", "mature", "mystere", "psychologique", "romance", "sci-fi", "seinen", 
-            "shojo", "shonen", "slice-of-life", "sport", "supernaturel", "tragedie", "yuri"
+            "Action", "Aventure", "Combat", "Comédie", "Drama", "Drame", "Ecchi", "Fantasy",
+            "Harem", "Historique", "Horreur", "Isekai", "Josei", "Magie", "Manga", "Manhua",
+            "Manhwa", "Mature", "Mystère", "Psychologique", "Romance", "Sci-fi", "Seinen", 
+            "Shojo", "Shonen", "Slice of Life", "Sport", "Supernaturel", "Tragédie", "Yuri"
         ]
     }
 
@@ -334,6 +339,16 @@ impl LelManga {
                     String::new()
                 };
 
+                // Extract genres/tags from the listing item
+                let mut tags: Vec<String> = Vec::new();
+                if let Some(genre_links) = item.select("a[href*=\"/genres/\"]") {
+                    for genre_link in genre_links {
+                        let genre_text = genre_link.text().unwrap_or_default().trim().to_string();
+                        if !genre_text.is_empty() {
+                            tags.push(genre_text);
+                        }
+                    }
+                }
 
                 entries.push(Manga {
                     key,
@@ -343,7 +358,7 @@ impl LelManga {
                     artists: None,
                     description: None,
                     url: Some(href),
-                    tags: None,
+                    tags: if tags.is_empty() { None } else { Some(tags) },
                     status: MangaStatus::Unknown,
                     content_rating: ContentRating::Safe,
                     viewer: Viewer::RightToLeft,
