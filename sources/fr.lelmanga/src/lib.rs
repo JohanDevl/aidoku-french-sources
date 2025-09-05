@@ -87,22 +87,33 @@ impl Source for LelManga {
         // Get all manga from the page
         let mut result = self.get_manga_from_page(&url)?;
         
-        // Apply client-side filtering
+        // Apply client-side filtering - more permissive approach
         if !selected_genre.is_empty() || !selected_status.is_empty() {
             println!("DEBUG: Applying client-side filters - genre: '{}', status: '{}'", selected_genre, selected_status);
             
+            let original_count = result.entries.len();
+            
             result.entries.retain(|manga| {
-                let genre_match = if selected_genre.is_empty() {
-                    true // No genre filter
+                let genre_match = if selected_genre.is_empty() || selected_genre == "Tous" {
+                    true // No genre filter or "All" selected
                 } else if let Some(tags) = &manga.tags {
-                    // Check if any tag matches the selected genre (case insensitive)
-                    tags.iter().any(|tag| tag.to_lowercase() == selected_genre.to_lowercase())
+                    if tags.is_empty() {
+                        println!("DEBUG: Manga '{}' has empty tags, keeping it", manga.title);
+                        true // If no tags extracted, keep the manga (permissive)
+                    } else {
+                        // Check if any tag matches the selected genre (case insensitive)
+                        let found = tags.iter().any(|tag| tag.to_lowercase() == selected_genre.to_lowercase());
+                        println!("DEBUG: Manga '{}' tags: {:?}, selected: '{}', match: {}", 
+                            manga.title, tags, selected_genre, found);
+                        found
+                    }
                 } else {
-                    false // No tags available, can't match
+                    println!("DEBUG: Manga '{}' has no tags, keeping it (permissive)", manga.title);
+                    true // No tags available, keep the manga (permissive)
                 };
                 
-                let status_match = if selected_status.is_empty() {
-                    true // No status filter
+                let status_match = if selected_status.is_empty() || selected_status == "Tous" {
+                    true // No status filter or "All" selected
                 } else {
                     // Match status (convert status enum to string for comparison)
                     let manga_status_str = match manga.status {
@@ -112,18 +123,19 @@ impl Source for LelManga {
                         MangaStatus::Hiatus => "hiatus",
                         _ => "unknown",
                     };
-                    manga_status_str == selected_status
+                    let matches = manga_status_str == selected_status;
+                    println!("DEBUG: Manga '{}' status: '{}', selected: '{}', match: {}", 
+                        manga.title, manga_status_str, selected_status, matches);
+                    matches
                 };
                 
                 let matches = genre_match && status_match;
-                if matches {
-                    println!("DEBUG: Manga '{}' matches filters", manga.title);
-                }
-                
                 matches
             });
             
-            println!("DEBUG: Applied filters, kept {} manga", result.entries.len());
+            println!("DEBUG: Applied filters, kept {} manga out of {}", result.entries.len(), original_count);
+        } else {
+            println!("DEBUG: No filters selected, keeping all {} manga", result.entries.len());
         }
         
         Ok(result)
@@ -312,13 +324,37 @@ impl LelManga {
 
                 // Extract genres/tags from the listing item
                 let mut tags: Vec<String> = Vec::new();
-                if let Some(genre_links) = item.select("a[href*=\"/genres/\"]") {
-                    for genre_link in genre_links {
-                        let genre_text = genre_link.text().unwrap_or_default().trim().to_string();
-                        if !genre_text.is_empty() {
-                            tags.push(genre_text);
+                
+                // DEBUG: Try multiple selectors for genres
+                let genre_selectors = [
+                    "a[href*=\"/genres/\"]",
+                    ".genre a",
+                    ".genres a", 
+                    ".tag a",
+                    ".tags a",
+                    "a[href*=\"genre\"]",
+                    ".genre-links a"
+                ];
+                
+                let mut found_genres = false;
+                for selector in &genre_selectors {
+                    if let Some(genre_links) = item.select(selector) {
+                        for genre_link in genre_links {
+                            let genre_text = genre_link.text().unwrap_or_default().trim().to_string();
+                            if !genre_text.is_empty() {
+                                tags.push(genre_text.clone());
+                                found_genres = true;
+                                println!("DEBUG: Found genre '{}' using selector '{}'", genre_text, selector);
+                            }
+                        }
+                        if found_genres {
+                            break; // Stop at first working selector
                         }
                     }
+                }
+                
+                if !found_genres {
+                    println!("DEBUG: No genres found for manga '{}' with any selector", title);
                 }
 
                 entries.push(Manga {
