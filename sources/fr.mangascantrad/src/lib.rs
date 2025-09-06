@@ -214,52 +214,55 @@ impl MangaScantrad {
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        // Try simpler format like fr.lelmanga instead of complex Madara format
-        let mut url_params = Vec::new();
+        // Try AJAX approach with filters like the working listings but with additional params
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        let mut body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+            page - 1, // Madara uses 0-based indexing
+            page
+        );
         
         // Add search query if present
         if let Some(search_query) = &query {
             if !search_query.is_empty() {
-                url_params.push(format!("s={}", Self::urlencode(search_query)));
+                body.push_str(&format!("&vars%5Bs%5D={}", Self::urlencode(search_query)));
             }
         }
         
-        // Add status filter (single value, not array)
+        // Add status filter using meta_query format
         if !status_filters.is_empty() {
-            url_params.push(format!("status={}", status_filters[0]));
+            let status_value = status_filters[0];
+            body.push_str(&format!("&vars%5Bmeta_query%5D%5B0%5D%5Bkey%5D=manga_status&vars%5Bmeta_query%5D%5B0%5D%5Bvalue%5D={}&vars%5Bmeta_query%5D%5B0%5D%5Bcompare%5D=LIKE", status_value));
         }
         
-        // Add genre filters (as arrays)
-        for genre in &genre_filters {
-            url_params.push(format!("genre%5B%5D={}", Self::urlencode(genre)));
-        }
-        
-        // Add genre condition (AND/OR) if specified
-        if genre_op == "1" {
-            url_params.push(format!("op={}", genre_op));
-        }
-        
-        // Construct URL - try /manga endpoint like LelManga instead of /page
-        let url = if query.is_some() && !query.as_ref().unwrap().is_empty() {
-            // Search mode
-            format!("{}/?{}", BASE_URL, url_params.join("&"))
-        } else {
-            // Filter/browse mode - try different endpoints
-            if url_params.is_empty() {
-                format!("{}/manga/page/{}/", BASE_URL, page)
-            } else {
-                format!("{}/manga/page/{}/?{}", BASE_URL, page, url_params.join("&"))
+        // Add genre filters using tax_query format
+        if !genre_filters.is_empty() {
+            let mut tax_query_index = if status_filters.is_empty() { 0 } else { 1 };
+            for genre in &genre_filters {
+                body.push_str(&format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
+                    tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre)));
+                tax_query_index += 1;
             }
-        };
+            
+            // Add operator if multiple genres
+            if genre_filters.len() > 1 {
+                let operator = if genre_op == "1" { "AND" } else { "OR" };
+                body.push_str(&format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator));
+            }
+        }
         
-        let html_doc = Request::get(&url)?
+        let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
             .html()?;
-            
-        self.parse_manga_page(html_doc)
+        
+        self.parse_ajax_response(html_doc)
     }
     
     
