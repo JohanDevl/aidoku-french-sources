@@ -30,7 +30,6 @@ impl Source for MangaScantrad {
         println!("🔍 DEBUG: get_search_manga_list called with {} filters", filters.len());
         
         // Process filters to build search parameters
-        let mut status_filters = Vec::new();
         let mut genre_filters = Vec::new();
         let mut genre_op = String::from(""); // Default to OR
         
@@ -40,20 +39,7 @@ impl Source for MangaScantrad {
                 FilterValue::Select { id, value } => {
                     println!("🔍 DEBUG: Select Filter - id: {}, value: {}", id, value);
                     
-                    if id == "status" && !value.is_empty() && value != "Tout" {
-                        // Map French status names to standard Madara status codes
-                        let mapped_status = match value.as_str() {
-                            "En cours" => "ongoing",
-                            "Terminé" => "completed",
-                            "Annulé" => "canceled", 
-                            "En pause" => "on-hold",
-                            _ => ""
-                        };
-                        if !mapped_status.is_empty() {
-                            status_filters.push(mapped_status);
-                            println!("🔍 DEBUG: Added status filter: {}", mapped_status);
-                        }
-                    } else if id == "op" {
+                    if id == "op" {
                         // Set genre condition (AND/OR)
                         genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
                         println!("🔍 DEBUG: Genre operator: {}", genre_op);
@@ -66,19 +52,7 @@ impl Source for MangaScantrad {
                 }
                 FilterValue::Text { id, value } => {
                     println!("🔍 DEBUG: Text Filter - id: {}, value: {}", id, value);
-                    if id == "status" && !value.is_empty() && value != "Tout" {
-                        let mapped_status = match value.as_str() {
-                            "En cours" => "ongoing",
-                            "Terminé" => "completed",
-                            "Annulé" => "canceled", 
-                            "En pause" => "on-hold",
-                            _ => ""
-                        };
-                        if !mapped_status.is_empty() {
-                            status_filters.push(mapped_status);
-                            println!("🔍 DEBUG: Added status filter from Text: {}", mapped_status);
-                        }
-                    } else if id == "genres" && !value.is_empty() && value != "Tout" {
+                    if id == "genres" && !value.is_empty() && value != "Tout" {
                         genre_filters.push(value.clone());
                         println!("🔍 DEBUG: Added genre filter from Text: {}", value);
                     }
@@ -100,12 +74,12 @@ impl Source for MangaScantrad {
             }
         }
         
-        println!("🔍 DEBUG: Final filters - status: {:?}, genres: {:?}, op: {}", status_filters, genre_filters, genre_op);
+        println!("🔍 DEBUG: Final filters - genres: {:?}, op: {}", genre_filters, genre_op);
         
         // Use filtered search if filters are applied or query is present
-        if query.is_some() || !status_filters.is_empty() || !genre_filters.is_empty() {
+        if query.is_some() || !genre_filters.is_empty() {
             println!("🔍 DEBUG: Using filtered search");
-            self.ajax_filtered_search(query, page, status_filters, genre_filters, &genre_op)
+            self.ajax_filtered_search(query, page, genre_filters, &genre_op)
         } else {
             println!("🔍 DEBUG: Using normal manga list");
             // Use AJAX for manga list
@@ -246,11 +220,10 @@ impl MangaScantrad {
         &self, 
         query: Option<String>, 
         page: i32, 
-        status_filters: Vec<&str>, 
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        println!("🔍 DEBUG: ajax_filtered_search called with status: {:?}, genres: {:?}", status_filters, genre_filters);
+        println!("🔍 DEBUG: ajax_filtered_search called with genres: {:?}", genre_filters);
         
         // Try AJAX approach with filters like the working listings but with additional params
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
@@ -269,20 +242,8 @@ impl MangaScantrad {
             }
         }
         
-        // Add status and genre filters using tax_query format (treat status as taxonomy too)
-        let mut tax_query_index = 0;
-        
-        // Add status filter using tax_query (try as taxonomy instead of meta)
-        if !status_filters.is_empty() {
-            let status_value = status_filters[0];
-            let status_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-status&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
-                tax_query_index, tax_query_index, tax_query_index, status_value);
-            body.push_str(&status_param);
-            println!("🔍 DEBUG: Added status filter as taxonomy: {}", status_param);
-            tax_query_index += 1;
-        }
-        
         // Add genre filters using tax_query format
+        let mut tax_query_index = 0;
         for genre in &genre_filters {
             let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
                 tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre));
@@ -291,7 +252,7 @@ impl MangaScantrad {
             tax_query_index += 1;
         }
         
-        // Add operator if multiple filters (status + genres OR multiple genres)
+        // Add operator if multiple genre filters
         if tax_query_index > 1 {
             let operator = if genre_op == "1" { "AND" } else { "OR" };
             let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);

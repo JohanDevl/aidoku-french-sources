@@ -1,12 +1,6 @@
 [
   {
     "type": "select",
-    "id": "status",
-    "title": "Status",
-    "options": ["Tout", "En cours", "En pause", "Annulé", "Terminé"]
-  },
-  {
-    "type": "select",
     "id": "op",
     "title": "Genre condition",
     "hideFromHeader": true,
