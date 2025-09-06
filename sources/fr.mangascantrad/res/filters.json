@@ -14,7 +14,7 @@
     "options": ["AND", "OR"]
   },
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "genres",
     "title": "Genres",
     "isGenre": true,
