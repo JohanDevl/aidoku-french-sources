@@ -39,9 +39,9 @@ impl Source for MangaScantrad {
                         // Map French status names to Madara status codes
                         match value.as_str() {
                             "En cours" => status_filters.push("on-going"),
-                            "Terminé" => status_filters.push("completed"),
+                            "Terminé" => status_filters.push("end"),
                             "Annulé" => status_filters.push("canceled"), 
-                            "En pause" => status_filters.push("hiatus"),
+                            "En pause" => status_filters.push("on-hold"),
                             _ => {}
                         }
                     } else if id == "op" {
@@ -194,6 +194,7 @@ impl MangaScantrad {
         self.parse_ajax_response(html_doc)
     }
     
+    
     fn get_genre_slug(&self, genre_name: &str) -> Option<String> {
         // Map genre display names to their slugs based on filters.json
         match genre_name {
@@ -208,65 +209,25 @@ impl MangaScantrad {
             "Boxe" => Some("boxe".to_string()),
             "Combat" => Some("combat".to_string()),
             "Comédie" => Some("comedie".to_string()),
-            "comedy" => Some("comedy".to_string()),
-            "crime" => Some("crime".to_string()),
-            "cybernétique" => Some("cybernetique".to_string()),
-            "démons" => Some("demons".to_string()),
-            "Doujinshi" => Some("doujinshi".to_string()),
             "Drame" => Some("drame".to_string()),
-            "E-sport" => Some("e-sport".to_string()),
             "Ecchi" => Some("ecchi".to_string()),
-            "Espionnage" => Some("espionnage".to_string()),
-            "Famille" => Some("famille".to_string()),
-            "Fantaisie" => Some("fantaisie".to_string()),
             "Fantastique" => Some("fantastique".to_string()),
-            "Gender Bender" => Some("gender-bender".to_string()),
-            "Guerre" => Some("guerre".to_string()),
-            "Harcèlement" => Some("harcelement".to_string()),
             "Harem" => Some("harem".to_string()),
-            "Hentai" => Some("hentai".to_string()),
             "Historique" => Some("historique".to_string()),
             "Horreur" => Some("horreur".to_string()),
             "isekaï" => Some("isekai".to_string()),
-            "Jeux vidéo" => Some("jeux-video".to_string()),
             "Josei" => Some("josei".to_string()),
-            "Magical Girls" => Some("magical-girls".to_string()),
-            "magie" => Some("magie".to_string()),
             "Mature" => Some("mature".to_string()),
             "Mecha" => Some("mecha".to_string()),
-            "Monstres" => Some("monstres".to_string()),
-            "Mystère" => Some("mystere".to_string()),
-            "One Shot" => Some("one-shot".to_string()),
-            "Organisation secrète" => Some("organisation-secrete".to_string()),
-            "Parodie" => Some("parodie".to_string()),
-            "Policier" => Some("policier".to_string()),
-            "Psychologique" => Some("psychologique".to_string()),
-            "Realité Virtuel" => Some("realite-virtuel".to_string()),
-            "Réincarnation" => Some("reincarnation".to_string()),
-            "Returner" => Some("returner".to_string()),
             "Romance" => Some("romance".to_string()),
             "Science-fiction" => Some("science-fiction".to_string()),
             "Seinen" => Some("seinen".to_string()),
             "Shôjo" => Some("shojo".to_string()),
-            "Shôjo Ai" => Some("shojo-ai".to_string()),
             "Shonen" => Some("shonen".to_string()),
-            "Shônen Ai" => Some("shonen-ai".to_string()),
-            "Smut" => Some("smut".to_string()),
             "Sport" => Some("sport".to_string()),
-            "Sports" => Some("sports".to_string()),
-            "Steampunk" => Some("steampunk".to_string()),
-            "Super héros" => Some("super-heros".to_string()),
             "Surnaturel" => Some("surnaturel".to_string()),
-            "Technologie" => Some("technologie".to_string()),
-            "Tournoi" => Some("tournoi".to_string()),
             "Tragédie" => Some("tragedie".to_string()),
             "Tranches de vie" => Some("tranches-de-vie".to_string()),
-            "vampires" => Some("vampires".to_string()),
-            "Vengeance" => Some("vengeance".to_string()),
-            "Vie scolaire" => Some("vie-scolaire".to_string()),
-            "Virtuel world" => Some("virtuel-world".to_string()),
-            "Voyage Temporel" => Some("voyage-temporel".to_string()),
-            "Webtoons" => Some("webtoons".to_string()),
             "Yaoi" => Some("yaoi".to_string()),
             "Yuri" => Some("yuri".to_string()),
             _ => None
@@ -281,38 +242,38 @@ impl MangaScantrad {
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        // Build search URL with parameters like the old Madara implementation
+        // Build search URL exactly like Madara template
         let mut url = format!("{}/page/{}/", BASE_URL, page);
-        let mut params = Vec::new();
+        let mut query_string = String::new();
         
-        // Add search query if present
+        // Always start with s= parameter (search), even if empty
         if let Some(search_query) = query {
-            params.push(format!("s={}", Self::urlencode(&search_query)));
+            query_string.push_str(&format!("s={}", Self::urlencode(&search_query)));
+        } else {
+            query_string.push_str("s=");
         }
         
-        // Add post_type parameter
-        params.push("post_type=wp-manga".to_string());
+        // Add post_type parameter (required by Madara)
+        query_string.push_str("&post_type=wp-manga");
         
         // Add status filters
         for status in &status_filters {
-            params.push(format!("status[]={}", status));
+            query_string.push_str(&format!("&status[]={}", status));
         }
         
         // Add genre filters
         for genre in &genre_filters {
-            params.push(format!("genre[]={}", Self::urlencode(genre)));
+            query_string.push_str(&format!("&genre[]={}", Self::urlencode(genre)));
         }
         
         // Add genre condition (AND/OR)
-        if !genre_op.is_empty() {
-            params.push(format!("op={}", genre_op));
+        if genre_op == "1" {
+            query_string.push_str(&format!("&op={}", genre_op));
         }
         
         // Construct final URL
-        if !params.is_empty() {
-            url.push('?');
-            url.push_str(&params.join("&"));
-        }
+        url.push('?');
+        url.push_str(&query_string);
         
         let html_doc = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
