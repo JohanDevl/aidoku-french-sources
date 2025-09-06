@@ -36,10 +36,10 @@ impl Source for MangaScantrad {
             match filter {
                 FilterValue::Select { id, value } => {
                     if id == "status" && !value.is_empty() && value != "Tout" {
-                        // Map French status names to Madara status codes
+                        // Map French status names to standard Madara status codes
                         match value.as_str() {
-                            "En cours" => status_filters.push("on-going"),
-                            "Terminé" => status_filters.push("end"),
+                            "En cours" => status_filters.push("ongoing"),
+                            "Terminé" => status_filters.push("completed"),
                             "Annulé" => status_filters.push("canceled"), 
                             "En pause" => status_filters.push("on-hold"),
                             _ => {}
@@ -214,38 +214,43 @@ impl MangaScantrad {
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        // Build search URL exactly like Madara template
-        let mut url = format!("{}/page/{}/", BASE_URL, page);
-        let mut query_string = String::new();
+        // Try simpler format like fr.lelmanga instead of complex Madara format
+        let mut url_params = Vec::new();
         
-        // Always start with s= parameter (search), even if empty
-        if let Some(search_query) = query {
-            query_string.push_str(&format!("s={}", Self::urlencode(&search_query)));
-        } else {
-            query_string.push_str("s=");
+        // Add search query if present
+        if let Some(search_query) = &query {
+            if !search_query.is_empty() {
+                url_params.push(format!("s={}", Self::urlencode(search_query)));
+            }
         }
         
-        // Add post_type parameter (required by Madara)
-        query_string.push_str("&post_type=wp-manga");
-        
-        // Add status filters
-        for status in &status_filters {
-            query_string.push_str(&format!("&status[]={}", status));
+        // Add status filter (single value, not array)
+        if !status_filters.is_empty() {
+            url_params.push(format!("status={}", status_filters[0]));
         }
         
-        // Add genre filters
+        // Add genre filters (as arrays)
         for genre in &genre_filters {
-            query_string.push_str(&format!("&genre[]={}", Self::urlencode(genre)));
+            url_params.push(format!("genre%5B%5D={}", Self::urlencode(genre)));
         }
         
-        // Add genre condition (AND/OR)
+        // Add genre condition (AND/OR) if specified
         if genre_op == "1" {
-            query_string.push_str(&format!("&op={}", genre_op));
+            url_params.push(format!("op={}", genre_op));
         }
         
-        // Construct final URL
-        url.push('?');
-        url.push_str(&query_string);
+        // Construct URL - try /manga endpoint like LelManga instead of /page
+        let url = if query.is_some() && !query.as_ref().unwrap().is_empty() {
+            // Search mode
+            format!("{}/?{}", BASE_URL, url_params.join("&"))
+        } else {
+            // Filter/browse mode - try different endpoints
+            if url_params.is_empty() {
+                format!("{}/manga/page/{}/", BASE_URL, page)
+            } else {
+                format!("{}/manga/page/{}/?{}", BASE_URL, page, url_params.join("&"))
+            }
+        };
         
         let html_doc = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
