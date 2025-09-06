@@ -39,9 +39,9 @@ impl Source for MangaScantrad {
                         // Map French status names to Madara status codes
                         match value.as_str() {
                             "En cours" => status_filters.push("on-going"),
-                            "Terminé" => status_filters.push("end"),
+                            "Terminé" => status_filters.push("completed"),
                             "Annulé" => status_filters.push("canceled"), 
-                            "En pause" => status_filters.push("on-hold"),
+                            "En pause" => status_filters.push("hiatus"),
                             _ => {}
                         }
                     } else if id == "op" {
@@ -324,10 +324,6 @@ impl MangaScantrad {
         self.parse_manga_page(html_doc)
     }
     
-    fn ajax_search(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        // Use the new filtered search method with empty filters
-        self.ajax_filtered_search(Some(query.to_string()), page, Vec::new(), Vec::new(), "")
-    }
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
         
