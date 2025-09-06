@@ -24,4 +24,4 @@ wasm-ld
 CLAUDE.md
 .mcp.json
 
-src/
+src/rust/
