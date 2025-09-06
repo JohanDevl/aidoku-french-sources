@@ -208,7 +208,7 @@ impl MangaScantrad {
         query: Option<String>, 
         page: i32, 
         genre_filters: Vec<String>,
-        genre_op: &str
+        _genre_op: &str
     ) -> Result<MangaPageResult> {
         
         // Try AJAX approach with filters like the working listings but with additional params
@@ -238,7 +238,7 @@ impl MangaScantrad {
         
         // Add operator if multiple genre filters
         if tax_query_index > 1 {
-            let operator = if genre_op == "1" { "AND" } else { "OR" };
+            let operator = if _genre_op == "1" { "AND" } else { "OR" };
             let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
             body.push_str(&relation_param);
         }
