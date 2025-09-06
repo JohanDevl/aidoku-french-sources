@@ -1,9 +1,20 @@
 [
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "status",
-    "title": "Status",
-    "options": ["En cours", "En pause", "Annulé", "Terminé"]
+    "title": "Statut",
+    "options": [
+      "En cours",
+      "En pause", 
+      "Annulé",
+      "Terminé"
+    ],
+    "ids": [
+      "ongoing",
+      "on-hold",
+      "canceled", 
+      "end"
+    ]
   },
   {
     "type": "select",
@@ -14,7 +25,7 @@
     "options": ["AND", "OR"]
   },
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "genre",
     "title": "Genre",
     "isGenre": true,
@@ -54,6 +65,7 @@
       "Post-Apo",
       "Prison",
       "Psychologique",
+      "Régression",
       "Religion",
       "Returner",
       "Romance",
@@ -109,6 +121,7 @@
       "post-apo",
       "prison",
       "psychologique",
+      "regression",
       "religion",
       "returner",
       "romance",

@@ -25,10 +25,43 @@ impl Source for MangasOrigines {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        if let Some(search_query) = query {
-            self.search_manga(&search_query, page)
+        // Process filters to extract search parameters
+        let mut genre_filters = Vec::new();
+        let mut status_filters = Vec::new(); 
+        let mut genre_op = String::from(""); // Default to OR
+        
+        for filter in filters.iter() {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "op" {
+                        // Set genre condition (AND/OR)
+                        genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
+                    }
+                }
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
+                    if id == "genre" && !included.is_empty() {
+                        for genre in included {
+                            if !genre.is_empty() {
+                                genre_filters.push(genre.clone());
+                            }
+                        }
+                    } else if id == "status" && !included.is_empty() {
+                        for status in included {
+                            if !status.is_empty() {
+                                status_filters.push(status.clone());
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Use filtered search if filters are applied or query is present
+        if query.is_some() || !genre_filters.is_empty() || !status_filters.is_empty() {
+            self.ajax_filtered_search(query, page, genre_filters, status_filters, &genre_op)
         } else {
             self.get_manga_listing_page(page)
         }
@@ -115,30 +148,6 @@ impl ImageRequestProvider for MangasOrigines {
 }
 
 impl MangasOrigines {
-    fn search_manga(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        // Use AJAX search like mangascantrad for better results
-        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        
-        // Madara AJAX search payload
-        let body = format!(
-            "action=madara_load_more&page={}&template=madara-core/content/content-search&vars%5Bs%5D={}&vars%5Borderby%5D=&vars%5Bpaged%5D={}&vars%5Btemplate%5D=search&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_query%5D%5B0%5D%5Brelation%5D=AND&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
-            page - 1,
-            self.url_encode(query),
-            page
-        );
-        
-        let html = Request::post(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()?;
-
-        self.parse_manga_list(html, page)
-    }
 
     fn get_manga_listing_page(&self, page: i32) -> Result<MangaPageResult> {
         let url = format!("{}/oeuvre/?page={}", BASE_URL, page);
@@ -174,6 +183,65 @@ impl MangasOrigines {
             },
             _ => return self.get_manga_listing_page(page)
         };
+        
+        let html = Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "*/*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html()?;
+
+        self.parse_manga_list(html, page)
+    }
+
+    fn ajax_filtered_search(
+        &self,
+        query: Option<String>,
+        page: i32,
+        genre_filters: Vec<String>,
+        status_filters: Vec<String>,
+        genre_op: &str,
+    ) -> Result<MangaPageResult> {
+        let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
+        
+        let mut body = format!(
+            "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
+            page - 1,
+            page
+        );
+        
+        // Add search query if present
+        if let Some(search_query) = &query {
+            if !search_query.is_empty() {
+                body.push_str(&format!("&vars%5Bs%5D={}", self.url_encode(search_query)));
+            }
+        }
+        
+        // Add genre filters using tax_query format
+        let mut tax_query_index = 0;
+        for genre in &genre_filters {
+            let genre_param = format!(
+                "&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}",
+                tax_query_index, tax_query_index, tax_query_index, self.url_encode(genre)
+            );
+            body.push_str(&genre_param);
+            tax_query_index += 1;
+        }
+        
+        // Add operator if multiple genre filters
+        if tax_query_index > 1 {
+            let operator = if genre_op == "1" { "AND" } else { "OR" };
+            let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
+            body.push_str(&relation_param);
+        }
+        
+        // Add status filters
+        for status in &status_filters {
+            body.push_str(&format!("&status[]={}", self.url_encode(status)));
+        }
         
         let html = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
