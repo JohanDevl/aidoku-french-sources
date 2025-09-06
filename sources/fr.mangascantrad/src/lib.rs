@@ -48,9 +48,19 @@ impl Source for MangaScantrad {
                         // Set genre condition (AND/OR)
                         genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
                     } else if id == "genres" && !value.is_empty() && value != "Tout" {
-                        // Map genre display name to slug using filters.json mapping
-                        if let Some(genre_slug) = self.get_genre_slug(value) {
-                            genre_filters.push(genre_slug);
+                        // Use the genre slug directly from filters.json ids array
+                        // Find index in options array, use corresponding ids array value
+                        let options = [
+                            "Tout", "4-koma", "Action", "Adulte", "Amitié", "Amour", "Animation", "Arts Martiaux", "Aventure", "Boxe", "Combat", "Comédie", "comedy", "crime", "cybernétique", "démons", "Doujinshi", "Drame", "E-sport", "Ecchi", "Espionnage", "Famille", "Fantaisie", "Fantastique", "Gender Bender", "Guerre", "Harcèlement", "Harem", "Hentai", "Historique", "Horreur", "isekaï", "Jeux vidéo", "Josei", "Magical Girls", "magie", "Mature", "Mecha", "Monstres", "murim", "Mystère", "One Shot", "Organisation secrète", "Parodie", "Policier", "Psychologique", "Realité Virtuel", "Réincarnation", "Returner", "Romance", "Science-fiction", "Seinen", "Shôjo", "Shôjo Ai", "Shonen", "Shônen Ai", "Smut", "Sport", "Sports", "Steampunk", "Super héros", "Surnaturel", "Technologie", "Tournoi", "Tragédie", "Tranches de vie", "vampires", "Vengeance", "Vie scolaire", "Virtuel world", "Voyage Temporel", "Webtoons", "Yaoi", "Yuri"
+                        ];
+                        let ids = [
+                            "", "4-koma", "action", "adulte", "amitie", "amour", "animation", "arts-martiaux", "aventure", "boxe", "combat", "comedie", "comedy", "crime", "cybernetique", "demons", "doujinshi", "drame", "e-sport", "ecchi", "espionnage", "famille", "fantaisie", "fantastique", "gender-bender", "guerre", "harcelement", "harem", "hentai", "historique", "horreur", "isekai", "jeux-video", "josei", "magical-girls", "magie", "mature", "mecha", "monstres", "murim", "mystere", "one-shot", "organisation-secrete", "parodie", "policier", "psychologique", "realite-virtuel", "reincarnation", "returner", "romance", "science-fiction", "seinen", "shojo", "shojo-ai", "shonen", "shonen-ai", "smut", "sport", "sports", "steampunk", "super-heros", "surnaturel", "technologie", "tournoi", "tragedie", "tranches-de-vie", "vampires", "vengeance", "vie-scolaire", "virtuel-world", "voyage-temporel", "webtoons", "yaoi", "yuri"
+                        ];
+                        
+                        if let Some(index) = options.iter().position(|&x| x == value) {
+                            if index < ids.len() && !ids[index].is_empty() {
+                                genre_filters.push(ids[index].to_string());
+                            }
                         }
                     }
                 }
@@ -195,85 +205,6 @@ impl MangaScantrad {
     }
     
     
-    fn get_genre_slug(&self, genre_name: &str) -> Option<String> {
-        // Map genre display names to their slugs based on manga-scantrad.io HTML
-        match genre_name {
-            "4-koma" => Some("4-koma".to_string()),
-            "Action" => Some("action".to_string()),
-            "Adulte" => Some("adulte".to_string()),
-            "Amitié" => Some("amitie".to_string()),
-            "Amour" => Some("amour".to_string()),
-            "Animation" => Some("animation".to_string()),
-            "Arts Martiaux" => Some("arts-martiaux".to_string()),
-            "Aventure" => Some("aventure".to_string()),
-            "Boxe" => Some("boxe".to_string()),
-            "Combat" => Some("combat".to_string()),
-            "Comédie" => Some("comedie".to_string()),
-            "comedy" => Some("comedy".to_string()),
-            "crime" => Some("crime".to_string()),
-            "cybernétique" => Some("cybernetique".to_string()),
-            "démons" => Some("demons".to_string()),
-            "Doujinshi" => Some("doujinshi".to_string()),
-            "Drame" => Some("drame".to_string()),
-            "E-sport" => Some("e-sport".to_string()),
-            "Ecchi" => Some("ecchi".to_string()),
-            "Espionnage" => Some("espionnage".to_string()),
-            "Famille" => Some("famille".to_string()),
-            "Fantaisie" => Some("fantaisie".to_string()),
-            "Fantastique" => Some("fantastique".to_string()),
-            "Gender Bender" => Some("gender-bender".to_string()),
-            "Guerre" => Some("guerre".to_string()),
-            "Harcèlement" => Some("harcelement".to_string()),
-            "Harem" => Some("harem".to_string()),
-            "Hentai" => Some("hentai".to_string()),
-            "Historique" => Some("historique".to_string()),
-            "Horreur" => Some("horreur".to_string()),
-            "isekaï" => Some("isekai".to_string()),
-            "Jeux vidéo" => Some("jeux-video".to_string()),
-            "Josei" => Some("josei".to_string()),
-            "Magical Girls" => Some("magical-girls".to_string()),
-            "magie" => Some("magie".to_string()),
-            "Mature" => Some("mature".to_string()),
-            "Mecha" => Some("mecha".to_string()),
-            "Monstres" => Some("monstres".to_string()),
-            "murim" => Some("murim".to_string()),
-            "Mystère" => Some("mystere".to_string()),
-            "One Shot" => Some("one-shot".to_string()),
-            "Organisation secrète" => Some("organisation-secrete".to_string()),
-            "Parodie" => Some("parodie".to_string()),
-            "Policier" => Some("policier".to_string()),
-            "Psychologique" => Some("psychologique".to_string()),
-            "Realité Virtuel" => Some("realite-virtuel".to_string()),
-            "Réincarnation" => Some("reincarnation".to_string()),
-            "Returner" => Some("returner".to_string()),
-            "Romance" => Some("romance".to_string()),
-            "Science-fiction" => Some("science-fiction".to_string()),
-            "Seinen" => Some("seinen".to_string()),
-            "Shôjo" => Some("shojo".to_string()),
-            "Shôjo Ai" => Some("shojo-ai".to_string()),
-            "Shonen" => Some("shonen".to_string()),
-            "Shônen Ai" => Some("shonen-ai".to_string()),
-            "Smut" => Some("smut".to_string()),
-            "Sport" => Some("sport".to_string()),
-            "Sports" => Some("sports".to_string()),
-            "Steampunk" => Some("steampunk".to_string()),
-            "Super héros" => Some("super-heros".to_string()),
-            "Surnaturel" => Some("surnaturel".to_string()),
-            "Technologie" => Some("technologie".to_string()),
-            "Tournoi" => Some("tournoi".to_string()),
-            "Tragédie" => Some("tragedie".to_string()),
-            "Tranches de vie" => Some("tranches-de-vie".to_string()),
-            "vampires" => Some("vampires".to_string()),
-            "Vengeance" => Some("vengeance".to_string()),
-            "Vie scolaire" => Some("vie-scolaire".to_string()),
-            "Virtuel world" => Some("virtuel-world".to_string()),
-            "Voyage Temporel" => Some("voyage-temporel".to_string()),
-            "Webtoons" => Some("webtoons".to_string()),
-            "Yaoi" => Some("yaoi".to_string()),
-            "Yuri" => Some("yuri".to_string()),
-            _ => None
-        }
-    }
     
     fn ajax_filtered_search(
         &self, 
