@@ -3,13 +3,13 @@
     "type": "select",
     "id": "type",
     "title": "Type",
-    "options": ["Manga", "Manhwa", "Manhua"]
+    "options": ["Tout", "Manga", "Manhwa", "Manhua"]
   },
   {
     "type": "select",
     "id": "status",
     "title": "Status",
-    "options": ["En cours", "Terminé", "En pause"]
+    "options": ["Tout", "En cours", "Terminé", "En pause"]
   },
   {
     "type": "select",
@@ -17,6 +17,7 @@
     "title": "Genres",
     "isGenre": true,
     "options": [
+      "Tout",
       "Action",
       "Aventure",
       "Combat",
@@ -118,6 +119,7 @@
       "Sports"
     ],
     "ids": [
+      "",
       "67bd1aefae810159afa2675e",
       "67bd1aefae810159afa2675f",
       "67bd1aefae810159afa26760",
