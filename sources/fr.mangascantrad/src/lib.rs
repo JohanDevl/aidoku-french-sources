@@ -269,32 +269,34 @@ impl MangaScantrad {
             }
         }
         
-        // Add status filter using meta_query format
+        // Add status and genre filters using tax_query format (treat status as taxonomy too)
+        let mut tax_query_index = 0;
+        
+        // Add status filter using tax_query (try as taxonomy instead of meta)
         if !status_filters.is_empty() {
             let status_value = status_filters[0];
-            let status_param = format!("&vars%5Bmeta_query%5D%5B0%5D%5Bkey%5D=manga_status&vars%5Bmeta_query%5D%5B0%5D%5Bvalue%5D={}&vars%5Bmeta_query%5D%5B0%5D%5Bcompare%5D=LIKE", status_value);
+            let status_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-status&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
+                tax_query_index, tax_query_index, tax_query_index, status_value);
             body.push_str(&status_param);
-            println!("🔍 DEBUG: Added status filter: {}", status_param);
+            println!("🔍 DEBUG: Added status filter as taxonomy: {}", status_param);
+            tax_query_index += 1;
         }
         
         // Add genre filters using tax_query format
-        if !genre_filters.is_empty() {
-            let mut tax_query_index = if status_filters.is_empty() { 0 } else { 1 };
-            for genre in &genre_filters {
-                let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
-                    tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre));
-                body.push_str(&genre_param);
-                println!("🔍 DEBUG: Added genre filter: {}", genre_param);
-                tax_query_index += 1;
-            }
-            
-            // Add operator if multiple genres
-            if genre_filters.len() > 1 {
-                let operator = if genre_op == "1" { "AND" } else { "OR" };
-                let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
-                body.push_str(&relation_param);
-                println!("🔍 DEBUG: Added genre relation: {}", relation_param);
-            }
+        for genre in &genre_filters {
+            let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
+                tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre));
+            body.push_str(&genre_param);
+            println!("🔍 DEBUG: Added genre filter: {}", genre_param);
+            tax_query_index += 1;
+        }
+        
+        // Add operator if multiple filters (status + genres OR multiple genres)
+        if tax_query_index > 1 {
+            let operator = if genre_op == "1" { "AND" } else { "OR" };
+            let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
+            body.push_str(&relation_param);
+            println!("🔍 DEBUG: Added tax_query relation: {}", relation_param);
         }
         
         println!("🔍 DEBUG: Full request body: {}", body);
