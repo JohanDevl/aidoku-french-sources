@@ -34,10 +34,11 @@ impl Source for MangaScantrad {
         let mut genre_filters = Vec::new();
         let mut genre_op = String::from(""); // Default to OR
         
-        for filter in &filters {
+        for (i, filter) in filters.iter().enumerate() {
+            println!("🔍 DEBUG: Processing filter {}: {:?}", i, filter);
             match filter {
                 FilterValue::Select { id, value } => {
-                    println!("🔍 DEBUG: Filter - id: {}, value: {}", id, value);
+                    println!("🔍 DEBUG: Select Filter - id: {}, value: {}", id, value);
                     
                     if id == "status" && !value.is_empty() && value != "Tout" {
                         // Map French status names to standard Madara status codes
@@ -57,27 +58,44 @@ impl Source for MangaScantrad {
                         genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
                         println!("🔍 DEBUG: Genre operator: {}", genre_op);
                     } else if id == "genres" && !value.is_empty() && value != "Tout" {
-                        // Use the genre slug directly from filters.json ids array
-                        // Find index in options array, use corresponding ids array value
-                        let options = [
-                            "Tout", "4-koma", "Action", "Adulte", "Amitié", "Amour", "Animation", "Arts Martiaux", "Aventure", "Boxe", "Combat", "Comédie", "comedy", "crime", "cybernétique", "démons", "Doujinshi", "Drame", "E-sport", "Ecchi", "Espionnage", "Famille", "Fantaisie", "Fantastique", "Gender Bender", "Guerre", "Harcèlement", "Harem", "Hentai", "Historique", "Horreur", "isekaï", "Jeux vidéo", "Josei", "Magical Girls", "magie", "Mature", "Mecha", "Monstres", "murim", "Mystère", "One Shot", "Organisation secrète", "Parodie", "Policier", "Psychologique", "Realité Virtuel", "Réincarnation", "Returner", "Romance", "Science-fiction", "Seinen", "Shôjo", "Shôjo Ai", "Shonen", "Shônen Ai", "Smut", "Sport", "Sports", "Steampunk", "Super héros", "Surnaturel", "Technologie", "Tournoi", "Tragédie", "Tranches de vie", "vampires", "Vengeance", "Vie scolaire", "Virtuel world", "Voyage Temporel", "Webtoons", "Yaoi", "Yuri"
-                        ];
-                        let ids = [
-                            "", "4-koma", "action", "adulte", "amitie", "amour", "animation", "arts-martiaux", "aventure", "boxe", "combat", "comedie", "comedy", "crime", "cybernetique", "demons", "doujinshi", "drame", "e-sport", "ecchi", "espionnage", "famille", "fantaisie", "fantastique", "gender-bender", "guerre", "harcelement", "harem", "hentai", "historique", "horreur", "isekai", "jeux-video", "josei", "magical-girls", "magie", "mature", "mecha", "monstres", "murim", "mystere", "one-shot", "organisation-secrete", "parodie", "policier", "psychologique", "realite-virtuel", "reincarnation", "returner", "romance", "science-fiction", "seinen", "shojo", "shojo-ai", "shonen", "shonen-ai", "smut", "sport", "sports", "steampunk", "super-heros", "surnaturel", "technologie", "tournoi", "tragedie", "tranches-de-vie", "vampires", "vengeance", "vie-scolaire", "virtuel-world", "voyage-temporel", "webtoons", "yaoi", "yuri"
-                        ];
-                        
-                        if let Some(index) = options.iter().position(|&x| x == value) {
-                            if index < ids.len() && !ids[index].is_empty() {
-                                genre_filters.push(ids[index].to_string());
-                                println!("🔍 DEBUG: Added genre filter: {}", ids[index]);
+                        // The value received is already the ID/slug from filters.json ids array
+                        // No need to map it, use directly
+                        genre_filters.push(value.clone());
+                        println!("🔍 DEBUG: Added genre filter: {}", value);
+                    }
+                }
+                FilterValue::Text { id, value } => {
+                    println!("🔍 DEBUG: Text Filter - id: {}, value: {}", id, value);
+                    if id == "status" && !value.is_empty() && value != "Tout" {
+                        let mapped_status = match value.as_str() {
+                            "En cours" => "ongoing",
+                            "Terminé" => "completed",
+                            "Annulé" => "canceled", 
+                            "En pause" => "on-hold",
+                            _ => ""
+                        };
+                        if !mapped_status.is_empty() {
+                            status_filters.push(mapped_status);
+                            println!("🔍 DEBUG: Added status filter from Text: {}", mapped_status);
+                        }
+                    } else if id == "genres" && !value.is_empty() && value != "Tout" {
+                        genre_filters.push(value.clone());
+                        println!("🔍 DEBUG: Added genre filter from Text: {}", value);
+                    }
+                }
+                FilterValue::MultiSelect { id, included, excluded } => {
+                    println!("🔍 DEBUG: MultiSelect Filter - id: {}, included: {:?}, excluded: {:?}", id, included, excluded);
+                    if id == "genres" && !included.is_empty() {
+                        for genre in included {
+                            if !genre.is_empty() && genre != "Tout" {
+                                genre_filters.push(genre.clone());
+                                println!("🔍 DEBUG: Added genre filter from MultiSelect: {}", genre);
                             }
-                        } else {
-                            println!("🔍 DEBUG: Genre '{}' not found in options", value);
                         }
                     }
                 }
                 _ => {
-                    println!("🔍 DEBUG: Unhandled filter type");
+                    println!("🔍 DEBUG: Unhandled filter type: {:?}", filter);
                 }
             }
         }
