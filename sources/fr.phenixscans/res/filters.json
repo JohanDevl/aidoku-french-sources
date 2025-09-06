@@ -14,7 +14,7 @@
   {
     "type": "select",
     "id": "Genres",
-    "title": "Genres",
+    "title": "Genres", 
     "isGenre": true,
     "options": [
       "Tout",

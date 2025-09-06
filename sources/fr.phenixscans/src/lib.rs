@@ -37,9 +37,9 @@ impl Source for PhenixScans {
 					match id.as_str() {
 						"status" => {
 							match value.as_str() {
-								"En cours" => query_params.push_str("&status=ongoing"),
-								"Terminé" => query_params.push_str("&status=completed"),
-								"En pause" => query_params.push_str("&status=hiatus"),
+								"En cours" => query_params.push_str("&status=Ongoing"),
+								"Terminé" => query_params.push_str("&status=Completed"),
+								"En pause" => query_params.push_str("&status=Hiatus"),
 								_ => continue,
 							}
 						}
@@ -52,83 +52,66 @@ impl Source for PhenixScans {
 							}
 						}
 						"Genres" => {
-							// Genre selection - map genre names to their IDs
-							let genre_id = match value.as_str() {
-								"Action" => "67bd1aefae810159afa2675e",
-								"Aventure" => "67bd1aefae810159afa2675f",
-								"Combat" => "67bd1aefae810159afa26760",
-								"Comedie" => "67bd1aefae810159afa26761",
-								"Fantaisie" => "67bd1aefae810159afa26762",
-								"Isekai" => "67bd1aefae810159afa26763",
-								"Arts-martiaux" => "67bd1b03ae810159afa26779",
-								"Fantastique" => "67bd1b03ae810159afa2677a",
-								"Historique" => "67bd1b03ae810159afa2677b",
-								"Réincarnation" => "67bd1b03ae810159afa2677c",
-								"Adventure" => "67bd1ba0ae810159afa267e7",
-								"Fantasy" => "67bd1ba0ae810159afa267e8",
-								"School Life" => "67bd1ba0ae810159afa267e9",
-								"Shounen" => "67bd1ba0ae810159afa267ea",
-								"Drama" => "67bd1ca0ae810159afa268f7",
-								"Partenaire" => "67bd1ca0ae810159afa268f8",
-								"Romance" => "67bd1ca0ae810159afa268f9",
-								"Shoujo" => "67bd1ca0ae810159afa268fa",
-								"Drame" => "67bd1cd6ae810159afa2692f",
-								"Supernatural" => "67bd1dffae810159afa26a3b",
-								"Mature" => "67bd1f24ae810159afa26b6d",
-								"Tragedy" => "67bd1f24ae810159afa26b6e",
-								"Martial Arts" => "67bd1f53ae810159afa26b8d",
-								"Seinen" => "67bd1f53ae810159afa26b8e",
-								"Harem" => "67bd203cae810159afa26c80",
-								"Murim" => "67bd203cae810159afa26c81",
-								"Régression" => "67bd203cae810159afa26c82",
-								"Vengeance" => "67bd203cae810159afa26c83",
-								"Historical" => "67bd211bae810159afa26d9d",
-								"Comedy" => "67bd21a8ae810159afa26dfc",
-								"Slice of Life" => "67bd21a8ae810159afa26dfd",
-								"Horreur" => "67bd225aae810159afa26eb9",
-								"Ecchi" => "67bd22e6ae810159afa26f36",
-								"Magie" => "67bd22e6ae810159afa26f37",
-								"Monstre" => "67bd22e6ae810159afa26f38",
-								"Dragon" => "67bd260cae810159afa27194",
-								"Josei" => "67bd2668ae810159afa271dd",
-								"Psychological" => "67bd2668ae810159afa271de",
-								"Sci-fi" => "67bd26e8ae810159afa27249",
-								"Psychologique" => "67bd272bae810159afa2727c",
-								"Tragédie" => "67bd272bae810159afa2727d",
-								"Mystère" => "67bd2de7ae810159afa27712",
-								"Demons" => "67bd2de7ae810159afa27713",
-								"Surnaturel" => "67bd2deeae810159afa27719",
-								"Système" => "67bd2e07ae810159afa27728",
-								"Combats" => "67bd2e28ae810159afa27743",
-								"Mystery" => "67bd2e6dae810159afa27779",
-								"Donjon" => "67bd2f7fae810159afa2785e",
-								"Necromancy" => "67bd2f80ae810159afa27860",
-								"Adult" => "67bd335bae810159afa27aa6",
-								"Thriller" => "67bd3374ae810159afa27abc",
-								"Aventurier" => "67bd3889ae810159afa27ee9",
-								"Manhwa" => "67bd3a5dae810159afa2805d",
-								"Webtoons" => "67bd3a5dae810159afa2805e",
-								"Amitier" => "67bd3a5dae810159afa2805f",
-								"Smut" => "67bd3c38ae810159afa281f2",
-								"Manga" => "67bd3c38ae810159afa281f3",
-								"Vie Scolaire" => "67bd43a9ae810159afa287cf",
-								"Tranche de vie" => "67bd43c0ae810159afa287e1",
-								"Magic" => "67bd44c8ae810159afa288e4",
-								"R18" => "67bd4eaaae810159afa28fd4",
-								"Académie" => "67bd4eaaae810159afa28fd5",
-								"Academy" => "67bd5719ae810159afa2960f",
-								"Heroes" => "67bd57f2ae810159afa296d0",
-								"Post apocalyptique" => "67bd680eae810159afa2a430",
-								"Regresseur" => "67bd68daae810159afa2a4df",
-								"Jeu" => "67bd6c16ae810159afa2a6d3",
-								"Transmigration" => "67bd708bae810159afa2aa74",
-								"Amitié" => "67bd7373ae810159afa2ad11",
-								"Sports" => "67bd8859ae810159afa2bf6a",
-								_ => "",
+							// Use index-based approach like the old version  
+							let genre_id_list = [
+								"", "67bd1aefae810159afa2675e", "67bd1aefae810159afa2675f", 
+								"67bd1aefae810159afa26760", "67bd1aefae810159afa26761", "67bd1aefae810159afa26762",
+								"67bd1aefae810159afa26763", "67bd1b03ae810159afa26779", "67bd1b03ae810159afa2677a",
+								"67bd1b03ae810159afa2677b", "67bd1b03ae810159afa2677c", "67bd1ba0ae810159afa267e7",
+								"67bd1ba0ae810159afa267e8", "67bd1ba0ae810159afa267e9", "67bd1ba0ae810159afa267ea",
+								"67bd1ca0ae810159afa268f7", "67bd1ca0ae810159afa268f8", "67bd1ca0ae810159afa268f9",
+								"67bd1ca0ae810159afa268fa", "67bd1cd6ae810159afa2692f", "67bd1dffae810159afa26a3b",
+								"67bd1f24ae810159afa26b6c", "67bd1f24ae810159afa26b6d", "67bd1f24ae810159afa26b6e",
+								"67bd1f53ae810159afa26b8d", "67bd1f53ae810159afa26b8e", "67bd1fbeae810159afa26bdf",
+								"67bd203cae810159afa26c7f", "67bd203cae810159afa26c80", "67bd203cae810159afa26c81",
+								"67bd203cae810159afa26c82", "67bd203cae810159afa26c83", "67bd211bae810159afa26d9d",
+								"67bd21a8ae810159afa26dfc", "67bd21a8ae810159afa26dfd", "67bd224eae810159afa26eb2",
+								"67bd225aae810159afa26eb9", "67bd22e6ae810159afa26f36", "67bd22e6ae810159afa26f37",
+								"67bd22e6ae810159afa26f38", "67bd2386ae810159afa26f59", "67bd260cae810159afa27194",
+								"67bd2668ae810159afa271dd", "67bd2668ae810159afa271de", "67bd26e8ae810159afa27249",
+								"67bd272bae810159afa2727c", "67bd272bae810159afa2727d", "67bd28ecae810159afa273ec",
+								"67bd2c07ae810159afa27561", "67bd2d64ae810159afa27694", "67bd2de7ae810159afa27712",
+								"67bd2de7ae810159afa27713", "67bd2deeae810159afa27719", "67bd2e07ae810159afa27728",
+								"67bd2e28ae810159afa27743", "67bd2e55ae810159afa27769", "67bd2e6dae810159afa27779",
+								"67bd2f7fae810159afa2785e", "67bd2f80ae810159afa27860", "67bd333dae810159afa27a85",
+								"67bd333dae810159afa27a86", "67bd333dae810159afa27a87", "67bd335bae810159afa27aa6",
+								"67bd3374ae810159afa27abc", "67bd3889ae810159afa27ee9", "67bd39fbae810159afa28014",
+								"67bd3a39ae810159afa28049", "67bd3a5dae810159afa2805d", "67bd3a5dae810159afa2805e",
+								"67bd3a5dae810159afa2805f", "67bd3c38ae810159afa281f2", "67bd3c38ae810159afa281f3",
+								"67bd3c72ae810159afa2822c", "67bd43a9ae810159afa287cf", "67bd43c0ae810159afa287e1",
+								"67bd43c0ae810159afa287e2", "67bd44c8ae810159afa288e4", "67bd483cae810159afa28b8b",
+								"67bd4eaaae810159afa28fd4", "67bd4eaaae810159afa28fd5", "67bd4eaaae810159afa28fd6",
+								"67bd4eaaae810159afa28fd7", "67bd4eaaae810159afa28fd8", "67bd4eaaae810159afa28fd9",
+								"67bd5719ae810159afa2960f", "67bd57f2ae810159afa296d0", "67bd680eae810159afa2a430",
+								"67bd68daae810159afa2a4df", "67bd6c16ae810159afa2a6d3", "67bd708bae810159afa2aa74",
+								"67bd7373ae810159afa2ad11", "67bd7373ae810159afa2ad12", "67bd76b3ae810159afa2afee",
+								"67bd76b3ae810159afa2afef", "67bd7763ae810159afa2b0b7", "67bd7811ae810159afa2b161",
+								"67bd82c9ae810159afa2bb11", "67bd82c9ae810159afa2bb12", "67bd8482ae810159afa2bbb4",
+								"67bd8859ae810159afa2bf6a"
+							];
+							
+							// Parse index from filter value (need to simulate the old system)
+							// In the new system, we need to find the index of the selected value
+							let selected_index = match value.as_str() {
+								"Tout" => 0,
+								"Action" => 1,
+								"Aventure" => 2,
+								"Combat" => 3,
+								"Comedie" => 4,
+								"Fantaisie" => 5,
+								"Isekai" => 6,
+								"Arts-martiaux" => 7,
+								"Fantastique" => 8,
+								"Historique" => 9,
+								"Réincarnation" => 10,
+								_ => 0, // Default to "Tout" 
 							};
 							
-							if !genre_id.is_empty() && value != "Tout" {
-								genre_ids.push(genre_id.to_string());
+							if selected_index > 0 && selected_index < genre_id_list.len() {
+								let genre_id = genre_id_list[selected_index];
+								if !genre_id.is_empty() {
+									genre_ids.push(genre_id.to_string());
+								}
 							}
 						}
 						_ => continue,
