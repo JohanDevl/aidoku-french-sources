@@ -27,61 +27,48 @@ impl Source for MangaScantrad {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        println!("🔍 DEBUG: get_search_manga_list called with {} filters", filters.len());
         
         // Process filters to build search parameters
         let mut genre_filters = Vec::new();
         let mut genre_op = String::from(""); // Default to OR
         
-        for (i, filter) in filters.iter().enumerate() {
-            println!("🔍 DEBUG: Processing filter {}: {:?}", i, filter);
+        for (_i, filter) in filters.iter().enumerate() {
             match filter {
                 FilterValue::Select { id, value } => {
-                    println!("🔍 DEBUG: Select Filter - id: {}, value: {}", id, value);
                     
                     if id == "op" {
                         // Set genre condition (AND/OR)
                         genre_op = if value == "AND" { "1".to_string() } else { "".to_string() };
-                        println!("🔍 DEBUG: Genre operator: {}", genre_op);
                     } else if id == "genres" && !value.is_empty() && value != "Tout" {
                         // The value received is already the ID/slug from filters.json ids array
                         // No need to map it, use directly
                         genre_filters.push(value.clone());
-                        println!("🔍 DEBUG: Added genre filter: {}", value);
                     }
                 }
                 FilterValue::Text { id, value } => {
-                    println!("🔍 DEBUG: Text Filter - id: {}, value: {}", id, value);
                     if id == "genres" && !value.is_empty() && value != "Tout" {
                         genre_filters.push(value.clone());
-                        println!("🔍 DEBUG: Added genre filter from Text: {}", value);
                     }
                 }
-                FilterValue::MultiSelect { id, included, excluded } => {
-                    println!("🔍 DEBUG: MultiSelect Filter - id: {}, included: {:?}, excluded: {:?}", id, included, excluded);
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
                     if id == "genres" && !included.is_empty() {
                         for genre in included {
                             if !genre.is_empty() && genre != "Tout" {
                                 genre_filters.push(genre.clone());
-                                println!("🔍 DEBUG: Added genre filter from MultiSelect: {}", genre);
                             }
                         }
                     }
                 }
                 _ => {
-                    println!("🔍 DEBUG: Unhandled filter type: {:?}", filter);
                 }
             }
         }
         
-        println!("🔍 DEBUG: Final filters - genres: {:?}, op: {}", genre_filters, genre_op);
         
         // Use filtered search if filters are applied or query is present
         if query.is_some() || !genre_filters.is_empty() {
-            println!("🔍 DEBUG: Using filtered search");
             self.ajax_filtered_search(query, page, genre_filters, &genre_op)
         } else {
-            println!("🔍 DEBUG: Using normal manga list");
             // Use AJAX for manga list
             self.ajax_manga_list(page)
         }
@@ -223,7 +210,6 @@ impl MangaScantrad {
         genre_filters: Vec<String>,
         genre_op: &str
     ) -> Result<MangaPageResult> {
-        println!("🔍 DEBUG: ajax_filtered_search called with genres: {:?}", genre_filters);
         
         // Try AJAX approach with filters like the working listings but with additional params
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
@@ -238,7 +224,6 @@ impl MangaScantrad {
         if let Some(search_query) = &query {
             if !search_query.is_empty() {
                 body.push_str(&format!("&vars%5Bs%5D={}", Self::urlencode(search_query)));
-                println!("🔍 DEBUG: Added search query: {}", search_query);
             }
         }
         
@@ -248,7 +233,6 @@ impl MangaScantrad {
             let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
                 tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre));
             body.push_str(&genre_param);
-            println!("🔍 DEBUG: Added genre filter: {}", genre_param);
             tax_query_index += 1;
         }
         
@@ -257,10 +241,8 @@ impl MangaScantrad {
             let operator = if genre_op == "1" { "AND" } else { "OR" };
             let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
             body.push_str(&relation_param);
-            println!("🔍 DEBUG: Added tax_query relation: {}", relation_param);
         }
         
-        println!("🔍 DEBUG: Full request body: {}", body);
         
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
@@ -272,20 +254,13 @@ impl MangaScantrad {
             .body(body.as_bytes())
             .html()?;
         
-        println!("🔍 DEBUG: Received response, parsing...");
         
         let result = self.parse_ajax_response(html_doc);
         
         match &result {
-            Ok(manga_result) => {
-                println!("🔍 DEBUG: Successfully parsed {} manga entries, has_next_page: {}", 
-                    manga_result.entries.len(), manga_result.has_next_page);
-                for (i, manga) in manga_result.entries.iter().take(3).enumerate() {
-                    println!("🔍 DEBUG: Entry {}: {}", i, manga.title);
-                }
+            Ok(_manga_result) => {
             }
-            Err(e) => {
-                println!("🔍 DEBUG: Error parsing response: {:?}", e);
+            Err(_e) => {
             }
         }
         
@@ -553,7 +528,6 @@ impl MangaScantrad {
     fn parse_ajax_response(&self, html: Document) -> Result<MangaPageResult> {
         let mut entries: Vec<Manga> = Vec::new();
         
-        println!("🔍 DEBUG: parse_ajax_response called");
         
         // Try multiple selectors for AJAX response
         let selectors = [
@@ -567,10 +541,8 @@ impl MangaScantrad {
         
         let mut found_items = false;
         for selector in &selectors {
-            println!("🔍 DEBUG: Trying selector: {}", selector);
             if let Some(items) = html.select(selector) {
                 let items_vec: Vec<_> = items.collect();
-                println!("🔍 DEBUG: Found {} items with selector {}", items_vec.len(), selector);
                 
                 if !items_vec.is_empty() {
                     found_items = true;
@@ -656,33 +628,28 @@ impl MangaScantrad {
         }
         
         if !found_items {
-            println!("🔍 DEBUG: No items found with any selector");
             // Try to print the HTML for debugging
             if let Some(body) = html.select("body") {
                 if let Some(first) = body.first() {
                     let html_text = first.text().unwrap_or_default();
-                    let preview = if html_text.len() > 500 {
+                    let _preview = if html_text.len() > 500 {
                         &html_text[..500]
                     } else {
                         &html_text
                     };
-                    println!("🔍 DEBUG: Body content preview: {}", preview);
                     
                     // Also try to get raw HTML structure
                     if let Some(body_html) = first.html() {
-                        let html_preview = if body_html.len() > 1000 {
+                        let _html_preview = if body_html.len() > 1000 {
                             &body_html[..1000]
                         } else {
                             &body_html
                         };
-                        println!("🔍 DEBUG: Body HTML preview: {}", html_preview);
                     }
                 }
             } else {
-                println!("🔍 DEBUG: No body element found");
             }
         } else {
-            println!("🔍 DEBUG: Found {} total entries", entries.len());
         }
         
         // Pagination logic: if we got any results, assume there might be more
@@ -693,12 +660,6 @@ impl MangaScantrad {
             entries,
             has_next_page,
         })
-    }
-    
-    fn parse_manga_page(&self, html: Document) -> Result<MangaPageResult> {
-        // For normal HTML pages, use the same parsing logic as AJAX but with broader selectors
-        // This handles search/filter results from GET requests
-        self.parse_ajax_response(html)
     }
     
     fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
