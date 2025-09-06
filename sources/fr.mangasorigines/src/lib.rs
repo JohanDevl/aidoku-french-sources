@@ -29,7 +29,6 @@ impl Source for MangasOrigines {
     ) -> Result<MangaPageResult> {
         // Process filters to extract search parameters
         let mut genre_filters = Vec::new();
-        let mut status_filters = Vec::new(); 
         let mut genre_op = String::from(""); // Default to OR
         
         for filter in filters.iter() {
@@ -47,12 +46,6 @@ impl Source for MangasOrigines {
                                 genre_filters.push(genre.clone());
                             }
                         }
-                    } else if id == "status" && !included.is_empty() {
-                        for status in included {
-                            if !status.is_empty() {
-                                status_filters.push(status.clone());
-                            }
-                        }
                     }
                 }
                 _ => {}
@@ -60,8 +53,8 @@ impl Source for MangasOrigines {
         }
         
         // Use filtered search if filters are applied or query is present
-        if query.is_some() || !genre_filters.is_empty() || !status_filters.is_empty() {
-            self.ajax_filtered_search(query, page, genre_filters, status_filters, &genre_op)
+        if query.is_some() || !genre_filters.is_empty() {
+            self.ajax_filtered_search(query, page, genre_filters, &genre_op)
         } else {
             self.get_manga_listing_page(page)
         }
@@ -202,7 +195,6 @@ impl MangasOrigines {
         query: Option<String>,
         page: i32,
         genre_filters: Vec<String>,
-        status_filters: Vec<String>,
         genre_op: &str,
     ) -> Result<MangaPageResult> {
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
@@ -238,10 +230,6 @@ impl MangasOrigines {
             body.push_str(&relation_param);
         }
         
-        // Add status filters
-        for status in &status_filters {
-            body.push_str(&format!("&status[]={}", self.url_encode(status)));
-        }
         
         let html = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
