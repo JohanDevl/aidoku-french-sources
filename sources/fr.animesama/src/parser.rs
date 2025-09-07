@@ -745,24 +745,12 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			// No mapping, use normal numbering
 			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings, &finir_liste_info);
 			
-			// For One Piece, calculate correct CDN index accounting for One Shot offset
-			let cdn_index = if (manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece")) 
-				&& chapter_mappings.iter().any(|m| m.title.contains("One Shot")) {
-				// One Piece with One Shot: chapters after One Shot need offset correction
-				if index > 1046 {
-					// Chapters 1047+ become CDN index 1046+ (subtract 1 for One Shot offset)
-					index - 1
-				} else {
-					// Chapters 1-1046 use their direct index
-					index
-				}
-			} else {
-				// Other manga: use direct index
-				index
-			};
+			// For CDN access, use chapter_number directly, not index
+			// The CDN numbering (eps1, eps2, ..., eps1158) matches chapter numbers, not our internal indices
+			let cdn_key = (chapter_number as i32).to_string();
 			
 			chapters.push(Chapter {
-				key: cdn_index.to_string(), // Use corrected CDN index for One Piece
+				key: cdn_key, // Use chapter_number for CDN access, not index
 				title: Some(format!("Chapitre {}", chapter_number as i32)),
 				chapter_number: Some(chapter_number),
 				volume_number: None,
