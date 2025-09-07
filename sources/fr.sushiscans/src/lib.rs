@@ -97,7 +97,7 @@ impl ImageRequestProvider for SushiScans {
 impl SushiScans {
     fn build_search_url(&self, query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
         let mut included_tags: Vec<String> = Vec::new();
-        let _excluded_tags: Vec<String> = Vec::new();
+        let mut excluded_tags: Vec<String> = Vec::new();
         let mut status = String::new();
         let mut manga_type = String::new();
         
@@ -151,16 +151,15 @@ impl SushiScans {
                 FilterValue::MultiSelect { id, included, excluded } => {
                     match id.as_str() {
                         "tags" => {
-                            // Add included genres (positive IDs)
+                            // Separate included and excluded genres (don't mix them!)
                             for genre_id in included {
                                 if !genre_id.is_empty() && genre_id != "" {
                                     included_tags.push(genre_id);
                                 }
                             }
-                            // Add excluded genres with "-" prefix (negative IDs)
                             for genre_id in excluded {
                                 if !genre_id.is_empty() && genre_id != "" {
-                                    included_tags.push(format!("-{}", genre_id));
+                                    excluded_tags.push(genre_id);
                                 }
                             }
                         },
@@ -179,10 +178,34 @@ impl SushiScans {
             url_params.push(format!("page={}", page));
         }
         
-        // Add genre parameters
-        for tag in included_tags {
-            if !tag.is_empty() {
-                url_params.push(format!("genre%5B%5D={}", tag));
+        // Add genre parameters with MangaStream logic
+        if !included_tags.is_empty() || !excluded_tags.is_empty() {
+            if excluded_tags.is_empty() {
+                // Only included tags
+                for tag in included_tags {
+                    if !tag.is_empty() {
+                        url_params.push(format!("genre%5B%5D={}", tag));
+                    }
+                }
+            } else if !included_tags.is_empty() && !excluded_tags.is_empty() {
+                // Both included and excluded tags
+                for tag in included_tags {
+                    if !tag.is_empty() {
+                        url_params.push(format!("genre%5B%5D={}", tag));
+                    }
+                }
+                for tag in excluded_tags {
+                    if !tag.is_empty() {
+                        url_params.push(format!("genre%5B%5D=-{}", tag));
+                    }
+                }
+            } else {
+                // Only excluded tags
+                for tag in excluded_tags {
+                    if !tag.is_empty() {
+                        url_params.push(format!("genre%5B%5D=-{}", tag));
+                    }
+                }
             }
         }
         
