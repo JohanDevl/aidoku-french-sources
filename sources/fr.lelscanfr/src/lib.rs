@@ -37,8 +37,67 @@ impl Source for LelscanFr {
             query_params.push_str(&format!("&title={}", helper::urlencode(search_query)));
         }
         
-        // Process filters - ignore for now
-        let _ = filters;
+        // Process filters
+        let mut selected_genres: Vec<String> = Vec::new();
+        let mut selected_status = String::new();
+        let mut selected_type = String::new();
+        
+        for filter in &filters {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "type" && !value.is_empty() && value != "Tout" {
+                        // Map type filter values to server values
+                        selected_type = match value.as_str() {
+                            "Manga" => String::from("manga"),
+                            "Manhua" => String::from("manhua"),
+                            "Manhwa" => String::from("manhwa"),
+                            "Bande Dessinée" => String::from("bd"),
+                            _ => value.to_lowercase(),
+                        };
+                    } else if id == "status" && !value.is_empty() && value != "Tout" {
+                        // Map French status values to server values
+                        selected_status = match value.as_str() {
+                            "En cours" => String::from("en-cours"),
+                            "En pause" => String::from("en-pause"),
+                            "Terminé" => String::from("termine"),
+                            _ => value.clone(),
+                        };
+                    }
+                }
+                FilterValue::MultiSelect { id, included, excluded } => {
+                    if id == "genre" {
+                        // Add included genres
+                        for value in included {
+                            if !value.is_empty() && value != "Tout" {
+                                selected_genres.push(value.clone());
+                            }
+                        }
+                        // Add excluded genres with "-" prefix
+                        for value in excluded {
+                            if !value.is_empty() && value != "Tout" {
+                                selected_genres.push(format!("-{}", value));
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Add filter parameters to query
+        if !selected_type.is_empty() {
+            query_params.push_str(&format!("&type={}", helper::urlencode(selected_type)));
+        }
+        
+        if !selected_status.is_empty() {
+            query_params.push_str(&format!("&status={}", helper::urlencode(selected_status)));
+        }
+        
+        for genre in &selected_genres {
+            if !genre.is_empty() {
+                query_params.push_str(&format!("&genre[]={}", helper::urlencode(genre.clone())));
+            }
+        }
         
         let url = format!("{}/manga?page={}{}", BASE_URL, page, query_params);
         
