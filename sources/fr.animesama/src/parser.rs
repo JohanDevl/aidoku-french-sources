@@ -657,22 +657,22 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		Ok(count) => {
 			// Limiter pour certains mangas où l'API retourne des nombres incorrects
 			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
-				// Pour Versatile Mage, utiliser un maximum raisonnable car l'API semble incorrecte
+				// Pour Versatile Mage, utiliser un maximum très élevé pour couvrir tous les chapitres
 				// Basé sur les tests, il y a des chapitres jusqu'à 817, 870, etc.
-				count.min(200) // Limiter à 200 chapitres max - assez pour couvrir tous les chapitres réels
+				count.min(1000) // Limite très élevée pour couvrir tous les chapitres possibles
 			} else {
-				count
+				count.min(2000) // Limite élevée pour les autres mangas aussi
 			}
 		},
 		Err(_) => {
-			// Fallback: reasonable default
+			// Fallback: très élevé pour couvrir tous les chapitres possibles
 			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
-				// Pour Versatile Mage, utiliser un fallback raisonnable basé sur les chapitres connus
-				150
+				// Pour Versatile Mage, utiliser un fallback très élevé pour couvrir tous les chapitres
+				800 // Très élevé pour couvrir 817, 870+ et plus
 			} else if !chapter_mappings.is_empty() {
-				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(100) + 50
+				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(500) + 200
 			} else {
-				100 // Fallback plus généreux
+				500 // Fallback très généreux pour tous les mangas
 			}
 		}
 	};
@@ -1005,10 +1005,10 @@ fn get_max_available_chapter_on_cdn(manga_title: &str) -> i32 {
 		// Utiliser cette valeur fixe plutôt que de tester en temps réel
 		1045
 	} else {
-		// Pour les autres mangas, utiliser l'API avec une limite raisonnable
+		// Pour les autres mangas, utiliser l'API avec une limite très élevée
 		match get_total_chapters_from_api(manga_title) {
-			Ok(count) => count.min(500), // Limiter à 500 pour éviter les erreurs
-			Err(_) => 100, // Fallback conservateur pour les autres mangas
+			Ok(count) => count.min(2000), // Limite très élevée pour couvrir tous les chapitres
+			Err(_) => 1000, // Fallback très généreux pour les autres mangas
 		}
 	}
 }
