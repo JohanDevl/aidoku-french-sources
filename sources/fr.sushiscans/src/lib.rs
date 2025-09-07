@@ -171,34 +171,54 @@ impl SushiScans {
             }
         }
         
-        // Build URL based on search context
-        let mut url = if let Some(search_query) = query {
+        // Build URL parameters like fr.lelmanga
+        let mut url_params = Vec::new();
+        
+        // Add page parameter if not first page
+        if page > 1 {
+            url_params.push(format!("page={}", page));
+        }
+        
+        // Add genre parameters
+        for tag in included_tags {
+            if !tag.is_empty() {
+                url_params.push(format!("genre%5B%5D={}", tag));
+            }
+        }
+        
+        // Add status parameter
+        if !status.is_empty() {
+            url_params.push(format!("status={}", status));
+        }
+        
+        // Add type parameter  
+        if !manga_type.is_empty() {
+            url_params.push(format!("type={}", manga_type.replace(' ', "%20")));
+        }
+        
+        // Build final URL based on search context
+        let url = if let Some(search_query) = query {
             if !search_query.is_empty() {
-                // Search with query
-                format!("{}/?s={}&page={}", BASE_URL, search_query.replace(' ', "+"), page)
+                // Search mode - add search query first
+                let mut search_params = vec![format!("s={}", search_query.replace(' ', "+"))];
+                search_params.extend(url_params);
+                format!("{}/?{}", BASE_URL, search_params.join("&"))
             } else {
-                // Catalog browsing
-                format!("{}/catalogue/?page={}", BASE_URL, page)
+                // Empty search query - use catalog with filters
+                if url_params.is_empty() {
+                    format!("{}/catalogue/", BASE_URL)
+                } else {
+                    format!("{}/catalogue/?{}", BASE_URL, url_params.join("&"))
+                }
             }
         } else {
-            // No search query - use catalog
-            format!("{}/catalogue/?page={}", BASE_URL, page)
+            // No search query - browse/filter mode
+            if url_params.is_empty() {
+                format!("{}/catalogue/", BASE_URL)
+            } else {
+                format!("{}/catalogue/?{}", BASE_URL, url_params.join("&"))
+            }
         };
-        
-        // Add genre filters (included only for now)
-        for tag in included_tags {
-            url.push_str(&format!("&genre%5B%5D={}", tag));
-        }
-        
-        // Add status filter
-        if !status.is_empty() {
-            url.push_str(&format!("&status={}", status));
-        }
-        
-        // Add type filter
-        if !manga_type.is_empty() {
-            url.push_str(&format!("&type={}", manga_type.replace(' ', "%20")));
-        }
         
         url
     }
