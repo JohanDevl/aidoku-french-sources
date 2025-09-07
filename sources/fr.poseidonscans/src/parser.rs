@@ -1,7 +1,7 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
-	alloc::{String, Vec, format, string::ToString, vec},
+	alloc::{String, Vec, format, string::ToString, vec, collections::BTreeMap},
 	imports::html::{Document, Element},
 	serde::Deserialize,
 };
@@ -32,6 +32,10 @@ pub struct MangaItem {
 	pub categories: Option<Vec<CategoryItem>>,
 	#[serde(default)]
 	pub r#type: Option<String>,
+	#[serde(default, rename = "createdAt")]
+	pub created_at: Option<String>,
+	#[serde(default, rename = "latestChapterCreatedAt")]
+	pub latest_chapter_created_at: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -146,7 +150,7 @@ pub fn parse_manga_list(
 	let mut all_mangas: Vec<Manga> = Vec::new();
 	let query_lower = search_query.to_lowercase();
 
-	for item in api_response.data {
+	for item in &api_response.data {
 		let manga = item.to_manga();
 		
 		// Apply search filter
@@ -183,7 +187,7 @@ pub fn parse_manga_list(
 	
 	// Apply sorting
 	if let Some(ref sort_str) = sort_filter {
-		apply_sorting(&mut all_mangas, sort_str);
+		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
 	}
 
 	// Client-side pagination (20 items per page)
@@ -1219,7 +1223,13 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 }
 
 // Apply sorting to manga list
-fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str) {
+fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[MangaItem]) {
+	// Create a map for quick lookup of API data by manga key (slug)
+	let item_map: BTreeMap<&str, &MangaItem> = manga_items
+		.iter()
+		.map(|item| (item.slug.as_str(), item))
+		.collect();
+
 	match sort_option {
 		"Titre A-Z" => {
 			mangas.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
@@ -1228,11 +1238,32 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str) {
 			mangas.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
 		}
 		"Date d'ajout" => {
-			// Sort by key (assuming newer keys come later alphabetically)
-			mangas.sort_by(|a, b| b.key.cmp(&a.key));
+			// Sort by createdAt date (newest first)
+			mangas.sort_by(|a, b| {
+				let a_date = item_map.get(a.key.as_str()).and_then(|item| item.created_at.as_ref());
+				let b_date = item_map.get(b.key.as_str()).and_then(|item| item.created_at.as_ref());
+				
+				match (a_date, b_date) {
+					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
+					(Some(_), None) => Ordering::Less,
+					(None, Some(_)) => Ordering::Greater,
+					(None, None) => Ordering::Equal,
+				}
+			});
 		}
 		"Dernière mise à jour" | _ => {
-			// Default sorting - no specific ordering needed as API already provides reasonable order
+			// Sort by latestChapterCreatedAt date (newest first) or keep API order
+			mangas.sort_by(|a, b| {
+				let a_date = item_map.get(a.key.as_str()).and_then(|item| item.latest_chapter_created_at.as_ref());
+				let b_date = item_map.get(b.key.as_str()).and_then(|item| item.latest_chapter_created_at.as_ref());
+				
+				match (a_date, b_date) {
+					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
+					(Some(_), None) => Ordering::Less,
+					(None, Some(_)) => Ordering::Greater,
+					(None, None) => Ordering::Equal,
+				}
+			});
 		}
 	}
 }
