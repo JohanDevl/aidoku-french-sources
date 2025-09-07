@@ -106,7 +106,7 @@ impl SushiScans {
         // Process filters based on FilterValue structure
         for filter in filters {
             match filter {
-                FilterValue::Text { .. } => {
+                FilterValue::Text { value: _, .. } => {
                     // Title filter is handled by the query parameter, so we can ignore it here
                     continue;
                 },
