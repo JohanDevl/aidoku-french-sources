@@ -17,7 +17,8 @@ pub mod parser;
 pub mod helper;
 
 pub const BASE_URL: &str = "https://anime-sama.fr";
-pub const CDN_URL: &str = "https://s22.anime-sama.me/s1/scans";
+pub const CDN_URL: &str = "https://anime-sama.fr/s2/scans";
+pub const CDN_URL_LEGACY: &str = "https://s22.anime-sama.me/s1/scans";
 
 // Inclure le contenu de filters.json au moment de la compilation
 static FILTERS_JSON: &str = include_str!("../res/filters.json");

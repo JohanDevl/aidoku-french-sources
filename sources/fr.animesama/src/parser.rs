@@ -6,7 +6,16 @@ use aidoku::{
 	imports::net::Request,
 };
 
-use crate::{BASE_URL, CDN_URL, helper};
+use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
+
+// Fonction pour déterminer quel CDN utiliser selon le manga
+fn select_cdn_url(manga_title: &str) -> &'static str {
+	// Mangas qui utilisent l'ancien CDN
+	match manga_title {
+		"One Piece" | "Dragon Ball" => CDN_URL_LEGACY,
+		_ => CDN_URL, // Nouveau CDN par défaut
+	}
+}
 
 // Structure pour stocker les mappings de chapitres depuis JavaScript
 #[derive(Debug, Clone)]
@@ -1157,30 +1166,31 @@ fn clean_extracted_title(title: &str) -> String {
 // Générer l'URL d'image selon le manga spécifique (logique déterministe)
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
+	let cdn_url = select_cdn_url(manga_title);
 	
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
 		"One Piece" => {
 			if chapter_index <= 952 {
 				// Chapitres 1-952 : format normal {chapter}_{page}.jpg
-				format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, chapter_index, page)
+				format!("{}/{}/{}/{}_{}.jpg", cdn_url, encoded_title, chapter_index, chapter_index, page)
 			} else {
 				// Chapitres 953+ : prefix avec décalage -952
 				let prefix = chapter_index - 952;
-				format!("{}/{}/{}/{}_{}.jpg", CDN_URL, encoded_title, chapter_index, prefix, page)
+				format!("{}/{}/{}/{}_{}.jpg", cdn_url, encoded_title, chapter_index, prefix, page)
 			}
 		}
 		"Dragon Ball" => {
 			// Dragon Ball utilise un format webp spécial avec tome fixe
-			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", CDN_URL, encoded_title, page)
+			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", cdn_url, encoded_title, page)
 		}
 		"Naruto" | "Bleach" | "Hunter x Hunter" | "Death Note" => {
 			// Ces mangas populaires utilisent souvent le format avec padding
-			format!("{}/{}/{}/{:03}.jpg", CDN_URL, encoded_title, chapter_index, page)
+			format!("{}/{}/{}/{:03}.jpg", cdn_url, encoded_title, chapter_index, page)
 		}
 		_ => {
 			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
-			format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, chapter_index, page)
+			format!("{}/{}/{}/{}.jpg", cdn_url, encoded_title, chapter_index, page)
 		}
 	}
 }
