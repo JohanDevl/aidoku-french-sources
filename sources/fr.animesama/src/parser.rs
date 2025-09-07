@@ -999,11 +999,10 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 
 // Détecter le dernier chapitre disponible sur le CDN de manière conservatrice
 fn get_max_available_chapter_on_cdn(manga_title: &str) -> i32 {
-	// Pour One Piece, utiliser une limite conservatrice basée sur nos tests
+	// Pour One Piece, utiliser la limite complète connue
 	if manga_title == "One Piece" {
-		// D'après nos tests, le CDN s'arrête à 1045
-		// Utiliser cette valeur fixe plutôt que de tester en temps réel
-		1045
+		// One Piece a 1158 chapitres disponibles sur le CDN
+		1158
 	} else {
 		// Pour les autres mangas, utiliser l'API avec une limite très élevée
 		match get_total_chapters_from_api(manga_title) {
