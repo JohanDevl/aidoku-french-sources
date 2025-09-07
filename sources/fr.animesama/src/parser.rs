@@ -1195,9 +1195,10 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 		"One Piece" => {
 			// For One Piece, use different CDN and format based on chapter range
 			if chapter_index >= 1046 {
-				// Recent chapters (1046+): new CDN with simple format and CDN index offset
-				// Example: Chapter 1158 → https://anime-sama.fr/s2/scans/One%20Piece/1159/1.jpg
-				let cdn_index = chapter_index + 1; // +1 offset for One Shot in CDN structure
+				// Chapters starting from One Shot position (1046+): new CDN with CDN index offset
+				// One Shot takes CDN position 1046, so chapters 1046+ are shifted +1 in CDN
+				// Examples: Chapter 1046 → .../1047/..., Chapter 1158 → .../1159/...
+				let cdn_index = chapter_index + 1; // +1 offset starting from chapter 1046
 				format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, cdn_index, page)
 			} else if chapter_index <= 952 {
 				// Old chapters (1-952): legacy CDN with {chapter}_{page} format
