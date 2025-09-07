@@ -796,39 +796,50 @@ impl SushiScans {
         // Include the filters.json content at compile time
         let filters_json = include_str!("../res/filters.json");
         
-        // Simple manual JSON parsing for the specific structure we need
-        // Look for the tags filter section
+        // Find the tags filter section
         if let Some(tags_start) = filters_json.find(r#""id": "tags""#) {
-            if let Some(options_start) = filters_json[tags_start..].find(r#""options": ["#) {
-                let options_start = tags_start + options_start + r#""options": ["#.len();
-                if let Some(options_end) = filters_json[options_start..].find("],") {
-                    let options_str = &filters_json[options_start..options_start + options_end];
+            let tags_section = &filters_json[tags_start..];
+            
+            // Find options array (handle multi-line format)
+            if let Some(options_start_pos) = tags_section.find(r#""options": ["#) {
+                let options_start = options_start_pos + r#""options": ["#.len();
+                
+                // Find the end of the options array - look for the closing ]
+                if let Some(options_end) = tags_section[options_start..].find("]") {
+                    let options_str = &tags_section[options_start..options_start + options_end];
                     
-                    if let Some(ids_start) = filters_json[tags_start..].find(r#""ids": ["#) {
-                        let ids_start = tags_start + ids_start + r#""ids": ["#.len();
-                        if let Some(ids_end) = filters_json[ids_start..].find("]") {
-                            let ids_str = &filters_json[ids_start..ids_start + ids_end];
+                    // Find ids array (handle multi-line format)  
+                    if let Some(ids_start_pos) = tags_section.find(r#""ids": ["#) {
+                        let ids_start = ids_start_pos + r#""ids": ["#.len();
+                        
+                        // Find the end of the ids array
+                        if let Some(ids_end) = tags_section[ids_start..].find("]") {
+                            let ids_str = &tags_section[ids_start..ids_start + ids_end];
                             
-                            // Parse options array
-                            let options: Vec<&str> = options_str
+                            // Parse options array - handle both single line and multi-line
+                            let options: Vec<String> = options_str
                                 .split(',')
                                 .map(|s| s.trim())
                                 .map(|s| s.trim_matches('"'))
                                 .map(|s| s.trim())
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
                                 .collect();
                             
-                            // Parse ids array  
-                            let ids: Vec<&str> = ids_str
+                            // Parse ids array - handle both single line and multi-line
+                            let ids: Vec<String> = ids_str
                                 .split(',')
                                 .map(|s| s.trim())
                                 .map(|s| s.trim_matches('"'))
                                 .map(|s| s.trim())
+                                .filter(|s| !s.is_empty())
+                                .map(|s| s.to_string())
                                 .collect();
                             
                             // Build the mapping
-                            for (i, &option) in options.iter().enumerate() {
-                                if let Some(&id) = ids.get(i) {
-                                    map.insert(option.to_string(), id.to_string());
+                            for (i, option) in options.iter().enumerate() {
+                                if let Some(id) = ids.get(i) {
+                                    map.insert(option.clone(), id.clone());
                                 }
                             }
                         }
