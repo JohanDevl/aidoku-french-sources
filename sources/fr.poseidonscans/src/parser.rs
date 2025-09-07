@@ -129,7 +129,15 @@ impl LatestChapterItem {
 
 // Parse functions for different API endpoints
 
-pub fn parse_manga_list(response: String, search_query: String, status_filter: Option<MangaStatus>, page: i32) -> Result<MangaPageResult> {
+pub fn parse_manga_list(
+	response: String, 
+	search_query: String, 
+	status_filter: Option<String>, 
+	type_filter: Option<String>, 
+	genre_filter: Option<String>, 
+	sort_filter: Option<String>, 
+	page: i32
+) -> Result<MangaPageResult> {
 	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)
 		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
 
@@ -144,14 +152,36 @@ pub fn parse_manga_list(response: String, search_query: String, status_filter: O
 			continue;
 		}
 		
-		// Apply status filter  
-		if let Some(filter_status) = status_filter {
+		// Apply status filter
+		if let Some(ref status_str) = status_filter {
+			let filter_status = parse_manga_status(status_str);
 			if manga.status != filter_status {
 				continue;
 			}
 		}
 		
+		// Apply type filter (check if manga contains the type in description or if it's a different type)
+		if let Some(ref type_str) = type_filter {
+			// Extract type from the original API data if available
+			let manga_type = extract_manga_type(&item);
+			if !type_matches(&manga_type, type_str) {
+				continue;
+			}
+		}
+		
+		// Apply genre filter
+		if let Some(ref genre_str) = genre_filter {
+			if !manga_has_genre(&manga, genre_str) {
+				continue;
+			}
+		}
+		
 		all_mangas.push(manga);
+	}
+	
+	// Apply sorting
+	if let Some(ref sort_str) = sort_filter {
+		apply_sorting(&mut all_mangas, sort_str);
 	}
 
 	// Client-side pagination (20 items per page)
@@ -1148,7 +1178,62 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 	Ok(pages)
 }
 
-// Helper functions
+// Helper functions for filtering
+
+// Extract manga type from API data (Manga, Manhwa, Manhua)
+fn extract_manga_type(item: &MangaItem) -> String {
+	// Try to infer type from categories or other metadata
+	if let Some(ref categories) = item.categories {
+		for cat in categories {
+			let cat_lower = cat.name.to_lowercase();
+			if cat_lower.contains("manhwa") {
+				return "Manhwa".to_string();
+			} else if cat_lower.contains("manhua") {
+				return "Manhua".to_string();
+			}
+		}
+	}
+	
+	// Default to Manga if no specific type found
+	"Manga".to_string()
+}
+
+// Check if manga type matches filter
+fn type_matches(manga_type: &str, filter_type: &str) -> bool {
+	manga_type.to_lowercase() == filter_type.to_lowercase()
+}
+
+// Check if manga has the specified genre
+fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
+	if let Some(ref tags) = manga.tags {
+		let genre_lower = genre_filter.to_lowercase();
+		for tag in tags {
+			if tag.to_lowercase().contains(&genre_lower) {
+				return true;
+			}
+		}
+	}
+	false
+}
+
+// Apply sorting to manga list
+fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str) {
+	match sort_option {
+		"Titre A-Z" => {
+			mangas.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+		}
+		"Titre Z-A" => {
+			mangas.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
+		}
+		"Date d'ajout" => {
+			// Sort by key (assuming newer keys come later alphabetically)
+			mangas.sort_by(|a, b| b.key.cmp(&a.key));
+		}
+		"Dernière mise à jour" | _ => {
+			// Default sorting - no specific ordering needed as API already provides reasonable order
+		}
+	}
+}
 
 fn parse_manga_status(status: &str) -> MangaStatus {
 	let status_lower = status.to_lowercase();

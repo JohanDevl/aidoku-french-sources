@@ -27,7 +27,42 @@ impl Source for PoseidonScans {
         page: i32, 
         filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
-        let _ = filters; // Ignore filters for now - Poseidon Scans uses client-side filtering
+        // Parse filter values
+        let mut status_filter: Option<String> = None;
+        let mut type_filter: Option<String> = None;
+        let mut genre_filter: Option<String> = None;
+        let mut sort_filter: Option<String> = None;
+        
+        for filter in filters {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    match id.as_str() {
+                        "status" => {
+                            if !value.is_empty() && value != "Tous les statuts" {
+                                status_filter = Some(value);
+                            }
+                        }
+                        "type" => {
+                            if !value.is_empty() && value != "Tous les types" {
+                                type_filter = Some(value);
+                            }
+                        }
+                        "genre" => {
+                            if !value.is_empty() && value != "Tous les genres" {
+                                genre_filter = Some(value);
+                            }
+                        }
+                        "sort" => {
+                            if !value.is_empty() {
+                                sort_filter = Some(value);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
         
         // Fetch all manga and apply client-side filtering
         let url = format!("{}/manga/all", API_URL);
@@ -40,8 +75,8 @@ impl Source for PoseidonScans {
             .header("Origin", BASE_URL)
             .string()?;
         let search_query = query.unwrap_or_else(|| String::new());
-        // Parse with new serde-based parser
-        parser::parse_manga_list(response, search_query, None, page)
+        // Parse with new serde-based parser including all filters
+        parser::parse_manga_list(response, search_query, status_filter, type_filter, genre_filter, sort_filter, page)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
