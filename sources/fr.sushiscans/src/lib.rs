@@ -106,7 +106,7 @@ impl SushiScans {
         // Process filters based on FilterValue structure
         for filter in filters {
             match filter {
-                FilterValue::Text { value, .. } => {
+                FilterValue::Text { .. } => {
                     // Title filter is handled by the query parameter, so we can ignore it here
                     continue;
                 },
@@ -172,26 +172,18 @@ impl SushiScans {
         }
         
         // Build URL based on search context
-        let mut url = String::new();
-        
-        if let Some(search_query) = query {
+        let mut url = if let Some(search_query) = query {
             if !search_query.is_empty() {
                 // Search with query
-                url = format!("{}/?s={}&page={}", BASE_URL, search_query.replace(' ', "+"), page);
+                format!("{}/?s={}&page={}", BASE_URL, search_query.replace(' ', "+"), page)
             } else {
                 // Catalog browsing
-                url = format!("{}/catalogue/?page={}", BASE_URL, page);
+                format!("{}/catalogue/?page={}", BASE_URL, page)
             }
         } else {
-            // No search query - check if we have filters
-            if included_tags.is_empty() && status.is_empty() && manga_type.is_empty() {
-                // No filters, use default catalog
-                url = format!("{}/catalogue/?page={}", BASE_URL, page);
-            } else {
-                // Filters without search query
-                url = format!("{}/catalogue/?page={}", BASE_URL, page);
-            }
-        }
+            // No search query - use catalog
+            format!("{}/catalogue/?page={}", BASE_URL, page)
+        };
         
         // Add genre filters (included only for now)
         for tag in included_tags {
