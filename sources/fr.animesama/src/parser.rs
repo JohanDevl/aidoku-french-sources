@@ -1193,20 +1193,19 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
 		"One Piece" => {
-			// For One Piece, use different CDN based on chapter range
-			let cdn_url = if chapter_index >= 1046 {
-				CDN_URL // Use new CDN for recent chapters (1046+)
+			// For One Piece, use different CDN and format based on chapter range
+			if chapter_index >= 1046 {
+				// Recent chapters (1046+): new CDN with simple format and CDN index offset
+				// Example: Chapter 1158 → https://anime-sama.fr/s2/scans/One%20Piece/1159/1.jpg
+				let cdn_index = chapter_index + 1; // +1 offset for One Shot in CDN structure
+				format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, cdn_index, page)
+			} else if chapter_index <= 952 {
+				// Old chapters (1-952): legacy CDN with {chapter}_{page} format
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL_LEGACY, encoded_title, chapter_index, chapter_index, page)
 			} else {
-				CDN_URL_LEGACY // Use legacy CDN for older chapters
-			};
-			
-			if chapter_index <= 952 {
-				// Chapitres 1-952 : format normal {chapter}_{page}.jpg
-				format!("{}/{}/{}/{}_{}.jpg", cdn_url, encoded_title, chapter_index, chapter_index, page)
-			} else {
-				// Chapitres 953+ : prefix avec décalage -952
+				// Middle chapters (953-1045): legacy CDN with prefix format
 				let prefix = chapter_index - 952;
-				format!("{}/{}/{}/{}_{}.jpg", cdn_url, encoded_title, chapter_index, prefix, page)
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL_LEGACY, encoded_title, chapter_index, prefix, page)
 			}
 		}
 		"Dragon Ball" => {
