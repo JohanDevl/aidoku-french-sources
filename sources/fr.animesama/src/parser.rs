@@ -658,17 +658,21 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			// Limiter pour certains mangas où l'API retourne des nombres incorrects
 			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
 				// Pour Versatile Mage, utiliser un maximum raisonnable car l'API semble incorrecte
-				count.min(50) // Limiter à 50 chapitres max pour éviter les erreurs
+				// Basé sur les tests, il y a des chapitres jusqu'à 817, 870, etc.
+				count.min(200) // Limiter à 200 chapitres max - assez pour couvrir tous les chapitres réels
 			} else {
 				count
 			}
 		},
 		Err(_) => {
 			// Fallback: reasonable default
-			if !chapter_mappings.is_empty() {
+			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
+				// Pour Versatile Mage, utiliser un fallback raisonnable basé sur les chapitres connus
+				150
+			} else if !chapter_mappings.is_empty() {
 				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(100) + 50
 			} else {
-				50 // Plus conservateur pour éviter les problèmes
+				100 // Fallback plus généreux
 			}
 		}
 	};
