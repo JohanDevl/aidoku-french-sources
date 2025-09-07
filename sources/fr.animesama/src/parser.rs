@@ -1184,10 +1184,6 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 			// Dragon Ball utilise un format webp spécial avec tome fixe
 			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", cdn_url, encoded_title, page)
 		}
-		"Naruto" | "Bleach" | "Hunter x Hunter" | "Death Note" => {
-			// Ces mangas populaires utilisent souvent le format avec padding
-			format!("{}/{}/{}/{:03}.jpg", cdn_url, encoded_title, chapter_index, page)
-		}
 		_ => {
 			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
 			format!("{}/{}/{}/{}.jpg", cdn_url, encoded_title, chapter_index, page)
@@ -1223,6 +1219,7 @@ fn manga_key_to_title(manga_key: &str) -> String {
 		"black-clover" => String::from("Black Clover"),
 		"fire-force" => String::from("Fire Force"),
 		"dr-stone" => String::from("Dr. Stone"),
+		"versatile-mage" => String::from("Versatile Mage"),
 		_ => {
 			// Conversion générique améliorée: slug -> Title Case
 			manga_slug
