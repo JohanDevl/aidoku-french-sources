@@ -789,94 +789,52 @@ impl SushiScans {
     }
     
     fn get_tag_id_mapping(&self) -> BTreeMap<String, String> {
-        // Mapping based on updated filters.json with all genres from sushiscan.fr
+        // Parse filters.json to build the mapping dynamically
+        // This ensures we always use filters.json as the single source of truth
         let mut map = BTreeMap::new();
         
-        let tags = [
-            ("Tout", ""),
-            ("Action", "10"),
-            ("Adult", "111835"),
-            ("Adventure", "111654"),
-            ("Arts Martiaux", "22429"),
-            ("Aventure", "299"),
-            ("Biographie", "111803"),
-            ("Biographique", "111974"),
-            ("Boys Love", "111137"),
-            ("Comédie", "562"),
-            ("Comedy", "111836"),
-            ("Drama", "111841"),
-            ("Drame", "110666"),
-            ("Ecchi", "110646"),
-            ("Erotique", "110637"),
-            ("Fantaisie", "110957"),
-            ("Fantastique", "301"),
-            ("Fantasy", "111871"),
-            ("Folklore", "112711"),
-            ("Furyo", "111813"),
-            ("Gekiga", "112330"),
-            ("Gender Bender", "111143"),
-            ("H.B", "112702"),
-            ("Harem", "109224"),
-            ("Histoires courtes", "22289"),
-            ("Historical", "112109"),
-            ("Historique", "302"),
-            ("Horreur", "21492"),
-            ("Horror", "111232"),
-            ("Isekai", "110881"),
-            ("Josei", "111109"),
-            ("Magie", "13908"),
-            ("Manga", "111104"),
-            ("Manga BL", "111138"),
-            ("Manga Hentai", "111103"),
-            ("Manga Romance", "111106"),
-            ("Manhua", "111713"),
-            ("Manhwa", "111428"),
-            ("Manhwa A", "111416"),
-            ("Manhwa J", "111421"),
-            ("Manhwa P", "111412"),
-            ("Manhwa R", "111493"),
-            ("Martial Arts", "107110"),
-            ("Mature", "100321"),
-            ("Mecha", "2168"),
-            ("Mystère", "519"),
-            ("Mystery", "111365"),
-            ("Nekketsu", "22290"),
-            ("Non-censuré", "111140"),
-            ("Omégaverse", "111139"),
-            ("Pornhwa", "111348"),
-            ("Pornwa", "111347"),
-            ("Psychologique", "520"),
-            ("Romance", "11760"),
-            ("Scantrad", "111446"),
-            ("School Life", "59"),
-            ("School-Life", "112553"),
-            ("Sci-fi", "2170"),
-            ("Science-Fiction", "13887"),
-            ("Seinen", "2171"),
-            ("Shôjo-aï", "111035"),
-            ("Shônen-aï", "111007"),
-            ("Shoujo", "22282"),
-            ("Shounen", "14"),
-            ("Slice of Life", "563"),
-            ("Smut", "111072"),
-            ("Soft", "111702"),
-            ("Sport", "100319"),
-            ("Sports", "70"),
-            ("Supernatural", "111142"),
-            ("Surnaturel", "303"),
-            ("Thriller", "111396"),
-            ("Tragédie", "521"),
-            ("Tragedy", "111434"),
-            ("Tragique", "112573"),
-            ("Tranche de vie", "111105"),
-            ("Webtoon", "110966"),
-            ("Yaoi", "111011"),
-            ("Yonkoma", "112075"),
-            ("Yuri", "111033"),
-        ];
+        // Include the filters.json content at compile time
+        let filters_json = include_str!("../res/filters.json");
         
-        for (tag_name, tag_id) in &tags {
-            map.insert(tag_name.to_string(), tag_id.to_string());
+        // Simple manual JSON parsing for the specific structure we need
+        // Look for the tags filter section
+        if let Some(tags_start) = filters_json.find(r#""id": "tags""#) {
+            if let Some(options_start) = filters_json[tags_start..].find(r#""options": ["#) {
+                let options_start = tags_start + options_start + r#""options": ["#.len();
+                if let Some(options_end) = filters_json[options_start..].find("],") {
+                    let options_str = &filters_json[options_start..options_start + options_end];
+                    
+                    if let Some(ids_start) = filters_json[tags_start..].find(r#""ids": ["#) {
+                        let ids_start = tags_start + ids_start + r#""ids": ["#.len();
+                        if let Some(ids_end) = filters_json[ids_start..].find("]") {
+                            let ids_str = &filters_json[ids_start..ids_start + ids_end];
+                            
+                            // Parse options array
+                            let options: Vec<&str> = options_str
+                                .split(',')
+                                .map(|s| s.trim())
+                                .map(|s| s.trim_matches('"'))
+                                .map(|s| s.trim())
+                                .collect();
+                            
+                            // Parse ids array  
+                            let ids: Vec<&str> = ids_str
+                                .split(',')
+                                .map(|s| s.trim())
+                                .map(|s| s.trim_matches('"'))
+                                .map(|s| s.trim())
+                                .collect();
+                            
+                            // Build the mapping
+                            for (i, &option) in options.iter().enumerate() {
+                                if let Some(&id) = ids.get(i) {
+                                    map.insert(option.to_string(), id.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         
         map
