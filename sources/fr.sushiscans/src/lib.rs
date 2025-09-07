@@ -4,6 +4,7 @@ use aidoku::{
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
+    alloc::collections::BTreeMap,
     imports::{net::Request, html::Document},
     prelude::*,
 };
@@ -101,6 +102,9 @@ impl SushiScans {
         let mut status = String::new();
         let mut manga_type = String::new();
         
+        // Tag name to ID mapping from filters.json
+        let tag_map = self.get_tag_id_mapping();
+        
         // Status and type mappings handled directly in the match statements below
         
         // Process filters based on FilterValue structure
@@ -142,9 +146,12 @@ impl SushiScans {
                         "tags" => {
                             // Handle tags filter - value contains the selected tag name
                             if !value.is_empty() && value != "Tout" {
-                                // For now, we'll treat any selected tag as included
-                                // In a more complex implementation, we'd need multiple selection support
-                                included_tags.push(value);
+                                // Find the corresponding tag ID from the mapping
+                                if let Some(tag_id) = tag_map.get(&value) {
+                                    if !tag_id.is_empty() {
+                                        included_tags.push(tag_id.clone());
+                                    }
+                                }
                             }
                         },
                         _ => continue,
@@ -779,6 +786,100 @@ impl SushiScans {
         
         // If no date found, return original title and None
         (title.to_string(), None)
+    }
+    
+    fn get_tag_id_mapping(&self) -> BTreeMap<String, String> {
+        // Mapping based on updated filters.json with all genres from sushiscan.fr
+        let mut map = BTreeMap::new();
+        
+        let tags = [
+            ("Tout", ""),
+            ("Action", "10"),
+            ("Adult", "111835"),
+            ("Adventure", "111654"),
+            ("Arts Martiaux", "22429"),
+            ("Aventure", "299"),
+            ("Biographie", "111803"),
+            ("Biographique", "111974"),
+            ("Boys Love", "111137"),
+            ("Comédie", "562"),
+            ("Comedy", "111836"),
+            ("Drama", "111841"),
+            ("Drame", "110666"),
+            ("Ecchi", "110646"),
+            ("Erotique", "110637"),
+            ("Fantaisie", "110957"),
+            ("Fantastique", "301"),
+            ("Fantasy", "111871"),
+            ("Folklore", "112711"),
+            ("Furyo", "111813"),
+            ("Gekiga", "112330"),
+            ("Gender Bender", "111143"),
+            ("H.B", "112702"),
+            ("Harem", "109224"),
+            ("Histoires courtes", "22289"),
+            ("Historical", "112109"),
+            ("Historique", "302"),
+            ("Horreur", "21492"),
+            ("Horror", "111232"),
+            ("Isekai", "110881"),
+            ("Josei", "111109"),
+            ("Magie", "13908"),
+            ("Manga", "111104"),
+            ("Manga BL", "111138"),
+            ("Manga Hentai", "111103"),
+            ("Manga Romance", "111106"),
+            ("Manhua", "111713"),
+            ("Manhwa", "111428"),
+            ("Manhwa A", "111416"),
+            ("Manhwa J", "111421"),
+            ("Manhwa P", "111412"),
+            ("Manhwa R", "111493"),
+            ("Martial Arts", "107110"),
+            ("Mature", "100321"),
+            ("Mecha", "2168"),
+            ("Mystère", "519"),
+            ("Mystery", "111365"),
+            ("Nekketsu", "22290"),
+            ("Non-censuré", "111140"),
+            ("Omégaverse", "111139"),
+            ("Pornhwa", "111348"),
+            ("Pornwa", "111347"),
+            ("Psychologique", "520"),
+            ("Romance", "11760"),
+            ("Scantrad", "111446"),
+            ("School Life", "59"),
+            ("School-Life", "112553"),
+            ("Sci-fi", "2170"),
+            ("Science-Fiction", "13887"),
+            ("Seinen", "2171"),
+            ("Shôjo-aï", "111035"),
+            ("Shônen-aï", "111007"),
+            ("Shoujo", "22282"),
+            ("Shounen", "14"),
+            ("Slice of Life", "563"),
+            ("Smut", "111072"),
+            ("Soft", "111702"),
+            ("Sport", "100319"),
+            ("Sports", "70"),
+            ("Supernatural", "111142"),
+            ("Surnaturel", "303"),
+            ("Thriller", "111396"),
+            ("Tragédie", "521"),
+            ("Tragedy", "111434"),
+            ("Tragique", "112573"),
+            ("Tranche de vie", "111105"),
+            ("Webtoon", "110966"),
+            ("Yaoi", "111011"),
+            ("Yonkoma", "112075"),
+            ("Yuri", "111033"),
+        ];
+        
+        for (tag_name, tag_id) in &tags {
+            map.insert(tag_name.to_string(), tag_id.to_string());
+        }
+        
+        map
     }
 }
 
