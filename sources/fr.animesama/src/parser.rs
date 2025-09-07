@@ -1126,9 +1126,13 @@ fn build_chapter_url(manga_key: &str) -> String {
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
 	
 	if manga_key.starts_with("http") {
-		format!("{}{}", manga_key, scan_path)
+		// Remove trailing slash from manga_key if it exists to avoid double slash
+		let clean_key = manga_key.trim_end_matches('/');
+		format!("{}{}", clean_key, scan_path)
 	} else {
-		format!("{}{}{}", BASE_URL, manga_key, scan_path)
+		// Remove trailing slash from manga_key if it exists to avoid double slash
+		let clean_key = manga_key.trim_end_matches('/');
+		format!("{}{}{}", BASE_URL, clean_key, scan_path)
 	}
 }
 
