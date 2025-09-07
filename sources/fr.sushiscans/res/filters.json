@@ -25,10 +25,11 @@
     "options": ["Tout", "En Cours", "Terminé", "Abandonné", "En Pause"]
   },
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "tags",
     "title": "Tags",
     "isGenre": true,
+    "canExclude": true,
     "options": [
       "Tout",
       "Action",

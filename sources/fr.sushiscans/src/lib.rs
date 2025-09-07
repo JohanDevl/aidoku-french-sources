@@ -4,7 +4,6 @@ use aidoku::{
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
-    alloc::collections::BTreeMap,
     imports::{net::Request, html::Document},
     prelude::*,
 };
@@ -102,9 +101,6 @@ impl SushiScans {
         let mut status = String::new();
         let mut manga_type = String::new();
         
-        // Tag name to ID mapping from filters.json
-        let tag_map = self.get_tag_id_mapping();
-        
         // Status and type mappings handled directly in the match statements below
         
         // Process filters based on FilterValue structure
@@ -144,13 +140,27 @@ impl SushiScans {
                             };
                         },
                         "tags" => {
-                            // Handle tags filter - value contains the selected tag name
+                            // Handle single select tags (legacy compatibility)
                             if !value.is_empty() && value != "Tout" {
-                                // Find the corresponding tag ID from the mapping
-                                if let Some(tag_id) = tag_map.get(&value) {
-                                    if !tag_id.is_empty() {
-                                        included_tags.push(tag_id.clone());
-                                    }
+                                included_tags.push(value);
+                            }
+                        },
+                        _ => continue,
+                    }
+                },
+                FilterValue::MultiSelect { id, included, excluded } => {
+                    match id.as_str() {
+                        "tags" => {
+                            // Add included genres (positive IDs)
+                            for genre_id in included {
+                                if !genre_id.is_empty() && genre_id != "" {
+                                    included_tags.push(genre_id);
+                                }
+                            }
+                            // Add excluded genres with "-" prefix (negative IDs)
+                            for genre_id in excluded {
+                                if !genre_id.is_empty() && genre_id != "" {
+                                    included_tags.push(format!("-{}", genre_id));
                                 }
                             }
                         },
@@ -786,69 +796,6 @@ impl SushiScans {
         
         // If no date found, return original title and None
         (title.to_string(), None)
-    }
-    
-    fn get_tag_id_mapping(&self) -> BTreeMap<String, String> {
-        // Parse filters.json to build the mapping dynamically
-        // This ensures we always use filters.json as the single source of truth
-        let mut map = BTreeMap::new();
-        
-        // Include the filters.json content at compile time
-        let filters_json = include_str!("../res/filters.json");
-        
-        // Find the tags filter section
-        if let Some(tags_start) = filters_json.find(r#""id": "tags""#) {
-            let tags_section = &filters_json[tags_start..];
-            
-            // Find options array (handle multi-line format)
-            if let Some(options_start_pos) = tags_section.find(r#""options": ["#) {
-                let options_start = options_start_pos + r#""options": ["#.len();
-                
-                // Find the end of the options array - look for the closing ]
-                if let Some(options_end) = tags_section[options_start..].find("]") {
-                    let options_str = &tags_section[options_start..options_start + options_end];
-                    
-                    // Find ids array (handle multi-line format)  
-                    if let Some(ids_start_pos) = tags_section.find(r#""ids": ["#) {
-                        let ids_start = ids_start_pos + r#""ids": ["#.len();
-                        
-                        // Find the end of the ids array
-                        if let Some(ids_end) = tags_section[ids_start..].find("]") {
-                            let ids_str = &tags_section[ids_start..ids_start + ids_end];
-                            
-                            // Parse options array - handle both single line and multi-line
-                            let options: Vec<String> = options_str
-                                .split(',')
-                                .map(|s| s.trim())
-                                .map(|s| s.trim_matches('"'))
-                                .map(|s| s.trim())
-                                .filter(|s| !s.is_empty())
-                                .map(|s| s.to_string())
-                                .collect();
-                            
-                            // Parse ids array - handle both single line and multi-line
-                            let ids: Vec<String> = ids_str
-                                .split(',')
-                                .map(|s| s.trim())
-                                .map(|s| s.trim_matches('"'))
-                                .map(|s| s.trim())
-                                .filter(|s| !s.is_empty())
-                                .map(|s| s.to_string())
-                                .collect();
-                            
-                            // Build the mapping
-                            for (i, option) in options.iter().enumerate() {
-                                if let Some(id) = ids.get(i) {
-                                    map.insert(option.clone(), id.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        map
     }
 }
 
