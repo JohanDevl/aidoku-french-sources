@@ -30,6 +30,8 @@ pub struct MangaItem {
 	pub description: Option<String>,
 	#[serde(default)]
 	pub categories: Option<Vec<CategoryItem>>,
+	#[serde(default)]
+	pub r#type: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -1182,20 +1184,18 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 
 // Extract manga type from API data (Manga, Manhwa, Manhua)
 fn extract_manga_type(item: &MangaItem) -> String {
-	// Try to infer type from categories or other metadata
-	if let Some(ref categories) = item.categories {
-		for cat in categories {
-			let cat_lower = cat.name.to_lowercase();
-			if cat_lower.contains("manhwa") {
-				return "Manhwa".to_string();
-			} else if cat_lower.contains("manhua") {
-				return "Manhua".to_string();
-			}
+	// Use the direct type field from API
+	if let Some(ref manga_type) = item.r#type {
+		match manga_type.to_uppercase().as_str() {
+			"MANHWA" => "Manhwa".to_string(),
+			"MANHUA" => "Manhua".to_string(),
+			"MANGA" => "Manga".to_string(),
+			_ => "Manga".to_string(),
 		}
+	} else {
+		// Fallback to default
+		"Manga".to_string()
 	}
-	
-	// Default to Manga if no specific type found
-	"Manga".to_string()
 }
 
 // Check if manga type matches filter
@@ -1208,7 +1208,9 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 	if let Some(ref tags) = manga.tags {
 		let genre_lower = genre_filter.to_lowercase();
 		for tag in tags {
-			if tag.to_lowercase().contains(&genre_lower) {
+			let tag_lower = tag.to_lowercase();
+			// Exact match or contains match
+			if tag_lower == genre_lower || tag_lower.contains(&genre_lower) || genre_lower.contains(&tag_lower) {
 				return true;
 			}
 		}
