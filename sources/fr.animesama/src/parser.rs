@@ -832,6 +832,8 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 	}
 	
+	// Stocker les informations JavaScript pour fallback plus tard
+	let mut google_drive_pages: Vec<Page> = Vec::new();
 	if let Some((episode_start, _pattern)) = found_episode_section {
 		// Trouver la fin de la déclaration de variable
 		if let Some(episode_section) = html_content[episode_start..].find('[') {
@@ -839,7 +841,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			if let Some(array_end) = html_content[array_start..].find("];") {
 				let array_content = &html_content[array_start + 1..array_start + array_end];
 				
-				// Parser les URLs dans le tableau JavaScript
+				// Parser les URLs dans le tableau JavaScript (pour fallback)
 				for line in array_content.lines() {
 					let trimmed = line.trim();
 					if trimmed.starts_with("'https://drive.google.com") || trimmed.starts_with("\"https://drive.google.com") {
@@ -852,7 +854,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 						
 						if url_end > url_start {
 							let drive_url = &trimmed[url_start..url_end];
-							pages.push(Page {
+							google_drive_pages.push(Page {
 								content: PageContent::url(drive_url.to_string()),
 								thumbnail: None,
 								has_description: false,
@@ -865,12 +867,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 	}
 	
-	// Si toujours vide, utiliser les méthodes de l'ancienne version
-	if pages.is_empty() {
-		let chapter_index = fallback_chapter;
-		
-		// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
-		let manga_slug = manga_key.split('/').last().unwrap_or("manga");
+	// PRIORITÉ 1 : Utiliser le CDN par défaut (plus fiable)
+	let chapter_index = fallback_chapter;
+	
+	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+	let manga_slug = manga_key.split('/').last().unwrap_or("manga");
 		
 		// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
 		let mut manga_title = String::new();
@@ -967,7 +968,12 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			}
 		}
 		
-		// PRIORITÉ 3 : Fallback ultime - 20 pages par défaut
+		// PRIORITÉ 3 : Utiliser Google Drive si disponible
+		if !google_drive_pages.is_empty() {
+			return Ok(google_drive_pages);
+		}
+		
+		// PRIORITÉ 4 : Fallback ultime - 20 pages par défaut
 		for i in 1..=20 {
 			let page_url = generate_image_url(&manga_title, chapter_index, i);
 			pages.push(Page {
@@ -977,7 +983,6 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				description: None,
 			});
 		}
-	}
 	
 	Ok(pages)
 }
