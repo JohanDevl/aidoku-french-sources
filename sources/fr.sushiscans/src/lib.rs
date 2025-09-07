@@ -25,19 +25,10 @@ impl Source for SushiScans {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         
-        let url = if let Some(search_query) = query {
-            if search_query.is_empty() {
-                format!("{}/catalogue/?page={}", BASE_URL, page)
-            } else {
-                format!("{}/?s={}&page={}", BASE_URL, search_query, page)
-            }
-        } else {
-            format!("{}/catalogue/?page={}", BASE_URL, page)
-        };
-
+        let url = self.build_search_url(query, page, filters);
         self.get_manga_from_page(&url)
     }
 
@@ -104,6 +95,105 @@ impl ImageRequestProvider for SushiScans {
 }
 
 impl SushiScans {
+    fn build_search_url(&self, query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
+        let mut included_tags: Vec<String> = Vec::new();
+        let _excluded_tags: Vec<String> = Vec::new();
+        let mut status = String::new();
+        let mut manga_type = String::new();
+        
+        // Status and type mappings handled directly in the match statements below
+        
+        // Process filters based on FilterValue structure
+        for filter in filters {
+            match filter {
+                FilterValue::Text { value, .. } => {
+                    // Title filter is handled by the query parameter, so we can ignore it here
+                    continue;
+                },
+                FilterValue::Select { id, value } => {
+                    match id.as_str() {
+                        "status" => {
+                            // Map French status values to their internal representations
+                            status = match value.as_str() {
+                                "En Cours" => "ongoing".to_string(),
+                                "Terminé" => "completed".to_string(),
+                                "Abandonné" => "hiatus".to_string(),
+                                "En Pause" => "paused".to_string(),
+                                _ => String::new(),
+                            };
+                        },
+                        "type" => {
+                            // Map French type values to their internal representations
+                            manga_type = match value.as_str() {
+                                "Manga" => "manga".to_string(),
+                                "Manhwa" => "manhwa".to_string(),
+                                "Manhua" => "manhua".to_string(),
+                                "Comics" => "comics".to_string(),
+                                "Fanfiction" => "fanfiction".to_string(),
+                                "Webtoon FR" => "webtoon fr".to_string(),
+                                "BD" => "bd".to_string(),
+                                "Global-Manga" => "global-manga".to_string(),
+                                "Guidebook" => "guidebook".to_string(),
+                                "Artbook" => "artbook".to_string(),
+                                "Anime-Comics" => "anime-comics".to_string(),
+                                _ => String::new(),
+                            };
+                        },
+                        "tags" => {
+                            // Handle tags filter - value contains the selected tag name
+                            if !value.is_empty() && value != "Tout" {
+                                // For now, we'll treat any selected tag as included
+                                // In a more complex implementation, we'd need multiple selection support
+                                included_tags.push(value);
+                            }
+                        },
+                        _ => continue,
+                    }
+                },
+                _ => continue,
+            }
+        }
+        
+        // Build URL based on search context
+        let mut url = String::new();
+        
+        if let Some(search_query) = query {
+            if !search_query.is_empty() {
+                // Search with query
+                url = format!("{}/?s={}&page={}", BASE_URL, search_query.replace(' ', "+"), page);
+            } else {
+                // Catalog browsing
+                url = format!("{}/catalogue/?page={}", BASE_URL, page);
+            }
+        } else {
+            // No search query - check if we have filters
+            if included_tags.is_empty() && status.is_empty() && manga_type.is_empty() {
+                // No filters, use default catalog
+                url = format!("{}/catalogue/?page={}", BASE_URL, page);
+            } else {
+                // Filters without search query
+                url = format!("{}/catalogue/?page={}", BASE_URL, page);
+            }
+        }
+        
+        // Add genre filters (included only for now)
+        for tag in included_tags {
+            url.push_str(&format!("&genre%5B%5D={}", tag));
+        }
+        
+        // Add status filter
+        if !status.is_empty() {
+            url.push_str(&format!("&status={}", status));
+        }
+        
+        // Add type filter
+        if !manga_type.is_empty() {
+            url.push_str(&format!("&type={}", manga_type.replace(' ', "%20")));
+        }
+        
+        url
+    }
+    
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
             .header("User-Agent", USER_AGENT)
