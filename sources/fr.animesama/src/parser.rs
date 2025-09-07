@@ -4,6 +4,7 @@ use aidoku::{
 	alloc::{String, Vec, format, vec, string::ToString},
 	imports::html::Document,
 	imports::net::Request,
+	println,
 };
 
 use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
@@ -777,6 +778,13 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
+	// Debug logging for One Piece
+	let is_one_piece = manga_key.contains("one-piece") || manga_key.contains("one_piece");
+	if is_one_piece {
+		println!("[DEBUG] One Piece - manga_key: {}", manga_key);
+		println!("[DEBUG] One Piece - chapter_key: {}", chapter_key);
+	}
+	
 	// Récupérer TOUT le contenu HTML pour chercher les variables eps
 	// Les variables JavaScript peuvent être inline ou dans différents endroits
 	let mut html_content = String::new();
@@ -985,6 +993,12 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		
 		for i in 1..=default_page_count {
 			let page_url = generate_image_url(&manga_title, chapter_index, i);
+			
+			// Debug logging for One Piece
+			if is_one_piece && i <= 3 {
+				println!("[DEBUG] One Piece - generated page {} URL: {}", i, page_url);
+			}
+			
 			pages.push(Page {
 				content: PageContent::url(page_url),
 				thumbnail: None,
@@ -1190,6 +1204,13 @@ fn clean_extracted_title(title: &str) -> String {
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
 	
+	// Debug logging for One Piece
+	let is_one_piece = manga_title == "One Piece";
+	if is_one_piece && page <= 2 {
+		println!("[DEBUG] generate_image_url - title: {}, chapter_index: {}, page: {}", manga_title, chapter_index, page);
+		println!("[DEBUG] generate_image_url - encoded_title: {}", encoded_title);
+	}
+	
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
 		"One Piece" => {
@@ -1199,7 +1220,11 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 				// One Shot takes CDN position 1046, so chapters 1046+ are shifted +1 in CDN
 				// Examples: Chapter 1046 → .../1047/..., Chapter 1158 → .../1159/...
 				let cdn_index = chapter_index + 1; // +1 offset starting from chapter 1046
-				format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, cdn_index, page)
+				let url = format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, cdn_index, page);
+				if page <= 2 {
+					println!("[DEBUG] One Piece 1046+ - CDN_URL: {}, cdn_index: {}, final URL: {}", CDN_URL, cdn_index, url);
+				}
+				url
 			} else if chapter_index <= 952 {
 				// Old chapters (1-952): legacy CDN with {chapter}_{page} format
 				format!("{}/{}/{}/{}_{}.jpg", CDN_URL_LEGACY, encoded_title, chapter_index, chapter_index, page)

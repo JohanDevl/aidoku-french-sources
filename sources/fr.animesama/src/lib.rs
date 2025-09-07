@@ -6,6 +6,7 @@ use aidoku::{
 	alloc::{String, Vec, vec, string::ToString},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
+	println,
 };
 
 extern crate alloc;
