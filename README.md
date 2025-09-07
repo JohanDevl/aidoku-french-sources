@@ -72,20 +72,21 @@ This project uses **Rust** and different templates to support various website te
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
-|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, AnimeSama, LegacyScans |
+|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, AnimeSama, FMTeam, LegacyScans |
 
 ### Project Structure
 
 ```
-src/rust/
-├── madara/          # Template for Madara sites
-├── mangastream/     # Template for MangaStream sites
-├── mmrcms/          # Template for MMRCMS sites
+sources/
+├── fr.animesama/    # Custom source for AnimeSama
+├── fr.fmteam/       # Custom source for FMTeam
+├── fr.lelmanga/     # MangaThemesia source for LelManga
 ├── fr.lelscanfr/    # Custom source for LelscanFR
+├── fr.mangascantrad/ # Madara source for MangaScantrad
+├── fr.mangasorigines/ # Madara source for MangasOrigines
 ├── fr.phenixscans/  # Custom source for PhenixScans
 ├── fr.poseidonscans/ # Custom source for PoseidonScans
-├── fr.animesama/    # Custom source for AnimeSama
-└── fr.legacyscans/  # Custom source for LegacyScans
+└── fr.sushiscans/   # MangaStream source for SushiScans
 ```
 
 ## 👨‍💻 For Developers
