@@ -36,6 +36,7 @@ async function loadSources() {
       "fr.sushiscans": "MangaStream",
       "fr.mangascan": "MMRCMS",
       "fr.animesama": "Custom",
+      "fr.fmteam": "Custom",
       "fr.lelscanfr": "Custom",
       "fr.phenixscans": "Custom",
       "fr.poseidonscans": "Custom",

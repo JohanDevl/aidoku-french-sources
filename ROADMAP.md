@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 13 (9 active + 4 offline)
-- **Remaining sources**: 33
+- **Implemented sources**: 14 (10 active + 4 offline)
+- **Remaining sources**: 32
 - **Total available sources**: 46
 
 ## 🔄 Work in Progress
@@ -27,7 +27,6 @@ Currently no sources are being actively developed.
 | **EdScanlation**    | [edscanlation.fr](https://edscanlation.fr)       | Unknown       | 🟡 Medium | Scanlation team            |
 | **EnligneManga**    | [enlignemanga.com](https://enlignemanga.com)     | Unknown       | 🟡 Medium | Online manga platform      |
 | **EpsilonScan**     | [epsilonscan.to](https://epsilonscan.to)         | Unknown       | 🟡 Medium | Scanlation group           |
-| **FMTeam**          | [fmteam.fr](https://fmteam.fr)                   | Unknown       | 🟡 Medium | French scanlation team     |
 | **FrManga**         | [frmanga.com](https://frmanga.com)               | Unknown       | 🟡 Medium | French manga source        |
 | **FuryoSquad**      | [furyosociety.com](https://furyosociety.com)     | Unknown       | 🟡 Medium | Scanlation group           |
 | **InovaScanManga**  | [inovascanmanga.com](https://inovascanmanga.com) | Unknown       | 🟡 Medium | Scan community             |
@@ -98,5 +97,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-08-18_
-_Total sources tracked: 33 upcoming_
+_Last updated: 2025-09-07_
+_Total sources tracked: 32 upcoming_
