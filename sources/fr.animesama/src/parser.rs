@@ -949,7 +949,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			return Ok(pages);
 		}
 		
-		// PRIORITÉ 2 : Fallback avec l'API AnimeSama
+		// PRIORITÉ 2 : Fallback avec l'API AnimeSama  
 		match get_page_count_from_api(&manga_title, chapter_index) {
 			Ok(api_page_count) => {
 				for i in 1..=api_page_count {
@@ -964,7 +964,21 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				return Ok(pages);
 			}
 			Err(_) => {
-				// L'API a aussi échoué
+				// L'API a aussi échoué - pour Versatile Mage, essayer une approche différente
+				if manga_title == "Versatile Mage" && chapter_index >= 817 {
+					// Pour les chapitres récents de Versatile Mage, utiliser CDN directement
+					// avec une estimation conservative du nombre de pages
+					for i in 1..=30 {
+						let page_url = generate_image_url(&manga_title, chapter_index, i);
+						pages.push(Page {
+							content: PageContent::url(page_url),
+							thumbnail: None,
+							has_description: false,
+							description: None,
+						});
+					}
+					return Ok(pages);
+				}
 			}
 		}
 		
@@ -973,8 +987,13 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			return Ok(google_drive_pages);
 		}
 		
-		// PRIORITÉ 4 : Fallback ultime - 20 pages par défaut
-		for i in 1..=20 {
+		// PRIORITÉ 4 : Fallback ultime - nombre de pages par défaut selon le manga
+		let default_page_count = match manga_title.as_str() {
+			"Versatile Mage" => 25, // Versatile Mage a souvent plus de pages
+			_ => 20, // Fallback standard
+		};
+		
+		for i in 1..=default_page_count {
 			let page_url = generate_image_url(&manga_title, chapter_index, i);
 			pages.push(Page {
 				content: PageContent::url(page_url),
