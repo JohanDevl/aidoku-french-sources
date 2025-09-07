@@ -64,20 +64,15 @@ impl Source for LelscanFr {
                         };
                     }
                 }
-                FilterValue::MultiSelect { id, included, excluded } => {
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
                     if id == "genre" {
-                        // Add included genres
+                        // Add included genres only (site doesn't support exclusion)
                         for value in included {
                             if !value.is_empty() && value != "Tout" {
                                 selected_genres.push(value.clone());
                             }
                         }
-                        // Add excluded genres with "-" prefix
-                        for value in excluded {
-                            if !value.is_empty() && value != "Tout" {
-                                selected_genres.push(format!("-{}", value));
-                            }
-                        }
+                        // Note: excluded genres are ignored as the site doesn't support exclusion
                     }
                 }
                 _ => {}
