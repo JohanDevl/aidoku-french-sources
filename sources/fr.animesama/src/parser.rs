@@ -648,25 +648,24 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				});
 			}
 		}
-		// Pour les autres mangas, essayer une détection conservatrice des chapitres décimaux
+		// Pour tous les mangas, essayer une détection conservatrice des chapitres décimaux
 		// Utiliser des patterns stricts pour éviter les faux positifs
-		if !manga_name.to_lowercase().contains("versatile mage") {
-			// Chercher des chapitres décimaux dans le contenu HTML
-			for line in html_content.lines() {
-				// Chercher uniquement dans les lignes qui semblent contenir du JavaScript de chapitres
-				if line.contains("creerListe") || line.contains("newSP") || 
-				   line.contains("Chapitre") || line.contains("Chapter") {
-					if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
-						// Vérifier que c'est un chapitre raisonnable (entre 1 et 2000, avec .5 uniquement)
-						if decimal_chapter > 1.0 && decimal_chapter < 2000.0 {
-							let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
-							if (fractional_part - 0.5).abs() < 0.01 { // Accepter seulement .5
-								chapter_mappings.push(ChapterMapping {
-									index: chapter_mappings.len() as i32 + 1,
-									chapter_number: decimal_chapter,
-									title: format!("Chapitre {}", decimal_chapter),
-								});
-							}
+		
+		// Chercher des chapitres décimaux dans le contenu HTML
+		for line in html_content.lines() {
+			// Chercher uniquement dans les lignes qui semblent contenir du JavaScript de chapitres
+			if line.contains("creerListe") || line.contains("newSP") || 
+			   line.contains("Chapitre") || line.contains("Chapter") {
+				if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
+					// Vérifier que c'est un chapitre raisonnable (entre 1 et 2000, avec .5 uniquement)
+					if decimal_chapter > 1.0 && decimal_chapter < 2000.0 {
+						let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
+						if (fractional_part - 0.5).abs() < 0.01 { // Accepter seulement .5
+							chapter_mappings.push(ChapterMapping {
+								index: chapter_mappings.len() as i32 + 1,
+								chapter_number: decimal_chapter,
+								title: format!("Chapitre {}", decimal_chapter),
+							});
 						}
 					}
 				}
@@ -698,6 +697,27 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			}
 		}
 	};
+	
+	// Chercher des One Shot pour tous les mangas (maintenant qu'on a api_max_chapter)
+	if !chapter_mappings.iter().any(|m| m.title.contains("One Shot")) && api_max_chapter > 10 {
+		for line in html_content.lines() {
+			if (line.contains("One Shot") || line.contains("OneShot") || line.contains("one shot")) &&
+			   (line.contains("creerListe") || line.contains("newSP") || line.contains("Chapitre")) {
+				// Ajouter un One Shot générique à une position appropriée
+				let one_shot_position = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+					1046 // Position spécifique pour One Piece
+				} else {
+					api_max_chapter / 2 // Milieu du manga pour les autres
+				};
+				chapter_mappings.push(ChapterMapping {
+					index: one_shot_position,
+					chapter_number: one_shot_position as f32 + 0.5,
+					title: "Chapitre One Shot".to_string(),
+				});
+				break; // Un seul One Shot par manga
+			}
+		}
+	}
 	
 	// Count special chapters that take indices but don't match sequential numbering
 	let special_chapter_count = chapter_mappings.iter().filter(|mapping| {
