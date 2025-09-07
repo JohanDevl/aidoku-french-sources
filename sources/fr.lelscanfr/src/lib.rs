@@ -59,7 +59,7 @@ impl Source for LelscanFr {
                         selected_status = match value.as_str() {
                             "En cours" => String::from("en-cours"),
                             "En pause" => String::from("en-pause"),
-                            "Terminé" => String::from("termine"),
+                            "Terminé" => String::from("termin"),
                             _ => value.clone(),
                         };
                     }
