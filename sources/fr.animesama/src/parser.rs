@@ -1111,6 +1111,7 @@ fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
 // Construire l'URL d'un chapitre avec gestion du cas spécial One Piece (sans paramètre id)
 fn build_chapter_url(manga_key: &str) -> String {
 	let is_one_piece = manga_key.contains("one-piece") || manga_key.contains("one_piece");
+	// For One Piece, default to noir-et-blanc path (this function doesn't have access to chapter number)
 	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
 	
 	if manga_key.starts_with("http") {
@@ -1188,11 +1189,17 @@ fn clean_extracted_title(title: &str) -> String {
 // Générer l'URL d'image selon le manga spécifique (logique déterministe)
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
-	let cdn_url = select_cdn_url(manga_title);
 	
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
 		"One Piece" => {
+			// For One Piece, use different CDN based on chapter range
+			let cdn_url = if chapter_index >= 1046 {
+				CDN_URL // Use new CDN for recent chapters (1046+)
+			} else {
+				CDN_URL_LEGACY // Use legacy CDN for older chapters
+			};
+			
 			if chapter_index <= 952 {
 				// Chapitres 1-952 : format normal {chapter}_{page}.jpg
 				format!("{}/{}/{}/{}_{}.jpg", cdn_url, encoded_title, chapter_index, chapter_index, page)
@@ -1204,10 +1211,12 @@ fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> Strin
 		}
 		"Dragon Ball" => {
 			// Dragon Ball utilise un format webp spécial avec tome fixe
+			let cdn_url = select_cdn_url(manga_title);
 			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", cdn_url, encoded_title, page)
 		}
 		_ => {
 			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
+			let cdn_url = select_cdn_url(manga_title);
 			format!("{}/{}/{}/{}.jpg", cdn_url, encoded_title, chapter_index, page)
 		}
 	}

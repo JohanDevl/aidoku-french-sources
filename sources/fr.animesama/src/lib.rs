@@ -266,7 +266,20 @@ impl Source for AnimeSama {
 			
 			// Déterminer le scan path (One Piece special case)
 			let is_one_piece = clean_manga_key.contains("one-piece") || clean_manga_key.contains("one_piece");
-			let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+			let scan_path = if is_one_piece {
+				// For One Piece chapters 1046+, try using normal scan path instead of noir-et-blanc
+				if let Ok(chapter_num) = chapter.key.parse::<i32>() {
+					if chapter_num >= 1046 {
+						"/scan/vf/" // Normal scan path for recent chapters
+					} else {
+						"/scan_noir-et-blanc/vf/" // Noir-et-blanc for older chapters
+					}
+				} else {
+					"/scan_noir-et-blanc/vf/" // Default for One Shot and other special chapters
+				}
+			} else { 
+				"/scan/vf/" 
+			};
 			
 			if clean_manga_key.starts_with("http") {
 				// Remove trailing slash from clean_manga_key if it exists to avoid double slash
