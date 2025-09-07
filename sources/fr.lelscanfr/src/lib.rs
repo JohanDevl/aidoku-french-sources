@@ -90,7 +90,38 @@ impl Source for LelscanFr {
         
         for genre in &selected_genres {
             if !genre.is_empty() {
-                query_params.push_str(&format!("&genre[]={}", helper::urlencode(genre.clone())));
+                // Encode the genre name properly for URL
+                let encoded_genre = genre.replace(" ", "+")
+                    .replace("é", "%C3%A9")
+                    .replace("è", "%C3%A8")
+                    .replace("à", "%C3%A0")
+                    .replace("ç", "%C3%A7")
+                    .replace("ô", "%C3%B4")
+                    .replace("â", "%C3%A2")
+                    .replace("ê", "%C3%AA")
+                    .replace("î", "%C3%AE")
+                    .replace("ù", "%C3%B9")
+                    .replace("û", "%C3%BB")
+                    .replace("ï", "%C3%AF")
+                    .replace("ë", "%C3%AB")
+                    .replace("ü", "%C3%BC")
+                    .replace("ö", "%C3%B6")
+                    .replace("É", "%C3%89")
+                    .replace("È", "%C3%88")
+                    .replace("À", "%C3%80")
+                    .replace("Ç", "%C3%87")
+                    .replace("Ô", "%C3%94")
+                    .replace("Â", "%C3%82")
+                    .replace("Ê", "%C3%8A")
+                    .replace("Î", "%C3%8E")
+                    .replace("Ù", "%C3%99")
+                    .replace("Û", "%C3%9B")
+                    .replace("Ï", "%C3%8F")
+                    .replace("Ë", "%C3%8B")
+                    .replace("Ü", "%C3%9C")
+                    .replace("Ö", "%C3%96")
+                    .replace("-", "%2D");
+                query_params.push_str(&format!("&genre%5B%5D={}", encoded_genre));
             }
         }
         
