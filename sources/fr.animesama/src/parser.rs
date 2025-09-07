@@ -982,12 +982,7 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			}
 		}
 		
-		// PRIORITÉ 3 : Utiliser Google Drive si disponible
-		if !google_drive_pages.is_empty() {
-			return Ok(google_drive_pages);
-		}
-		
-		// PRIORITÉ 4 : Fallback ultime - nombre de pages par défaut selon le manga
+		// PRIORITÉ 3 : Fallback CDN - nombre de pages par défaut selon le manga
 		let default_page_count = match manga_title.as_str() {
 			"Versatile Mage" => 25, // Versatile Mage a souvent plus de pages
 			_ => 20, // Fallback standard
@@ -1001,6 +996,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				has_description: false,
 				description: None,
 			});
+		}
+		
+		// PRIORITÉ 4 : Google Drive en dernier recours absolu (si CDN échoue totalement)
+		if pages.is_empty() && !google_drive_pages.is_empty() {
+			return Ok(google_drive_pages);
 		}
 	
 	Ok(pages)
