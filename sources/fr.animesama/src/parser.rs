@@ -1,6 +1,6 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
-	Viewer, println,
+	Viewer,
 	alloc::{String, Vec, format, vec, string::ToString},
 	imports::html::Document,
 	imports::net::Request,
@@ -11,17 +11,10 @@ use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
 // Fonction pour déterminer quel CDN utiliser selon le manga
 fn select_cdn_url(manga_title: &str) -> &'static str {
 	// Mangas qui utilisent l'ancien CDN
-	let selected_cdn = match manga_title {
-		"One Piece" | "Dragon Ball" => {
-			println!("[ANIMESAMA DEBUG] select_cdn_url: Using LEGACY CDN for '{}'", manga_title);
-			CDN_URL_LEGACY
-		},
-		_ => {
-			println!("[ANIMESAMA DEBUG] select_cdn_url: Using NEW CDN for '{}'", manga_title);
-			CDN_URL
-		}, // Nouveau CDN par défaut
-	};
-	selected_cdn
+	match manga_title {
+		"One Piece" | "Dragon Ball" => CDN_URL_LEGACY,
+		_ => CDN_URL, // Nouveau CDN par défaut
+	}
 }
 
 // Structure pour stocker les mappings de chapitres depuis JavaScript
@@ -654,41 +647,28 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 					title: "Chapitre One Shot".to_string(),
 				});
 			}
-		} else {
-			// Fallback basique pour les autres mangas : chercher des patterns directement dans le HTML
-			let mut index = 1;
-			for line in html_content.lines() {
-				// Chercher des patterns comme "19.5", "20.5", etc.
-				if let Some(decimal_match) = find_decimal_chapter_in_line(line) {
-					chapter_mappings.push(ChapterMapping {
-						index,
-						chapter_number: decimal_match,
-						title: format!("Chapitre {}", decimal_match),
-					});
-					index += 1;
-				}
-				// Chercher des patterns "One Shot", "Prologue", etc.
-				if let Some(special_title) = find_special_chapter_in_line(line) {
-					chapter_mappings.push(ChapterMapping {
-						index,
-						chapter_number: index as f32,
-						title: format!("Chapitre {}", special_title),
-					});
-					index += 1;
-				}
-			}
 		}
+		// Pour les autres mangas, ne pas chercher de chapitres décimaux car cela génère des faux positifs
+		// Les chapitres décimaux seront gérés par les mappings JavaScript uniquement
 	}
 	
 	// Get total chapters from API (this is the highest chapter NUMBER, not index count)
 	let api_max_chapter = match get_total_chapters_from_api(&manga_name) {
-		Ok(count) => count,
+		Ok(count) => {
+			// Limiter pour certains mangas où l'API retourne des nombres incorrects
+			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
+				// Pour Versatile Mage, utiliser un maximum raisonnable car l'API semble incorrecte
+				count.min(50) // Limiter à 50 chapitres max pour éviter les erreurs
+			} else {
+				count
+			}
+		},
 		Err(_) => {
 			// Fallback: reasonable default
 			if !chapter_mappings.is_empty() {
 				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(100) + 50
 			} else {
-				200 // Reasonable default for most manga
+				50 // Plus conservateur pour éviter les problèmes
 			}
 		}
 	};
@@ -789,8 +769,6 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	
-	println!("[ANIMESAMA DEBUG] parse_page_list called with manga_key: {}, chapter_key: {}", manga_key, chapter_key);
-	
 	// Récupérer TOUT le contenu HTML pour chercher les variables eps
 	// Les variables JavaScript peuvent être inline ou dans différents endroits
 	let mut html_content = String::new();
@@ -876,15 +854,11 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 	}
 	
-	println!("[ANIMESAMA DEBUG] Found {} Google Drive pages for fallback", google_drive_pages.len());
-	
 	// PRIORITÉ 1 : Utiliser le CDN par défaut (plus fiable)
 	let chapter_index = fallback_chapter;
-	println!("[ANIMESAMA DEBUG] Using chapter_index: {}", chapter_index);
 	
 	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
 	let manga_slug = manga_key.split('/').last().unwrap_or("manga");
-	println!("[ANIMESAMA DEBUG] Extracted manga_slug: {}", manga_slug);
 		
 		// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
 		let mut manga_title = String::new();
@@ -931,15 +905,10 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		// Fallback final: utiliser manga_key_to_title avec gestion des cas spéciaux
 		if manga_title.is_empty() {
 			manga_title = manga_key_to_title(manga_slug);
-			println!("[ANIMESAMA DEBUG] Using fallback manga_title from manga_key_to_title: {}", manga_title);
-		} else {
-			println!("[ANIMESAMA DEBUG] Using manga_title extracted from HTML: {}", manga_title);
 		}
 		
 		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
-		println!("[ANIMESAMA DEBUG] PRIORITÉ 1: Trying JavaScript parsing for chapter {}", chapter_index);
 		let mut page_count = parse_episodes_js_from_html(&html_content, chapter_index);
-		println!("[ANIMESAMA DEBUG] JavaScript parsing returned page_count: {}", page_count);
 		
 		// Si c'est le One Shot et qu'on n'a pas trouvé de pages, essayer d'autres indices
 		if page_count == 0 && chapter_key == "9999" {
@@ -954,13 +923,9 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		
 		if page_count > 0 {
 			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
-			println!("[ANIMESAMA DEBUG] PRIORITÉ 1 SUCCESS: Using {} pages from JavaScript parsing", page_count);
 			for i in 1..=page_count {
 				// Essayer différents formats d'images selon le manga
 				let page_url = generate_image_url(&manga_title, chapter_index, i);
-				if i <= 3 { // Log seulement les 3 premiers URLs
-					println!("[ANIMESAMA DEBUG] Generated URL {}: {}", i, page_url);
-				}
 				pages.push(Page {
 					content: PageContent::url(page_url),
 					thumbnail: None,
@@ -972,15 +937,10 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		}
 		
 		// PRIORITÉ 2 : Fallback avec l'API AnimeSama  
-		println!("[ANIMESAMA DEBUG] PRIORITÉ 2: Trying API for manga '{}', chapter {}", manga_title, chapter_index);
 		match get_page_count_from_api(&manga_title, chapter_index) {
 			Ok(api_page_count) => {
-				println!("[ANIMESAMA DEBUG] PRIORITÉ 2 SUCCESS: API returned {} pages", api_page_count);
 				for i in 1..=api_page_count {
 					let page_url = generate_image_url(&manga_title, chapter_index, i);
-					if i <= 3 {
-						println!("[ANIMESAMA DEBUG] Generated API URL {}: {}", i, page_url);
-					}
 					pages.push(Page {
 						content: PageContent::url(page_url),
 						thumbnail: None,
@@ -990,18 +950,13 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 				}
 				return Ok(pages);
 			}
-			Err(e) => {
-				println!("[ANIMESAMA DEBUG] PRIORITÉ 2 FAILED: API error: {:?}", e);
+			Err(_) => {
 				// L'API a aussi échoué - pour Versatile Mage, essayer une approche différente
 				if manga_title == "Versatile Mage" && chapter_index >= 817 {
-					println!("[ANIMESAMA DEBUG] PRIORITÉ 2.5: Special Versatile Mage 817+ handling with 30 pages");
 					// Pour les chapitres récents de Versatile Mage, utiliser CDN directement
 					// avec une estimation conservative du nombre de pages
 					for i in 1..=30 {
 						let page_url = generate_image_url(&manga_title, chapter_index, i);
-						if i <= 3 {
-							println!("[ANIMESAMA DEBUG] Generated Versatile Mage URL {}: {}", i, page_url);
-						}
 						pages.push(Page {
 							content: PageContent::url(page_url),
 							thumbnail: None,
@@ -1020,12 +975,8 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 			_ => 20, // Fallback standard
 		};
 		
-		println!("[ANIMESAMA DEBUG] PRIORITÉ 3: Using CDN fallback with {} default pages", default_page_count);
 		for i in 1..=default_page_count {
 			let page_url = generate_image_url(&manga_title, chapter_index, i);
-			if i <= 3 {
-				println!("[ANIMESAMA DEBUG] Generated CDN fallback URL {}: {}", i, page_url);
-			}
 			pages.push(Page {
 				content: PageContent::url(page_url),
 				thumbnail: None,
@@ -1036,11 +987,8 @@ pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -
 		
 		// PRIORITÉ 4 : Google Drive en dernier recours absolu (si CDN échoue totalement)
 		if pages.is_empty() && !google_drive_pages.is_empty() {
-			println!("[ANIMESAMA DEBUG] PRIORITÉ 4: Using Google Drive as last resort with {} pages", google_drive_pages.len());
 			return Ok(google_drive_pages);
 		}
-		
-		println!("[ANIMESAMA DEBUG] Returning {} total pages", pages.len());
 	
 	Ok(pages)
 }
@@ -1230,10 +1178,6 @@ fn clean_extracted_title(title: &str) -> String {
 fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
 	let encoded_title = helper::urlencode_path(manga_title);
 	let cdn_url = select_cdn_url(manga_title);
-	
-	if page == 1 { // Log seulement pour la première page pour éviter le spam
-		println!("[ANIMESAMA DEBUG] generate_image_url: manga_title='{}', encoded_title='{}', cdn_url='{}'", manga_title, encoded_title, cdn_url);
-	}
 	
 	// Détection basée sur le titre du manga pour éviter les requêtes réseau
 	match manga_title {
