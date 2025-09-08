@@ -685,8 +685,12 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 							if is_dan_da_dan {
 								println!("[DEBUG] Dan Da Dan - adding decimal chapter: {}", decimal_chapter);
 							}
+							// Position le chapitre décimal après le chapitre entier correspondant
+							// Ex: chapitre 19.5 → index 20 (après chapitre 19)
+							let base_chapter = decimal_chapter as i32;
+							let correct_index = base_chapter + 1;
 							chapter_mappings.push(ChapterMapping {
-								index: chapter_mappings.len() as i32 + 1,
+								index: correct_index,
 								chapter_number: decimal_chapter,
 								title: format!("Chapitre {}", decimal_chapter),
 							});
@@ -745,25 +749,37 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 					println!("[DEBUG] Dan Da Dan - found special chapter line with '{}': {}", pattern, line);
 				}
 				
-				// Ajouter un chapitre spécial selon le pattern trouvé
-				let (title, position_offset) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
-					("Chapitre One Shot".to_string(), 0.5)
+				// Déterminer la position correcte selon le manga et le type de chapitre spécial
+				let (title, index, chapter_number) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
+					if is_dan_da_dan {
+						// Dan Da Dan: One Shot entre chapitres 26 et 27
+						("Chapitre One Shot".to_string(), 27, 26.5)
+					} else if manga_name.to_lowercase().contains("one piece") {
+						// One Piece: One Shot entre chapitres 1045 et 1046
+						("Chapitre One Shot".to_string(), 1046, 1045.5)
+					} else {
+						// Autres mangas: essayer de le placer vers la fin, mais pas tout à la fin
+						let position = (api_max_chapter * 3 / 4).max(1); // 3/4 de la série
+						("Chapitre One Shot".to_string(), position, position as f32 - 0.5)
+					}
 				} else if pattern.contains("Hors") {
-					("Chapitre Hors-série".to_string(), 0.3)
+					let position = (api_max_chapter * 2 / 3).max(1); // Vers 2/3 de la série
+					("Chapitre Hors-série".to_string(), position, position as f32 - 0.3)
 				} else if pattern.contains("Spécial") || pattern.contains("Special") {
-					("Chapitre Spécial".to_string(), 0.7)
+					let position = (api_max_chapter * 4 / 5).max(1); // Vers 4/5 de la série
+					("Chapitre Spécial".to_string(), position, position as f32 - 0.2)
 				} else {
-					(format!("Chapitre {}", pattern), 0.4)
+					let position = api_max_chapter / 2; // Milieu pour les autres
+					(format!("Chapitre {}", pattern), position, position as f32 - 0.4)
 				};
 				
-				let position = api_max_chapter / 2;
 				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - adding special chapter '{}' at position: {}", title, position);
+					println!("[DEBUG] Dan Da Dan - adding special chapter '{}' at index: {} with number: {}", title, index, chapter_number);
 				}
 				
 				chapter_mappings.push(ChapterMapping {
-					index: position,
-					chapter_number: position as f32 + position_offset,
+					index,
+					chapter_number,
 					title,
 				});
 				break; // Sortir de la boucle des patterns pour cette ligne
