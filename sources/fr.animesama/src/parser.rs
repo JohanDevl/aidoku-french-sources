@@ -599,12 +599,6 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		})
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
 		
-	// Debug spécifique pour Dan Da Dan
-	let is_dan_da_dan = manga_name.to_lowercase().contains("dan da dan") || 
-	                    manga_name.to_lowercase().contains("dandadan") ||
-	                    manga_key.to_lowercase().contains("dan-da-dan") ||
-	                    manga_key.to_lowercase().contains("dandadan");
-	
 	// Parse JavaScript content for chapter mappings
 	// IMPORTANT: Récupérer TOUT le contenu de la page, y compris les scripts inline
 	let mut html_content = String::new();
@@ -667,34 +661,14 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				});
 			}
 		}
-		// Pour tous les mangas, essayer une détection conservatrice des chapitres décimaux
-		// Utiliser des patterns stricts pour éviter les faux positifs
-		
-		if is_dan_da_dan {
-			println!("[DEBUG] Dan Da Dan - manga_name: {}", manga_name);
-			println!("[DEBUG] Dan Da Dan - manga_key: {}", manga_key);
-			println!("[DEBUG] Dan Da Dan - html_content length: {}", html_content.len());
-		}
 		
 		// Chercher des chapitres décimaux dans le contenu HTML
-		if is_dan_da_dan {
-			println!("[DEBUG] Dan Da Dan - searching for decimal chapters in {} lines", html_content.lines().count());
-		}
-		
-		for (line_num, line) in html_content.lines().enumerate() {
-			// Chercher tous les nombres décimaux dans chaque ligne (pas seulement celles avec "Chapitre")
+		for line in html_content.lines() {
 			if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
-				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - line {}: found decimal {}: {}", line_num, decimal_chapter, line.trim());
-				}
-				
 				// Vérifier que c'est un chapitre raisonnable (entre 1 et 2000, avec .5 uniquement)
 				if decimal_chapter > 1.0 && decimal_chapter < 2000.0 {
 					let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
 					if (fractional_part - 0.5).abs() < 0.01 { // Accepter seulement .5
-						if is_dan_da_dan {
-							println!("[DEBUG] Dan Da Dan - adding decimal chapter: {}", decimal_chapter);
-						}
 						// Position le chapitre décimal après le chapitre entier correspondant
 						// Ex: chapitre 19.5 → index 20 (après chapitre 19)
 						let base_chapter = decimal_chapter as i32;
@@ -704,22 +678,10 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 							chapter_number: decimal_chapter,
 							title: format!("Chapitre {}", decimal_chapter),
 						});
-					} else if is_dan_da_dan {
-						println!("[DEBUG] Dan Da Dan - decimal {} rejected (fractional part: {})", decimal_chapter, fractional_part);
 					}
-				} else if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - decimal {} rejected (out of range)", decimal_chapter);
-				}
-			}
-			
-			// Aussi chercher dans les lignes qui contiennent "Chapitre" ou "Chapter"
-			if line.contains("Chapitre") || line.contains("Chapter") {
-				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - line {} contains chapter text: {}", line_num, line.trim());
 				}
 			}
 		}
-		
 	}
 	
 	// Get total chapters from API (this is the highest chapter NUMBER, not index count)
@@ -748,17 +710,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	};
 	
 	// Recherche élargie pour les One Shot et chapitres spéciaux (maintenant qu'on a api_max_chapter)
-	// Redéfinir is_dan_da_dan pour ce scope
-	let is_dan_da_dan = manga_name.to_lowercase().contains("dan da dan") || 
-	                    manga_name.to_lowercase().contains("dandadan") ||
-	                    manga_key.to_lowercase().contains("dan-da-dan") ||
-	                    manga_key.to_lowercase().contains("dandadan");
-	
-	if is_dan_da_dan {
-		println!("[DEBUG] Dan Da Dan - searching for special chapters (One Shot, etc.)");
-	}
-	
-	for (line_num, line) in html_content.lines().enumerate() {
+	for line in html_content.lines() {
 		// Chercher plusieurs patterns pour les chapitres spéciaux
 		let special_patterns = [
 			"One Shot", "OneShot", "one shot", "ONE SHOT",
@@ -768,53 +720,35 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		];
 		
 		for pattern in &special_patterns {
-			// Chercher le pattern même sans "Chapitre" pour voir s'il existe
-			if line.contains(pattern) {
-				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - line {} contains '{}': {}", line_num, pattern, line.trim());
-				}
-				
-				// Vérifier si c'est vraiment un chapitre ou juste du texte
-				if line.contains("Chapitre") || line.contains("Chapter") {
-					if is_dan_da_dan {
-						println!("[DEBUG] Dan Da Dan - confirmed special chapter with '{}': {}", pattern, line.trim());
-					}
-					
-					// Déterminer la position correcte selon le manga et le type de chapitre spécial
-					let (title, index, chapter_number) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
-						if is_dan_da_dan {
-							// Dan Da Dan: One Shot entre chapitres 26 et 27
-							("Chapitre One Shot".to_string(), 27, 26.5)
-						} else if manga_name.to_lowercase().contains("one piece") {
-							// One Piece: One Shot entre chapitres 1045 et 1046
-							("Chapitre One Shot".to_string(), 1046, 1045.5)
-						} else {
-							// Autres mangas: essayer de le placer vers la fin, mais pas tout à la fin
-							let position = (api_max_chapter * 3 / 4).max(1); // 3/4 de la série
-							("Chapitre One Shot".to_string(), position, position as f32 - 0.5)
-						}
-					} else if pattern.contains("Hors") {
-						let position = (api_max_chapter * 2 / 3).max(1); // Vers 2/3 de la série
-						("Chapitre Hors-série".to_string(), position, position as f32 - 0.3)
-					} else if pattern.contains("Spécial") || pattern.contains("Special") {
-						let position = (api_max_chapter * 4 / 5).max(1); // Vers 4/5 de la série
-						("Chapitre Spécial".to_string(), position, position as f32 - 0.2)
+			// Vérifier si c'est vraiment un chapitre (doit contenir "Chapitre" ou "Chapter")
+			if line.contains(pattern) && (line.contains("Chapitre") || line.contains("Chapter")) {
+				// Déterminer la position correcte selon le manga et le type de chapitre spécial
+				let (title, index, chapter_number) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
+					if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+						// One Piece: One Shot entre chapitres 1045 et 1046
+						("Chapitre One Shot".to_string(), 1046, 1045.5)
 					} else {
-						let position = api_max_chapter / 2; // Milieu pour les autres
-						(format!("Chapitre {}", pattern), position, position as f32 - 0.4)
-					};
-					
-					if is_dan_da_dan {
-						println!("[DEBUG] Dan Da Dan - adding special chapter '{}' at index: {} with number: {}", title, index, chapter_number);
+						// Autres mangas: essayer de le placer vers la fin, mais pas tout à la fin
+						let position = (api_max_chapter * 3 / 4).max(1); // 3/4 de la série
+						("Chapitre One Shot".to_string(), position, position as f32 - 0.5)
 					}
-					
-					chapter_mappings.push(ChapterMapping {
-						index,
-						chapter_number,
-						title,
-					});
-					break; // Sortir de la boucle des patterns pour cette ligne
-				}
+				} else if pattern.contains("Hors") {
+					let position = (api_max_chapter * 2 / 3).max(1); // Vers 2/3 de la série
+					("Chapitre Hors-série".to_string(), position, position as f32 - 0.3)
+				} else if pattern.contains("Spécial") || pattern.contains("Special") {
+					let position = (api_max_chapter * 4 / 5).max(1); // Vers 4/5 de la série
+					("Chapitre Spécial".to_string(), position, position as f32 - 0.2)
+				} else {
+					let position = api_max_chapter / 2; // Milieu pour les autres
+					(format!("Chapitre {}", pattern), position, position as f32 - 0.4)
+				};
+				
+				chapter_mappings.push(ChapterMapping {
+					index,
+					chapter_number,
+					title,
+				});
+				break; // Sortir de la boucle des patterns pour cette ligne
 			}
 		}
 	}
@@ -841,16 +775,6 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		api_max_chapter
 	};
 	
-	// Debug final results for Dan Da Dan
-	if is_dan_da_dan {
-		println!("[DEBUG] Dan Da Dan - final chapter_mappings count: {}", chapter_mappings.len());
-		for mapping in &chapter_mappings {
-			println!("[DEBUG] Dan Da Dan - mapping: index={}, number={}, title={}", 
-				mapping.index, mapping.chapter_number, mapping.title);
-		}
-		println!("[DEBUG] Dan Da Dan - total_chapters: {}", total_chapters);
-	}
-
 	// Create chapters: first all normal chapters, then insert special chapters at correct positions
 	
 	// Step 1: Create all normal chapters (1, 2, 3, ..., api_max_chapter)
@@ -878,10 +802,6 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				((mapping.chapter_number - (mapping.chapter_number as i32 as f32)) * 10.0) as i32)
 		};
 		
-		if is_dan_da_dan {
-			println!("[DEBUG] Dan Da Dan - adding special chapter: {} with key: {} and number: {}", 
-				mapping.title, chapter_key, mapping.chapter_number);
-		}
 		
 		chapters.push(Chapter {
 			key: chapter_key,
