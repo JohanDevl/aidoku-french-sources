@@ -127,21 +127,21 @@ impl Source for AnimeSama {
 							
 							if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
 								let genre_id = genre_ids[selected_index as usize];
-								// Ne pas encoder les tirets dans les IDs de genre 
+								// Format correct pour AnimeSama
 								if !genre_id.is_empty() {
-									filter_params.push_str(&format!("&genre={}", genre_id));
+									filter_params.push_str(&format!("&genre[]={}", genre_id));
 								}
 							}
 						} else if is_valid_genre_id(value) {
 							// Si ce n'est pas un index, peut-être que c'est directement l'ID
-							filter_params.push_str(&format!("&genre={}", value));
+							filter_params.push_str(&format!("&genre[]={}", value));
 						}
 					}
 				}
 				FilterValue::Text { id, value } => {
 					// Les filtres Text avec ID genre
 					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
-						filter_params.push_str(&format!("&genre={}", value));
+						filter_params.push_str(&format!("&genre[]={}", value));
 					}
 				}
 				_ => {
@@ -150,23 +150,38 @@ impl Source for AnimeSama {
 			}
 		}
 		
-		// Construire l'URL de recherche pour anime-sama.fr
+		// Construire l'URL de recherche pour anime-sama.org
 		// Essayer différents ordres de paramètres selon si on a une recherche ou pas
 		let url = if let Some(search_query) = query {
 			// Avec recherche : mettre search en premier
-			format!("{}/catalogue?search={}&type[0]=Scans{}&page={}", 
+			format!("{}/catalogue?search={}{}&type[0]=Scans&page={}", 
 				BASE_URL, 
 				helper::urlencode(&search_query),
 				filter_params,
 				page
 			)
 		} else {
-			// Sans recherche : ordre normal
-			format!("{}/catalogue?type[0]=Scans{}&page={}", BASE_URL, filter_params, page)
+			// Sans recherche : mettre les filtres genre avant le type
+			if filter_params.is_empty() {
+				format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page)
+			} else {
+				// Enlever le & au début de filter_params
+				let clean_params = if filter_params.starts_with('&') {
+					&filter_params[1..]
+				} else {
+					&filter_params
+				};
+				format!("{}/catalogue?{}&type[0]=Scans&page={}", BASE_URL, clean_params, page)
+			}
 		};
 		
-		// Faire la requête HTTP
-		let html = Request::get(&url)?.html()?;
+		// Faire la requête HTTP avec en-têtes appropriés
+		let html = Request::get(&url)?
+			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+			.header("Referer", BASE_URL)
+			.html()?;
 		
 		// Parser les résultats
 		parser::parse_manga_list(html)
@@ -209,7 +224,10 @@ impl Source for AnimeSama {
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
-			let html = Request::get(&base_manga_url)?.html()?;
+			let html = Request::get(&base_manga_url)?
+				.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+				.header("Referer", BASE_URL)
+				.html()?;
 			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
@@ -231,7 +249,10 @@ impl Source for AnimeSama {
 
 		if needs_chapters {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
-			let html = Request::get(&base_manga_url)?.html()?;
+			let html = Request::get(&base_manga_url)?
+				.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+				.header("Referer", BASE_URL)
+				.html()?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
@@ -296,7 +317,10 @@ impl Source for AnimeSama {
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
-		let html = Request::get(&chapter_url)?.html()?;
+		let html = Request::get(&chapter_url)?
+			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+			.header("Referer", BASE_URL)
+			.html()?;
 		
 		// Parser les pages depuis le HTML ou utiliser la logique CDN
 		parser::parse_page_list(html, manga.key, chapter.key)
@@ -308,13 +332,17 @@ impl ListingProvider for AnimeSama {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
 				// Faire une requête vers la page d'accueil pour les dernières sorties
-				let html = Request::get(BASE_URL)?.html()?;
+				let html = Request::get(BASE_URL)?
+					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+					.html()?;
 				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
 				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
-				let html = Request::get(&url)?.html()?;
+				let html = Request::get(&url)?
+					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+					.html()?;
 				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {
