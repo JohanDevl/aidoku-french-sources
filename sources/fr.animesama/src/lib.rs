@@ -98,10 +98,17 @@ fn is_valid_genre_id(genre_id: &str) -> bool {
 	get_genre_ids().contains(&genre_id)
 }
 
-// Requête ultra-simple pour éviter la détection Cloudflare
-fn make_simple_request(url: &str) -> Result<aidoku::imports::html::Document> {
+// Requête sophistiquée avec headers réalistes comme les autres sources françaises
+fn make_realistic_request(url: &str) -> Result<aidoku::imports::html::Document> {
 	Ok(Request::get(url)?
-		.header("User-Agent", "curl/7.68.0")
+		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+		.header("Accept-Encoding", "gzip, deflate, br")
+		.header("DNT", "1")
+		.header("Connection", "keep-alive")
+		.header("Upgrade-Insecure-Requests", "1")
+		.header("Referer", BASE_URL)
 		.html()?)
 }
 
@@ -182,8 +189,8 @@ impl Source for AnimeSama {
 			}
 		};
 		
-		// Faire la requête HTTP ultra-simple
-		let html = make_simple_request(&url)?;
+		// Faire la requête HTTP avec headers réalistes
+		let html = make_realistic_request(&url)?;
 		
 		// Parser les résultats
 		parser::parse_manga_list(html)
@@ -226,7 +233,7 @@ impl Source for AnimeSama {
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
-			let html = make_simple_request(&base_manga_url)?;
+			let html = make_realistic_request(&base_manga_url)?;
 			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
@@ -248,7 +255,7 @@ impl Source for AnimeSama {
 
 		if needs_chapters {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
-			let html = make_simple_request(&base_manga_url)?;
+			let html = make_realistic_request(&base_manga_url)?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
@@ -313,7 +320,7 @@ impl Source for AnimeSama {
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
-		let html = make_simple_request(&chapter_url)?;
+		let html = make_realistic_request(&chapter_url)?;
 		
 		// Parser les pages depuis le HTML ou utiliser la logique CDN
 		parser::parse_page_list(html, manga.key, chapter.key)
@@ -325,13 +332,13 @@ impl ListingProvider for AnimeSama {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
 				// Faire une requête vers la page d'accueil pour les dernières sorties
-				let html = make_simple_request(BASE_URL)?;
+				let html = make_realistic_request(BASE_URL)?;
 				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
 				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
-				let html = make_simple_request(&url)?;
+				let html = make_realistic_request(&url)?;
 				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {
