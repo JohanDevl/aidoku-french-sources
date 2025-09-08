@@ -1091,10 +1091,9 @@ fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 	let encoded_title = helper::urlencode(manga_name);
 	let api_url = format!("https://anime-sama.org/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
 	
-	// Faire la requête avec en-têtes Cloudflare
+	// Faire la requête ultra-simple
 	let json_string = Request::get(&api_url)?
-		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		.header("Referer", "https://anime-sama.org")
+		.header("User-Agent", "curl/7.68.0")
 		.string()?;
 	
 	// Parser le JSON manuellement pour trouver le nombre de pages pour ce chapitre
@@ -1205,8 +1204,7 @@ fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
 		urlencode(manga_title));
 	
 	match Request::get(&api_url)?
-		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		.header("Referer", "https://anime-sama.org")
+		.header("User-Agent", "curl/7.68.0")
 		.string() {
 		Ok(response_text) => {
 			let mut max_chapter = 0;

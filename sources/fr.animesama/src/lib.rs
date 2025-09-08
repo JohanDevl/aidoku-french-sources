@@ -98,51 +98,10 @@ fn is_valid_genre_id(genre_id: &str) -> bool {
 	get_genre_ids().contains(&genre_id)
 }
 
-// Ajouter les en-têtes Cloudflare-friendly à une requête avec retry logic
-fn add_cloudflare_headers(request: Request) -> Request {
-	request
-		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-		.header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-		.header("Accept-Encoding", "gzip, deflate, br")
-		.header("Connection", "keep-alive")
-		.header("Upgrade-Insecure-Requests", "1")
-		.header("Sec-Fetch-Dest", "document")
-		.header("Sec-Fetch-Mode", "navigate")
-		.header("Sec-Fetch-Site", "cross-site")
-		.header("Sec-Fetch-User", "?1")
-		.header("Pragma", "no-cache")
-		.header("Cache-Control", "no-cache")
-}
-
-// Fonction pour faire une requête avec retry en cas de Cloudflare  
-fn make_cloudflare_request(url: &str) -> Result<aidoku::imports::html::Document> {
-	// Première tentative
-	let response = add_cloudflare_headers(Request::get(url)?).html();
-	
-	match response {
-		Ok(doc) => {
-			// Vérifier si c'est une page Cloudflare en regardant le titre ou contenu
-			if let Some(title) = doc.select("title").and_then(|els| els.first()).and_then(|el| el.text()) {
-				if title.contains("anime-sama.org") && 
-				   (title.contains("vérifier") || title.contains("security") || title.contains("Cloudflare")) {
-					// Page de vérification détectée, essayer une approche différente
-					return make_simple_request(url);
-				}
-			}
-			Ok(doc)
-		}
-		Err(_) => {
-			// Si échec, essayer approche simplifiée
-			make_simple_request(url)
-		}
-	}
-}
-
-// Requête simplifiée sans tous les en-têtes Cloudflare
+// Requête ultra-simple pour éviter la détection Cloudflare
 fn make_simple_request(url: &str) -> Result<aidoku::imports::html::Document> {
 	Ok(Request::get(url)?
-		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+		.header("User-Agent", "curl/7.68.0")
 		.html()?)
 }
 
@@ -223,8 +182,8 @@ impl Source for AnimeSama {
 			}
 		};
 		
-		// Faire la requête HTTP avec protection Cloudflare
-		let html = make_cloudflare_request(&url)?;
+		// Faire la requête HTTP ultra-simple
+		let html = make_simple_request(&url)?;
 		
 		// Parser les résultats
 		parser::parse_manga_list(html)
@@ -267,7 +226,7 @@ impl Source for AnimeSama {
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
-			let html = make_cloudflare_request(&base_manga_url)?;
+			let html = make_simple_request(&base_manga_url)?;
 			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
@@ -289,7 +248,7 @@ impl Source for AnimeSama {
 
 		if needs_chapters {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
-			let html = make_cloudflare_request(&base_manga_url)?;
+			let html = make_simple_request(&base_manga_url)?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
@@ -354,7 +313,7 @@ impl Source for AnimeSama {
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
-		let html = make_cloudflare_request(&chapter_url)?;
+		let html = make_simple_request(&chapter_url)?;
 		
 		// Parser les pages depuis le HTML ou utiliser la logique CDN
 		parser::parse_page_list(html, manga.key, chapter.key)
@@ -366,13 +325,13 @@ impl ListingProvider for AnimeSama {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
 				// Faire une requête vers la page d'accueil pour les dernières sorties
-				let html = make_cloudflare_request(BASE_URL)?;
+				let html = make_simple_request(BASE_URL)?;
 				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
 				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
-				let html = make_cloudflare_request(&url)?;
+				let html = make_simple_request(&url)?;
 				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {
