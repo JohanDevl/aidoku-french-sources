@@ -25,72 +25,117 @@ static FILTERS_JSON: &str = include_str!("../res/filters.json");
 
 // Parser les IDs de genres depuis le JSON inclus
 fn get_genre_ids() -> Vec<&'static str> {
-	// Parsing simple du JSON pour extraire les IDs
-	// Chercher "ids": [ et extraire les valeurs entre guillemets
-	
-	// Cette approche simple évite d'ajouter une dépendance JSON
-	// On cherche la section "ids": [
-	if let Some(ids_start) = FILTERS_JSON.find("\"ids\": [") {
-		let ids_section = &FILTERS_JSON[ids_start + 8..];
-		if let Some(ids_end) = ids_section.find(']') {
-			let ids_content = &ids_section[..ids_end];
-			
-			// Extraire chaque ID entre guillemets
-			let mut ids = Vec::new();
-			let mut current_pos = 0;
-			
-			while let Some(quote_start) = ids_content[current_pos..].find('"') {
-				let quote_start = current_pos + quote_start + 1;
-				if let Some(quote_end) = ids_content[quote_start..].find('"') {
-					let quote_end = quote_start + quote_end;
-					let id = &ids_content[quote_start..quote_end];
-					
-					// Convertir en &'static str en utilisant match sur les valeurs connues
-					let static_id = match id {
-						"action" => "action",
-						"aventure" => "aventure", 
-						"combat" => "combat",
-						"comedie" => "comedie",
-						"drame" => "drame",
-						"ecchi" => "ecchi",
-						"fantasy" => "fantasy",
-						"harem" => "harem",
-						"historique" => "historique",
-						"horreur" => "horreur",
-						"isekai" => "isekai",
-						"josei" => "josei",
-						"magie" => "magie",
-						"arts-martiaux" => "arts-martiaux",
-						"mature" => "mature",
-						"mystere" => "mystere",
-						"psychologique" => "psychologique",
-						"romance" => "romance",
-						"school-life" => "school-life",
-						"sci-fi" => "sci-fi",
-						"seinen" => "seinen",
-						"shoujo" => "shoujo",
-						"shounen" => "shounen",
-						"slice-of-life" => "slice-of-life",
-						"sports" => "sports",
-						"supernatural" => "supernatural",
-						"thriller" => "thriller",
-						"tragedie" => "tragedie",
-						_ => continue, // Ignorer les IDs inconnus
-					};
-					
-					ids.push(static_id);
-					current_pos = quote_end + 1;
-				} else {
-					break;
-				}
-			}
-			
-			return ids;
-		}
-	}
-	
-	// Fallback si le parsing échoue
-	vec![]
+	// Liste complète basée sur le site AnimeSama
+	// Utilise les valeurs exactes des checkbox du formulaire de filtrage
+	vec![
+		"", // Pour "Tout"
+		"Action",
+		"Adolescence",
+		"Aliens / Extra-terrestres",
+		"Amitié",
+		"Amour",
+		"Apocalypse",
+		"Art",
+		"Arts martiaux",
+		"Assassinat",
+		"Autre monde",
+		"Aventure",
+		"Combats",
+		"Comédie",
+		"Crime",
+		"Cyberpunk",
+		"Danse",
+		"Démons",
+		"Détective",
+		"Donghua",
+		"Dragon",
+		"Drame",
+		"Ecchi",
+		"Ecole",
+		"Elfe",
+		"Enquête",
+		"Famille",
+		"Fantastique",
+		"Fantasy",
+		"Fantômes",
+		"Futur",
+		"Gastronomie",
+		"Ghibli",
+		"Guerre",
+		"Harcèlement",
+		"Harem",
+		"Harem inversé",
+		"Histoire",
+		"Historique",
+		"Horreur",
+		"Isekai",
+		"Jeunesse",
+		"Jeux",
+		"Jeux vidéo",
+		"Josei",
+		"Journalisme",
+		"Mafia",
+		"Magical girl",
+		"Magie",
+		"Maladie",
+		"Mariage",
+		"Mature",
+		"Mechas",
+		"Médiéval",
+		"Militaire",
+		"Monde virtuel",
+		"Monstres",
+		"Musique",
+		"Mystère",
+		"Nekketsu",
+		"Ninjas",
+		"Nostalgie",
+		"Paranormal",
+		"Philosophie",
+		"Pirates",
+		"Police",
+		"Politique",
+		"Post-apocalyptique",
+		"Pouvoirs psychiques",
+		"Préhistoire",
+		"Prison",
+		"Psychologique",
+		"Quotidien",
+		"Religion",
+		"Réincarnation / Transmigration",
+		"Romance",
+		"Samouraïs",
+		"School Life",
+		"Science-Fantasy",
+		"Science-fiction",
+		"Scientifique",
+		"Seinen",
+		"Shôjo",
+		"Shôjo-Ai",
+		"Shônen",
+		"Shônen-Ai",
+		"Slice of Life",
+		"Société",
+		"Sport",
+		"Super pouvoirs",
+		"Super-héros",
+		"Surnaturel",
+		"Survie",
+		"Survival game",
+		"Technologies",
+		"Thriller",
+		"Tournois",
+		"Travail",
+		"Vampires",
+		"Vengeance",
+		"Voyage",
+		"Voyage temporel",
+		"Webcomic",
+		"Yakuza",
+		"Yaoi",
+		"Yokai",
+		"Yuri"
+	]
 }
 
 // Vérifier si un ID de genre est valide
@@ -141,21 +186,21 @@ impl Source for AnimeSama {
 							
 							if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
 								let genre_id = genre_ids[selected_index as usize];
-								// Format correct pour AnimeSama
+								// Format correct pour AnimeSama : utiliser genre%5B%5D=
 								if !genre_id.is_empty() {
-									filter_params.push_str(&format!("&genre[]={}", genre_id));
+									filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_id)));
 								}
 							}
 						} else if is_valid_genre_id(value) {
 							// Si ce n'est pas un index, peut-être que c'est directement l'ID
-							filter_params.push_str(&format!("&genre[]={}", value));
+							filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 						}
 					}
 				}
 				FilterValue::Text { id, value } => {
 					// Les filtres Text avec ID genre
 					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
-						filter_params.push_str(&format!("&genre[]={}", value));
+						filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 					}
 				}
 				_ => {
@@ -165,28 +210,22 @@ impl Source for AnimeSama {
 		}
 		
 		// Construire l'URL de recherche pour anime-sama.org
-		// Essayer différents ordres de paramètres selon si on a une recherche ou pas
+		// Format attendu: type%5B%5D=Scans&genre%5B%5D=Genre&search=query&page=N
 		let url = if let Some(search_query) = query {
-			// Avec recherche : mettre search en premier
-			format!("{}/catalogue?search={}{}&type[0]=Scans&page={}", 
+			// Avec recherche
+			format!("{}/catalogue?type%5B%5D=Scans{}&search={}&page={}", 
 				BASE_URL, 
-				helper::urlencode(&search_query),
 				filter_params,
+				helper::urlencode(&search_query),
 				page
 			)
 		} else {
-			// Sans recherche : mettre les filtres genre avant le type
-			if filter_params.is_empty() {
-				format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page)
-			} else {
-				// Enlever le & au début de filter_params
-				let clean_params = if filter_params.starts_with('&') {
-					&filter_params[1..]
-				} else {
-					&filter_params
-				};
-				format!("{}/catalogue?{}&type[0]=Scans&page={}", BASE_URL, clean_params, page)
-			}
+			// Sans recherche mais avec search= vide pour correspondre au format du site
+			format!("{}/catalogue?type%5B%5D=Scans{}&search=&page={}", 
+				BASE_URL, 
+				filter_params,
+				page
+			)
 		};
 		
 		// Faire la requête HTTP avec headers réalistes
@@ -337,7 +376,7 @@ impl ListingProvider for AnimeSama {
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
-				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
+				let url = format!("{}/catalogue?type%5B%5D=Scans&search=&page={}", BASE_URL, page);
 				let html = make_realistic_request(&url)?;
 				parser::parse_manga_listing(html, "Populaire")
 			},

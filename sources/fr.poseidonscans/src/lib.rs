@@ -162,11 +162,9 @@ impl ListingProvider for PoseidonScans {
 
 impl ImageRequestProvider for PoseidonScans {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-        println!("🖼️ DEBUG: Loading image URL: {}", url);
         
         // Special handling for API image URLs that require proper headers
         if url.contains("/api/chapters/") {
-            println!("🔧 DEBUG: Using API headers for /api/chapters/ URL");
             
             // Try simpler headers first, similar to what the browser actually sends
             Ok(Request::get(&url)?
@@ -175,7 +173,6 @@ impl ImageRequestProvider for PoseidonScans {
                 .header("Referer", BASE_URL)
             )
         } else {
-            println!("🔧 DEBUG: Using standard headers for regular image URL");
             // Fallback for other image URLs
             Ok(Request::get(url)?
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
