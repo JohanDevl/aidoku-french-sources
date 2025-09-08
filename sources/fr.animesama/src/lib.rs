@@ -176,29 +176,33 @@ impl Source for AnimeSama {
 		// Traiter chaque filtre - utiliser le pattern matching sur FilterValue
 		for filter in &filters {
 			match filter {
-				FilterValue::Select { id, value } => {
-					// Vérifier que c'est le filtre de genre et qu'il a une valeur
-					if id == "genre" && !value.is_empty() {
-						// Essayer de parser la valeur comme un index
-						if let Ok(selected_index) = value.parse::<i32>() {
-							// Utiliser les IDs de genre depuis filters.json
-							let genre_ids = get_genre_ids();
-							
-							if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
-								let genre_id = genre_ids[selected_index as usize];
-								// Format correct pour AnimeSama : utiliser genre%5B%5D=
-								if !genre_id.is_empty() {
-									filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_id)));
+				FilterValue::MultiSelect { id, included, excluded: _ } => {
+					// Vérifier que c'est le filtre de genre et qu'il y a des genres sélectionnés
+					if id == "genre" && !included.is_empty() {
+						let genre_ids = get_genre_ids();
+						
+						// Traiter chaque genre inclus
+						for selected_value in included {
+							if !selected_value.is_empty() {
+								// Essayer de parser la valeur comme un index
+								if let Ok(selected_index) = selected_value.parse::<i32>() {
+									if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
+										let genre_id = genre_ids[selected_index as usize];
+										// Format correct pour AnimeSama : utiliser genre%5B%5D=
+										if !genre_id.is_empty() {
+											filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_id)));
+										}
+									}
+								} else if is_valid_genre_id(selected_value) {
+									// Si ce n'est pas un index, peut-être que c'est directement l'ID
+									filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(selected_value)));
 								}
 							}
-						} else if is_valid_genre_id(value) {
-							// Si ce n'est pas un index, peut-être que c'est directement l'ID
-							filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 						}
 					}
 				}
 				FilterValue::Text { id, value } => {
-					// Les filtres Text avec ID genre
+					// Les filtres Text avec ID genre (pour compatibilité)
 					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
 						filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 					}

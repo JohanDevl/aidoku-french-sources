@@ -1,6 +1,6 @@
 [
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "genre",
     "title": "Genre",
     "isGenre": true,
