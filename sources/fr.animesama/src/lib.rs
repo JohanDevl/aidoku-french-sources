@@ -143,16 +143,17 @@ fn is_valid_genre_id(genre_id: &str) -> bool {
 	get_genre_ids().contains(&genre_id)
 }
 
-// Requête sophistiquée avec headers réalistes comme les autres sources françaises
+// Requête avec User-Agent Google Search App comme MangasOrigines (qui fonctionne)
 fn make_realistic_request(url: &str) -> Result<aidoku::imports::html::Document> {
 	Ok(Request::get(url)?
-		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604")
 		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
 		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
 		.header("Accept-Encoding", "gzip, deflate, br")
 		.header("DNT", "1")
 		.header("Connection", "keep-alive")
 		.header("Upgrade-Insecure-Requests", "1")
+		.header("Cache-Control", "max-age=0")
 		.header("Referer", BASE_URL)
 		.html()?)
 }
