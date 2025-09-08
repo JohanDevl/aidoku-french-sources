@@ -174,22 +174,28 @@ impl Source for PhenixScans {
 				.string()?;
 			
 			if needs_details {
-				let detailed_manga = parser::parse_manga_details(manga.key.clone(), response.clone())?;
-				manga.title = detailed_manga.title;
-				manga.authors = detailed_manga.authors;
-				manga.artists = detailed_manga.artists;
-				manga.description = detailed_manga.description;
-				manga.url = detailed_manga.url;
-				manga.cover = detailed_manga.cover;
-				manga.tags = detailed_manga.tags;
-				manga.status = detailed_manga.status;
-				manga.content_rating = detailed_manga.content_rating;
-				manga.viewer = detailed_manga.viewer;
+				// Essayer de parser les détails, mais continuer si ça échoue
+				if let Ok(detailed_manga) = parser::parse_manga_details(manga.key.clone(), response.clone()) {
+					manga.title = detailed_manga.title;
+					manga.authors = detailed_manga.authors;
+					manga.artists = detailed_manga.artists;
+					manga.description = detailed_manga.description;
+					manga.url = detailed_manga.url;
+					manga.cover = detailed_manga.cover;
+					manga.tags = detailed_manga.tags;
+					manga.status = detailed_manga.status;
+					manga.content_rating = detailed_manga.content_rating;
+					manga.viewer = detailed_manga.viewer;
+				}
+				// Si le parsing échoue, on garde les valeurs existantes du manga
 			}
 
 			if needs_chapters {
-				let chapters = parser::parse_chapter_list(manga.key.clone(), response)?;
-				manga.chapters = Some(chapters);
+				// Essayer de parser les chapitres, mais continuer si ça échoue
+				if let Ok(chapters) = parser::parse_chapter_list(manga.key.clone(), response) {
+					manga.chapters = Some(chapters);
+				}
+				// Si le parsing échoue, on garde les chapitres existants (ou None)
 			}
 		}
 

@@ -185,8 +185,25 @@ impl MangaItem {
 }
 
 pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
-	let listing_data: ListingResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner un résultat vide au lieu d'échouer
+		return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		});
+	}
+
+	let listing_data: ListingResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner un résultat vide
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		}
+	};
 
 	let mut mangas: Vec<Manga> = Vec::new();
 
@@ -227,8 +244,25 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 }
 
 pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
-	let manga_data: MangaListResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner un résultat vide au lieu d'échouer
+		return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		});
+	}
+
+	let manga_data: MangaListResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner un résultat vide
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		}
+	};
 
 	let mut mangas: Vec<Manga> = Vec::new();
 	
@@ -258,8 +292,25 @@ pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
-	let search_data: MangaListResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner un résultat vide au lieu d'échouer
+		return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+			});
+	}
+
+	let search_data: MangaListResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner un résultat vide
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		}
+	};
 
 	let mut mangas: Vec<Manga> = Vec::new();
 	
@@ -285,8 +336,49 @@ pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_manga_details(manga_id: String, response: String) -> Result<Manga> {
-	let details_data: MangaDetailsResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner un manga minimal au lieu d'échouer
+		return Ok(Manga {
+			key: manga_id.clone(),
+			title: "Titre indisponible".to_string(),
+			cover: None,
+			authors: None,
+			artists: None,
+			description: Some("Détails temporairement indisponibles.".to_string()),
+			url: Some(format!("{}/manga/{}", BASE_URL, manga_id)),
+			tags: None,
+			status: MangaStatus::Unknown,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::Vertical,
+			chapters: None,
+			next_update_time: None,
+			update_strategy: UpdateStrategy::Never,
+		});
+	}
+
+	let details_data: MangaDetailsResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner un manga minimal
+			return Ok(Manga {
+				key: manga_id.clone(),
+				title: "Titre indisponible".to_string(),
+				cover: None,
+				authors: None,
+				artists: None,
+				description: Some("Détails temporairement indisponibles.".to_string()),
+				url: Some(format!("{}/manga/{}", BASE_URL, manga_id)),
+				tags: None,
+				status: MangaStatus::Unknown,
+				content_rating: ContentRating::Safe,
+				viewer: Viewer::Vertical,
+				chapters: None,
+				next_update_time: None,
+				update_strategy: UpdateStrategy::Never,
+			});
+		}
+	};
 
 	let manga_details = details_data.manga;
 
@@ -344,8 +436,19 @@ pub fn parse_manga_details(manga_id: String, response: String) -> Result<Manga> 
 }
 
 pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chapter>> {
-	let chapters_data: ChapterListResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner une liste vide au lieu d'échouer
+		return Ok(Vec::new());
+	}
+
+	let chapters_data: ChapterListResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner une liste vide
+			return Ok(Vec::new());
+		}
+	};
 
 	let mut chapters: Vec<Chapter> = Vec::new();
 	
@@ -391,8 +494,19 @@ pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chap
 }
 
 pub fn parse_page_list(response: String) -> Result<Vec<Page>> {
-	let pages_data: PageListResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	// Vérifier si la réponse ressemble à du HTML ou une erreur
+	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
+		// Retourner une liste vide au lieu d'échouer
+		return Ok(Vec::new());
+	}
+
+	let pages_data: PageListResponse = match serde_json::from_str(&response) {
+		Ok(data) => data,
+		Err(_) => {
+			// Si le parsing JSON échoue, retourner une liste vide
+			return Ok(Vec::new());
+		}
+	};
 
 	let mut pages: Vec<Page> = Vec::new();
 
