@@ -98,6 +98,24 @@ fn is_valid_genre_id(genre_id: &str) -> bool {
 	get_genre_ids().contains(&genre_id)
 }
 
+// Ajouter les en-têtes Cloudflare-friendly à une requête
+fn add_cloudflare_headers(request: Request) -> Request {
+	request
+		.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+		.header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+		.header("Accept-Encoding", "gzip, deflate, br")
+		.header("DNT", "1")
+		.header("Connection", "keep-alive")
+		.header("Upgrade-Insecure-Requests", "1")
+		.header("Sec-Fetch-Dest", "document")
+		.header("Sec-Fetch-Mode", "navigate")
+		.header("Sec-Fetch-Site", "same-origin")
+		.header("Sec-Fetch-User", "?1")
+		.header("Cache-Control", "max-age=0")
+		.header("Referer", BASE_URL)
+}
+
 struct AnimeSama;
 
 impl Source for AnimeSama {
@@ -175,13 +193,8 @@ impl Source for AnimeSama {
 			}
 		};
 		
-		// Faire la requête HTTP avec en-têtes appropriés
-		let html = Request::get(&url)?
-			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-			.header("Referer", BASE_URL)
-			.html()?;
+		// Faire la requête HTTP avec en-têtes Cloudflare-friendly
+		let html = add_cloudflare_headers(Request::get(&url)?).html()?;
 		
 		// Parser les résultats
 		parser::parse_manga_list(html)
@@ -224,10 +237,7 @@ impl Source for AnimeSama {
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
-			let html = Request::get(&base_manga_url)?
-				.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-				.header("Referer", BASE_URL)
-				.html()?;
+			let html = add_cloudflare_headers(Request::get(&base_manga_url)?).html()?;
 			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
@@ -249,10 +259,7 @@ impl Source for AnimeSama {
 
 		if needs_chapters {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
-			let html = Request::get(&base_manga_url)?
-				.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-				.header("Referer", BASE_URL)
-				.html()?;
+			let html = add_cloudflare_headers(Request::get(&base_manga_url)?).html()?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
@@ -317,10 +324,7 @@ impl Source for AnimeSama {
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
-		let html = Request::get(&chapter_url)?
-			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-			.header("Referer", BASE_URL)
-			.html()?;
+		let html = add_cloudflare_headers(Request::get(&chapter_url)?).html()?;
 		
 		// Parser les pages depuis le HTML ou utiliser la logique CDN
 		parser::parse_page_list(html, manga.key, chapter.key)
@@ -332,17 +336,13 @@ impl ListingProvider for AnimeSama {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
 				// Faire une requête vers la page d'accueil pour les dernières sorties
-				let html = Request::get(BASE_URL)?
-					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-					.html()?;
+				let html = add_cloudflare_headers(Request::get(BASE_URL)?).html()?;
 				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
 				let url = format!("{}/catalogue?type[0]=Scans&page={}", BASE_URL, page);
-				let html = Request::get(&url)?
-					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-					.html()?;
+				let html = add_cloudflare_headers(Request::get(&url)?).html()?;
 				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {
