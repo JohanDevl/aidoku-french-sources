@@ -662,22 +662,33 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			}
 		}
 		
-		// Chercher des chapitres décimaux dans le contenu HTML
+		// Chercher des chapitres décimaux SEULEMENT dans les lignes qui mentionnent des chapitres
 		for line in html_content.lines() {
-			if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
-				// Vérifier que c'est un chapitre raisonnable (entre 1 et 2000, avec .5 uniquement)
-				if decimal_chapter > 1.0 && decimal_chapter < 2000.0 {
-					let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
-					if (fractional_part - 0.5).abs() < 0.01 { // Accepter seulement .5
-						// Position le chapitre décimal après le chapitre entier correspondant
-						// Ex: chapitre 19.5 → index 20 (après chapitre 19)
-						let base_chapter = decimal_chapter as i32;
-						let correct_index = base_chapter + 1;
-						chapter_mappings.push(ChapterMapping {
-							index: correct_index,
-							chapter_number: decimal_chapter,
-							title: format!("Chapitre {}", decimal_chapter),
-						});
+			// Ne chercher que dans les lignes qui parlent vraiment de chapitres
+			if (line.contains("Chapitre") || line.contains("Chapter")) && 
+			   (line.contains(".5") || line.contains(".0")) { // Filtrer encore plus strict
+				
+				if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
+					// Vérifier que c'est un chapitre plausible (entre 1 et 100, avec .5 uniquement)
+					if decimal_chapter >= 1.0 && decimal_chapter <= 100.0 {
+						let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
+						// Accepter seulement exactement .5 (pas .507, .498, etc.)
+						if (fractional_part - 0.5).abs() < 0.01 {
+							// Éviter les doublons
+							let exists = chapter_mappings.iter().any(|m| 
+								(m.chapter_number - decimal_chapter).abs() < 0.01
+							);
+							
+							if !exists {
+								let base_chapter = decimal_chapter as i32;
+								let correct_index = base_chapter + 1;
+								chapter_mappings.push(ChapterMapping {
+									index: correct_index,
+									chapter_number: decimal_chapter,
+									title: format!("Chapitre {}", decimal_chapter),
+								});
+							}
+						}
 					}
 				}
 			}
