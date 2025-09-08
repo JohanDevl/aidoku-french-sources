@@ -1090,7 +1090,7 @@ fn get_max_available_chapter_on_cdn(manga_title: &str) -> i32 {
 fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 	// Construire l'URL de l'API
 	let encoded_title = helper::urlencode(manga_name);
-	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
+	let api_url = format!("https://anime-sama.org/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
 	
 	// Faire la requête
 	let json_string = Request::get(&api_url)?.string()?;
@@ -1199,7 +1199,7 @@ fn build_chapter_url(manga_key: &str) -> String {
 fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
 	use crate::helper::urlencode;
 	
-	let api_url = format!("https://anime-sama.fr/s2/scans/get_nb_chap_et_img.php?oeuvre={}", 
+	let api_url = format!("https://anime-sama.org/s2/scans/get_nb_chap_et_img.php?oeuvre={}", 
 		urlencode(manga_title));
 	
 	match Request::get(&api_url)?.string() {

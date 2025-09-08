@@ -16,8 +16,8 @@ use alloc::format;
 pub mod parser;
 pub mod helper;
 
-pub const BASE_URL: &str = "https://anime-sama.fr";
-pub const CDN_URL: &str = "https://anime-sama.fr/s2/scans";
+pub const BASE_URL: &str = "https://anime-sama.org";
+pub const CDN_URL: &str = "https://anime-sama.org/s2/scans";
 pub const CDN_URL_LEGACY: &str = "https://s22.anime-sama.me/s1/scans";
 
 // Inclure le contenu de filters.json au moment de la compilation
@@ -127,18 +127,21 @@ impl Source for AnimeSama {
 							
 							if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
 								let genre_id = genre_ids[selected_index as usize];
-								filter_params.push_str(&format!("&genre[]={}", helper::urlencode(genre_id)));
+								// Ne pas encoder les tirets dans les IDs de genre 
+								if !genre_id.is_empty() {
+									filter_params.push_str(&format!("&genre={}", genre_id));
+								}
 							}
 						} else if is_valid_genre_id(value) {
 							// Si ce n'est pas un index, peut-être que c'est directement l'ID
-							filter_params.push_str(&format!("&genre[]={}", helper::urlencode(value)));
+							filter_params.push_str(&format!("&genre={}", value));
 						}
 					}
 				}
 				FilterValue::Text { id, value } => {
 					// Les filtres Text avec ID genre
 					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
-						filter_params.push_str(&format!("&genre[]={}", helper::urlencode(value)));
+						filter_params.push_str(&format!("&genre={}", value));
 					}
 				}
 				_ => {
