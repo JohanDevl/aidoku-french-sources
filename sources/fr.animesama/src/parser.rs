@@ -4,7 +4,6 @@ use aidoku::{
 	alloc::{String, Vec, format, vec, string::ToString},
 	imports::html::Document,
 	imports::net::Request,
-	println,
 };
 
 use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
@@ -770,7 +769,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	
 	// Calculate total chapters needed: use the highest index from all sources
 	// This ensures we create enough chapters to include all special chapters
-	let total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+	let _total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
 		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
 		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
 		

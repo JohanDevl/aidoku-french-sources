@@ -141,9 +141,9 @@ fn make_cloudflare_request(url: &str) -> Result<aidoku::imports::html::Document>
 
 // Requête simplifiée sans tous les en-têtes Cloudflare
 fn make_simple_request(url: &str) -> Result<aidoku::imports::html::Document> {
-	Request::get(url)?
+	Ok(Request::get(url)?
 		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
-		.html()
+		.html()?)
 }
 
 struct AnimeSama;
