@@ -662,18 +662,22 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			}
 		}
 		
-		// Chercher des chapitres décimaux SEULEMENT dans les lignes qui mentionnent des chapitres
+		// Chercher des chapitres décimaux de manière plus intelligente
 		for line in html_content.lines() {
-			// Ne chercher que dans les lignes qui parlent vraiment de chapitres
-			if (line.contains("Chapitre") || line.contains("Chapter")) && 
-			   (line.contains(".5") || line.contains(".0")) { // Filtrer encore plus strict
-				
-				if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
-					// Vérifier que c'est un chapitre plausible (entre 1 et 100, avec .5 uniquement)
-					if decimal_chapter >= 1.0 && decimal_chapter <= 100.0 {
-						let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
-						// Accepter seulement exactement .5 (pas .507, .498, etc.)
-						if (fractional_part - 0.5).abs() < 0.01 {
+			if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
+				// Vérifier que c'est un chapitre plausible (entre 1 et 100, avec .5 uniquement)
+				if decimal_chapter >= 1.0 && decimal_chapter <= 100.0 {
+					let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
+					// Accepter seulement exactement .5 (cela élimine automatiquement .507, .498, etc.)
+					if (fractional_part - 0.5).abs() < 0.01 {
+						// Vérifier que c'est dans un contexte de chapitre (pas forcément même ligne)
+						let is_chapter_context = line.contains("Chapitre") || 
+							line.contains("Chapter") ||
+							line.contains("chapitre") ||
+							line.contains("eps") ||
+							line.contains("Ep");
+						
+						if is_chapter_context {
 							// Éviter les doublons
 							let exists = chapter_mappings.iter().any(|m| 
 								(m.chapter_number - decimal_chapter).abs() < 0.01
