@@ -771,27 +771,8 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	}
 	
-	// Count special chapters that take indices but don't match sequential numbering
-	let special_chapter_count = chapter_mappings.iter().filter(|mapping| {
-		// A mapping is special if it's:
-		// - "One Shot", "Prologue", etc. (text-based)
-		// - Decimal chapter (.5) that doesn't match its index
-		// - Any chapter whose number doesn't match its expected sequential position
-		let is_text_chapter = mapping.title.contains("One Shot") 
-			|| mapping.title.contains("Prologue") 
-			|| mapping.title.contains("Epilogue")
-			|| mapping.title.contains("Extra")
-			|| mapping.title.contains("Special");
-		
-		// Check if it's a decimal chapter
-		let is_decimal = mapping.chapter_number != (mapping.chapter_number as i32 as f32);
-		
-		is_text_chapter || is_decimal
-	}).count() as i32;
-	
-	// Calculate total indices needed: API max chapter + special chapters
-	// This ensures we have enough indices to create all regular chapters (1 to api_max_chapter)
-	// even when special chapters occupy intermediate indices
+	// Calculate total chapters needed: use the highest index from all sources
+	// This ensures we create enough chapters to include all special chapters
 	let total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
 		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
 		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
@@ -804,11 +785,11 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			max_cdn_chapter // Pas de One Shot si on n'a que 1045 chapitres ou moins
 		}
 	} else if !chapter_mappings.is_empty() {
+		// Prendre le maximum entre le nombre de l'API et l'index le plus élevé des mappings
 		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
-		// Use the maximum between calculated total and actual mappings (no unnecessary buffer)
-		(api_max_chapter + special_chapter_count).max(max_mapped_index)
+		api_max_chapter.max(max_mapped_index)
 	} else {
-		// Sans mappings spéciaux, utiliser exactement le nombre de l'API (pas plus)
+		// Sans mappings spéciaux, utiliser exactement le nombre de l'API
 		api_max_chapter
 	};
 	
