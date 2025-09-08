@@ -819,48 +819,48 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		println!("[DEBUG] Dan Da Dan - total_chapters: {}", total_chapters);
 	}
 
-	// Create chapters from 1 to total, using JavaScript mappings when available
-	for index in 1..=total_chapters {
-		if let Some(mapping) = chapter_mappings.iter().find(|m| m.index == index) {
-			// Use JavaScript mapping
-			// For special chapters, use a safe key that doesn't conflict
-			let chapter_key = if mapping.title.contains("One Shot") {
-				// One Shot: use a high number that won't conflict with regular chapters
-				"9999".to_string() // Safe key that won't conflict
-			} else {
-				// For other special chapters, use their chapter number
-				(mapping.chapter_number as i32).to_string()
-			};
-			
-			chapters.push(Chapter {
-				key: chapter_key,
-				title: Some(mapping.title.clone()),
-				chapter_number: Some(mapping.chapter_number),
-				volume_number: None,
-				date_uploaded: None,
-				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
-				url: Some(build_chapter_url(&manga_key)),
-				..Default::default()
-			});
+	// Create chapters: first all normal chapters, then insert special chapters at correct positions
+	
+	// Step 1: Create all normal chapters (1, 2, 3, ..., api_max_chapter)
+	for chapter_num in 1..=api_max_chapter {
+		let chapter_key = chapter_num.to_string();
+		chapters.push(Chapter {
+			key: chapter_key,
+			title: Some(format!("Chapitre {}", chapter_num)),
+			chapter_number: Some(chapter_num as f32),
+			volume_number: None,
+			date_uploaded: None,
+			scanlators: Some(vec![]),
+			url: Some(build_chapter_url(&manga_key)),
+			..Default::default()
+		});
+	}
+	
+	// Step 2: Add all special chapters with their correct chapter numbers
+	for mapping in &chapter_mappings {
+		let chapter_key = if mapping.title.contains("One Shot") {
+			"9999".to_string() // Safe key that won't conflict with regular chapters
 		} else {
-			// No mapping, use normal numbering
-			let chapter_number = calculate_chapter_number_for_index(index, &chapter_mappings, &finir_liste_info);
-			
-			// For CDN access, use chapter_number directly, not index
-			// The CDN numbering (eps1, eps2, ..., eps1158) matches chapter numbers, not our internal indices
-			let cdn_key = (chapter_number as i32).to_string();
-			
-			chapters.push(Chapter {
-				key: cdn_key, // Use chapter_number for CDN access, not index
-				title: Some(format!("Chapitre {}", chapter_number as i32)),
-				chapter_number: Some(chapter_number),
-				volume_number: None,
-				date_uploaded: None,
-				scanlators: Some(vec![]), // Vide comme dans l'ancienne version
-				url: Some(build_chapter_url(&manga_key)),
-				..Default::default()
-			});
+			// For decimal chapters like 19.5, use a key that won't conflict
+			format!("{}_{}", (mapping.chapter_number as i32), 
+				((mapping.chapter_number - (mapping.chapter_number as i32 as f32)) * 10.0) as i32)
+		};
+		
+		if is_dan_da_dan {
+			println!("[DEBUG] Dan Da Dan - adding special chapter: {} with key: {} and number: {}", 
+				mapping.title, chapter_key, mapping.chapter_number);
 		}
+		
+		chapters.push(Chapter {
+			key: chapter_key,
+			title: Some(mapping.title.clone()),
+			chapter_number: Some(mapping.chapter_number),
+			volume_number: None,
+			date_uploaded: None,
+			scanlators: Some(vec![]),
+			url: Some(build_chapter_url(&manga_key)),
+			..Default::default()
+		});
 	}
 	
 	// Tri par numéro de chapitre (du plus récent au plus ancien)
