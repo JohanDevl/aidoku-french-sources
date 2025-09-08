@@ -666,9 +666,8 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		
 		// Chercher des chapitres décimaux dans le contenu HTML
 		for line in html_content.lines() {
-			// Chercher uniquement dans les lignes qui semblent contenir du JavaScript de chapitres
-			if line.contains("creerListe") || line.contains("newSP") || 
-			   line.contains("Chapitre") || line.contains("Chapter") {
+			// Élargir la recherche : chercher dans toutes les lignes contenant "Chapitre" ou "Chapter"
+			if line.contains("Chapitre") || line.contains("Chapter") {
 				
 				if is_dan_da_dan {
 					println!("[DEBUG] Dan Da Dan - found relevant line: {}", line);
@@ -696,6 +695,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				}
 			}
 		}
+		
 	}
 	
 	// Get total chapters from API (this is the highest chapter NUMBER, not index count)
@@ -723,43 +723,51 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		}
 	};
 	
-	// Chercher des One Shot pour tous les mangas (maintenant qu'on a api_max_chapter)
-	if !chapter_mappings.iter().any(|m| m.title.contains("One Shot")) && api_max_chapter > 10 {
-		if is_dan_da_dan {
-			println!("[DEBUG] Dan Da Dan - searching for One Shot, api_max_chapter: {}", api_max_chapter);
-		}
+	// Recherche élargie pour les One Shot et chapitres spéciaux (maintenant qu'on a api_max_chapter)
+	// Redéfinir is_dan_da_dan pour ce scope
+	let is_dan_da_dan = manga_name.to_lowercase().contains("dan da dan") || 
+	                    manga_name.to_lowercase().contains("dandadan") ||
+	                    manga_key.to_lowercase().contains("dan-da-dan") ||
+	                    manga_key.to_lowercase().contains("dandadan");
+	
+	for line in html_content.lines() {
+		// Chercher plusieurs patterns pour les chapitres spéciaux
+		let special_patterns = [
+			"One Shot", "OneShot", "one shot", "ONE SHOT",
+			"Hors-série", "Hors série", "hors-série", "hors série",
+			"Spécial", "Special", "spécial", "special",
+			"Prologue", "Epilogue", "Extra"
+		];
 		
-		for line in html_content.lines() {
-			if (line.contains("One Shot") || line.contains("OneShot") || line.contains("one shot")) &&
-			   (line.contains("creerListe") || line.contains("newSP") || line.contains("Chapitre")) {
-				
+		for pattern in &special_patterns {
+			if line.contains(pattern) && (line.contains("Chapitre") || line.contains("Chapter")) {
 				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - found One Shot line: {}", line);
+					println!("[DEBUG] Dan Da Dan - found special chapter line with '{}': {}", pattern, line);
 				}
 				
-				// Ajouter un One Shot générique à une position appropriée
-				let one_shot_position = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
-					1046 // Position spécifique pour One Piece
+				// Ajouter un chapitre spécial selon le pattern trouvé
+				let (title, position_offset) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
+					("Chapitre One Shot".to_string(), 0.5)
+				} else if pattern.contains("Hors") {
+					("Chapitre Hors-série".to_string(), 0.3)
+				} else if pattern.contains("Spécial") || pattern.contains("Special") {
+					("Chapitre Spécial".to_string(), 0.7)
 				} else {
-					api_max_chapter / 2 // Milieu du manga pour les autres
+					(format!("Chapitre {}", pattern), 0.4)
 				};
 				
+				let position = api_max_chapter / 2;
 				if is_dan_da_dan {
-					println!("[DEBUG] Dan Da Dan - adding One Shot at position: {}", one_shot_position);
+					println!("[DEBUG] Dan Da Dan - adding special chapter '{}' at position: {}", title, position);
 				}
 				
 				chapter_mappings.push(ChapterMapping {
-					index: one_shot_position,
-					chapter_number: one_shot_position as f32 + 0.5,
-					title: "Chapitre One Shot".to_string(),
+					index: position,
+					chapter_number: position as f32 + position_offset,
+					title,
 				});
-				break; // Un seul One Shot par manga
+				break; // Sortir de la boucle des patterns pour cette ligne
 			}
-		}
-		
-		if is_dan_da_dan {
-			println!("[DEBUG] Dan Da Dan - One Shot search completed, found: {}", 
-				chapter_mappings.iter().any(|m| m.title.contains("One Shot")));
 		}
 	}
 	
