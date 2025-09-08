@@ -4,6 +4,7 @@ use aidoku::{
 	alloc::{String, Vec, format, vec, string::ToString},
 	imports::html::Document,
 	imports::net::Request,
+	println,
 };
 
 use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
@@ -585,6 +586,12 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			})
 		})
 		.unwrap_or_else(|| manga_key_to_title(&manga_key));
+		
+	// Debug spécifique pour Dan Da Dan
+	let is_dan_da_dan = manga_name.to_lowercase().contains("dan da dan") || 
+	                    manga_name.to_lowercase().contains("dandadan") ||
+	                    manga_key.to_lowercase().contains("dan-da-dan") ||
+	                    manga_key.to_lowercase().contains("dandadan");
 	
 	// Parse JavaScript content for chapter mappings
 	// IMPORTANT: Récupérer TOUT le contenu de la page, y compris les scripts inline
@@ -651,16 +658,34 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		// Pour tous les mangas, essayer une détection conservatrice des chapitres décimaux
 		// Utiliser des patterns stricts pour éviter les faux positifs
 		
+		if is_dan_da_dan {
+			println!("[DEBUG] Dan Da Dan - manga_name: {}", manga_name);
+			println!("[DEBUG] Dan Da Dan - manga_key: {}", manga_key);
+			println!("[DEBUG] Dan Da Dan - html_content length: {}", html_content.len());
+		}
+		
 		// Chercher des chapitres décimaux dans le contenu HTML
 		for line in html_content.lines() {
 			// Chercher uniquement dans les lignes qui semblent contenir du JavaScript de chapitres
 			if line.contains("creerListe") || line.contains("newSP") || 
 			   line.contains("Chapitre") || line.contains("Chapter") {
+				
+				if is_dan_da_dan {
+					println!("[DEBUG] Dan Da Dan - found relevant line: {}", line);
+				}
+				
 				if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
+					if is_dan_da_dan {
+						println!("[DEBUG] Dan Da Dan - found decimal chapter: {}", decimal_chapter);
+					}
+					
 					// Vérifier que c'est un chapitre raisonnable (entre 1 et 2000, avec .5 uniquement)
 					if decimal_chapter > 1.0 && decimal_chapter < 2000.0 {
 						let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
 						if (fractional_part - 0.5).abs() < 0.01 { // Accepter seulement .5
+							if is_dan_da_dan {
+								println!("[DEBUG] Dan Da Dan - adding decimal chapter: {}", decimal_chapter);
+							}
 							chapter_mappings.push(ChapterMapping {
 								index: chapter_mappings.len() as i32 + 1,
 								chapter_number: decimal_chapter,
@@ -700,15 +725,29 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	
 	// Chercher des One Shot pour tous les mangas (maintenant qu'on a api_max_chapter)
 	if !chapter_mappings.iter().any(|m| m.title.contains("One Shot")) && api_max_chapter > 10 {
+		if is_dan_da_dan {
+			println!("[DEBUG] Dan Da Dan - searching for One Shot, api_max_chapter: {}", api_max_chapter);
+		}
+		
 		for line in html_content.lines() {
 			if (line.contains("One Shot") || line.contains("OneShot") || line.contains("one shot")) &&
 			   (line.contains("creerListe") || line.contains("newSP") || line.contains("Chapitre")) {
+				
+				if is_dan_da_dan {
+					println!("[DEBUG] Dan Da Dan - found One Shot line: {}", line);
+				}
+				
 				// Ajouter un One Shot générique à une position appropriée
 				let one_shot_position = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
 					1046 // Position spécifique pour One Piece
 				} else {
 					api_max_chapter / 2 // Milieu du manga pour les autres
 				};
+				
+				if is_dan_da_dan {
+					println!("[DEBUG] Dan Da Dan - adding One Shot at position: {}", one_shot_position);
+				}
+				
 				chapter_mappings.push(ChapterMapping {
 					index: one_shot_position,
 					chapter_number: one_shot_position as f32 + 0.5,
@@ -716,6 +755,11 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 				});
 				break; // Un seul One Shot par manga
 			}
+		}
+		
+		if is_dan_da_dan {
+			println!("[DEBUG] Dan Da Dan - One Shot search completed, found: {}", 
+				chapter_mappings.iter().any(|m| m.title.contains("One Shot")));
 		}
 	}
 	
@@ -760,6 +804,16 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 		api_max_chapter
 	};
 	
+	// Debug final results for Dan Da Dan
+	if is_dan_da_dan {
+		println!("[DEBUG] Dan Da Dan - final chapter_mappings count: {}", chapter_mappings.len());
+		for mapping in &chapter_mappings {
+			println!("[DEBUG] Dan Da Dan - mapping: index={}, number={}, title={}", 
+				mapping.index, mapping.chapter_number, mapping.title);
+		}
+		println!("[DEBUG] Dan Da Dan - total_chapters: {}", total_chapters);
+	}
+
 	// Create chapters from 1 to total, using JavaScript mappings when available
 	for index in 1..=total_chapters {
 		if let Some(mapping) = chapter_mappings.iter().find(|m| m.index == index) {
