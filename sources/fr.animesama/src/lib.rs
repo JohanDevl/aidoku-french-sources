@@ -151,7 +151,7 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 	loop {
 		// Rate limiting: Add delays between requests to avoid triggering Cloudflare
 		if attempt > 0 {
-			let backoff_ms = 1000 * (1 << (attempt - 1).min(3)); // Exponential backoff: 1s, 2s, 4s, 8s
+			let _backoff_ms = 1000 * (1 << (attempt - 1).min(3)); // Exponential backoff: 1s, 2s, 4s, 8s
 			// Exponential backoff would be implemented here in non-WASM environment
 		} else {
 			// Even on first request, add small delay to avoid rapid-fire requests
@@ -173,7 +173,7 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 			Ok(resp) => resp,
 			Err(e) => {
 				if attempt >= MAX_RETRIES {
-					return Err(e);
+					return Err(AidokuError::RequestError(e));
 				}
 				attempt += 1;
 				continue;
@@ -185,7 +185,7 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 			403 => {
 				// Cloudflare block, retry with longer delay
 				if attempt >= MAX_RETRIES {
-					return Err(AidokuError::HttpError(403));
+					return Err(AidokuError::message("Cloudflare block (403)"));
 				}
 				attempt += 1;
 				continue;
@@ -193,7 +193,7 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 			429 => {
 				// Rate limited by Cloudflare, retry with exponential backoff
 				if attempt >= MAX_RETRIES {
-					return Err(AidokuError::HttpError(429));
+					return Err(AidokuError::message("Rate limited (429)"));
 				}
 				attempt += 1;
 				continue;
@@ -201,12 +201,12 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 			503 | 502 | 504 => {
 				// Server error, might be temporary Cloudflare protection
 				if attempt >= MAX_RETRIES {
-					return Err(AidokuError::HttpError(response.status_code()));
+					return Err(AidokuError::message("Server error"));
 				}
 				attempt += 1;
 				continue;
 			},
-			_ => return Err(AidokuError::HttpError(response.status_code())),
+			_ => return Err(AidokuError::message("Request failed")),
 		}
 	}
 }
@@ -214,10 +214,10 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 // Wrapper function with fallback for HTML parsing
 fn make_realistic_request(url: &str) -> Result<aidoku::imports::html::Document> {
 	match make_request_with_cloudflare_retry(url) {
-		Ok(response) => response.get_html(),
+		Ok(response) => Ok(response.get_html()?),
 		Err(_) => {
 			// If all retries fail, return an error that can be handled gracefully
-			Err(AidokuError::HttpError(503))
+			Err(AidokuError::message("Request failed after retries"))
 		}
 	}
 }

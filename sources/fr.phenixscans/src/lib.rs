@@ -26,7 +26,7 @@ impl PhenixScans {
 		loop {
 			// Rate limiting: Add delays between requests to avoid triggering Cloudflare
 			if attempt > 0 {
-				let backoff_ms = 500 * (1 << (attempt - 1).min(3)); // Exponential backoff: 500ms, 1s, 2s, 4s
+				let _backoff_ms = 500 * (1 << (attempt - 1).min(3)); // Exponential backoff: 500ms, 1s, 2s, 4s
 				// Exponential backoff would be implemented here in non-WASM environment
 			} else {
 				// Even on first request, add small delay for API to avoid rapid requests
@@ -48,7 +48,7 @@ impl PhenixScans {
 				Ok(resp) => resp,
 				Err(e) => {
 					if attempt >= MAX_RETRIES {
-						return Err(e);
+						return Err(AidokuError::RequestError(e));
 					}
 					attempt += 1;
 					continue;
@@ -60,7 +60,7 @@ impl PhenixScans {
 				403 => {
 					// Cloudflare block detected
 					if attempt >= MAX_RETRIES {
-						return Err(AidokuError::HttpError(403));
+						return Err(AidokuError::message("Cloudflare block (403)"));
 					}
 					attempt += 1;
 					continue;
@@ -68,7 +68,7 @@ impl PhenixScans {
 				429 => {
 					// Rate limited by API or Cloudflare
 					if attempt >= MAX_RETRIES {
-						return Err(AidokuError::HttpError(429));
+						return Err(AidokuError::message("Rate limited (429)"));
 					}
 					attempt += 1;
 					continue;
@@ -76,12 +76,12 @@ impl PhenixScans {
 				503 | 502 | 504 => {
 					// Server error, might be temporary Cloudflare protection
 					if attempt >= MAX_RETRIES {
-						return Err(AidokuError::HttpError(response.status_code()));
+						return Err(AidokuError::message("Server error"));
 					}
 					attempt += 1;
 					continue;
 				},
-				_ => return Err(AidokuError::HttpError(response.status_code())),
+				_ => return Err(AidokuError::message("Request failed")),
 			}
 		}
 	}
@@ -97,14 +97,14 @@ impl PhenixScans {
 				   json_string.contains("403 Forbidden") || 
 				   json_string.contains("Access Denied") {
 					// Return error to trigger fallback behavior
-					return Err(AidokuError::HttpError(403));
+					return Err(AidokuError::message("JSON parse error"));
 				}
 				
 				Ok(json_string)
 			},
 			Err(_) => {
 				// Return error to trigger fallback behavior
-				Err(AidokuError::HttpError(503))
+				Err(AidokuError::message("API request failed"))
 			}
 		}
 	}

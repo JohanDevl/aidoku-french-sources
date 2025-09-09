@@ -4,9 +4,8 @@ use aidoku::{
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
-    imports::{net::{Request, Response}, html::Document},
+    imports::{net::Request, html::Document},
     prelude::*,
-    AidokuError,
 };
 
 extern crate alloc;
@@ -87,7 +86,7 @@ impl Source for MangaScantrad {
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .get_html() {
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // If we can't fetch the page, return the original manga instead of failing
@@ -109,7 +108,7 @@ impl Source for MangaScantrad {
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .get_html() {
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // Return empty page list instead of failing
@@ -160,8 +159,16 @@ impl MangaScantrad {
             page
         );
         
-        // Use robust AJAX request with error handling and rate limiting
-        let html_doc = match self.post_ajax_robust(&url, &body) {
+        // Use AJAX request with error handling
+        let html_doc = match Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // Return empty result instead of failing to not break the app
@@ -205,8 +212,16 @@ impl MangaScantrad {
         };
         
         
-        // Use robust AJAX request with error handling and rate limiting
-        let html_doc = match self.post_ajax_robust(&url, &body) {
+        // Use AJAX request with error handling
+        let html_doc = match Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // Return empty result instead of failing to not break the app
@@ -263,8 +278,16 @@ impl MangaScantrad {
         }
         
         
-        // Use robust AJAX request with error handling and rate limiting
-        let html_doc = match self.post_ajax_robust(&url, &body) {
+        // Use AJAX request with error handling
+        let html_doc = match Request::post(&url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body.as_bytes())
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // Return empty result instead of failing to not break the app
@@ -294,7 +317,12 @@ impl MangaScantrad {
         // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
         
-        let manga_page_doc = match self.get_html_robust(&manga_url) {
+        let manga_page_doc = match Request::get(&manga_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // If we can't get the page, return empty chapters list
@@ -309,7 +337,15 @@ impl MangaScantrad {
         let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
         
-        let ajax_doc = match self.post_ajax_robust(&ajax_url, &body_content) {
+        let ajax_doc = match Request::post(&ajax_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", &manga_url)
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(body_content.as_bytes())
+            .html() {
             Ok(doc) => doc,
             Err(_) => {
                 // If AJAX fails, return empty chapters list
