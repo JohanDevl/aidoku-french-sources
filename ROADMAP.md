@@ -5,8 +5,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 ## 📊 Current Status
 
 - **Implemented sources**: 14 (10 active + 4 offline)
-- **Remaining sources**: 32
-- **Total available sources**: 46
+- **Remaining sources**: 33
+- **Total available sources**: 47
 
 ## 🔄 Work in Progress
 
@@ -42,6 +42,7 @@ Currently no sources are being actively developed.
 | **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
 | **StarboundScans**  | [starboundscans.com](https://starboundscans.com) | Unknown       | 🟡 Medium | Scanlation group           |
 | **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
+| **CrunchyScan**     | [crunchyscan.fr](https://crunchyscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
 
 ## 🏗️ Implementation Guidelines
 
@@ -97,5 +98,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-09-07_
-_Total sources tracked: 32 upcoming_
+_Last updated: 2025-09-09_
+_Total sources tracked: 33 upcoming_
