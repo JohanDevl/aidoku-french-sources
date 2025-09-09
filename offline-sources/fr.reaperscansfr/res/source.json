@@ -1,0 +1,22 @@
+{
+  "info": {
+    "id": "fr.reaperscans",
+    "name": "Reaper Scans FR",
+    "version": 6,
+    "url": "https://reaperscans.fr",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ]
+  },
+  "listings": [
+    {
+      "name": "Tendance",
+      "id": "tendance"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
+}

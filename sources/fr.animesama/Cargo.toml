@@ -1,0 +1,24 @@
+[package]
+name = "animesama"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", rev = "7c084816" }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"], rev = "7c084816" }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git", rev = "7c084816" }

@@ -1,0 +1,20 @@
+{
+  "info": {
+    "id": "fr.poseidonscans",
+    "contentRating": 1,
+    "languages": ["fr"],
+    "name": "Poseidon Scans",
+    "version": 5,
+    "url": "https://poseidonscans.com/"
+  },
+  "listings": [
+    {
+      "name": "Dernières Sorties",
+      "id": "dernières-sorties"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
+}

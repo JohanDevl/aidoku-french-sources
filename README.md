@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
-[![Sources](https://img.shields.io/badge/sources-13-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-9-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Sources](https://img.shields.io/badge/sources-14-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-10-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -16,33 +16,44 @@ Check out our interactive website to browse available sources: **[johandevl.gith
 
 Click this link from your iOS device with Aidoku installed:
 
-**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/)**
+**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://johandev.com/aidoku-french-sources/index.min.json)**
 
 ### Method 2: Manual Installation
 
 1. Open the **Aidoku** app
 2. Go to **Settings** → **Source Lists**
 3. Tap **Add Source List**
-4. Paste this URL: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/`
+4. Paste this URL: `https://johandev.com/aidoku-french-sources/index.min.json`
 5. Tap **Add**
+
+### Method 3: Development Branch (Latest)
+
+To test the latest development sources and features:
+
+**[🧪 Add development sources](https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources-develop/index.min.json)**
+
+Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources-develop/index.min.json`
+
+> ⚠️ **Note**: Development sources may be unstable and contain experimental features.
 
 ## 📖 Available Sources
 
-|        Name        |                        URL                        |     Status     |    Type     | Description                   |
-| :----------------: | :-----------------------------------------------: | :------------: | :---------: | :---------------------------- |
-| **MangasOrigines** | [mangas-origines.fr](https://mangas-origines.fr/) | ✅ **Active**  |   Madara    | Large catalog of French manga |
-| **MangaScantrad**  |  [manga-scantrad.io](https://manga-scantrad.io/)  | ✅ **Active**  |   Madara    | Quality French scanlations    |
-|  **Astral Manga**  |    [astral-manga.fr](https://astral-manga.fr/)    | ✅ **Active**  |   Madara    | Popular manga in French       |
-|   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |   Custom    | Recent French scanlations     |
-|  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |   Custom    | French scanlation community   |
-| **PoseidonScans**  |   [poseidonscans.com](https://poseidonscans.com/) | ✅ **Active**  |   Custom    | Next.js scanlation platform  |
-|    **AnimeSama**   |       [anime-sama.fr](https://anime-sama.fr/)     | ✅ **Active**  |   Custom    | Anime/Manga hybrid platform  |
-|    **LelManga**    |      [lelmanga.com](https://www.lelmanga.com/)    | ✅ **Active**  | MangaThemesia | French manga catalog        |
-|   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  | MangaStream | Various French scanlations    |
-|   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** | MangaStream | Chapter loading issues        |
-| **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |   Madara    | Website temporarily down      |
-|   **Manga Scan**   |   [mangascan-fr.com](https://mangascan-fr.com/)   | ❌ **Offline** |   MMRCMS    | Website temporarily down      |
-|  **LegacyScans**   |   [legacy-scans.com](https://legacy-scans.com/)   | ❌ **Offline** |   Custom    | Website temporarily down      |
+|        Name        |                        URL                        |     Status     |     Type      | Description                   |
+| :----------------: | :-----------------------------------------------: | :------------: | :-----------: | :---------------------------- |
+| **MangasOrigines** | [mangas-origines.fr](https://mangas-origines.fr/) | ✅ **Active**  |    Madara     | Large catalog of French manga |
+| **MangaScantrad**  |  [manga-scantrad.io](https://manga-scantrad.io/)  | ✅ **Active**  |    Madara     | Quality French scanlations    |
+|  **Astral Manga**  |    [astral-manga.fr](https://astral-manga.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
+|   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |    Custom     | Recent French scanlations     |
+|  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |    Custom     | French scanlation community   |
+| **PoseidonScans**  |  [poseidonscans.com](https://poseidonscans.com/)  | ✅ **Active**  |    Custom     | Next.js scanlation platform   |
+|   **AnimeSama**    |      [anime-sama.fr](https://anime-sama.fr/)      | ✅ **Active**  |    Custom     | Anime/Manga hybrid platform   |
+|     **FMTeam**     |        [fmteam.fr](https://fmteam.fr/)        | ✅ **Active**  |    Custom     | French scanlation team        |
+|    **LelManga**    |     [lelmanga.com](https://www.lelmanga.com/)     | ✅ **Active**  | MangaThemesia | French manga catalog          |
+|   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
+|   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** |  MangaStream  | Chapter loading issues        |
+| **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
+|   **Manga Scan**   |   [mangascan-fr.com](https://mangascan-fr.com/)   | ❌ **Offline** |    MMRCMS     | Website temporarily down      |
+|  **LegacyScans**   |   [legacy-scans.com](https://legacy-scans.com/)   | ❌ **Offline** |    Custom     | Website temporarily down      |
 
 ### Status Legend
 
@@ -55,50 +66,58 @@ This project uses **Rust** and different templates to support various website te
 
 ### Supported Templates
 
-|    Template     |           Description           |              Compatible Sites               |
-| :-------------: | :-----------------------------: | :-----------------------------------------: |
-|   **Madara**    | Popular WordPress CMS for manga | MangasOrigines, MangaScantrad, Astral Manga |
-| **MangaThemesia** | WordPress theme for manga sites | LelManga |
-| **MangaStream** |    Manga streaming framework    |            SushiScans, SushiScan            |
-|   **MMRCMS**    |     Manga management system     |                 Manga Scan                  |
-|   **Custom**    |      Custom implementation      |   LelscanFR, PhenixScans, PoseidonScans, AnimeSama, LegacyScans   |
+|     Template      |           Description           |                       Compatible Sites                        |
+| :---------------: | :-----------------------------: | :-----------------------------------------------------------: |
+|    **Madara**     | Popular WordPress CMS for manga |                  MangasOrigines, MangaScantrad                  |
+| **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
+|  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
+|    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
+|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, AnimeSama, FMTeam, LegacyScans |
 
 ### Project Structure
 
 ```
-src/rust/
-├── madara/          # Template for Madara sites
-├── mangastream/     # Template for MangaStream sites
-├── mmrcms/          # Template for MMRCMS sites
+sources/
+├── fr.animesama/    # Custom source for AnimeSama
+├── fr.fmteam/       # Custom source for FMTeam
+├── fr.lelmanga/     # MangaThemesia source for LelManga
 ├── fr.lelscanfr/    # Custom source for LelscanFR
+├── fr.mangascantrad/ # Madara source for MangaScantrad
+├── fr.mangasorigines/ # Madara source for MangasOrigines
 ├── fr.phenixscans/  # Custom source for PhenixScans
 ├── fr.poseidonscans/ # Custom source for PoseidonScans
-├── fr.animesama/    # Custom source for AnimeSama
-└── fr.legacyscans/  # Custom source for LegacyScans
+└── fr.sushiscans/   # MangaStream source for SushiScans
 ```
 
 ## 👨‍💻 For Developers
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (latest stable version)
+- [Rust](https://rustup.rs/) (latest stable version with nightly toolchain)
 - [Git](https://git-scm.com/)
+- [Aidoku CLI](https://github.com/Aidoku/aidoku-rs): `cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli`
 
 ### Local Installation
 
 ```bash
 git clone https://github.com/JohanDevl/aidoku-french-sources.git
 cd aidoku-french-sources
+
+# Install nightly Rust with WASM target
+rustup install nightly
+rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
 
 ### Building a Source
 
 ```bash
-# For a Madara source
-cd src/rust/madara && ./build.sh
+# For template-based sources (Madara, MangaStream, MMRCMS)
+cd src/rust/madara/sources/lelmanga && RUSTUP_TOOLCHAIN=nightly aidoku package
+cd src/rust/mangastream/sources/sushiscans && RUSTUP_TOOLCHAIN=nightly aidoku package
 
-# For a custom source
-cd src/rust/fr.lelscanfr && ./build.sh
+# For custom sources
+cd src/rust/fr.lelscanfr && RUSTUP_TOOLCHAIN=nightly aidoku package
+cd src/rust/fr.phenixscans && RUSTUP_TOOLCHAIN=nightly aidoku package
 ```
 
 ### Adding a New Source

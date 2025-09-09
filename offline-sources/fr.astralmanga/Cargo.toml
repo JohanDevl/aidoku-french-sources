@@ -1,0 +1,18 @@
+[package]
+name = "astralmanga"
+version = "0.2.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+madara_stable_template = { path = "../../templates/madara-stable" }

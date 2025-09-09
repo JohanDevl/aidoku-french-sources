@@ -1,0 +1,17 @@
+[package]
+name = "mangascan"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+mmrcms_stable_template = { path = "../../templates/mmrcms-stable" }

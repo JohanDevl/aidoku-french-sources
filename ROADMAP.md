@@ -4,9 +4,9 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 13 (9 active + 4 offline)
+- **Implemented sources**: 14 (10 active + 4 offline)
 - **Remaining sources**: 33
-- **Total available sources**: 46
+- **Total available sources**: 47
 
 ## 🔄 Work in Progress
 
@@ -27,7 +27,6 @@ Currently no sources are being actively developed.
 | **EdScanlation**    | [edscanlation.fr](https://edscanlation.fr)       | Unknown       | 🟡 Medium | Scanlation team            |
 | **EnligneManga**    | [enlignemanga.com](https://enlignemanga.com)     | Unknown       | 🟡 Medium | Online manga platform      |
 | **EpsilonScan**     | [epsilonscan.to](https://epsilonscan.to)         | Unknown       | 🟡 Medium | Scanlation group           |
-| **FMTeam**          | [fmteam.fr](https://fmteam.fr)                   | Unknown       | 🟡 Medium | French scanlation team     |
 | **FrManga**         | [frmanga.com](https://frmanga.com)               | Unknown       | 🟡 Medium | French manga source        |
 | **FuryoSquad**      | [furyosociety.com](https://furyosociety.com)     | Unknown       | 🟡 Medium | Scanlation group           |
 | **InovaScanManga**  | [inovascanmanga.com](https://inovascanmanga.com) | Unknown       | 🟡 Medium | Scan community             |
@@ -43,6 +42,7 @@ Currently no sources are being actively developed.
 | **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
 | **StarboundScans**  | [starboundscans.com](https://starboundscans.com) | Unknown       | 🟡 Medium | Scanlation group           |
 | **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
+| **CrunchyScan**     | [crunchyscan.fr](https://crunchyscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
 
 ## 🏗️ Implementation Guidelines
 
@@ -98,5 +98,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-08-18_
+_Last updated: 2025-09-09_
 _Total sources tracked: 33 upcoming_

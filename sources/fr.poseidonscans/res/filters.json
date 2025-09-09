@@ -1,0 +1,63 @@
+[
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": ["Tous les statuts", "En cours", "Terminé", "En pause"]
+  },
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": ["Tous les types", "Manga", "Manhwa", "Manhua"]
+  },
+  {
+    "type": "select",
+    "id": "genre",
+    "title": "Genre",
+    "isGenre": true,
+    "options": [
+      "Tous les genres",
+      "Action",
+      "Aventure",
+      "Arts Martiaux",
+      "Fantastique",
+      "Comédie",
+      "Romance",
+      "Surnaturel",
+      "Magie",
+      "Vie scolaire",
+      "Combat",
+      "Réincarnation",
+      "Drama",
+      "Drama",
+      "Psychologique",
+      "Génie",
+      "Harem",
+      "Ecchi",
+      "Mature",
+      "Tragique",
+      "Vengeance",
+      "Murim",
+      "Amitié",
+      "Académie",
+      "Super pouvoirs",
+      "Isekai",
+      "Délinquant",
+      "Shonen",
+      "Shojo",
+      "Portail/Donjon"
+    ]
+  },
+  {
+    "type": "select",
+    "id": "sort",
+    "title": "Trier par",
+    "options": [
+      "Dernière mise à jour",
+      "Titre A-Z",
+      "Titre Z-A",
+      "Date d'ajout"
+    ]
+  }
+]

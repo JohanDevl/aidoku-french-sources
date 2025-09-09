@@ -1,0 +1,20 @@
+{
+  "info": {
+    "id": "fr.mangascantrad",
+    "name": "Manga Scantrad",
+    "version": 14,
+    "url": "https://manga-scantrad.io",
+    "contentRating": 1,
+    "languages": ["fr"]
+  },
+  "listings": [
+    {
+      "name": "Tendance",
+      "id": "tendance"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "info": {
+    "id": "fr.astralmanga",
+    "contentRating": 1,
+    "languages": [
+      "fr"
+    ],
+    "name": "Astral Manga",
+    "version": 6,
+    "url": "https://astral-manga.fr"
+  },
+  "listings": [
+    {
+      "name": "Tendance",
+      "id": "tendance"
+    },
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    }
+  ]
+}

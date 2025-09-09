@@ -1,0 +1,1281 @@
+use aidoku::{
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
+	Viewer,
+	alloc::{String, Vec, format, vec, string::ToString},
+	imports::html::Document,
+	imports::net::Request,
+};
+
+use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
+
+// Fonction pour déterminer quel CDN utiliser selon le manga
+fn select_cdn_url(manga_title: &str) -> &'static str {
+	// Mangas qui utilisent l'ancien CDN
+	match manga_title {
+		"One Piece" | "Dragon Ball" => CDN_URL_LEGACY,
+		_ => CDN_URL, // Nouveau CDN par défaut
+	}
+}
+
+// Structure pour stocker les mappings de chapitres depuis JavaScript
+#[derive(Debug, Clone)]
+struct ChapterMapping {
+	index: i32,
+	chapter_number: f32,
+	title: String,
+}
+
+// Structure pour stocker les informations de finirListe
+#[derive(Debug, Clone)]
+struct FinirListeInfo {
+	_placeholder: i32, // Placeholder pour structure future
+}
+
+// Parser les commandes JavaScript pour créer le mapping
+fn parse_chapter_mapping(html_content: &str) -> (Vec<ChapterMapping>, Option<FinirListeInfo>) {
+	let mut mappings: Vec<ChapterMapping> = Vec::new();
+	let mut current_index = 1; // Indices commencent à 1
+	let mut finir_liste_info: Option<FinirListeInfo> = None;
+	
+	// Parser ligne par ligne en respectant l'ordre des commandes
+	let lines: Vec<&str> = html_content.lines().collect();
+	
+	for line in lines {
+		let trimmed = line.trim();
+		
+		// Parser tous les patterns sur la même ligne dans l'ordre
+		let mut line_pos = 0;
+		
+		while line_pos < trimmed.len() {
+			// Chercher le prochain pattern sur cette ligne
+			let creer_pos = trimmed[line_pos..].find("creerListe(");
+			let newsp_pos = trimmed[line_pos..].find("newSP(");
+			let finir_pos = trimmed[line_pos..].find("finirListe(");
+			
+			// Déterminer quel pattern vient en premier
+			let next_pattern = match (creer_pos, newsp_pos, finir_pos) {
+				(Some(c), Some(n), Some(f)) => {
+					if c < n && c < f { ("creer", line_pos + c) }
+					else if n < f { ("newsp", line_pos + n) }
+					else { ("finir", line_pos + f) }
+				}
+				(Some(c), Some(_n), None) if c < _n => ("creer", line_pos + c),
+				(Some(_c), Some(n), None) => ("newsp", line_pos + n),
+				(Some(c), None, Some(f)) if c < f => ("creer", line_pos + c),
+				(Some(_c), None, Some(f)) => ("finir", line_pos + f),
+				(None, Some(n), Some(f)) if n < f => ("newsp", line_pos + n),
+				(None, Some(_n), Some(f)) => ("finir", line_pos + f),
+				(Some(c), None, None) => ("creer", line_pos + c),
+				(None, Some(n), None) => ("newsp", line_pos + n),
+				(None, None, Some(f)) => ("finir", line_pos + f),
+				_ => break, // Aucun pattern trouvé
+			};
+			
+			match next_pattern.0 {
+				"creer" => {
+					let start_pos = next_pattern.1 + "creerListe(".len();
+					if let Some(params_end) = trimmed[start_pos..].find(");") {
+						let params = &trimmed[start_pos..start_pos + params_end];
+						let parts: Vec<&str> = params.split(",").map(|s| s.trim()).collect();
+						
+						if parts.len() == 2 {
+							if let (Ok(start), Ok(end)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+								// Créer les mappings pour la plage
+								for chapter_num in start..=end {
+									mappings.push(ChapterMapping {
+										index: current_index,
+										chapter_number: chapter_num as f32,
+										title: format!("Chapitre {}", chapter_num),
+									});
+									current_index += 1;
+								}
+							}
+						}
+						line_pos = start_pos + params_end + 2; // +2 pour ");
+					} else {
+						break;
+					}
+				}
+				"newsp" => {
+					let start_pos = next_pattern.1 + "newSP(".len();
+					if let Some(params_end) = trimmed[start_pos..].find(");") {
+						let param = trimmed[start_pos..start_pos + params_end].trim();
+						
+						// Cas 1: Chapitre avec label texte comme "One Shot"
+						if param.starts_with("\"") && param.ends_with("\"") && param.len() > 2 {
+							let text_content = &param[1..param.len()-1];
+							mappings.push(ChapterMapping {
+								index: current_index,
+								chapter_number: current_index as f32, // Utiliser l'index comme numéro
+								title: format!("Chapitre {}", text_content),
+							});
+							current_index += 1;
+						}
+						// Cas 2: Gérer les nombres décimaux comme 19.5
+						else if let Ok(special_num) = param.parse::<f32>() {
+							mappings.push(ChapterMapping {
+								index: current_index,
+								chapter_number: special_num,
+								title: format!("Chapitre {}", special_num),
+							});
+							current_index += 1;
+						}
+						line_pos = start_pos + params_end + 2; // +2 pour ");
+					} else {
+						break;
+					}
+				}
+				"finir" => {
+					let start_pos = next_pattern.1 + "finirListe(".len();
+					if let Some(params_end) = trimmed[start_pos..].find(");") {
+						let param = trimmed[start_pos..start_pos + params_end].trim();
+						
+						// Parser le paramètre de finirListe (devrait être un nombre)
+						if let Ok(_finir_start) = param.parse::<i32>() {
+							finir_liste_info = Some(FinirListeInfo {
+								_placeholder: 0,
+							});
+						}
+						line_pos = start_pos + params_end + 2; // +2 pour ");
+					} else {
+						break;
+					}
+				}
+				_ => break,
+			}
+		}
+	}
+	
+	(mappings, finir_liste_info)
+}
+
+// Fonction calculate_chapter_number_for_index supprimée - non utilisée
+
+// Chercher des chapitres décimaux dans une ligne HTML/JavaScript
+fn find_decimal_chapter_in_line(line: &str) -> Option<f32> {
+	// Chercher des patterns comme "19.5", "20.5" dans du JavaScript ou HTML
+	// Utiliser une approche plus simple avec regex-like matching
+	
+	let chars: Vec<char> = line.chars().collect();
+	let mut i = 0;
+	
+	while i < chars.len() {
+		// Chercher un chiffre
+		if chars[i].is_ascii_digit() {
+			let mut number_str = String::new();
+			
+			// Collecter tous les chiffres consécutifs
+			while i < chars.len() && chars[i].is_ascii_digit() {
+				number_str.push(chars[i]);
+				i += 1;
+			}
+			
+			// Vérifier s'il y a un point décimal
+			if i < chars.len() && chars[i] == '.' {
+				number_str.push('.');
+				i += 1;
+				
+				// Collecter les chiffres après le point
+				let decimal_start = number_str.len();
+				while i < chars.len() && chars[i].is_ascii_digit() {
+					number_str.push(chars[i]);
+					i += 1;
+				}
+				
+				// Vérifier qu'on a bien des chiffres après le point
+				if number_str.len() > decimal_start {
+					if let Ok(decimal_num) = number_str.parse::<f32>() {
+						// Vérifier que c'est un chapitre plausible
+						if decimal_num >= 1.0 && decimal_num <= 999.9 {
+							// Vérifier que c'est bien .5 (pas .0, .1, .9, etc.)
+							let fractional_part = decimal_num - (decimal_num as i32 as f32);
+							if (fractional_part - 0.5).abs() < 0.01 {
+								return Some(decimal_num);
+							}
+						}
+					}
+				}
+			}
+		} else {
+			i += 1;
+		}
+	}
+	
+	None
+}
+
+// Fonction find_special_chapter_in_line supprimée - non utilisée
+
+// Version simplifiée des fonctions de parsing pour AnimeSama
+
+pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	// Sélecteur pour les éléments manga dans le catalogue
+	if let Some(catalog_divs) = html.select("#list_catalog > div") {
+		for element in catalog_divs {
+			if let Some(title) = element.select("h1").and_then(|els| els.text()) {
+				if title.is_empty() {
+					continue;
+				}
+				
+				let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
+				let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
+				
+				// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
+				// Exactement comme dans l'ancienne version
+				let clean_url = if relative_url.contains("/scan/vf/") {
+					relative_url.replace("/scan/vf/", "")
+				} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
+					relative_url.replace("/scan_noir-et-blanc/vf/", "")
+				} else {
+					relative_url.clone()
+				};
+				
+				mangas.push(Manga {
+					key: clean_url.clone(),
+					cover: if !cover_url.is_empty() { Some(cover_url) } else { None },
+					title,
+					authors: None,
+					artists: None,
+					description: None,
+					url: Some(if clean_url.starts_with("http") {
+						clean_url.clone()
+					} else {
+						format!("{}{}", BASE_URL, clean_url)
+					}),
+					tags: Some(Vec::new()),
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::RightToLeft,
+					..Default::default()
+				});
+			}
+		}
+	}
+	
+	// Simple pagination check
+	let has_next_page = html.select(".pagination").is_some();
+	
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page
+	})
+}
+
+pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+	
+	if listing_type == "Dernières Sorties" {
+		// Pour les dernières sorties, chercher dans le conteneur d'accueil
+		if let Some(container) = html.select("#containerAjoutsScans > div, .latest-manga > div, .home-manga > div") {
+			for element in container {
+				if let Some(title) = element.select("h1, h2, h3, .title, .manga-title").and_then(|els| els.text()) {
+					if title.is_empty() {
+						continue;
+					}
+					
+					let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
+					let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
+					
+					// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
+					// Exactement comme dans l'ancienne version
+					let clean_url = if relative_url.contains("/scan/vf/") {
+						relative_url.replace("/scan/vf/", "")
+					} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
+						relative_url.replace("/scan_noir-et-blanc/vf/", "")
+					} else {
+						relative_url.clone()
+					};
+					
+					mangas.push(Manga {
+						key: clean_url.clone(),
+						cover: if !cover_url.is_empty() { Some(cover_url) } else { None },
+						title,
+						authors: None,
+						artists: None,
+						description: None,
+						url: Some(if clean_url.starts_with("http") {
+							clean_url.clone()
+						} else {
+							format!("{}{}", BASE_URL, clean_url)
+						}),
+						tags: Some(Vec::new()),
+						status: MangaStatus::Unknown,
+						content_rating: ContentRating::Safe,
+						viewer: Viewer::RightToLeft,
+						..Default::default()
+					});
+				}
+			}
+		}
+	} else if listing_type == "Populaire" {
+		// Pour populaire, utiliser le catalogue normal
+		return parse_manga_list(html);
+	}
+	
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page: false
+	})
+}
+
+pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
+	// Parser le titre avec plusieurs méthodes
+	let title = html.select("#titreOeuvre")
+		.and_then(|els| els.text())
+		.or_else(|| {
+			// Fallback 1: titre de la page
+			html.select("title").and_then(|els| els.text()).and_then(|title_text| {
+				if title_text.contains(" - ") {
+					Some(title_text.split(" - ").next()?.trim().to_string())
+				} else {
+					Some(title_text.trim().to_string())
+				}
+			})
+		})
+		.or_else(|| {
+			// Fallback 2: h1 sur la page
+			html.select("h1").and_then(|els| els.text())
+		})
+		.unwrap_or_else(|| manga_key_to_title(&manga_key));
+	
+	// Extraire la description - utiliser le sélecteur exact de l'ancienne version
+	let description = {
+		// Méthode 1: Sélecteur direct comme l'ancienne version
+		if let Some(synopsis_p) = html.select("#sousBlocMiddle h2:contains(Synopsis) + p") {
+			if let Some(first_p) = synopsis_p.first() {
+				if let Some(desc_text) = first_p.text() {
+					let trimmed = desc_text.trim();
+					if !trimmed.is_empty() && trimmed.len() > 10 {
+						trimmed.to_string()
+					} else {
+						"Manga disponible sur AnimeSama".to_string()
+					}
+				} else {
+					"Manga disponible sur AnimeSama".to_string()
+				}
+			} else {
+				"Manga disponible sur AnimeSama".to_string()
+			}
+		} else {
+			// Fallback: chercher manuellement dans tout le sousBlocMiddle
+			if let Some(full_text) = html.select("#sousBlocMiddle").and_then(|els| els.text()) {
+				// Chercher après le mot "Synopsis" dans le texte complet
+				if let Some(synopsis_pos) = full_text.to_uppercase().find("SYNOPSIS") {
+					let after_synopsis = &full_text[synopsis_pos + 8..]; // Skip "SYNOPSIS"
+					// Prendre les prochaines lignes jusqu'à GENRES ou autre section
+					if let Some(end_pos) = after_synopsis.to_uppercase().find("GENRES") {
+						let desc_section = &after_synopsis[..end_pos];
+						let cleaned = desc_section.trim();
+						if !cleaned.is_empty() && cleaned.len() > 20 {
+							cleaned.to_string()
+						} else {
+							"Manga disponible sur AnimeSama".to_string()
+						}
+					} else {
+						// Prendre les premiers 500 caractères après Synopsis
+						let desc_section = if after_synopsis.len() > 500 {
+							&after_synopsis[..500]
+						} else {
+							after_synopsis
+						};
+						let cleaned = desc_section.trim();
+						if !cleaned.is_empty() && cleaned.len() > 20 {
+							cleaned.to_string()
+						} else {
+							"Manga disponible sur AnimeSama".to_string()
+						}
+					}
+				} else {
+					"Manga disponible sur AnimeSama".to_string()
+				}
+			} else {
+				"Manga disponible sur AnimeSama".to_string()
+			}
+		}
+	};
+	
+	// Parser la couverture avec fallback
+	let cover = html.select("#coverOeuvre")
+		.and_then(|els| els.first())
+		.and_then(|el| el.attr("src"))
+		.or_else(|| {
+			// Fallback: chercher d'autres sélecteurs d'image
+			let selectors = vec!["img.cover", ".manga-cover img", ".poster img", "img[src*='cover']"];
+			for selector in selectors {
+				if let Some(src) = html.select(selector).and_then(|els| els.first()).and_then(|el| el.attr("src")) {
+					return Some(src);
+				}
+			}
+			None
+		})
+		.map(|src| {
+			if src.starts_with("http") {
+				src
+			} else {
+				format!("{}{}", BASE_URL, src)
+			}
+		});
+	
+	// Extraire les genres - logique exacte de l'ancienne version adaptée
+	let mut tags: Vec<String> = Vec::new();
+	
+	// Méthode 1: Essayer de récupérer les liens individuellement après h2:contains(Genres) - exactement comme l'ancienne version
+	if let Some(genre_elements) = html.select("#sousBlocMiddle h2:contains(Genres) + a") {
+		for genre_elem in genre_elements {
+			if let Some(genre_text) = genre_elem.text() {
+				let genre_raw = genre_text.trim();
+				if !genre_raw.is_empty() {
+					// Vérifier si ce genre contient des séparateurs (virgules ou tirets)
+					if genre_raw.contains(',') || genre_raw.contains(" - ") {
+						// Diviser par les virgules ou tirets et ajouter chaque genre individuellement
+						let separator = if genre_raw.contains(',') { "," } else { " - " };
+						for genre in genre_raw.split(separator) {
+							let cleaned_genre = genre.trim();
+							if !cleaned_genre.is_empty() {
+								tags.push(cleaned_genre.to_string());
+							}
+						}
+					} else {
+						// Genre unique, l'ajouter directement
+						tags.push(genre_raw.to_string());
+					}
+				}
+			}
+		}
+	}
+	
+	// Méthode 2: Si pas de genres trouvés, essayer de récupérer le texte complet des genres - exactement comme l'ancienne version
+	if tags.is_empty() {
+		// Chercher le texte après le h2 "Genres" qui peut contenir "Action, Comédie, Horreur, Science-fiction"
+		if let Some(genres_text) = html.select("#sousBlocMiddle").and_then(|el| el.text()) {
+			// Chercher la section GENRES dans le texte
+			if let Some(genres_start) = genres_text.find("GENRES") {
+				let genres_section = &genres_text[genres_start..];
+				
+				// Prendre la première ligne après "GENRES" qui contient les genres séparés par des virgules
+				if let Some(first_line_end) = genres_section.find('\n') {
+					let genres_line = &genres_section[7..first_line_end].trim(); // Skip "GENRES\n"
+					
+					// Diviser par les virgules ou tirets et nettoyer chaque genre
+					let separator = if genres_line.contains(',') { "," } else { " - " };
+					for genre in genres_line.split(separator) {
+						let cleaned_genre = genre.trim();
+						if !cleaned_genre.is_empty() {
+							tags.push(cleaned_genre.to_string());
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Ajouter "Manga" par défaut si aucun genre trouvé
+	if tags.is_empty() {
+		tags.push("Manga".to_string());
+	}
+	
+	// Parser le statut - exactement comme dans l'ancienne version
+	let status = MangaStatus::Unknown;
+	
+	Ok(Manga {
+		key: manga_key.clone(),
+		title,
+		authors: None,
+		artists: None,
+		description: Some(description),
+		url: Some(if manga_key.starts_with("http") {
+			manga_key.clone()
+		} else {
+			format!("{}{}", BASE_URL, manga_key)
+		}),
+		cover,
+		tags: Some(tags),
+		status,
+		content_rating: ContentRating::Safe,
+		viewer: Viewer::RightToLeft,
+		..Default::default()
+	})
+}
+
+pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapter>> {
+	let mut chapters: Vec<Chapter> = Vec::new();
+	
+	// Extract manga title from HTML for API call
+	let manga_name = html.select("#titreOeuvre")
+		.and_then(|els| els.text())
+		.or_else(|| {
+			html.select("title").and_then(|els| els.text()).and_then(|title_text| {
+				if title_text.contains(" - ") {
+					Some(title_text.split(" - ").next()?.trim().to_string())
+				} else {
+					Some(title_text.trim().to_string())
+				}
+			})
+		})
+		.unwrap_or_else(|| manga_key_to_title(&manga_key));
+		
+	// Parse JavaScript content for chapter mappings
+	// IMPORTANT: Récupérer TOUT le contenu de la page, y compris les scripts inline
+	let mut html_content = String::new();
+	
+	// Récupérer le contenu des scripts
+	if let Some(scripts) = html.select("script") {
+		for script in scripts {
+			if let Some(script_text) = script.text() {
+				html_content.push_str(&script_text);
+				html_content.push('\n');
+			}
+		}
+	}
+	
+	// Récupérer aussi le HTML brut complet pour chercher dans les commentaires et autres endroits
+	if let Some(body) = html.select("body") {
+		for element in body {
+			// Récupérer le HTML complet de l'élément (peut contenir du JS dans les commentaires)
+			if let Some(full_html) = element.html() {
+				html_content.push_str(&full_html);
+				html_content.push('\n');
+			}
+			
+			// Chercher dans tous les attributs qui pourraient contenir du JavaScript
+			for attr_name in ["onclick", "onload", "data-script", "data-js", "data-chapters"] {
+				if let Some(attr_value) = element.attr(attr_name) {
+					html_content.push_str(&attr_value);
+					html_content.push('\n');
+				}
+			}
+		}
+	}
+	
+	// Chercher aussi dans les commentaires HTML de toute la page
+	if let Some(head) = html.select("head") {
+		for element in head {
+			if let Some(head_html) = element.html() {
+				html_content.push_str(&head_html);
+				html_content.push('\n');
+			}
+		}
+	}
+	
+	// Parse JavaScript commands to create chapter mappings
+	let (mut chapter_mappings, finir_liste_info) = parse_chapter_mapping(&html_content);
+	
+	// Si aucun mapping JavaScript trouvé, essayer une détection basique de chapitres spéciaux
+	if chapter_mappings.is_empty() && finir_liste_info.is_none() {
+		// Cas spécial : One Piece sans JavaScript détecté - ajouter le One Shot manuellement
+		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+			// Vérifier si on a des chapitres > 1045 avant d'ajouter le One Shot
+			let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
+			
+			if max_cdn_chapter > 1045 {
+				// Ajouter le One Shot uniquement si le CDN a des chapitres après 1045
+				chapter_mappings.push(ChapterMapping {
+					index: 1046, // Position entre 1045 et 1046
+					chapter_number: 1045.5, // Numéro pour tri correct
+					title: "Chapitre One Shot".to_string(),
+				});
+			}
+		}
+		
+		// Chercher des chapitres décimaux de manière plus intelligente
+		for line in html_content.lines() {
+			if let Some(decimal_chapter) = find_decimal_chapter_in_line(line) {
+				// Vérifier que c'est un chapitre plausible (entre 1 et 100, avec .5 uniquement)
+				if decimal_chapter >= 1.0 && decimal_chapter <= 100.0 {
+					let fractional_part = decimal_chapter - (decimal_chapter as i32 as f32);
+					// Accepter seulement exactement .5 (cela élimine automatiquement .507, .498, etc.)
+					if (fractional_part - 0.5).abs() < 0.01 {
+						// Vérifier que c'est dans un contexte de chapitre (pas forcément même ligne)
+						let is_chapter_context = line.contains("Chapitre") || 
+							line.contains("Chapter") ||
+							line.contains("chapitre") ||
+							line.contains("eps") ||
+							line.contains("Ep");
+						
+						if is_chapter_context {
+							// Éviter les doublons
+							let exists = chapter_mappings.iter().any(|m| 
+								(m.chapter_number - decimal_chapter).abs() < 0.01
+							);
+							
+							if !exists {
+								let base_chapter = decimal_chapter as i32;
+								let correct_index = base_chapter + 1;
+								chapter_mappings.push(ChapterMapping {
+									index: correct_index,
+									chapter_number: decimal_chapter,
+									title: format!("Chapitre {}", decimal_chapter),
+								});
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Get total chapters from API (this is the highest chapter NUMBER, not index count)
+	let api_max_chapter = match get_total_chapters_from_api(&manga_name) {
+		Ok(count) => {
+			// Limiter pour certains mangas où l'API retourne des nombres incorrects
+			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
+				// Pour Versatile Mage, utiliser un maximum très élevé pour couvrir tous les chapitres
+				// Basé sur les tests, il y a des chapitres jusqu'à 817, 870, etc.
+				count.min(1000) // Limite très élevée pour couvrir tous les chapitres possibles
+			} else {
+				count.min(2000) // Limite élevée pour les autres mangas aussi
+			}
+		},
+		Err(_) => {
+			// Fallback: très élevé pour couvrir tous les chapitres possibles
+			if manga_name.to_lowercase().contains("versatile mage") || manga_key.contains("versatile-mage") {
+				// Pour Versatile Mage, utiliser un fallback très élevé pour couvrir tous les chapitres
+				800 // Très élevé pour couvrir 817, 870+ et plus
+			} else if !chapter_mappings.is_empty() {
+				chapter_mappings.iter().map(|m| m.index).max().unwrap_or(500) + 200
+			} else {
+				500 // Fallback très généreux pour tous les mangas
+			}
+		}
+	};
+	
+	// Recherche élargie pour les One Shot et chapitres spéciaux (maintenant qu'on a api_max_chapter)
+	for line in html_content.lines() {
+		// Chercher plusieurs patterns pour les chapitres spéciaux
+		let special_patterns = [
+			"One Shot", "OneShot", "one shot", "ONE SHOT",
+			"Hors-série", "Hors série", "hors-série", "hors série",
+			"Spécial", "Special", "spécial", "special",
+			"Prologue", "Epilogue", "Extra"
+		];
+		
+		for pattern in &special_patterns {
+			// Vérifier si c'est vraiment un chapitre (doit contenir "Chapitre" ou "Chapter")
+			if line.contains(pattern) && (line.contains("Chapitre") || line.contains("Chapter")) {
+				// Déterminer la position correcte selon le manga et le type de chapitre spécial
+				let (title, index, chapter_number) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
+					if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+						// One Piece: One Shot entre chapitres 1045 et 1046
+						("Chapitre One Shot".to_string(), 1046, 1045.5)
+					} else {
+						// Autres mangas: essayer de le placer vers la fin, mais pas tout à la fin
+						let position = (api_max_chapter * 3 / 4).max(1); // 3/4 de la série
+						("Chapitre One Shot".to_string(), position, position as f32 - 0.5)
+					}
+				} else if pattern.contains("Hors") {
+					let position = (api_max_chapter * 2 / 3).max(1); // Vers 2/3 de la série
+					("Chapitre Hors-série".to_string(), position, position as f32 - 0.3)
+				} else if pattern.contains("Spécial") || pattern.contains("Special") {
+					let position = (api_max_chapter * 4 / 5).max(1); // Vers 4/5 de la série
+					("Chapitre Spécial".to_string(), position, position as f32 - 0.2)
+				} else {
+					let position = api_max_chapter / 2; // Milieu pour les autres
+					(format!("Chapitre {}", pattern), position, position as f32 - 0.4)
+				};
+				
+				chapter_mappings.push(ChapterMapping {
+					index,
+					chapter_number,
+					title,
+				});
+				break; // Sortir de la boucle des patterns pour cette ligne
+			}
+		}
+	}
+	
+	// Calculate total chapters needed: use the highest index from all sources
+	// This ensures we create enough chapters to include all special chapters
+	let _total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
+		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
+		
+		// Si le CDN a moins de chapitres que l'API, utiliser le CDN (plus fiable)
+		// Ajouter 1 pour le One Shot uniquement s'il existe des chapitres > 1045
+		if max_cdn_chapter > 1045 {
+			max_cdn_chapter + 1 // +1 pour le One Shot à l'index 1046
+		} else {
+			max_cdn_chapter // Pas de One Shot si on n'a que 1045 chapitres ou moins
+		}
+	} else if !chapter_mappings.is_empty() {
+		// Prendre le maximum entre le nombre de l'API et l'index le plus élevé des mappings
+		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
+		api_max_chapter.max(max_mapped_index)
+	} else {
+		// Sans mappings spéciaux, utiliser exactement le nombre de l'API
+		api_max_chapter
+	};
+	
+	// Create chapters: first all normal chapters, then insert special chapters at correct positions
+	
+	// Step 1: Create all normal chapters (1, 2, 3, ..., api_max_chapter)
+	for chapter_num in 1..=api_max_chapter {
+		let chapter_key = chapter_num.to_string();
+		chapters.push(Chapter {
+			key: chapter_key,
+			title: Some(format!("Chapitre {}", chapter_num)),
+			chapter_number: Some(chapter_num as f32),
+			volume_number: None,
+			date_uploaded: None,
+			scanlators: Some(vec![]),
+			url: Some(build_chapter_url(&manga_key)),
+			..Default::default()
+		});
+	}
+	
+	// Step 2: Add all special chapters with their correct chapter numbers
+	for mapping in &chapter_mappings {
+		let chapter_key = if mapping.title.contains("One Shot") {
+			"9999".to_string() // Safe key that won't conflict with regular chapters
+		} else {
+			// For decimal chapters like 19.5, use a key that won't conflict
+			format!("{}_{}", (mapping.chapter_number as i32), 
+				((mapping.chapter_number - (mapping.chapter_number as i32 as f32)) * 10.0) as i32)
+		};
+		
+		
+		chapters.push(Chapter {
+			key: chapter_key,
+			title: Some(mapping.title.clone()),
+			chapter_number: Some(mapping.chapter_number),
+			volume_number: None,
+			date_uploaded: None,
+			scanlators: Some(vec![]),
+			url: Some(build_chapter_url(&manga_key)),
+			..Default::default()
+		});
+	}
+	
+	// Tri par numéro de chapitre (du plus récent au plus ancien)
+	// Exactement comme dans l'ancienne version: b.chapter > a.chapter
+	chapters.sort_by(|a, b| {
+		let a_num = a.chapter_number.unwrap_or(0.0);
+		let b_num = b.chapter_number.unwrap_or(0.0);
+		// Plus simple: utiliser la comparaison directe comme l'ancienne version
+		b_num.partial_cmp(&a_num).unwrap_or(core::cmp::Ordering::Equal)
+	});
+	
+	Ok(chapters)
+}
+
+pub fn parse_page_list(html: Document, manga_key: String, chapter_key: String) -> Result<Vec<Page>> {
+	let mut pages: Vec<Page> = Vec::new();
+	
+	
+	// Récupérer TOUT le contenu HTML pour chercher les variables eps
+	// Les variables JavaScript peuvent être inline ou dans différents endroits
+	let mut html_content = String::new();
+	
+	// Récupérer le contenu des scripts
+	if let Some(scripts) = html.select("script") {
+		for script in scripts {
+			if let Some(script_text) = script.text() {
+				html_content.push_str(&script_text);
+				html_content.push('\n');
+			}
+		}
+	}
+	
+	// Récupérer aussi le JavaScript inline dans les attributs
+	if let Some(body) = html.select("body") {
+		for element in body {
+			for attr_name in ["onclick", "onload", "data-script", "data-js"] {
+				if let Some(attr_value) = element.attr(attr_name) {
+					html_content.push_str(&attr_value);
+					html_content.push('\n');
+				}
+			}
+		}
+	}
+	
+	// Méthode 1: Chercher les variables d'épisode JavaScript (ex: eps1, eps2)
+	// Special handling for One Shot chapter
+	let mut episode_patterns = Vec::new();
+	let fallback_chapter = if chapter_key == "9999" {
+		// One Shot: essayer plusieurs patterns possibles
+		episode_patterns.push("eps1045".to_string()); // Peut être stocké comme 1045
+		episode_patterns.push("epsOneShot".to_string()); // Peut être nommé OneShot
+		episode_patterns.push("epsOS".to_string()); // Abbreviation possible
+		episode_patterns.push("eps0".to_string()); // Peut être à l'index 0
+		1045 // Fallback vers 1045
+	} else {
+		episode_patterns.push(format!("eps{}", chapter_key));
+		chapter_key.parse::<i32>().unwrap_or(1)
+	};
+	
+	// Essayer tous les patterns jusqu'à en trouver un qui fonctionne
+	let mut found_episode_section = None;
+	for pattern in &episode_patterns {
+		if let Some(episode_start) = html_content.find(pattern) {
+			found_episode_section = Some((episode_start, pattern.clone()));
+			break;
+		}
+	}
+	
+	// Stocker les informations JavaScript pour fallback plus tard
+	let mut google_drive_pages: Vec<Page> = Vec::new();
+	if let Some((episode_start, _pattern)) = found_episode_section {
+		// Trouver la fin de la déclaration de variable
+		if let Some(episode_section) = html_content[episode_start..].find('[') {
+			let array_start = episode_start + episode_section;
+			if let Some(array_end) = html_content[array_start..].find("];") {
+				let array_content = &html_content[array_start + 1..array_start + array_end];
+				
+				// Parser les URLs dans le tableau JavaScript (pour fallback)
+				for line in array_content.lines() {
+					let trimmed = line.trim();
+					if trimmed.starts_with("'https://drive.google.com") || trimmed.starts_with("\"https://drive.google.com") {
+						let url_start = trimmed.find("https://").unwrap_or(0);
+						let url_end = if trimmed[url_start..].contains('\'') {
+							url_start + trimmed[url_start..].find('\'').unwrap_or(trimmed.len())
+						} else {
+							url_start + trimmed[url_start..].find('"').unwrap_or(trimmed.len())
+						};
+						
+						if url_end > url_start {
+							let drive_url = &trimmed[url_start..url_end];
+							google_drive_pages.push(Page {
+								content: PageContent::url(drive_url.to_string()),
+								thumbnail: None,
+								has_description: false,
+								description: None,
+							});
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// PRIORITÉ 1 : Utiliser le CDN par défaut (plus fiable)
+	let chapter_index = fallback_chapter;
+	
+	// Extraire le nom du manga depuis l'ID (ex: /catalogue/blue-lock -> blue-lock)
+	let manga_slug = manga_key.split('/').last().unwrap_or("manga");
+		
+		// Extraire le titre du manga depuis le HTML pour construire les URLs CDN
+		let mut manga_title = String::new();
+		
+		// Méthode 1: Chercher #titreOeuvre (page principale manga)
+		if let Some(title_elem) = html.select("#titreOeuvre").and_then(|els| els.first()) {
+			if let Some(title_text) = title_elem.text() {
+				let cleaned_title = clean_extracted_title(title_text.trim());
+				if !cleaned_title.is_empty() {
+					manga_title = cleaned_title;
+				}
+			}
+		}
+		
+		// Méthode 2: Extraire depuis le <title> de la page (ex: "Kaiju N°8 - Scans")
+		if manga_title.is_empty() {
+			if let Some(title_elem) = html.select("title").and_then(|els| els.first()) {
+				if let Some(page_title) = title_elem.text() {
+					let page_title = page_title.trim();
+					if !page_title.is_empty() && page_title.contains(" - ") {
+						// Extraire la partie avant " - Scans" ou " - "
+						let extracted = page_title.split(" - ").next().unwrap_or("").trim();
+						let cleaned_title = clean_extracted_title(extracted);
+						if !cleaned_title.is_empty() {
+							manga_title = cleaned_title;
+						}
+					}
+				}
+			}
+		}
+		
+		// Méthode 3: Chercher dans les éléments h1 qui peuvent contenir le titre
+		if manga_title.is_empty() {
+			if let Some(h1_elem) = html.select("h1").and_then(|els| els.first()) {
+				if let Some(h1_text) = h1_elem.text() {
+					let cleaned_title = clean_extracted_title(h1_text.trim());
+					if !cleaned_title.is_empty() {
+						manga_title = cleaned_title;
+					}
+				}
+			}
+		}
+		
+		// Fallback final: utiliser manga_key_to_title avec gestion des cas spéciaux
+		if manga_title.is_empty() {
+			manga_title = manga_key_to_title(manga_slug);
+		}
+		
+		// PRIORITÉ 1 : Parser le JavaScript dans le HTML pour trouver les patterns eps{number}
+		let mut page_count = parse_episodes_js_from_html(&html_content, chapter_index);
+		
+		// Si c'est le One Shot et qu'on n'a pas trouvé de pages, essayer d'autres indices
+		if page_count == 0 && chapter_key == "9999" {
+			// Essayer différents indices pour le One Shot
+			for test_index in [1045, 1046, 0, 9999] {
+				page_count = parse_episodes_js_from_html(&html_content, test_index);
+				if page_count > 0 {
+					break;
+				}
+			}
+		}
+		
+		if page_count > 0 {
+			// Succès avec le parsing JavaScript - utiliser l'indice API dans l'URL
+			for i in 1..=page_count {
+				// Essayer différents formats d'images selon le manga
+				let page_url = generate_image_url(&manga_title, chapter_index, i);
+				pages.push(Page {
+					content: PageContent::url(page_url),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			}
+			return Ok(pages);
+		}
+		
+		// PRIORITÉ 2 : Fallback avec l'API AnimeSama  
+		match get_page_count_from_api(&manga_title, chapter_index) {
+			Ok(api_page_count) => {
+				for i in 1..=api_page_count {
+					let page_url = generate_image_url(&manga_title, chapter_index, i);
+					pages.push(Page {
+						content: PageContent::url(page_url),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
+				}
+				return Ok(pages);
+			}
+			Err(_) => {
+				// L'API a aussi échoué - pour Versatile Mage, essayer une approche différente
+				if manga_title == "Versatile Mage" && chapter_index >= 817 {
+					// Pour les chapitres récents de Versatile Mage, utiliser CDN directement
+					// avec une estimation conservative du nombre de pages
+					for i in 1..=30 {
+						let page_url = generate_image_url(&manga_title, chapter_index, i);
+						pages.push(Page {
+							content: PageContent::url(page_url),
+							thumbnail: None,
+							has_description: false,
+							description: None,
+						});
+					}
+					return Ok(pages);
+				}
+			}
+		}
+		
+		// PRIORITÉ 3 : Fallback CDN - nombre de pages par défaut selon le manga
+		let default_page_count = match manga_title.as_str() {
+			"Versatile Mage" => 25, // Versatile Mage a souvent plus de pages
+			_ => 20, // Fallback standard
+		};
+		
+		for i in 1..=default_page_count {
+			let page_url = generate_image_url(&manga_title, chapter_index, i);
+			
+			pages.push(Page {
+				content: PageContent::url(page_url),
+				thumbnail: None,
+				has_description: false,
+				description: None,
+			});
+		}
+		
+		// PRIORITÉ 4 : Google Drive en dernier recours absolu (si CDN échoue totalement)
+		if pages.is_empty() && !google_drive_pages.is_empty() {
+			return Ok(google_drive_pages);
+		}
+	
+	Ok(pages)
+}
+
+// Détecter le dernier chapitre disponible sur le CDN de manière conservatrice
+fn get_max_available_chapter_on_cdn(manga_title: &str) -> i32 {
+	// Pour One Piece, utiliser la limite complète connue
+	if manga_title == "One Piece" {
+		// One Piece a 1158 chapitres disponibles sur le CDN
+		1158
+	} else {
+		// Pour les autres mangas, utiliser l'API avec une limite très élevée
+		match get_total_chapters_from_api(manga_title) {
+			Ok(count) => count.min(2000), // Limite très élevée pour couvrir tous les chapitres
+			Err(_) => 1000, // Fallback très généreux pour les autres mangas
+		}
+	}
+}
+
+// Fonction pour obtenir le nombre de pages depuis l'API AnimeSama
+fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
+	// Construire l'URL de l'API
+	let encoded_title = helper::urlencode(manga_name);
+	let api_url = format!("https://anime-sama.org/s2/scans/get_nb_chap_et_img.php?oeuvre={}", encoded_title);
+	
+	// Faire la requête ultra-simple
+	let json_string = Request::get(&api_url)?
+		.header("User-Agent", "curl/7.68.0")
+		.string()?;
+	
+	// Parser le JSON manuellement pour trouver le nombre de pages pour ce chapitre
+	let chapter_key = format!("\"{}\":", chapter_num);
+	if let Some(pos) = json_string.find(&chapter_key) {
+		let after_key = &json_string[pos + chapter_key.len()..];
+		// Chercher le nombre après les espaces/guillemets
+		let mut num_str = String::new();
+		for ch in after_key.trim().chars() {
+			if ch.is_ascii_digit() {
+				num_str.push(ch);
+			} else if !num_str.is_empty() {
+				break;
+			}
+		}
+		
+		if let Ok(page_count) = num_str.parse::<i32>() {
+			if page_count > 0 {
+				return Ok(page_count);
+			}
+		}
+	}
+	
+	// Si le chapitre n'est pas trouvé dans l'API, créer une erreur UTF-8
+	// Créer dynamiquement un byte array invalide pour éviter le warning sur les littéraux
+	let mut invalid_bytes = Vec::new();
+	invalid_bytes.push(0xFF); // Byte invalide en UTF-8
+	let utf8_err = core::str::from_utf8(&invalid_bytes).unwrap_err();
+	Err(utf8_err.into())
+}
+
+// Parser le JavaScript pour trouver eps{number}.length ou eps{number} = [...]
+fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
+	// Regex inspirée de Tachiyomi : eps(\d+)\s*(?:=\s*\[(.*?)]|\.length\s*=\s*(\d+))
+	let mut start_pos = 0;
+	let eps_pattern = format!("eps{}", chapter_num);
+	
+	// Chercher le pattern eps{chapter_num} dans le HTML
+	while let Some(pos) = html_content[start_pos..].find(&eps_pattern) {
+		start_pos += pos + eps_pattern.len();
+		let remaining = &html_content[start_pos..];
+		
+		// Cas 1: eps123.length = 15
+		if remaining.starts_with(".length") {
+			if let Some(eq_pos) = remaining[7..].find('=') {
+				let after_eq = &remaining[7 + eq_pos + 1..];
+				let mut number_str = String::new();
+				
+				for ch in after_eq.trim().chars() {
+					if ch.is_ascii_digit() {
+						number_str.push(ch);
+					} else {
+						break;
+					}
+				}
+				
+				if let Ok(length) = number_str.parse::<i32>() {
+					if length > 0 {
+						return length;
+					}
+				}
+			}
+		}
+		
+		// Cas 2: eps123 = [...]
+		if let Some(eq_pos) = remaining.find('=') {
+			let after_eq = &remaining[eq_pos + 1..].trim_start();
+			if after_eq.starts_with('[') {
+				// Compter les éléments du tableau
+				if let Some(bracket_end) = after_eq.find(']') {
+					let array_content = &after_eq[1..bracket_end];
+					
+					// Compter les virgules + 1 (approximation simple)
+					let comma_count = array_content.matches(',').count();
+					if comma_count > 0 {
+						return (comma_count + 1) as i32;
+					}
+				}
+			}
+		}
+	}
+	
+	0 // Aucun pattern trouvé
+}
+
+// Construire l'URL d'un chapitre avec gestion du cas spécial One Piece (sans paramètre id)
+fn build_chapter_url(manga_key: &str) -> String {
+	let is_one_piece = manga_key.contains("one-piece") || manga_key.contains("one_piece");
+	// For One Piece, default to noir-et-blanc path (this function doesn't have access to chapter number)
+	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	
+	if manga_key.starts_with("http") {
+		// Remove trailing slash from manga_key if it exists to avoid double slash
+		let clean_key = manga_key.trim_end_matches('/');
+		format!("{}{}", clean_key, scan_path)
+	} else {
+		// Remove trailing slash from manga_key if it exists to avoid double slash
+		let clean_key = manga_key.trim_end_matches('/');
+		format!("{}{}{}", BASE_URL, clean_key, scan_path)
+	}
+}
+
+// Get total chapters count from AnimeSama API
+fn get_total_chapters_from_api(manga_title: &str) -> Result<i32> {
+	use crate::helper::urlencode;
+	
+	let api_url = format!("https://anime-sama.org/s2/scans/get_nb_chap_et_img.php?oeuvre={}", 
+		urlencode(manga_title));
+	
+	match Request::get(&api_url)?
+		.header("User-Agent", "curl/7.68.0")
+		.string() {
+		Ok(response_text) => {
+			let mut max_chapter = 0;
+			
+			// Parse JSON-like response to find chapter numbers
+			let mut start_pos = 0;
+			while let Some(quote_pos) = response_text[start_pos..].find("\"") {
+				start_pos += quote_pos + 1;
+				if let Some(end_quote) = response_text[start_pos..].find("\"") {
+					let key = &response_text[start_pos..start_pos + end_quote];
+					if let Ok(chapter_num) = key.parse::<i32>() {
+						if chapter_num > max_chapter {
+							max_chapter = chapter_num;
+						}
+					}
+					start_pos += end_quote + 1;
+				} else {
+					break;
+				}
+			}
+			
+			if max_chapter > 0 {
+				Ok(max_chapter)
+			} else {
+				// No chapters found, use a simple fallback
+				Ok(100) // Return default count
+			}
+		},
+		Err(e) => Err(e)
+	}
+}
+
+// Convertir manga_key en titre formaté avec gestion des cas spéciaux
+// Nettoyer un titre extrait du HTML
+fn clean_extracted_title(title: &str) -> String {
+	title
+		.trim()
+		.replace("\n", " ")
+		.replace("\t", " ")
+		.replace("  ", " ") // Réduire les espaces multiples
+		.replace("&#039;", "'") // Nettoyer les entités HTML
+		.replace("&quot;", "\"")
+		.replace("&amp;", "&")
+		.replace("&lt;", "<")
+		.replace("&gt;", ">")
+		.replace("(Scan)", "") // Enlever les mentions parasites
+		.replace("- Scan", "")
+		.replace("- Scans", "")
+		.replace("Scan -", "")
+		.replace("Scans -", "")
+		.trim()
+		.to_string()
+}
+
+// Générer l'URL d'image selon le manga spécifique (logique déterministe)
+fn generate_image_url(manga_title: &str, chapter_index: i32, page: i32) -> String {
+	let encoded_title = helper::urlencode_path(manga_title);
+	
+	// Détection basée sur le titre du manga pour éviter les requêtes réseau
+	match manga_title {
+		"One Piece" => {
+			// For One Piece, use different CDN and format based on chapter range
+			if chapter_index >= 1046 {
+				// Chapters starting from One Shot position (1046+): new CDN with CDN index offset
+				// One Shot takes CDN position 1046, so chapters 1046+ are shifted +1 in CDN
+				// Examples: Chapter 1046 → .../1047/..., Chapter 1158 → .../1159/...
+				let cdn_index = chapter_index + 1; // +1 offset starting from chapter 1046
+				format!("{}/{}/{}/{}.jpg", CDN_URL, encoded_title, cdn_index, page)
+			} else if chapter_index <= 952 {
+				// Old chapters (1-952): legacy CDN with {chapter}_{page} format
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL_LEGACY, encoded_title, chapter_index, chapter_index, page)
+			} else {
+				// Middle chapters (953-1045): legacy CDN with prefix format
+				let prefix = chapter_index - 952;
+				format!("{}/{}/{}/{}_{}.jpg", CDN_URL_LEGACY, encoded_title, chapter_index, prefix, page)
+			}
+		}
+		"Dragon Ball" => {
+			// Dragon Ball utilise un format webp spécial avec tome fixe
+			let cdn_url = select_cdn_url(manga_title);
+			format!("{}/{}/1/DragonBallFixTome1-{:03}.webp", cdn_url, encoded_title, page)
+		}
+		_ => {
+			// Format par défaut: simple {page}.jpg (fonctionne pour 20th Century Boys, etc.)
+			let cdn_url = select_cdn_url(manga_title);
+			format!("{}/{}/{}/{}.jpg", cdn_url, encoded_title, chapter_index, page)
+		}
+	}
+}
+
+fn manga_key_to_title(manga_key: &str) -> String {
+	let manga_slug = manga_key.split('/').last().unwrap_or("Manga");
+	
+	// Cas spéciaux avec caractères spéciaux et titres exacts du CDN
+	match manga_slug {
+		"kaiju-n8" => String::from("Kaiju N°8"),
+		"one-piece" | "one_piece" => String::from("One Piece"),
+		"20th-century-boys" => String::from("20th Century Boys"),
+		"21st-century-boys" => String::from("21st Century Boys"),
+		"dragon-ball" => String::from("Dragon Ball"),
+		"naruto" => String::from("Naruto"),
+		"bleach" => String::from("Bleach"),
+		"hunter-x-hunter" | "hunter_x_hunter" => String::from("Hunter x Hunter"),
+		"a-couple-of-cuckoos" => String::from("A Couple of Cuckoos"),
+		"a-sign-of-affection" => String::from("A Sign of Affection"),
+		"blue-lock" => String::from("Blue Lock"),
+		"chainsaw-man" => String::from("Chainsaw Man"),
+		"demon-slayer" => String::from("Demon Slayer"),
+		"my-hero-academia" => String::from("My Hero Academia"),
+		"attack-on-titan" => String::from("Attack on Titan"),
+		"tokyo-ghoul" => String::from("Tokyo Ghoul"),
+		"death-note" => String::from("Death Note"),
+		"spy-family" => String::from("Spy x Family"),
+		"jujutsu-kaisen" => String::from("Jujutsu Kaisen"),
+		"boruto" => String::from("Boruto"),
+		"black-clover" => String::from("Black Clover"),
+		"fire-force" => String::from("Fire Force"),
+		"dr-stone" => String::from("Dr. Stone"),
+		"versatile-mage" => String::from("Versatile Mage"),
+		_ => {
+			// Conversion générique améliorée: slug -> Title Case
+			manga_slug
+				.replace("-", " ")
+				.replace("_", " ")
+				.split_whitespace()
+				.map(|word| {
+					// Cas spéciaux pour certains mots
+					match word.to_lowercase().as_str() {
+						"n" => String::from("N°"), // Pour les numéros
+						"dr" => String::from("Dr."),
+						"mr" => String::from("Mr."),
+						"ms" => String::from("Ms."),
+						"x" => String::from("x"), // Pour "Spy x Family"
+						"vs" => String::from("vs"),
+						"of" | "the" | "and" | "in" | "on" | "at" | "to" | "for" => {
+							// Articles et prépositions en minuscules (sauf début)
+							word.to_lowercase()
+						},
+						_ => {
+							// Title Case normal
+							let mut chars = word.chars();
+							match chars.next() {
+								None => String::new(),
+								Some(first) => first.to_uppercase().chain(chars).collect(),
+							}
+						}
+					}
+				})
+				.collect::<Vec<String>>()
+				.join(" ")
+				.replace(" N ", " N°") // Remplacer "N " par "N°"
+		}
+	}
+}
+
+

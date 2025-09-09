@@ -16,7 +16,8 @@ async function loadSources() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const sources = await response.json();
+    const data = await response.json();
+    const sources = data.sources || data; // Handle both new object format and legacy array format
 
     // Clear loading state
     sourcesContainer.innerHTML = "";
@@ -35,6 +36,7 @@ async function loadSources() {
       "fr.sushiscans": "MangaStream",
       "fr.mangascan": "MMRCMS",
       "fr.animesama": "Custom",
+      "fr.fmteam": "Custom",
       "fr.lelscanfr": "Custom",
       "fr.phenixscans": "Custom",
       "fr.poseidonscans": "Custom",
@@ -80,7 +82,7 @@ function createSourceCard(source, offlineSources, sourceTypes, index) {
   card.className = "source-card";
   card.style.setProperty("--index", index);
 
-  const iconPath = `./icons/${source.icon}`;
+  const iconPath = source.iconURL || `./icons/${source.id}.png`;
 
   card.innerHTML = `
         <div class="source-header">
