@@ -20,8 +20,7 @@ pub const BASE_URL: &str = "https://anime-sama.org";
 pub const CDN_URL: &str = "https://anime-sama.org/s2/scans";
 pub const CDN_URL_LEGACY: &str = "https://s22.anime-sama.me/s1/scans";
 
-// Inclure le contenu de filters.json au moment de la compilation
-static FILTERS_JSON: &str = include_str!("../res/filters.json");
+// Note: filters.json est inclus pour référence mais on utilise la liste hardcodée pour la performance
 
 // Parser les IDs de genres depuis le JSON inclus
 fn get_genre_ids() -> Vec<&'static str> {

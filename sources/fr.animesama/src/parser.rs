@@ -28,7 +28,7 @@ struct ChapterMapping {
 // Structure pour stocker les informations de finirListe
 #[derive(Debug, Clone)]
 struct FinirListeInfo {
-	start_index: i32, // Index où commencer la numérotation séquentielle
+	_placeholder: i32, // Placeholder pour structure future
 }
 
 // Parser les commandes JavaScript pour créer le mapping
@@ -131,9 +131,9 @@ fn parse_chapter_mapping(html_content: &str) -> (Vec<ChapterMapping>, Option<Fin
 						let param = trimmed[start_pos..start_pos + params_end].trim();
 						
 						// Parser le paramètre de finirListe (devrait être un nombre)
-						if let Ok(finir_start) = param.parse::<i32>() {
+						if let Ok(_finir_start) = param.parse::<i32>() {
 							finir_liste_info = Some(FinirListeInfo {
-								start_index: finir_start,
+								_placeholder: 0,
 							});
 						}
 						line_pos = start_pos + params_end + 2; // +2 pour ");
@@ -149,72 +149,7 @@ fn parse_chapter_mapping(html_content: &str) -> (Vec<ChapterMapping>, Option<Fin
 	(mappings, finir_liste_info)
 }
 
-fn calculate_chapter_number_for_index(index: i32, mappings: &[ChapterMapping], finir_liste_info: &Option<FinirListeInfo>) -> f32 {
-	// Pour les indices non mappés après finirListe(), continuer la numérotation séquentielle
-	// Ex: Dandadan finirListe(27) → indice 28 = chapitre 27, indice 29 = chapitre 28, etc.
-	
-	if mappings.is_empty() && finir_liste_info.is_none() {
-		return index as f32;
-	}
-	
-	// Si on a des mappings mais pas de finir_liste_info (ex: One Piece avec One Shot)
-	if !mappings.is_empty() && finir_liste_info.is_none() {
-		// Compter combien de mappings spéciaux sont avant cet index
-		let special_before = mappings.iter()
-			.filter(|m| m.index <= index && (
-				m.title.contains("One Shot") ||
-				m.title.contains("Prologue") ||
-				m.title.contains("Epilogue") ||
-				m.title.contains("Extra") ||
-				m.title.contains("Special") ||
-				m.chapter_number != (m.chapter_number as i32 as f32) // Chapitres décimaux
-			))
-			.count() as i32;
-		
-		// Pour One Piece: après le One Shot, décaler les numéros
-		// Index 1047 → Chapter 1046, Index 1048 → Chapter 1047, etc.
-		return (index - special_before) as f32;
-	}
-	
-	// Si on a une info finirListe, utiliser cette logique
-	if let Some(finir_info) = finir_liste_info {
-		if index >= finir_info.start_index {
-			// Pour les indices après finirListe, calculer le numéro de chapitre correct
-			// Trouver le dernier chapitre numérique dans les mappings
-			let mut last_numeric_chapter = 0.0;
-			for mapping in mappings {
-				if mapping.title.chars().any(|c| c.is_ascii_digit()) && !mapping.title.contains("One Shot") {
-					// Extraire le numéro du titre "Chapitre 19.5"
-					let title_parts: Vec<&str> = mapping.title.split_whitespace().collect();
-					if title_parts.len() >= 2 {
-						if let Ok(chapter_num) = title_parts[1].parse::<f32>() {
-							if chapter_num > last_numeric_chapter {
-								last_numeric_chapter = chapter_num;
-							}
-						}
-					}
-				}
-			}
-			
-			// Calculer le prochain numéro de chapitre entier après le dernier chapitre numérique
-			let fractional_part = last_numeric_chapter - (last_numeric_chapter as i32 as f32);
-			let next_chapter_base = if fractional_part > 0.0 {
-				// Si c'est un décimal (ex: 19.5), le prochain entier est 20
-				(last_numeric_chapter as i32 + 1) as f32
-			} else {
-				// Si c'est déjà un entier (ex: 19), le prochain est 20
-				last_numeric_chapter + 1.0
-			};
-			
-			// Les chapitres après finirListe reprennent une numérotation entière normale
-			let chapters_after_finir = index - finir_info.start_index;
-			return next_chapter_base + chapters_after_finir as f32;
-		}
-	}
-	
-	// Fallback pour les cas sans finirListe : utiliser l'index comme numéro de chapitre
-	index as f32
-}
+// Fonction calculate_chapter_number_for_index supprimée - non utilisée
 
 // Chercher des chapitres décimaux dans une ligne HTML/JavaScript
 fn find_decimal_chapter_in_line(line: &str) -> Option<f32> {
@@ -269,24 +204,7 @@ fn find_decimal_chapter_in_line(line: &str) -> Option<f32> {
 	None
 }
 
-// Chercher des chapitres spéciaux dans une ligne HTML/JavaScript
-fn find_special_chapter_in_line(line: &str) -> Option<&str> {
-	let special_patterns = [
-		"One Shot", "one shot", "One shot", "ONE SHOT",
-		"Prologue", "prologue", "PROLOGUE", 
-		"Epilogue", "epilogue", "EPILOGUE",
-		"Extra", "extra", "EXTRA",
-		"Special", "special", "SPECIAL"
-	];
-	
-	for pattern in &special_patterns {
-		if line.contains(pattern) {
-			return Some(pattern);
-		}
-	}
-	
-	None
-}
+// Fonction find_special_chapter_in_line supprimée - non utilisée
 
 // Version simplifiée des fonctions de parsing pour AnimeSama
 
