@@ -1,9 +1,0 @@
-[package]
-name = "mmrcms_stable_template"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-# Simplified dependencies - no unstable features
-aidoku_stable_wrapper = { path = "../aidoku-stable-wrapper", package = "aidoku-stable-wrapper" }

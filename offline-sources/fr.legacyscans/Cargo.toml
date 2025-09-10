@@ -16,4 +16,4 @@ strip = true
 lto = true
 
 [dependencies]
-aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
+aidoku-wrapper = { path = "../../templates/aidoku-wrapper" }

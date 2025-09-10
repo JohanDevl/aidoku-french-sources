@@ -8,4 +8,4 @@ pub use template::*;
 pub use helper::*;
 
 // Re-export the aidoku-stable-wrapper types
-pub use aidoku_stable_wrapper::*;
+pub use aidoku_wrapper::*;

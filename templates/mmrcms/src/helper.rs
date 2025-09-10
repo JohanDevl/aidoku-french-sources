@@ -1,4 +1,4 @@
-use aidoku_stable_wrapper::prelude::*;
+use aidoku_wrapper::prelude::*;
 
 pub fn extract_f32_from_string(title: String, text: String) -> f32 {
     text.replace(&title, "")

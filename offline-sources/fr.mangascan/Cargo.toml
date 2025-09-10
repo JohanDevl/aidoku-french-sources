@@ -13,5 +13,5 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
-mmrcms_stable_template = { path = "../../templates/mmrcms-stable" }
+aidoku-wrapper = { path = "../../templates/aidoku-wrapper" }
+mmrcms_template = { path = "../../templates/mmrcms" }
