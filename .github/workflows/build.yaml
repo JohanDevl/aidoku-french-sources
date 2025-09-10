@@ -10,6 +10,12 @@ on:
       - "templates/**"
       - "public/**"
       - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: false
+        default: 'develop'
 
 concurrency:
   group: ${{ github.workflow }}
