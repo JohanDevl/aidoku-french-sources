@@ -1,6 +1,6 @@
 #![no_std]
-use aidoku_stable::prelude::*;
-use mmrcms_stable_template::*;
+use aidoku_wrapper::prelude::*;
+use mmrcms_template::*;
 
 extern crate alloc;
 use alloc::string::String;

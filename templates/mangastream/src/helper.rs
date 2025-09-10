@@ -1,5 +1,5 @@
 use core::ptr;
-use aidoku_stable_wrapper::{
+use aidoku_wrapper::{
     prelude::*,
     current_date,
 };

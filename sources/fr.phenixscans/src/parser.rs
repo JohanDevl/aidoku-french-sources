@@ -1,5 +1,5 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
+	AidokuError, Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString},
 	imports::std::current_date,
@@ -187,21 +187,15 @@ impl MangaItem {
 pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<MangaPageResult> {
 	// Vérifier si la réponse ressemble à du HTML ou une erreur
 	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
-		// Retourner un résultat vide au lieu d'échouer
-		return Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
-		});
+		// Propager l'erreur au lieu de retourner un résultat vide
+		return Err(AidokuError::message("Invalid API response"));
 	}
 
 	let listing_data: ListingResponse = match serde_json::from_str(&response) {
 		Ok(data) => data,
 		Err(_) => {
-			// Si le parsing JSON échoue, retourner un résultat vide
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			// Propager l'erreur de parsing JSON
+			return Err(AidokuError::message("JSON parsing failed"));
 		}
 	};
 
@@ -246,21 +240,15 @@ pub fn parse_manga_listing(response: String, listing_type: &str) -> Result<Manga
 pub fn parse_manga_list(response: String) -> Result<MangaPageResult> {
 	// Vérifier si la réponse ressemble à du HTML ou une erreur
 	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
-		// Retourner un résultat vide au lieu d'échouer
-		return Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
-		});
+		// Propager l'erreur au lieu de retourner un résultat vide
+		return Err(AidokuError::message("Invalid API response"));
 	}
 
 	let manga_data: MangaListResponse = match serde_json::from_str(&response) {
 		Ok(data) => data,
 		Err(_) => {
-			// Si le parsing JSON échoue, retourner un résultat vide
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			// Propager l'erreur de parsing JSON
+			return Err(AidokuError::message("JSON parsing failed"));
 		}
 	};
 
@@ -304,11 +292,8 @@ pub fn parse_search_list(response: String) -> Result<MangaPageResult> {
 	let search_data: MangaListResponse = match serde_json::from_str(&response) {
 		Ok(data) => data,
 		Err(_) => {
-			// Si le parsing JSON échoue, retourner un résultat vide
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			// Propager l'erreur de parsing JSON
+			return Err(AidokuError::message("JSON parsing failed"));
 		}
 	};
 
@@ -438,8 +423,8 @@ pub fn parse_manga_details(manga_id: String, response: String) -> Result<Manga> 
 pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chapter>> {
 	// Vérifier si la réponse ressemble à du HTML ou une erreur
 	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
-		// Retourner une liste vide au lieu d'échouer
-		return Ok(Vec::new());
+		// Propager l'erreur au lieu de retourner une liste vide
+		return Err(AidokuError::message("Invalid API response"));
 	}
 
 	let chapters_data: ChapterListResponse = match serde_json::from_str(&response) {
@@ -496,8 +481,8 @@ pub fn parse_chapter_list(manga_id: String, response: String) -> Result<Vec<Chap
 pub fn parse_page_list(response: String) -> Result<Vec<Page>> {
 	// Vérifier si la réponse ressemble à du HTML ou une erreur
 	if response.trim_start().starts_with('<') || response.contains("403 Forbidden") || response.contains("Access Denied") {
-		// Retourner une liste vide au lieu d'échouer
-		return Ok(Vec::new());
+		// Propager l'erreur au lieu de retourner une liste vide
+		return Err(AidokuError::message("Invalid API response"));
 	}
 
 	let pages_data: PageListResponse = match serde_json::from_str(&response) {

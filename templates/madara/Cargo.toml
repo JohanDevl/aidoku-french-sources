@@ -1,5 +1,5 @@
 [package]
-name = "madara_stable_template"
+name = "madara_template"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -7,4 +7,4 @@ publish = false
 [dependencies]
 # Simplified dependencies - no unstable features
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
-aidoku_stable_wrapper = { path = "../aidoku-stable-wrapper", package = "aidoku-stable-wrapper" }
+aidoku_wrapper = { path = "../aidoku-wrapper", package = "aidoku-wrapper" }

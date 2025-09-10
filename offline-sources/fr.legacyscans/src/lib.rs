@@ -1,6 +1,6 @@
 #![no_std]
 
-use aidoku_stable::prelude::*;
+use aidoku_wrapper::prelude::*;
 
 pub static BASE_URL: &str = "https://legacy-scans.com";
 pub static API_URL: &str = "https://api.legacy-scans.com";

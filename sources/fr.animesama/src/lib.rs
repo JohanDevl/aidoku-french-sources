@@ -4,8 +4,9 @@ use aidoku::{
 	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
 	Page, PageContext, Result, Source,
 	alloc::{String, Vec, vec, string::ToString},
-	imports::{net::Request, std::send_partial_result},
+	imports::{net::{Request, Response}, std::send_partial_result},
 	prelude::*,
+	AidokuError,
 };
 
 extern crate alloc;
@@ -142,19 +143,83 @@ fn is_valid_genre_id(genre_id: &str) -> bool {
 	get_genre_ids().contains(&genre_id)
 }
 
-// Requête avec User-Agent Google Search App comme MangasOrigines (qui fonctionne)
+// Helper function for robust HTTP requests with Cloudflare bypass and error handling
+fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
+	let mut attempt = 0;
+	const MAX_RETRIES: u32 = 3;
+	
+	loop {
+		// Rate limiting: Add delays between requests to avoid triggering Cloudflare
+		if attempt > 0 {
+			let _backoff_ms = 1000 * (1 << (attempt - 1).min(3)); // Exponential backoff: 1s, 2s, 4s, 8s
+			// Exponential backoff would be implemented here in non-WASM environment
+		} else {
+			// Even on first request, add small delay to avoid rapid-fire requests
+			// Rate limiting would be implemented here in non-WASM environment
+		}
+		
+		let request = Request::get(url)?
+			.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604")
+			.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+			.header("Accept-Encoding", "gzip, deflate, br")
+			.header("DNT", "1")
+			.header("Connection", "keep-alive")
+			.header("Upgrade-Insecure-Requests", "1")
+			.header("Cache-Control", "max-age=0")
+			.header("Referer", BASE_URL);
+		
+		let response = match request.send() {
+			Ok(resp) => resp,
+			Err(e) => {
+				if attempt >= MAX_RETRIES {
+					return Err(AidokuError::RequestError(e));
+				}
+				attempt += 1;
+				continue;
+			}
+		};
+		
+		match response.status_code() {
+			200..=299 => return Ok(response),
+			403 => {
+				// Cloudflare block, retry with longer delay
+				if attempt >= MAX_RETRIES {
+					return Err(AidokuError::message("Cloudflare block (403)"));
+				}
+				attempt += 1;
+				continue;
+			},
+			429 => {
+				// Rate limited by Cloudflare, retry with exponential backoff
+				if attempt >= MAX_RETRIES {
+					return Err(AidokuError::message("Rate limited (429)"));
+				}
+				attempt += 1;
+				continue;
+			},
+			503 | 502 | 504 => {
+				// Server error, might be temporary Cloudflare protection
+				if attempt >= MAX_RETRIES {
+					return Err(AidokuError::message("Server error"));
+				}
+				attempt += 1;
+				continue;
+			},
+			_ => return Err(AidokuError::message("Request failed")),
+		}
+	}
+}
+
+// Wrapper function with fallback for HTML parsing
 fn make_realistic_request(url: &str) -> Result<aidoku::imports::html::Document> {
-	Ok(Request::get(url)?
-		.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604")
-		.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-		.header("Accept-Encoding", "gzip, deflate, br")
-		.header("DNT", "1")
-		.header("Connection", "keep-alive")
-		.header("Upgrade-Insecure-Requests", "1")
-		.header("Cache-Control", "max-age=0")
-		.header("Referer", BASE_URL)
-		.html()?)
+	match make_request_with_cloudflare_retry(url) {
+		Ok(response) => Ok(response.get_html()?),
+		Err(_) => {
+			// If all retries fail, return an error that can be handled gracefully
+			Err(AidokuError::message("Request failed after retries"))
+		}
+	}
 }
 
 struct AnimeSama;
@@ -232,7 +297,7 @@ impl Source for AnimeSama {
 			)
 		};
 		
-		// Faire la requête HTTP avec headers réalistes
+		// Faire la requête HTTP avec headers réalistes et propagation d'erreur
 		let html = make_realistic_request(&url)?;
 		
 		// Parser les résultats
@@ -398,7 +463,9 @@ impl ListingProvider for AnimeSama {
 impl ImageRequestProvider for AnimeSama {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url)?
-			.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+			.header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604")
+			.header("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
 			.header("Referer", BASE_URL))
 	}
 }

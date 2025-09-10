@@ -1,12 +1,12 @@
 [package]
-name = "aidoku-stable-wrapper"
+name = "aidoku-wrapper"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 # Macro support
-aidoku-stable-macros = { path = "macros" }
+aidoku-macros = { path = "macros" }
 
 # Use a stable Rust-compatible JSON library
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
@@ -16,5 +16,5 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 
 [lib]
-name = "aidoku_stable"
+name = "aidoku_wrapper"
 crate-type = ["rlib"]

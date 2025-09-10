@@ -3,7 +3,7 @@ use crate::helper::*;
 extern crate alloc;
 use alloc::string::ToString;
 
-use aidoku_stable_wrapper::{
+use aidoku_wrapper::{
     prelude::*,
     current_date,
 };

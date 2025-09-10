@@ -16,6 +16,9 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac 
 
 pub struct MangaScantrad;
 
+impl MangaScantrad {
+}
+
 impl Source for MangaScantrad {
     fn new() -> Self {
         Self
@@ -77,6 +80,7 @@ impl Source for MangaScantrad {
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
         
+        // Use simple HTTP request with error propagation
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -91,6 +95,7 @@ impl Source for MangaScantrad {
         // Use Madara template approach: add ?style=list parameter for better image loading
         let url = format!("{}/{}/?style=list", BASE_URL, chapter.key);
         
+        // Use simple HTTP request with error propagation
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -132,7 +137,6 @@ impl MangaScantrad {
         }).collect()
     }
     fn ajax_manga_list(&self, page: i32) -> Result<MangaPageResult> {
-        
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
         
         // Madara AJAX payload for general listing with more results per page
@@ -142,17 +146,16 @@ impl MangaScantrad {
             page
         );
         
-        
+        // Use AJAX request with error propagation
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
             .html()?;
-        
         
         self.parse_ajax_response(html_doc)
     }
@@ -187,16 +190,16 @@ impl MangaScantrad {
         };
         
         
+        // Use AJAX request with error propagation
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
             .html()?;
-        
         
         self.parse_ajax_response(html_doc)
     }
@@ -244,10 +247,11 @@ impl MangaScantrad {
         }
         
         
+        // Use AJAX request with error propagation
         let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
@@ -277,6 +281,7 @@ impl MangaScantrad {
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", BASE_URL)
             .html()?;
         
         // Step 2: Extract numeric ID from JavaScript (exactly like old Madara implementation)
@@ -286,11 +291,13 @@ impl MangaScantrad {
         let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
         
-        
         let ajax_doc = Request::post(&ajax_url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", &manga_url)
+            .header("X-Requested-With", "XMLHttpRequest")
             .body(body_content.as_bytes())
             .html()?;
         

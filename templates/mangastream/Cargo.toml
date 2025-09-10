@@ -1,10 +1,10 @@
 [package]
-name = "mangastream_stable_template"
+name = "mangastream_template"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 # Simplified dependencies - no unstable features
-aidoku_stable_wrapper = { path = "../aidoku-stable-wrapper", package = "aidoku-stable-wrapper" }
+aidoku_wrapper = { path = "../aidoku-wrapper", package = "aidoku-wrapper" }
 hashbrown = { version = "0.14", default-features = false, features = ["ahash"] }

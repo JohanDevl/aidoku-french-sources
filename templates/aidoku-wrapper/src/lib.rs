@@ -373,4 +373,4 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 }
 
 // Re-export macros
-pub use aidoku_stable_macros::*;
+pub use aidoku_macros::*;
