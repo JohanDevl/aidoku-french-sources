@@ -218,16 +218,7 @@ impl Source for PhenixScans {
 		if let Some(search_query) = query {
 			// Search endpoint with query
 			let url = format!("{}/front/manga/search?query={}", API_URL, helper::urlencode(&search_query));
-			let response = match self.get_api_json_robust(&url) {
-				Ok(json) => json,
-				Err(_) => {
-					// If search fails, return empty result
-					return Ok(MangaPageResult {
-						entries: Vec::new(),
-						has_next_page: false,
-					});
-				}
-			};
+			let response = self.get_api_json_robust(&url)?;
 			
 			parser::parse_search_list(response)
 		} else {
@@ -240,16 +231,7 @@ impl Source for PhenixScans {
 			
 			let url = format!("{}/front/manga?page={}&limit=20{}{}", 
 				API_URL, page, query_params, genre_param);
-			let response = match self.get_api_json_robust(&url) {
-				Ok(json) => json,
-				Err(_) => {
-					// If listing fails, return empty result
-					return Ok(MangaPageResult {
-						entries: Vec::new(),
-						has_next_page: false,
-					});
-				}
-			};
+			let response = self.get_api_json_robust(&url)?;
 			
 			parser::parse_manga_list(response)
 		}
@@ -298,13 +280,7 @@ impl Source for PhenixScans {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		// Utiliser le vrai endpoint API pour les pages avec headers Cloudflare
 		let url = format!("{}/front/manga/{}/chapter/{}", API_URL, manga.key, chapter.key);
-		let response = match self.get_api_json_robust(&url) {
-			Ok(json) => json,
-			Err(_) => {
-				// If API fails, return empty page list
-				return Ok(Vec::new());
-			}
-		};
+		let response = self.get_api_json_robust(&url)?;
 		parser::parse_page_list(response)
 	}
 }
@@ -324,17 +300,8 @@ impl ListingProvider for PhenixScans {
 			return Err(aidoku::AidokuError::message("Unimplemented listing"));
 		};
 		
-		// Faire la requête API JSON avec headers Cloudflare
-		let response = match self.get_api_json_robust(&url) {
-			Ok(json) => json,
-			Err(_) => {
-				// If listing fails, return empty result
-				return Ok(MangaPageResult {
-					entries: Vec::new(),
-					has_next_page: false,
-				});
-			}
-		};
+		// Faire la requête API JSON avec headers Cloudflare et propagation d'erreur
+		let response = self.get_api_json_robust(&url)?;
 		
 		parser::parse_manga_listing(response, &listing.name)
 	}

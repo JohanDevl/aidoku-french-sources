@@ -297,17 +297,8 @@ impl Source for AnimeSama {
 			)
 		};
 		
-		// Faire la requête HTTP avec headers réalistes et gestion d'erreur
-		let html = match make_realistic_request(&url) {
-			Ok(doc) => doc,
-			Err(_) => {
-				// If request fails (Cloudflare block, rate limit, etc.), return empty result
-				return Ok(MangaPageResult {
-					entries: Vec::new(),
-					has_next_page: false,
-				});
-			}
-		};
+		// Faire la requête HTTP avec headers réalistes et propagation d'erreur
+		let html = make_realistic_request(&url)?;
 		
 		// Parser les résultats
 		parser::parse_manga_list(html)
@@ -437,13 +428,7 @@ impl Source for AnimeSama {
 		});
 		
 		// Faire une requête pour récupérer la page du chapitre
-		let html = match make_realistic_request(&chapter_url) {
-			Ok(doc) => doc,
-			Err(_) => {
-				// If request fails, return empty page list
-				return Ok(Vec::new());
-			}
-		};
+		let html = make_realistic_request(&chapter_url)?;
 		
 		// Parser les pages depuis le HTML ou utiliser la logique CDN
 		parser::parse_page_list(html, manga.key, chapter.key)
@@ -455,31 +440,13 @@ impl ListingProvider for AnimeSama {
 		match listing.id.as_str() {
 			"dernières-sorties" => {
 				// Faire une requête vers la page d'accueil pour les dernières sorties
-				let html = match make_realistic_request(BASE_URL) {
-					Ok(doc) => doc,
-					Err(_) => {
-						// If request fails, return empty result
-						return Ok(MangaPageResult {
-							entries: Vec::new(),
-							has_next_page: false,
-						});
-					}
-				};
+				let html = make_realistic_request(BASE_URL)?;
 				parser::parse_manga_listing(html, "Dernières Sorties")
 			},
 			"populaire" => {
 				// Faire une requête vers le catalogue pour les mangas populaires
 				let url = format!("{}/catalogue?type%5B%5D=Scans&search=&page={}", BASE_URL, page);
-				let html = match make_realistic_request(&url) {
-					Ok(doc) => doc,
-					Err(_) => {
-						// If request fails, return empty result
-						return Ok(MangaPageResult {
-							entries: Vec::new(),
-							has_next_page: false,
-						});
-					}
-				};
+				let html = make_realistic_request(&url)?;
 				parser::parse_manga_listing(html, "Populaire")
 			},
 			_ => {

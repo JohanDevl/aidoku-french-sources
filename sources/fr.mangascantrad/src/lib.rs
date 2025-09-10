@@ -95,19 +95,13 @@ impl Source for MangaScantrad {
         // Use Madara template approach: add ?style=list parameter for better image loading
         let url = format!("{}/{}/?style=list", BASE_URL, chapter.key);
         
-        // Use simple HTTP request with graceful error handling
-        let html = match Request::get(&url)?
+        // Use simple HTTP request with error propagation
+        let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // Return empty page list instead of failing
-                return Ok(Vec::new());
-            }
-        };
+            .html()?;
 
         self.parse_page_list(html)
     }
@@ -152,8 +146,8 @@ impl MangaScantrad {
             page
         );
         
-        // Use AJAX request with error handling
-        let html_doc = match Request::post(&url)?
+        // Use AJAX request with error propagation
+        let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -161,16 +155,7 @@ impl MangaScantrad {
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // Return empty result instead of failing to not break the app
-                return Ok(MangaPageResult {
-                    entries: Vec::new(),
-                    has_next_page: false,
-                });
-            }
-        };
+            .html()?;
         
         self.parse_ajax_response(html_doc)
     }
@@ -205,8 +190,8 @@ impl MangaScantrad {
         };
         
         
-        // Use AJAX request with error handling
-        let html_doc = match Request::post(&url)?
+        // Use AJAX request with error propagation
+        let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -214,16 +199,7 @@ impl MangaScantrad {
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // Return empty result instead of failing to not break the app
-                return Ok(MangaPageResult {
-                    entries: Vec::new(),
-                    has_next_page: false,
-                });
-            }
-        };
+            .html()?;
         
         self.parse_ajax_response(html_doc)
     }
@@ -271,8 +247,8 @@ impl MangaScantrad {
         }
         
         
-        // Use AJAX request with error handling
-        let html_doc = match Request::post(&url)?
+        // Use AJAX request with error propagation
+        let html_doc = Request::post(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -280,16 +256,7 @@ impl MangaScantrad {
             .header("Referer", BASE_URL)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body.as_bytes())
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // Return empty result instead of failing to not break the app
-                return Ok(MangaPageResult {
-                    entries: Vec::new(),
-                    has_next_page: false,
-                });
-            }
-        };
+            .html()?;
         
         
         let result = self.parse_ajax_response(html_doc);
@@ -310,18 +277,12 @@ impl MangaScantrad {
         // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
         
-        let manga_page_doc = match Request::get(&manga_url)?
+        let manga_page_doc = Request::get(&manga_url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // If we can't get the page, return empty chapters list
-                return Ok(Vec::new());
-            }
-        };
+            .html()?;
         
         // Step 2: Extract numeric ID from JavaScript (exactly like old Madara implementation)
         let int_id = self.extract_manga_int_id(&manga_page_doc)?;
@@ -330,7 +291,7 @@ impl MangaScantrad {
         let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
         
-        let ajax_doc = match Request::post(&ajax_url)?
+        let ajax_doc = Request::post(&ajax_url)?
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -338,13 +299,7 @@ impl MangaScantrad {
             .header("Referer", &manga_url)
             .header("X-Requested-With", "XMLHttpRequest")
             .body(body_content.as_bytes())
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // If AJAX fails, return empty chapters list
-                return Ok(Vec::new());
-            }
-        };
+            .html()?;
         
         
         // Parse the response (should contain the chapter HTML fragment)
