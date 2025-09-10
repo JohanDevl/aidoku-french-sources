@@ -264,13 +264,7 @@ impl Source for PhenixScans {
 		if needs_details || needs_chapters {
 			// Utiliser le vrai endpoint API avec headers Cloudflare
 			let url = format!("{}/front/manga/{}", API_URL, manga.key);
-			let response = match self.get_api_json_robust(&url) {
-				Ok(json) => json,
-				Err(_) => {
-					// If API fails, return original manga instead of failing
-					return Ok(manga);
-				}
-			};
+			let response = self.get_api_json_robust(&url)?;
 			
 			if needs_details {
 				// Essayer de parser les détails, mais continuer si ça échoue

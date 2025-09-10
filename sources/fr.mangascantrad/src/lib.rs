@@ -80,20 +80,13 @@ impl Source for MangaScantrad {
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
         
-        // Use simple HTTP request with graceful error handling
-        let html = match Request::get(&url)?
+        // Use simple HTTP request with error propagation
+        let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Referer", BASE_URL)
-            .html() {
-            Ok(doc) => doc,
-            Err(_) => {
-                // If we can't fetch the page, return the original manga instead of failing
-                // This ensures global refresh doesn't break on a single source error
-                return Ok(manga);
-            }
-        };
+            .html()?;
 
         self.parse_manga_details(html, manga.key, needs_details, needs_chapters)
     }

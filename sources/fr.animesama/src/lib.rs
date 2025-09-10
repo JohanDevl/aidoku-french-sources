@@ -350,20 +350,8 @@ impl Source for AnimeSama {
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
-			let html = match make_realistic_request(&base_manga_url) {
-				Ok(doc) => doc,
-				Err(_) => {
-					// If request fails, return the original manga without details
-					return Ok(manga);
-				}
-			};
-			let detailed_manga = match parser::parse_manga_details(manga.key.clone(), html) {
-				Ok(m) => m,
-				Err(_) => {
-					// If parsing fails, return the original manga
-					return Ok(manga);
-				}
-			};
+			let html = make_realistic_request(&base_manga_url)?;
+			let detailed_manga = parser::parse_manga_details(manga.key.clone(), html)?;
 			
 			// Mettre à jour les champs du manga avec les détails récupérés
 			manga.title = detailed_manga.title;
@@ -384,20 +372,8 @@ impl Source for AnimeSama {
 
 		if needs_chapters {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
-			let html = match make_realistic_request(&base_manga_url) {
-				Ok(doc) => doc,
-				Err(_) => {
-					// If request fails, keep original chapters (or None)
-					return Ok(manga);
-				}
-			};
-			let chapters = match parser::parse_chapter_list(manga.key.clone(), html) {
-				Ok(c) => c,
-				Err(_) => {
-					// If parsing fails, keep original chapters (or None)
-					return Ok(manga);
-				}
-			};
+			let html = make_realistic_request(&base_manga_url)?;
+			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
 			manga.chapters = Some(chapters);
 		}
 
