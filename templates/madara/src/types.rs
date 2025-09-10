@@ -1,10 +1,6 @@
-#![no_std]
-
 extern crate alloc;
-use alloc::{string::String as AllocString, vec::Vec as AllocVec, format};
-
-// Re-export commonly used types
-pub use alloc::{string::String, vec::Vec, boxed::Box};
+use alloc::{string::String, vec::Vec, boxed::Box, format};
+pub use alloc::{string::String as AllocString, vec::Vec as AllocVec};
 pub use core::{result::Result as CoreResult, option::Option};
 
 // Error handling
@@ -175,47 +171,7 @@ pub struct DeepLink {
     pub chapter: Option<Chapter>,
 }
 
-// Prelude module for convenience imports
-pub mod prelude {
-    pub use super::{
-        Manga, Chapter, Page, PageContent, MangaPageResult,
-        MangaStatus, MangaContentRating, MangaViewer,
-        Filter, FilterType, Listing, Result, AidokuError,
-        String, Vec, Option, HttpMethod, DeepLink,
-        Node, NodeSelection, NodeItem, StringRef, Request,
-    };
-    pub use alloc::{format, string::ToString, vec};
-    pub use core::{default::Default, result::Result as CoreResult};
-}
-
-// Standard library replacements - basic types only
-pub mod std {
-    pub use alloc::{string::String, vec::Vec};
-    pub use super::{HttpMethod, Result, AidokuError};
-    
-    // Placeholder for network operations - each source will implement its own
-    pub mod net {
-        use super::*;
-        
-        // These are placeholder types - actual implementations will vary by source
-        pub struct Request;
-        pub struct Html;
-        pub struct ObjectRef;
-        
-        impl Request {
-            pub fn new(_url: &str, _method: HttpMethod) -> Self {
-                Request
-            }
-        }
-    }
-    
-    pub fn current_date() -> f64 {
-        // This should be replaced with actual timestamp in real implementations
-        1234567890.0
-    }
-}
-
-// Network types - improved implementation
+// Network types - minimal placeholder implementations
 #[derive(Debug, Clone)]
 pub struct Request {
     pub url: String,
@@ -244,13 +200,13 @@ impl Request {
         self
     }
     
-    // Placeholder - actual implementation would need HTTP client
+    // Placeholder - returns empty node
     pub fn html(self) -> Result<Node> {
-        Ok(Node::new(&format!("<html><body>Mock response for {}</body></html>", self.url)))
+        Ok(Node::new(""))
     }
 }
 
-// HTML parsing - improved placeholder implementation
+// HTML parsing - minimal placeholder implementations  
 #[derive(Debug, Clone)]
 pub struct Node {
     content: String,
@@ -333,7 +289,7 @@ impl StringRef {
     }
     
     pub fn as_date(&self, _format: &str, _locale: Option<&str>, _timezone: Option<&str>) -> Result<f64> {
-        // Placeholder - would need actual date parsing
+        // Placeholder - returns current timestamp
         Ok(1234567890.0)
     }
 }
@@ -355,7 +311,7 @@ use alloc::alloc::{GlobalAlloc, Layout};
 struct DummyAllocator;
 
 unsafe impl GlobalAlloc for DummyAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
         core::ptr::null_mut()
     }
     
@@ -372,5 +328,16 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-// Re-export macros
-pub use aidoku_macros::*;
+// Prelude module for convenience imports
+pub mod prelude {
+    pub use super::{
+        Manga, Chapter, Page, PageContent, MangaPageResult,
+        MangaStatus, MangaContentRating, MangaViewer,
+        Filter, FilterType, Listing, Result, AidokuError,
+        AllocString as String, AllocVec as Vec, Option, HttpMethod, DeepLink,
+        Node, NodeSelection, NodeItem, StringRef, Request,
+        current_date,
+    };
+    pub use super::alloc::{format, string::ToString, vec};
+    pub use core::{default::Default, result::Result as CoreResult};
+}

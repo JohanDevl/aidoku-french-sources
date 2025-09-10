@@ -16,4 +16,4 @@ strip = true
 lto = true
 
 [dependencies]
-aidoku-wrapper = { path = "../../templates/aidoku-wrapper" }
+madara_template = { path = "../../templates/madara" }

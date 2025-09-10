@@ -1,17 +1,27 @@
 #![no_std]
+use madara_template::*;
 
-use aidoku_wrapper::prelude::*;
+extern crate alloc;
 
-pub static BASE_URL: &str = "https://legacy-scans.com";
-pub static API_URL: &str = "https://api.legacy-scans.com";
-
-#[no_mangle]
-pub extern "C" fn get_manga_list() -> *const u8 {
-	core::ptr::null()
+fn get_data() -> MadaraSiteData {
+	MadaraSiteData {
+		base_url: "https://legacy-scans.com".into(),
+		lang: "fr".into(),
+		source_path: "manga".into(),
+		date_format: "dd/MM/yyyy".into(),
+		status_filter_ongoing: "En cours".into(),
+		status_filter_completed: "Terminé".into(),
+		status_filter_cancelled: "Annulé".into(),
+		status_filter_on_hold: "En pause".into(),
+		popular: "Populaire".into(),
+		trending: "Tendance".into(),
+		alt_ajax: true,
+		..MadaraSiteData::default()
+	}
 }
 
 #[no_mangle]
-pub extern "C" fn get_manga_listing() -> *const u8 {
+pub extern "C" fn get_manga_list() -> *const u8 {
 	core::ptr::null()
 }
 

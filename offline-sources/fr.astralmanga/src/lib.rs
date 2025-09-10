@@ -1,5 +1,4 @@
 #![no_std]
-use aidoku_wrapper::prelude::*;
 use madara_template::*;
 
 extern crate alloc;

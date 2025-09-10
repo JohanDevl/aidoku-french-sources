@@ -7,4 +7,3 @@ publish = false
 [dependencies]
 # Simplified dependencies - no unstable features
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
-aidoku_wrapper = { path = "../aidoku-wrapper", package = "aidoku-wrapper" }

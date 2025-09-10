@@ -1,5 +1,4 @@
 #![no_std]
-use aidoku_wrapper::prelude::*;
 use mmrcms_template::*;
 
 extern crate alloc;

@@ -6,5 +6,4 @@ publish = false
 
 [dependencies]
 # Simplified dependencies - no unstable features
-aidoku_wrapper = { path = "../aidoku-wrapper", package = "aidoku-wrapper" }
 hashbrown = { version = "0.14", default-features = false, features = ["ahash"] }

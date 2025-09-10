@@ -1,8 +1,4 @@
-use aidoku_wrapper::{
-    prelude::*,
-    current_date,
-};
-
+use crate::types::prelude::*;
 use crate::helper::*;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15";
