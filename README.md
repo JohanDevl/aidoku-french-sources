@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
 [![Sources](https://img.shields.io/badge/sources-14-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-10-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-9-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
