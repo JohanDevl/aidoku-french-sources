@@ -66,6 +66,11 @@ jobs:
               aidoku package
             )
           done
+      - name: Generate offline sources count
+        run: |
+          offline_count=$(ls -1d offline-sources/*/ 2>/dev/null | wc -l)
+          echo "{\"count\": $offline_count}" > public/offline-count.json
+          echo "Generated offline-count.json with count: $offline_count"
       - name: Build source list
         run: |
           aidoku build sources/*/package.aix --name "JohanDevl's French Sources (Development)"

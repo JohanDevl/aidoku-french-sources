@@ -167,7 +167,18 @@ body {
     overflow: hidden;
 }
 
-.source-card:hover {
+.source-card.clickable {
+    cursor: pointer;
+}
+
+.source-card.clickable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(55, 65, 81, 0.9);
+}
+
+.source-card:not(.clickable):hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     border-color: rgba(99, 102, 241, 0.5);
@@ -243,6 +254,20 @@ body {
     font-size: 0.8rem;
     color: #6b7280;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.download-hint {
+    font-size: 0.75rem;
+    color: #60a5fa;
+    text-align: center;
+    margin-top: 1rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    font-weight: 500;
+}
+
+.source-card.clickable:hover .download-hint {
+    opacity: 1;
 }
 
 /* Footer */

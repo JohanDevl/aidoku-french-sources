@@ -10,20 +10,27 @@ async function loadSources() {
     sourcesContainer.innerHTML =
       '<div class="loading">Loading sources...</div>';
 
-    // Fetch sources data from local file
-    const response = await fetch("./index.json");
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // Fetch sources data and offline count in parallel
+    const [sourcesResponse, offlineCountResponse] = await Promise.all([
+      fetch("./index.json"),
+      fetch("./offline-count.json")
+    ]);
+
+    if (!sourcesResponse.ok) {
+      throw new Error(`HTTP error! status: ${sourcesResponse.status}`);
     }
 
-    const data = await response.json();
-    const sources = data.sources || data; // Handle both new object format and legacy array format
+    const sourcesData = await sourcesResponse.json();
+    const sources = sourcesData.sources || sourcesData; // Handle both new object format and legacy array format
+
+    let offlineCount = 0;
+    if (offlineCountResponse.ok) {
+      const offlineData = await offlineCountResponse.json();
+      offlineCount = offlineData.count || 0;
+    }
 
     // Clear loading state
     sourcesContainer.innerHTML = "";
-
-    // Define offline sources based on the README status
-    const offlineSources = ["fr.reaperscans", "fr.mangascan", "fr.legacyscans", "fr.sushiscan"];
 
     // Define source types
     const sourceTypes = {
@@ -43,22 +50,13 @@ async function loadSources() {
       "fr.legacyscans": "Custom",
     };
 
-    // Sort sources: active first, then offline
-    const sortedSources = sources.sort((a, b) => {
-      const aOffline = offlineSources.includes(a.id);
-      const bOffline = offlineSources.includes(b.id);
+    // Sort sources alphabetically
+    const sortedSources = sources.sort((a, b) => a.name.localeCompare(b.name));
 
-      if (aOffline === bOffline) {
-        return a.name.localeCompare(b.name);
-      }
-      return aOffline - bOffline;
-    });
-
-    // Create source cards
+    // Create source cards (all sources from index.json are active)
     sortedSources.forEach((source, index) => {
       const sourceCard = createSourceCard(
         source,
-        offlineSources,
         sourceTypes,
         index
       );
@@ -66,7 +64,7 @@ async function loadSources() {
     });
 
     // Update stats in the description
-    updateStats(sources, offlineSources);
+    updateStats(sources.length, offlineCount);
   } catch (error) {
     console.error("Error loading sources:", error);
     sourcesContainer.innerHTML =
@@ -74,13 +72,24 @@ async function loadSources() {
   }
 }
 
-function createSourceCard(source, offlineSources, sourceTypes, index) {
-  const isOffline = offlineSources.includes(source.id);
+function createSourceCard(source, sourceTypes, index) {
   const sourceType = sourceTypes[source.id] || "Unknown";
 
   const card = document.createElement("div");
-  card.className = "source-card";
+  card.className = "source-card clickable";
   card.style.setProperty("--index", index);
+  
+  // Add click handler for download
+  card.addEventListener('click', () => {
+    if (source.downloadURL) {
+      const link = document.createElement('a');
+      link.href = source.downloadURL;
+      link.download = source.downloadURL.split('/').pop();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  });
 
   const iconPath = source.iconURL || `./icons/${source.id}.png`;
 
@@ -93,12 +102,12 @@ function createSourceCard(source, offlineSources, sourceTypes, index) {
         </div>
         
         <div class="source-status">
-            <span class="badge ${isOffline ? "badge-offline" : "badge-active"}">
-                ${isOffline ? "❌ Offline" : "✅ Active"}
+            <span class="badge badge-active">
+                ✅ Active
             </span>
             <span class="badge badge-fr">FR</span>
             ${
-              source.nsfw === 1
+              source.contentRating === 2
                 ? '<span class="badge badge-nsfw">NSFW</span>'
                 : ""
             }
@@ -111,19 +120,17 @@ function createSourceCard(source, offlineSources, sourceTypes, index) {
         <div class="source-id">
             ${source.id}
         </div>
+        
+        <div class="download-hint">
+            Click to download
+        </div>
     `;
 
   return card;
 }
 
-function updateStats(sources, offlineSources) {
-  const totalSources = sources.length;
-  const activeSources = sources.filter(
-    (source) => !offlineSources.includes(source.id)
-  ).length;
-  const offlineCount = sources.filter((source) =>
-    offlineSources.includes(source.id)
-  ).length;
+function updateStats(activeSources, offlineCount) {
+  const totalSources = activeSources + offlineCount;
 
   // Update the description paragraph
   const guideSection = document.querySelector(".guide-section > p:first-child");
