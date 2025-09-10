@@ -1,7 +1,4 @@
-use aidoku_wrapper::{
-    prelude::*,
-};
-
+use crate::types::prelude::*;
 use crate::template::MadaraSiteData;
 
 extern crate alloc;

@@ -14,5 +14,4 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aidoku-wrapper = { path = "../../templates/aidoku-wrapper" }
 mangastream_template = { path = "../../templates/mangastream" }

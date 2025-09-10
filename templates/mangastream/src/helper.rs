@@ -1,9 +1,5 @@
 use core::ptr;
-use aidoku_wrapper::{
-    prelude::*,
-    current_date,
-};
-
+use crate::types::prelude::*;
 use crate::template::MangaStreamSource;
 
 extern crate hashbrown;

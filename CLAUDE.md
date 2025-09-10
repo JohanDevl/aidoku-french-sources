@@ -25,8 +25,10 @@ for src in offline-sources/*; do (cd "$src" && aidoku package); done
 ### Building with Rust toolchain
 All sources use stable Rust toolchain with wasm32-unknown-unknown target:
 ```bash
-cargo build --release
+cargo build --release --target wasm32-unknown-unknown
 ```
+
+**Note:** For offline sources, always use the `--target wasm32-unknown-unknown` flag to prevent linking issues.
 
 ## High-level Architecture
 
@@ -50,22 +52,22 @@ This is an Aidoku source repository containing French manga sources written in R
 │   ├── fr.mangascan/
 │   ├── fr.reaperscansfr/
 │   └── fr.sushiscan/
-├── templates/         # Reusable templates (stable versions for offline sources)
-│   ├── aidoku-stable-wrapper/  # Compatibility wrapper for stable API
-│   ├── madara-stable/          # WordPress Madara theme template (stable)
-│   ├── mangastream-stable/     # MangaStream framework template (stable)
-│   └── mmrcms-stable/          # MMRCMS template (stable)
+├── templates/         # Reusable templates (for offline sources only)
+│   ├── madara/                 # WordPress Madara theme template
+│   ├── mangastream/            # MangaStream framework template
+│   └── mmrcms/                 # MMRCMS template
 └── public/           # Website files
 ```
 
 ### Template System
 The project uses centralized templates for offline sources only. Active sources use custom implementations.
 
-**Stable templates (for offline sources only):**
-- **templates/madara-stable/** - WordPress Madara theme used by offline sources (fr.astralmanga, fr.reaperscansfr)
-- **templates/mangastream-stable/** - MangaStream framework used by offline sources (fr.sushiscan)
-- **templates/mmrcms-stable/** - MMRCMS used by offline sources (fr.mangascan)
-- **templates/aidoku-stable-wrapper/** - Compatibility wrapper required by all offline sources
+**Templates (for offline sources only):**
+- **templates/madara/** - WordPress Madara theme used by offline sources (fr.astralmanga, fr.legacyscans, fr.reaperscansfr)
+- **templates/mangastream/** - MangaStream framework used by offline sources (fr.sushiscan)
+- **templates/mmrcms/** - MMRCMS used by offline sources (fr.mangascan)
+
+**Note:** Templates are self-contained and include all necessary types and utilities. No wrapper dependencies are required.
 
 **Active sources** - All use custom implementations: AnimeSama, FMTeam, LelManga, LelscanFR, MangaScantrad, MangasOrigines, PhenixScans, PoseidonScans, SushiScans
 
@@ -79,9 +81,10 @@ Each source has a standardized structure:
 ### Key Implementation Details
 
 **Offline sources (template-based):**
-- Use stable templates as dependencies: `template_name_stable = { path = "../../templates/template_name-stable" }`
-- Require aidoku-stable-wrapper for API compatibility
+- Use templates as dependencies: `template_name_template = { path = "../../templates/template_name" }`
+- Self-contained with no additional wrapper dependencies required
 - Minimal implementation that configures the template
+- Must be compiled with `--target wasm32-unknown-unknown` to prevent linking issues
 - Located in `offline-sources/` directory
 
 **Active sources (custom implementations):**
@@ -138,12 +141,15 @@ Each source has a standardized structure:
    chrono = "0.4"
    ```
    
-   **For offline sources (stable template approach):**
+   **For offline sources (template approach):**
    ```toml
    # Cargo.toml
    [dependencies]
-   aidoku-stable-wrapper = { path = "../../templates/aidoku-stable-wrapper" }
-   madara_stable_template = { path = "../../templates/madara-stable" }
+   madara_template = { path = "../../templates/madara" }
+   # OR
+   mangastream_template = { path = "../../templates/mangastream" }
+   # OR
+   mmrcms_template = { path = "../../templates/mmrcms" }
    ```
 
 6. **Implement source logic** in `src/lib.rs`
@@ -174,7 +180,7 @@ done
 ```bash
 for src in offline-sources/*; do
   echo "Testing $(basename "$src")..."
-  (cd "$src" && aidoku package && aidoku verify package.aix)
+  (cd "$src" && cargo build --release --target wasm32-unknown-unknown && aidoku package && aidoku verify package.aix)
 done
 ```
 
@@ -196,12 +202,18 @@ mv offline-sources/fr.sourcename sources/
 
 When modifying stable templates, test with all dependent offline sources:
 
-**Test stable templates:**
+**Test templates:**
 ```bash
+# Build all templates first
+for template in templates/*; do
+  echo "Testing $(basename "$template")..."
+  (cd "$template" && cargo build --release --target wasm32-unknown-unknown)
+done
+
 # Build all offline sources using templates
 for src in offline-sources/*; do
   echo "Testing $(basename "$src")..."
-  (cd "$src" && aidoku package)
+  (cd "$src" && cargo build --release --target wasm32-unknown-unknown && aidoku package)
 done
 ```
 
@@ -213,6 +225,8 @@ done
 2. **Missing dependencies:** Run `cargo clean` and rebuild
 3. **Icon issues:** Ensure icon is named `icon.png` (lowercase)
 4. **Version mismatches:** Update aidoku dependency version
+5. **Linking errors for offline sources:** Always use `--target wasm32-unknown-unknown` when building offline sources
+6. **Panic handler errors:** Templates include required allocators and panic handlers for no_std environment
 
 ### Quick Fixes
 
@@ -225,7 +239,7 @@ find sources offline-sources -name "*.aix" -delete
 for src in sources/*; do (cd "$src" && cargo clean && aidoku package); done
 
 # Rebuild offline sources (if needed)
-for src in offline-sources/*; do (cd "$src" && cargo clean && aidoku package); done
+for src in offline-sources/*; do (cd "$src" && cargo clean && cargo build --release --target wasm32-unknown-unknown && aidoku package); done
 ```
 
 # important-instruction-reminders
