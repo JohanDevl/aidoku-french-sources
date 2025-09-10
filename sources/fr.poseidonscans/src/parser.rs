@@ -1,7 +1,7 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
-	Viewer, UpdateStrategy,
-	alloc::{String, Vec, format, string::ToString, vec, collections::BTreeMap},
+	Viewer, UpdateStrategy, HashMap,
+	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
 	imports::html::{Document, Element},
 	serde::Deserialize,
 };
@@ -481,7 +481,19 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 	let mut filtered_chapters: Vec<Chapter> = Vec::new();
 	
 	if let Some(chapter_elements) = html.select("a[href*='/chapter/']") {
+		// Collect elements into Vec to avoid lifetime issues  
 		let chapter_elements_vec: Vec<_> = chapter_elements.collect();
+		// Create HashMap to index chapter elements by chapter_id for O(1) lookup
+		let mut chapter_element_map: HashMap<String, usize> = HashMap::new();
+		
+		for (index, chapter_element) in chapter_elements_vec.iter().enumerate() {
+			if let Some(href_str) = chapter_element.attr("href") {
+				if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
+					chapter_element_map.insert(chapter_id_from_href, index);
+				}
+			}
+		}
+		
 		let mut found_first_non_premium = false;
 		
 		for chapter in chapters.iter() {
@@ -489,17 +501,14 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			
 			// Only check premium status if we haven't found the "premium boundary" yet
 			if !found_first_non_premium {
-				// Search for this chapter in HTML elements
-				for chapter_element in &chapter_elements_vec {
-					if let Some(href_str) = chapter_element.attr("href") {
-						if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
-							if chapter_id_from_href == chapter.key {
-								is_premium = is_chapter_premium(chapter_element, html, &href_str);
-								
-								if !is_premium {
-									found_first_non_premium = true;
-								}
-								break;
+				// O(1) lookup instead of O(n) search
+				if let Some(&element_index) = chapter_element_map.get(&chapter.key) {
+					if let Some(chapter_element) = chapter_elements_vec.get(element_index) {
+						if let Some(href_str) = chapter_element.attr("href") {
+							is_premium = is_chapter_premium(chapter_element, html, &href_str);
+							
+							if !is_premium {
+								found_first_non_premium = true;
 							}
 						}
 					}
@@ -522,7 +531,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 
 fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
-	let mut seen_chapter_ids: Vec<String> = Vec::new();
+	let mut seen_chapter_ids: BTreeSet<String> = BTreeSet::new();
 
 	// Use the specific PoseidonScans chapter list structure
 	// Chapters are in <a> elements with href containing /chapter/
@@ -533,11 +542,10 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 			if let Some(href_str) = chapter_element.attr("href") {
 				// Extract chapter ID from URL
 				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-					// Skip duplicates
-					if seen_chapter_ids.contains(&chapter_id) {
-						continue;
+					// Skip duplicates - O(1) lookup with HashSet
+					if !seen_chapter_ids.insert(chapter_id.clone()) {
+						continue; // insert() returns false if element was already present
 					}
-					seen_chapter_ids.push(chapter_id.clone());
 
 					// Check if this chapter is premium by looking for indicators in the HTML
 					let is_premium = is_chapter_premium(&chapter_element, html, &href_str);
@@ -639,27 +647,38 @@ fn extract_chapter_dates_from_html(html: &Document, chapters: &mut Vec<Chapter>)
 	extract_dates_from_jsonld_fallback(html, chapters);
 }
 
-// Extract dates by searching for relative date text patterns across the entire page
+// Extract dates by searching for relative date text patterns in targeted elements
 fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
-	// Search for all elements containing relative date patterns
-	if let Some(all_elements) = html.select("*") {
-		for element in all_elements {
-			if let Some(text) = element.text() {
-				let text_trimmed = text.trim();
-				
-				// Check if this text looks like a relative date
-				if !text_trimmed.is_empty() && is_relative_date(text_trimmed) {
-					// Try to find a nearby chapter link to associate this date with
-					if let Some(chapter_number) = find_nearby_chapter_number(&element) {
-						let timestamp = parse_relative_date(text_trimmed);
-						
-						// Update the matching chapter
-						for chapter in chapters.iter_mut() {
-							if let Some(ch_num) = chapter.chapter_number {
-								if (ch_num - chapter_number).abs() < 0.1 {
-									chapter.date_uploaded = Some(timestamp);
-									break;
-								}
+	// Create HashMap for O(1) chapter lookup by number
+	let mut chapter_map: HashMap<i32, usize> = HashMap::new();
+	for (index, chapter) in chapters.iter().enumerate() {
+		if let Some(ch_num) = chapter.chapter_number {
+			chapter_map.insert(ch_num as i32, index);
+		}
+	}
+	
+	// Search in targeted elements likely to contain dates instead of all DOM elements
+	let date_selectors = &[
+		"time", ".date", ".time", ".timestamp", ".chapter-date",
+		"span", "div", "p", "small", ".text-sm", ".text-xs",
+		".chapter-item", ".chapter-link", "a[href*='/chapter/']"
+	];
+	
+	for selector in date_selectors {
+		if let Some(elements) = html.select(selector) {
+			for element in elements {
+				if let Some(text) = element.text() {
+					let text_trimmed = text.trim();
+					
+					// Check if this text looks like a relative date
+					if !text_trimmed.is_empty() && is_relative_date(text_trimmed) {
+						// Try to find a nearby chapter link to associate this date with
+						if let Some(chapter_number) = find_nearby_chapter_number(&element) {
+							let timestamp = parse_relative_date(text_trimmed);
+							
+							// O(1) lookup instead of O(n) search
+							if let Some(&chapter_index) = chapter_map.get(&(chapter_number as i32)) {
+								chapters[chapter_index].date_uploaded = Some(timestamp);
 							}
 						}
 					}
@@ -694,8 +713,16 @@ fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Optio
 	None
 }
 
-// Fallback: Extract dates by direct link association (original method, improved)
+// Fallback: Extract dates by direct link association (optimized)
 fn extract_dates_by_link_association(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Create HashMap for O(1) chapter lookup by number
+	let mut chapter_map: HashMap<i32, usize> = HashMap::new();
+	for (index, chapter) in chapters.iter().enumerate() {
+		if let Some(ch_num) = chapter.chapter_number {
+			chapter_map.insert(ch_num as i32, index);
+		}
+	}
+	
 	// Enhanced selectors for chapter links
 	let link_selectors = [
 		"a[href*='/chapter/']",       // Standard chapter links
@@ -706,6 +733,11 @@ fn extract_dates_by_link_association(html: &Document, chapters: &mut Vec<Chapter
 		"[href*='/serie/'][href*='/chapter/']"   // Any element with full path
 	];
 	
+	// Specific selectors for date elements instead of "*"
+	let date_element_selectors = [
+		"time", "span", "div", "small", ".date", ".time", ".timestamp"
+	];
+	
 	for link_selector in &link_selectors {
 		if let Some(chapter_links) = html.select(link_selector) {
 			// Process each chapter link to extract its date
@@ -713,24 +745,21 @@ fn extract_dates_by_link_association(html: &Document, chapters: &mut Vec<Chapter
 				if let Some(href) = chapter_link.attr("href") {
 					// Extract chapter number from URL
 					if let Some(chapter_number) = extract_chapter_number_from_url(&href) {
-						// Look for date within this specific chapter link with broader search
-						if let Some(date_elements) = chapter_link.select("*") {
-							for date_element in date_elements {
-								if let Some(date_text) = date_element.text() {
-									let date_text_trimmed = date_text.trim();
-									
-									// Enhanced validation for relative dates
-									if !date_text_trimmed.is_empty() && is_relative_date(date_text_trimmed) {
-										// Convert to timestamp
-										let timestamp = parse_relative_date(date_text_trimmed);
+						// Look for date within this specific chapter link using targeted selectors
+						for date_selector in &date_element_selectors {
+							if let Some(date_elements) = chapter_link.select(date_selector) {
+								for date_element in date_elements {
+									if let Some(date_text) = date_element.text() {
+										let date_text_trimmed = date_text.trim();
 										
-										// Find matching chapter in our list and update its date
-										for chapter in chapters.iter_mut() {
-											if let Some(ch_num) = chapter.chapter_number {
-												if (ch_num - chapter_number).abs() < 0.1 {  // Float comparison
-													chapter.date_uploaded = Some(timestamp);
-													break; // Only break inner chapter loop, continue processing other dates
-												}
+										// Enhanced validation for relative dates
+										if !date_text_trimmed.is_empty() && is_relative_date(date_text_trimmed) {
+											// Convert to timestamp
+											let timestamp = parse_relative_date(date_text_trimmed);
+											
+											// O(1) lookup instead of O(n) search
+											if let Some(&chapter_index) = chapter_map.get(&(chapter_number as i32)) {
+												chapters[chapter_index].date_uploaded = Some(timestamp);
 											}
 										}
 									}
