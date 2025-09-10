@@ -1,7 +1,4 @@
-use aidoku_wrapper::{
-    prelude::*,
-};
-
+use crate::types::prelude::*;
 use crate::helper::{append_protocol, extract_f32_from_string};
 
 // Simplified cache without Mutex since we don't have async in stable

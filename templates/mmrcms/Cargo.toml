@@ -6,4 +6,3 @@ publish = false
 
 [dependencies]
 # Simplified dependencies - no unstable features
-aidoku_wrapper = { path = "../aidoku-wrapper", package = "aidoku-wrapper" }
