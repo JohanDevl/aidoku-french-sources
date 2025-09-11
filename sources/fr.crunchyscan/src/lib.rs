@@ -5,6 +5,7 @@ use aidoku::{
     Manga, MangaPageResult, Page, Result, Source,
     alloc::{String, Vec, format},
     imports::net::Request,
+    prelude::*,
 };
 
 extern crate alloc;
@@ -241,3 +242,5 @@ impl CrunchyScan {
         }
     }
 }
+
+register_source!(CrunchyScan, ListingProvider, ImageRequestProvider);
