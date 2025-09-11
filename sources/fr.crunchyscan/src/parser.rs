@@ -19,6 +19,11 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 continue;
             }
             
+            let slug = helper::extract_slug_from_url(&url);
+            if slug.is_empty() {
+                continue;
+            }
+            
             // Extract title from link text, handle "Lire le manga" prefix
             let raw_title = link.text().unwrap_or_default();
             let title = if raw_title.starts_with("Lire le manga ") {
@@ -27,38 +32,58 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 raw_title.trim().to_string()
             };
             
+            // If title is empty, try to extract from URL slug as fallback
+            let title = if title.is_empty() {
+                slug.replace("-", " ")
+                    .split_whitespace()
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            None => String::new(),
+                            Some(first) => first.to_uppercase().chain(chars).collect(),
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            } else {
+                title
+            };
+            
             if title.is_empty() {
                 continue;
             }
             
-            let slug = helper::extract_slug_from_url(&url);
-            if slug.is_empty() {
-                continue;
-            }
-            
-            // Find parent container to get associated image and type
+            // Look for associated image and type in wider context
             let mut cover = None;
             let mut manga_type = String::new();
             
-            if let Some(parent) = link.parent() {
-                // Look for image in parent or nearby elements
-                if let Some(img) = parent.select("img").and_then(|list| list.first()) {
-                    let img_src = img.attr("src")
-                        .or_else(|| img.attr("data-src"))
-                        .or_else(|| img.attr("data-lazy-src"))
-                        .unwrap_or_default();
+            // Try multiple strategies to find cover image
+            let mut current = link.parent();
+            for _level in 0..3 { // Go up to 3 levels up in DOM
+                if let Some(element) = current {
+                    if let Some(img) = element.select("img").and_then(|list| list.first()) {
+                        let img_src = img.attr("src")
+                            .or_else(|| img.attr("data-src"))
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .unwrap_or_default();
+                        
+                        if !img_src.is_empty() {
+                            cover = Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src));
+                            break;
+                        }
+                    }
                     
-                    if !img_src.is_empty() {
-                        cover = Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src));
+                    // Look for manga type in this level
+                    if let Some(type_elem) = element.select("p").and_then(|list| list.first()) {
+                        let type_text = type_elem.text().unwrap_or_default().trim().to_uppercase();
+                        if type_text == "MANGA" || type_text == "MANHWA" || type_text == "MANHUA" {
+                            manga_type = type_text;
+                        }
                     }
-                }
-                
-                // Look for manga type in paragraph elements
-                if let Some(type_elem) = parent.select("p, paragraph").and_then(|list| list.first()) {
-                    let type_text = type_elem.text().unwrap_or_default().trim().to_uppercase();
-                    if type_text == "MANGA" || type_text == "MANHWA" || type_text == "MANHUA" {
-                        manga_type = type_text;
-                    }
+                    
+                    current = element.parent();
+                } else {
+                    break;
                 }
             }
             
@@ -88,7 +113,27 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
             unique_mangas.push(manga);
         }
     }
-    let mangas = unique_mangas;
+    let mut mangas = unique_mangas;
+    
+    // Temporary fallback: if no mangas found, add a test entry to debug
+    if mangas.is_empty() {
+        mangas.push(Manga {
+            key: "test-manga".to_string(),
+            cover: None,
+            title: "Test: Parsing found no manga links".to_string(),
+            authors: None,
+            artists: None,
+            description: Some("This is a debug entry. If you see this, the HTML parsing failed to find manga links.".to_string()),
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: Some("https://crunchyscan.fr".to_string()),
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        });
+    }
     
     let has_more = check_pagination(&html);
 

@@ -31,11 +31,18 @@ pub fn urlencode(string: &str) -> String {
 
 pub fn extract_slug_from_url(url: &str) -> String {
     let parts: Vec<&str> = url.split('/').collect();
-    if let Some(slug) = parts.iter().find(|&&part| !part.is_empty() && part != "lecture-en-ligne") {
-        if *slug != "https:" && *slug != "crunchyscan.fr" {
-            return String::from(*slug);
+    
+    // Find the position of "lecture-en-ligne" and get the next part
+    for (i, &part) in parts.iter().enumerate() {
+        if part == "lecture-en-ligne" && i + 1 < parts.len() {
+            let slug = parts[i + 1];
+            if !slug.is_empty() && !slug.contains('?') && !slug.contains('#') {
+                // Take only the part before any query parameters or fragments
+                return slug.split('?').next().unwrap_or(slug).split('#').next().unwrap_or(slug).to_string();
+            }
         }
     }
+    
     String::new()
 }
 
