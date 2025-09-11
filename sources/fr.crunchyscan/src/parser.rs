@@ -10,6 +10,7 @@ use crate::helper;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
+    let mut seen_keys: Vec<String> = Vec::new();
     
     // Try multiple selectors to find manga cards/entries
     let selectors = [
@@ -31,6 +32,11 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     continue;
                 }
                 
+                // Skip chapter links containing /read/
+                if url.contains("/read/") {
+                    continue;
+                }
+                
                 // Skip query params and fragments
                 if url.contains("?") || url.contains("#") {
                     continue;
@@ -42,25 +48,81 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     continue;
                 }
                 
-                // Try to get title from text content
+                // Skip if we've already seen this manga (deduplication)
+                if seen_keys.contains(&key) {
+                    continue;
+                }
+                seen_keys.push(key.clone());
+                
+                // Try to get title from text content or image alt
                 let raw_title = item.text().unwrap_or_default();
                 let title = if raw_title.starts_with("Lire le manga ") {
                     raw_title.replace("Lire le manga ", "").trim().to_string()
                 } else if !raw_title.trim().is_empty() {
                     raw_title.trim().to_string()
                 } else {
-                    // Fallback: generate title from slug
-                    key.replace("-", " ")
-                        .split_whitespace()
-                        .map(|word| {
-                            let mut chars = word.chars();
-                            match chars.next() {
-                                None => String::new(),
-                                Some(first) => first.to_uppercase().chain(chars).collect(),
+                    // Try to get title from image alt attribute
+                    if let Some(img_elements) = item.select("img") {
+                        if let Some(img) = img_elements.first() {
+                            if let Some(alt_text) = img.attr("alt") {
+                                if !alt_text.trim().is_empty() {
+                                    alt_text.trim().to_string()
+                                } else {
+                                    // Fallback: generate title from slug
+                                    key.replace("-", " ")
+                                        .split_whitespace()
+                                        .map(|word| {
+                                            let mut chars = word.chars();
+                                            match chars.next() {
+                                                None => String::new(),
+                                                Some(first) => first.to_uppercase().chain(chars).collect(),
+                                            }
+                                        })
+                                        .collect::<Vec<String>>()
+                                        .join(" ")
+                                }
+                            } else {
+                                // Fallback: generate title from slug
+                                key.replace("-", " ")
+                                    .split_whitespace()
+                                    .map(|word| {
+                                        let mut chars = word.chars();
+                                        match chars.next() {
+                                            None => String::new(),
+                                            Some(first) => first.to_uppercase().chain(chars).collect(),
+                                        }
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(" ")
                             }
-                        })
-                        .collect::<Vec<String>>()
-                        .join(" ")
+                        } else {
+                            // Fallback: generate title from slug
+                            key.replace("-", " ")
+                                .split_whitespace()
+                                .map(|word| {
+                                    let mut chars = word.chars();
+                                    match chars.next() {
+                                        None => String::new(),
+                                        Some(first) => first.to_uppercase().chain(chars).collect(),
+                                    }
+                                })
+                                .collect::<Vec<String>>()
+                                .join(" ")
+                        }
+                    } else {
+                        // Fallback: generate title from slug
+                        key.replace("-", " ")
+                            .split_whitespace()
+                            .map(|word| {
+                                let mut chars = word.chars();
+                                match chars.next() {
+                                    None => String::new(),
+                                    Some(first) => first.to_uppercase().chain(chars).collect(),
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join(" ")
+                    }
                 };
                 
                 if title.is_empty() {
@@ -83,7 +145,28 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                         None
                     }
                 } else {
-                    None
+                    // Try to find image in parent or sibling elements for text-only links
+                    if let Some(parent) = item.parent() {
+                        if let Some(img_elements) = parent.select("img") {
+                            if let Some(img) = img_elements.first() {
+                                let img_src = img.attr("src")
+                                    .or_else(|| img.attr("data-src"))
+                                    .or_else(|| img.attr("data-lazy-src"))
+                                    .unwrap_or_default();
+                                if !img_src.is_empty() {
+                                    Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 };
                 
                 // Look for manga type in surrounding context
