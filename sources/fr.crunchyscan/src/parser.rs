@@ -12,6 +12,58 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     let mut seen_keys: Vec<String> = Vec::new();
     
+    // DEBUG: Add test manga entries to verify the system works
+    mangas.push(Manga {
+        key: "debug-manga-1".to_string(),
+        cover: Some("https://via.placeholder.com/300x400/FF0000/FFFFFF?text=Debug1".to_string()),
+        title: "DEBUG: Test Manga 1".to_string(),
+        authors: Some(vec!["Debug Author 1".to_string()]),
+        artists: None,
+        description: Some("This is a debug manga entry to test the parsing system".to_string()),
+        tags: Some(vec!["Debug".to_string(), "Test".to_string()]),
+        status: MangaStatus::Ongoing,
+        content_rating: ContentRating::Safe,
+        viewer: Viewer::LeftToRight,
+        chapters: None,
+        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-1".to_string()),
+        next_update_time: None,
+        update_strategy: UpdateStrategy::Always,
+    });
+    
+    mangas.push(Manga {
+        key: "debug-manga-2".to_string(),
+        cover: Some("https://via.placeholder.com/300x400/00FF00/FFFFFF?text=Debug2".to_string()),
+        title: "DEBUG: Test Manga 2".to_string(),
+        authors: Some(vec!["Debug Author 2".to_string()]),
+        artists: None,
+        description: Some("Another debug manga entry for testing".to_string()),
+        tags: Some(vec!["Debug".to_string(), "Manga".to_string()]),
+        status: MangaStatus::Completed,
+        content_rating: ContentRating::Safe,
+        viewer: Viewer::LeftToRight,
+        chapters: None,
+        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-2".to_string()),
+        next_update_time: None,
+        update_strategy: UpdateStrategy::Always,
+    });
+    
+    mangas.push(Manga {
+        key: "debug-manga-3".to_string(),
+        cover: Some("https://via.placeholder.com/300x400/0000FF/FFFFFF?text=Debug3".to_string()),
+        title: "DEBUG: Test Manga 3".to_string(),
+        authors: Some(vec!["Debug Author 3".to_string()]),
+        artists: None,
+        description: Some("Third debug manga for verification".to_string()),
+        tags: Some(vec!["Debug".to_string(), "Verification".to_string()]),
+        status: MangaStatus::Unknown,
+        content_rating: ContentRating::Safe,
+        viewer: Viewer::LeftToRight,
+        chapters: None,
+        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-3".to_string()),
+        next_update_time: None,
+        update_strategy: UpdateStrategy::Always,
+    });
+    
     // Try multiple selectors to find manga cards/entries
     let selectors = [
         "a[href*='/lecture-en-ligne/']",
