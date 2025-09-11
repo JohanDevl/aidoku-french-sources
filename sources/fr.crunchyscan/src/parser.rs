@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
     ContentRating, Viewer, UpdateStrategy, println,
-    alloc::{String, Vec, vec, string::ToString},
+    alloc::{String, Vec, vec, string::ToString, format},
     imports::html::Document,
 };
 use core::cmp::Ordering;
@@ -11,11 +11,48 @@ use crate::helper;
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     println!("[CrunchyScan] Starting parse_manga_list");
     let mut mangas: Vec<Manga> = Vec::new();
+    
+    // DEBUG: Add a debug manga to confirm function is called
+    mangas.push(Manga {
+        key: "debug-function-called".to_string(),
+        title: "[DEBUG] parse_manga_list function called".to_string(),
+        cover: None,
+        authors: None,
+        artists: None,
+        description: Some("Function successfully entered".to_string()),
+        tags: None,
+        status: MangaStatus::Unknown,
+        content_rating: ContentRating::Safe,
+        viewer: Viewer::LeftToRight,
+        chapters: None,
+        url: None,
+        next_update_time: None,
+        update_strategy: UpdateStrategy::Always,
+    });
 
     // Use the correct container selector from the website analysis
     println!("[CrunchyScan] Selecting elements with: #advanced_manga_containter .flex.flex-col.w-full.gap-3");
     if let Some(manga_elements) = html.select("#advanced_manga_containter .flex.flex-col.w-full.gap-3") {
         println!("[CrunchyScan] Found manga elements (count will be shown during processing)");
+        
+        // DEBUG: Add manga showing selector found elements
+        mangas.push(Manga {
+            key: "debug-selector-found".to_string(),
+            title: "[DEBUG] Selector found elements".to_string(),
+            cover: None,
+            authors: None,
+            artists: None,
+            description: Some("Container selector matched".to_string()),
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        });
+        
         for (index, item) in manga_elements.enumerate() {
             println!("[CrunchyScan] Processing manga item {}", index);
             // Find the main manga link with "Lire le manga" text
@@ -91,6 +128,24 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     } else {
         println!("[CrunchyScan] No manga elements found with selector!");
         
+        // DEBUG: Add manga showing selector failed
+        mangas.push(Manga {
+            key: "debug-selector-failed".to_string(),
+            title: "[DEBUG] Primary selector failed".to_string(),
+            cover: None,
+            authors: None,
+            artists: None,
+            description: Some("Container #advanced_manga_containter .flex.flex-col.w-full.gap-3 not found".to_string()),
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        });
+        
         // Try alternative selectors for debugging
         if let Some(container) = html.select("#advanced_manga_containter") {
             let mut container_count = 0;
@@ -98,8 +153,44 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 container_count += 1;
             }
             println!("[CrunchyScan] Found container, children count: {}", container_count);
+            
+            // DEBUG: Add manga showing container found
+            mangas.push(Manga {
+                key: "debug-container-found".to_string(),
+                title: format!("[DEBUG] Container found: {} elements", container_count),
+                cover: None,
+                authors: None,
+                artists: None,
+                description: Some("#advanced_manga_containter exists but no matching children".to_string()),
+                tags: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::LeftToRight,
+                chapters: None,
+                url: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Always,
+            });
         } else {
             println!("[CrunchyScan] Container #advanced_manga_containter not found!");
+            
+            // DEBUG: Add manga showing container not found
+            mangas.push(Manga {
+                key: "debug-container-not-found".to_string(),
+                title: "[DEBUG] Container not found".to_string(),
+                cover: None,
+                authors: None,
+                artists: None,
+                description: Some("#advanced_manga_containter does not exist in HTML".to_string()),
+                tags: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::LeftToRight,
+                chapters: None,
+                url: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Always,
+            });
         }
         
         // Try to find any elements with lecture-en-ligne links
@@ -109,8 +200,44 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 links_count += 1;
             }
             println!("[CrunchyScan] Found {} lecture-en-ligne links total", links_count);
+            
+            // DEBUG: Add manga showing links found
+            mangas.push(Manga {
+                key: "debug-links-found".to_string(),
+                title: format!("[DEBUG] Found {} lecture-en-ligne links", links_count),
+                cover: None,
+                authors: None,
+                artists: None,
+                description: Some("Links exist but not in expected container".to_string()),
+                tags: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::LeftToRight,
+                chapters: None,
+                url: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Always,
+            });
         } else {
             println!("[CrunchyScan] No lecture-en-ligne links found at all!");
+            
+            // DEBUG: Add manga showing no links found
+            mangas.push(Manga {
+                key: "debug-no-links".to_string(),
+                title: "[DEBUG] No lecture-en-ligne links found".to_string(),
+                cover: None,
+                authors: None,
+                artists: None,
+                description: Some("No manga links found anywhere in HTML".to_string()),
+                tags: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::LeftToRight,
+                chapters: None,
+                url: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Always,
+            });
         }
     }
 

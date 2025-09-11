@@ -2,8 +2,9 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, Result, Source, println,
-    alloc::{String, Vec, format},
+    Manga, MangaPageResult, Page, Result, Source, println, MangaStatus,
+    ContentRating, Viewer, UpdateStrategy,
+    alloc::{String, Vec, format, string::ToString},
     imports::net::Request,
 };
 
@@ -106,7 +107,30 @@ impl Source for CrunchyScan {
             .html()?;
         
         println!("[CrunchyScan] HTTP request successful, parsing HTML...");
-        parser::parse_manga_list(html)
+        let mut result = parser::parse_manga_list(html)?;
+        
+        // DEBUG: Add a manga showing the URL and function that was used
+        let debug_manga = Manga {
+            key: "debug-search-url".to_string(),
+            title: "[DEBUG] Search Request Info".to_string(),
+            cover: None,
+            authors: None,
+            artists: None,
+            description: Some(format!("URL used: {} | Page: {}", url, page)),
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        };
+        
+        // Add debug manga to the beginning of the list
+        result.entries.insert(0, debug_manga);
+        
+        Ok(result)
     }
 
     fn get_manga_update(
@@ -196,7 +220,30 @@ impl ListingProvider for CrunchyScan {
             .html()?;
         
         println!("[CrunchyScan] Listing HTTP request successful, parsing HTML...");
-        parser::parse_manga_list(html)
+        let mut result = parser::parse_manga_list(html)?;
+        
+        // DEBUG: Add a manga showing the URL that was used
+        let debug_manga = Manga {
+            key: "debug-http-url".to_string(),
+            title: "[DEBUG] HTTP Request Info".to_string(),
+            cover: None,
+            authors: None,
+            artists: None,
+            description: Some(format!("URL used: {}", url)),
+            tags: None,
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::LeftToRight,
+            chapters: None,
+            url: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Always,
+        };
+        
+        // Add debug manga to the beginning of the list
+        result.entries.insert(0, debug_manga);
+        
+        Ok(result)
     }
 }
 
