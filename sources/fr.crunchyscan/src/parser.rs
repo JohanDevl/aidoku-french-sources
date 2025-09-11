@@ -11,16 +11,18 @@ use crate::helper;
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
 
-    if let Some(manga_elements) = html.select(".manga_cover") {
+    // Use the correct container selector from the website analysis
+    if let Some(manga_elements) = html.select("#advanced_manga_containter .flex.flex-col.w-full.gap-3") {
         for item in manga_elements {
-            if let Some(link) = item.select("a").and_then(|list| list.first()) {
+            // Find the main manga link with "Lire le manga" text
+            if let Some(link) = item.select("a[href*='/lecture-en-ligne/']").and_then(|list| list.first()) {
                 let url = link.attr("href").unwrap_or_default();
                 if url.is_empty() {
                     continue;
                 }
                 
-                let title = link.attr("title")
-                    .or_else(|| link.text())
+                // Extract title from link text, removing the "Lire le manga " prefix
+                let title = link.text()
                     .unwrap_or_default()
                     .replace("Lire le manga ", "")
                     .trim()
@@ -35,7 +37,8 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     continue;
                 }
                 
-                let cover = if let Some(img) = link.select("img").and_then(|list| list.first()) {
+                // Find the cover image within the link
+                let cover = if let Some(img) = item.select("img").and_then(|list| list.first()) {
                     let img_src = img.attr("src")
                         .or_else(|| img.attr("data-src"))
                         .or_else(|| img.attr("data-lazy-src"))
@@ -50,8 +53,9 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     None
                 };
 
-                let manga_type = if let Some(type_elem) = item.select("p, span").and_then(|list| list.first()) {
-                    type_elem.text().unwrap_or_default()
+                // Get manga type from paragraph (MANHWA, MANGA, MANHUA)
+                let manga_type = if let Some(type_elem) = item.select("p").and_then(|list| list.first()) {
+                    type_elem.text().unwrap_or_default().trim().to_string()
                 } else {
                     String::new()
                 };
@@ -318,6 +322,32 @@ pub fn search_manga(search_json: &str) -> Result<MangaPageResult> {
 }
 
 fn check_pagination(html: &Document) -> bool {
+    // First, check the specific CrunchyScan pagination structure
+    if let Some(p_elements) = html.select("p") {
+        for elem in p_elements {
+            if let Some(text) = elem.text() {
+                if text.contains("/") && text.chars().any(|c| c.is_ascii_digit()) {
+                    if let Some(slash_pos) = text.find("/") {
+                        let after_slash = &text[slash_pos + 1..].trim();
+                        if let Ok(total_pages) = after_slash.parse::<i32>() {
+                            // Also try to get current page from textbox
+                            if let Some(textbox) = html.select("input[type='text']").and_then(|list| list.first()) {
+                                if let Some(value) = textbox.attr("value") {
+                                    if let Ok(current_page) = value.parse::<i32>() {
+                                        return current_page < total_pages;
+                                    }
+                                }
+                            }
+                            // If we can't find current page, assume we're on page 1 and there are more if total > 1
+                            return total_pages > 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to the original logic
     if let Some(page_elements) = html.select("input[type='text'], .paginate_button, [class*='page']") {
         for elem in page_elements {
             if let Some(text) = elem.text() {
@@ -350,6 +380,7 @@ fn check_pagination(html: &Document) -> bool {
         }
     }
 
+    // Check for next page buttons as final fallback
     if let Some(next_links) = html.select("a[href*='page='], .next, [class*='next']") {
         return !next_links.is_empty();
     }
