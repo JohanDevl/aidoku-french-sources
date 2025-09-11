@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-    ContentRating, Viewer, UpdateStrategy, println,
-    alloc::{String, Vec, vec, string::ToString, format},
+    ContentRating, Viewer, UpdateStrategy,
+    alloc::{String, Vec, vec, string::ToString},
     imports::html::Document,
 };
 use core::cmp::Ordering;
@@ -9,241 +9,88 @@ extern crate alloc;
 use crate::helper;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
-    println!("[CrunchyScan] Starting parse_manga_list");
     let mut mangas: Vec<Manga> = Vec::new();
     
-    // DEBUG: Add a debug manga to confirm function is called
-    mangas.push(Manga {
-        key: "debug-function-called".to_string(),
-        title: "[DEBUG] parse_manga_list function called".to_string(),
-        cover: None,
-        authors: None,
-        artists: None,
-        description: Some("Function successfully entered".to_string()),
-        tags: None,
-        status: MangaStatus::Unknown,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: None,
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-
-    // Use the correct container selector from the website analysis
-    println!("[CrunchyScan] Selecting elements with: #advanced_manga_containter .flex.flex-col.w-full.gap-3");
-    if let Some(manga_elements) = html.select("#advanced_manga_containter .flex.flex-col.w-full.gap-3") {
-        println!("[CrunchyScan] Found manga elements (count will be shown during processing)");
-        
-        // DEBUG: Add manga showing selector found elements
-        mangas.push(Manga {
-            key: "debug-selector-found".to_string(),
-            title: "[DEBUG] Selector found elements".to_string(),
-            cover: None,
-            authors: None,
-            artists: None,
-            description: Some("Container selector matched".to_string()),
-            tags: None,
-            status: MangaStatus::Unknown,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::LeftToRight,
-            chapters: None,
-            url: None,
-            next_update_time: None,
-            update_strategy: UpdateStrategy::Always,
-        });
-        
-        for (index, item) in manga_elements.enumerate() {
-            println!("[CrunchyScan] Processing manga item {}", index);
-            // Find the main manga link with "Lire le manga" text
-            if let Some(link) = item.select("a[href*='/lecture-en-ligne/']").and_then(|list| list.first()) {
-                let url = link.attr("href").unwrap_or_default();
-                println!("[CrunchyScan] Found URL: {}", url);
-                if url.is_empty() {
-                    println!("[CrunchyScan] Empty URL, skipping");
-                    continue;
-                }
-                
-                // Extract title from link text, removing the "Lire le manga " prefix
-                let raw_title = link.text().unwrap_or_default();
-                let title = raw_title.replace("Lire le manga ", "").trim().to_string();
-                println!("[CrunchyScan] Raw title: '{}', cleaned title: '{}'", raw_title, title);
-                
-                if title.is_empty() {
-                    println!("[CrunchyScan] Empty title, skipping");
-                    continue;
-                }
-                
-                let slug = helper::extract_slug_from_url(&url);
-                println!("[CrunchyScan] Extracted slug: '{}'", slug);
-                if slug.is_empty() {
-                    println!("[CrunchyScan] Empty slug, skipping");
-                    continue;
-                }
-                
-                // Find the cover image within the link
-                let cover = if let Some(img) = item.select("img").and_then(|list| list.first()) {
+    // Based on site analysis: find all manga links directly
+    if let Some(manga_links) = html.select("a[href*='/lecture-en-ligne/']") {
+        for link in manga_links {
+            let url = link.attr("href").unwrap_or_default();
+            if url.is_empty() {
+                continue;
+            }
+            
+            // Extract title from link text, handle "Lire le manga" prefix
+            let raw_title = link.text().unwrap_or_default();
+            let title = if raw_title.starts_with("Lire le manga ") {
+                raw_title.replace("Lire le manga ", "").trim().to_string()
+            } else {
+                raw_title.trim().to_string()
+            };
+            
+            if title.is_empty() {
+                continue;
+            }
+            
+            let slug = helper::extract_slug_from_url(&url);
+            if slug.is_empty() {
+                continue;
+            }
+            
+            // Find parent container to get associated image and type
+            let mut cover = None;
+            let mut manga_type = String::new();
+            
+            if let Some(parent) = link.parent() {
+                // Look for image in parent or nearby elements
+                if let Some(img) = parent.select("img").and_then(|list| list.first()) {
                     let img_src = img.attr("src")
                         .or_else(|| img.attr("data-src"))
                         .or_else(|| img.attr("data-lazy-src"))
                         .unwrap_or_default();
                     
                     if !img_src.is_empty() {
-                        Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
-                    } else {
-                        None
+                        cover = Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src));
                     }
-                } else {
-                    None
-                };
-
-                // Get manga type from paragraph (MANHWA, MANGA, MANHUA)
-                let manga_type = if let Some(type_elem) = item.select("p").and_then(|list| list.first()) {
-                    type_elem.text().unwrap_or_default().trim().to_string()
-                } else {
-                    String::new()
-                };
-
-                println!("[CrunchyScan] Successfully created manga: {}", title);
-                mangas.push(Manga {
-                    key: slug.clone(),
-                    cover,
-                    title,
-                    authors: None,
-                    artists: None,
-                    description: None,
-                    tags: if !manga_type.is_empty() { Some(vec![manga_type]) } else { None },
-                    status: MangaStatus::Unknown,
-                    content_rating: ContentRating::Safe,
-                    viewer: Viewer::LeftToRight,
-                    chapters: None,
-                    url: Some(helper::build_manga_url(&slug)),
-                    next_update_time: None,
-                    update_strategy: UpdateStrategy::Always,
-                });
-            } else {
-                println!("[CrunchyScan] No manga link found in item {}", index);
+                }
+                
+                // Look for manga type in paragraph elements
+                if let Some(type_elem) = parent.select("p, paragraph").and_then(|list| list.first()) {
+                    let type_text = type_elem.text().unwrap_or_default().trim().to_uppercase();
+                    if type_text == "MANGA" || type_text == "MANHWA" || type_text == "MANHUA" {
+                        manga_type = type_text;
+                    }
+                }
             }
-        }
-    } else {
-        println!("[CrunchyScan] No manga elements found with selector!");
-        
-        // DEBUG: Add manga showing selector failed
-        mangas.push(Manga {
-            key: "debug-selector-failed".to_string(),
-            title: "[DEBUG] Primary selector failed".to_string(),
-            cover: None,
-            authors: None,
-            artists: None,
-            description: Some("Container #advanced_manga_containter .flex.flex-col.w-full.gap-3 not found".to_string()),
-            tags: None,
-            status: MangaStatus::Unknown,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::LeftToRight,
-            chapters: None,
-            url: None,
-            next_update_time: None,
-            update_strategy: UpdateStrategy::Always,
-        });
-        
-        // Try alternative selectors for debugging
-        if let Some(container) = html.select("#advanced_manga_containter") {
-            let mut container_count = 0;
-            for _ in container {
-                container_count += 1;
-            }
-            println!("[CrunchyScan] Found container, children count: {}", container_count);
             
-            // DEBUG: Add manga showing container found
             mangas.push(Manga {
-                key: "debug-container-found".to_string(),
-                title: format!("[DEBUG] Container found: {} elements", container_count),
-                cover: None,
+                key: slug.clone(),
+                cover,
+                title,
                 authors: None,
                 artists: None,
-                description: Some("#advanced_manga_containter exists but no matching children".to_string()),
-                tags: None,
+                description: None,
+                tags: if !manga_type.is_empty() { Some(vec![manga_type]) } else { None },
                 status: MangaStatus::Unknown,
                 content_rating: ContentRating::Safe,
                 viewer: Viewer::LeftToRight,
                 chapters: None,
-                url: None,
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            });
-        } else {
-            println!("[CrunchyScan] Container #advanced_manga_containter not found!");
-            
-            // DEBUG: Add manga showing container not found
-            mangas.push(Manga {
-                key: "debug-container-not-found".to_string(),
-                title: "[DEBUG] Container not found".to_string(),
-                cover: None,
-                authors: None,
-                artists: None,
-                description: Some("#advanced_manga_containter does not exist in HTML".to_string()),
-                tags: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: None,
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            });
-        }
-        
-        // Try to find any elements with lecture-en-ligne links
-        if let Some(lecture_links) = html.select("a[href*='/lecture-en-ligne/']") {
-            let mut links_count = 0;
-            for _ in lecture_links {
-                links_count += 1;
-            }
-            println!("[CrunchyScan] Found {} lecture-en-ligne links total", links_count);
-            
-            // DEBUG: Add manga showing links found
-            mangas.push(Manga {
-                key: "debug-links-found".to_string(),
-                title: format!("[DEBUG] Found {} lecture-en-ligne links", links_count),
-                cover: None,
-                authors: None,
-                artists: None,
-                description: Some("Links exist but not in expected container".to_string()),
-                tags: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: None,
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            });
-        } else {
-            println!("[CrunchyScan] No lecture-en-ligne links found at all!");
-            
-            // DEBUG: Add manga showing no links found
-            mangas.push(Manga {
-                key: "debug-no-links".to_string(),
-                title: "[DEBUG] No lecture-en-ligne links found".to_string(),
-                cover: None,
-                authors: None,
-                artists: None,
-                description: Some("No manga links found anywhere in HTML".to_string()),
-                tags: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                url: None,
+                url: Some(helper::build_manga_url(&slug)),
                 next_update_time: None,
                 update_strategy: UpdateStrategy::Always,
             });
         }
     }
-
-    let has_more = check_pagination(&html);
     
-    println!("[CrunchyScan] Final result: {} mangas found, has_next_page: {}", mangas.len(), has_more);
+    // Remove duplicates based on key (simple approach for no_std)
+    let mut unique_mangas = Vec::new();
+    for manga in mangas {
+        if !unique_mangas.iter().any(|m: &Manga| m.key == manga.key) {
+            unique_mangas.push(manga);
+        }
+    }
+    let mangas = unique_mangas;
+    
+    let has_more = check_pagination(&html);
 
     Ok(MangaPageResult {
         entries: mangas,
@@ -323,7 +170,7 @@ pub fn parse_manga_details(html: Document, manga_key: String) -> Result<Manga> {
     })
 }
 
-pub fn parse_chapter_list(html: Document, manga_key: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(html: Document, _manga_key: String) -> Result<Vec<Chapter>> {
     let mut chapters = Vec::new();
 
     if let Some(chapter_elements) = html.select("a[href*='/read/'], .chapter-link, [class*='chapter'] a") {
