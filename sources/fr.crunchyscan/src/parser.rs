@@ -12,157 +12,47 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     let mut seen_keys: Vec<String> = Vec::new();
     
-    // DEBUG: Add test manga entries to verify the system works
-    mangas.push(Manga {
-        key: "debug-manga-1".to_string(),
-        cover: Some("https://via.placeholder.com/300x400/FF0000/FFFFFF?text=Debug1".to_string()),
-        title: "DEBUG: Test Manga 1".to_string(),
-        authors: Some(vec!["Debug Author 1".to_string()]),
-        artists: None,
-        description: Some("This is a debug manga entry to test the parsing system".to_string()),
-        tags: Some(vec!["Debug".to_string(), "Test".to_string()]),
-        status: MangaStatus::Ongoing,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-1".to_string()),
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-    
-    mangas.push(Manga {
-        key: "debug-manga-2".to_string(),
-        cover: Some("https://via.placeholder.com/300x400/00FF00/FFFFFF?text=Debug2".to_string()),
-        title: "DEBUG: Test Manga 2".to_string(),
-        authors: Some(vec!["Debug Author 2".to_string()]),
-        artists: None,
-        description: Some("Another debug manga entry for testing".to_string()),
-        tags: Some(vec!["Debug".to_string(), "Manga".to_string()]),
-        status: MangaStatus::Completed,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-2".to_string()),
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-    
-    mangas.push(Manga {
-        key: "debug-manga-3".to_string(),
-        cover: Some("https://via.placeholder.com/300x400/0000FF/FFFFFF?text=Debug3".to_string()),
-        title: "DEBUG: Test Manga 3".to_string(),
-        authors: Some(vec!["Debug Author 3".to_string()]),
-        artists: None,
-        description: Some("Third debug manga for verification".to_string()),
-        tags: Some(vec!["Debug".to_string(), "Verification".to_string()]),
-        status: MangaStatus::Unknown,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: Some("https://crunchyscan.fr/lecture-en-ligne/debug-manga-3".to_string()),
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    });
-    
-    // Try multiple selectors to find manga cards/entries
-    let selectors = [
-        "a[href*='/lecture-en-ligne/']",
-        "a[href*='lecture-en-ligne']",
-        ".manga-card a",
-        ".manga-item a",
-        "[class*='manga'] a",
-        "a"
-    ];
-    
-    for selector in &selectors {
-        if let Some(links) = html.select(selector) {
-            for item in links {
-                let url = item.attr("href").unwrap_or_default();
-                
-                // Skip if not a manga URL
-                if !url.contains("/lecture-en-ligne/") {
-                    continue;
-                }
-                
-                // Skip chapter links containing /read/
-                if url.contains("/read/") {
-                    continue;
-                }
-                
-                // Skip query params and fragments
-                if url.contains("?") || url.contains("#") {
-                    continue;
-                }
-                
-                // Extract key/slug from URL
-                let key = helper::extract_slug_from_url(&url);
-                if key.is_empty() {
-                    continue;
-                }
-                
-                // Skip if we've already seen this manga (deduplication)
-                if seen_keys.contains(&key) {
-                    continue;
-                }
-                seen_keys.push(key.clone());
-                
-                // Try to get title from text content or image alt
-                let raw_title = item.text().unwrap_or_default();
-                let title = if raw_title.starts_with("Lire le manga ") {
+    // Find all links pointing to manga pages - simplified approach
+    if let Some(all_links) = html.select("a[href*='/lecture-en-ligne/']") {
+        for item in all_links {
+            let url = item.attr("href").unwrap_or_default();
+            
+            // Skip chapter links containing /read/
+            if url.contains("/read/") {
+                continue;
+            }
+            
+            // Skip query params and fragments  
+            if url.contains("?") || url.contains("#") {
+                continue;
+            }
+            
+            // Extract key/slug from URL
+            let key = helper::extract_slug_from_url(&url);
+            if key.is_empty() {
+                continue;
+            }
+            
+            // Skip if we've already seen this manga (deduplication)
+            if seen_keys.contains(&key) {
+                continue;
+            }
+            seen_keys.push(key.clone());
+            
+            // Get title - simplified priority: text -> image alt -> slug
+            let raw_title = item.text().unwrap_or_default();
+            let title = if !raw_title.trim().is_empty() {
+                if raw_title.starts_with("Lire le manga ") {
                     raw_title.replace("Lire le manga ", "").trim().to_string()
-                } else if !raw_title.trim().is_empty() {
-                    raw_title.trim().to_string()
                 } else {
-                    // Try to get title from image alt attribute
-                    if let Some(img_elements) = item.select("img") {
-                        if let Some(img) = img_elements.first() {
-                            if let Some(alt_text) = img.attr("alt") {
-                                if !alt_text.trim().is_empty() {
-                                    alt_text.trim().to_string()
-                                } else {
-                                    // Fallback: generate title from slug
-                                    key.replace("-", " ")
-                                        .split_whitespace()
-                                        .map(|word| {
-                                            let mut chars = word.chars();
-                                            match chars.next() {
-                                                None => String::new(),
-                                                Some(first) => first.to_uppercase().chain(chars).collect(),
-                                            }
-                                        })
-                                        .collect::<Vec<String>>()
-                                        .join(" ")
-                                }
-                            } else {
-                                // Fallback: generate title from slug
-                                key.replace("-", " ")
-                                    .split_whitespace()
-                                    .map(|word| {
-                                        let mut chars = word.chars();
-                                        match chars.next() {
-                                            None => String::new(),
-                                            Some(first) => first.to_uppercase().chain(chars).collect(),
-                                        }
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join(" ")
-                            }
-                        } else {
-                            // Fallback: generate title from slug
-                            key.replace("-", " ")
-                                .split_whitespace()
-                                .map(|word| {
-                                    let mut chars = word.chars();
-                                    match chars.next() {
-                                        None => String::new(),
-                                        Some(first) => first.to_uppercase().chain(chars).collect(),
-                                    }
-                                })
-                                .collect::<Vec<String>>()
-                                .join(" ")
-                        }
+                    raw_title.trim().to_string()
+                }
+            } else if let Some(img) = item.select("img").and_then(|imgs| imgs.first()) {
+                if let Some(alt_text) = img.attr("alt") {
+                    if !alt_text.trim().is_empty() {
+                        alt_text.trim().to_string()
                     } else {
-                        // Fallback: generate title from slug
+                        // Generate from slug
                         key.replace("-", " ")
                             .split_whitespace()
                             .map(|word| {
@@ -175,85 +65,84 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                             .collect::<Vec<String>>()
                             .join(" ")
                     }
-                };
-                
-                if title.is_empty() {
-                    continue;
+                } else {
+                    // Generate from slug
+                    key.replace("-", " ")
+                        .split_whitespace()
+                        .map(|word| {
+                            let mut chars = word.chars();
+                            match chars.next() {
+                                None => String::new(),
+                                Some(first) => first.to_uppercase().chain(chars).collect(),
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(" ")
                 }
-                
-                // Extract cover image if available
-                let cover = if let Some(img_elements) = item.select("img") {
-                    if let Some(img) = img_elements.first() {
+            } else {
+                // Generate from slug as final fallback
+                key.replace("-", " ")
+                    .split_whitespace()
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            None => String::new(),
+                            Some(first) => first.to_uppercase().chain(chars).collect(),
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            };
+            
+            // Extract cover image if available
+            let cover = if let Some(img) = item.select("img").and_then(|imgs| imgs.first()) {
+                let img_src = img.attr("src")
+                    .or_else(|| img.attr("data-src"))
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .unwrap_or_default();
+                if !img_src.is_empty() {
+                    Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
+                } else {
+                    None
+                }
+            } else {
+                // Try to find image in parent elements
+                if let Some(parent) = item.parent() {
+                    if let Some(img) = parent.select("img").and_then(|imgs| imgs.first()) {
                         let img_src = img.attr("src")
                             .or_else(|| img.attr("data-src"))
                             .or_else(|| img.attr("data-lazy-src"))
                             .unwrap_or_default();
-                        if img_src.is_empty() {
-                            None
-                        } else {
+                        if !img_src.is_empty() {
                             Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
+                        } else {
+                            None
                         }
                     } else {
                         None
                     }
                 } else {
-                    // Try to find image in parent or sibling elements for text-only links
-                    if let Some(parent) = item.parent() {
-                        if let Some(img_elements) = parent.select("img") {
-                            if let Some(img) = img_elements.first() {
-                                let img_src = img.attr("src")
-                                    .or_else(|| img.attr("data-src"))
-                                    .or_else(|| img.attr("data-lazy-src"))
-                                    .unwrap_or_default();
-                                if !img_src.is_empty() {
-                                    Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                };
-                
-                // Look for manga type in surrounding context
-                let mut manga_type = String::new();
-                if let Some(parent) = item.parent() {
-                    if let Some(type_elem) = parent.select("p").and_then(|list| list.first()) {
-                        let type_text = type_elem.text().unwrap_or_default().trim().to_uppercase();
-                        if type_text == "MANGA" || type_text == "MANHWA" || type_text == "MANHUA" {
-                            manga_type = type_text;
-                        }
-                    }
+                    None
                 }
-
-                mangas.push(Manga {
-                    key: key.clone(),
-                    cover,
-                    title,
-                    authors: None,
-                    artists: None,
-                    description: None,
-                    tags: if !manga_type.is_empty() { Some(vec![manga_type]) } else { None },
-                    status: MangaStatus::Unknown,
-                    content_rating: ContentRating::Safe,
-                    viewer: Viewer::LeftToRight,
-                    chapters: None,
-                    url: Some(helper::make_absolute_url("https://crunchyscan.fr", &url)),
-                    next_update_time: None,
-                    update_strategy: UpdateStrategy::Always,
-                });
-            }
+            };
             
-            // If we found mangas with this selector, break to avoid duplicates
-            if !mangas.is_empty() {
-                break;
-            }
+            // Create manga entry
+            mangas.push(Manga {
+                key: key.clone(),
+                cover,
+                title,
+                authors: None,
+                artists: None,
+                description: None,
+                tags: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::LeftToRight,
+                chapters: None,
+                url: Some(helper::make_absolute_url("https://crunchyscan.fr", &url)),
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Always,
+            });
         }
     }
 
