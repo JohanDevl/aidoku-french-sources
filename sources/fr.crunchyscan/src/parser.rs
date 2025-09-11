@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
     ContentRating, Viewer, UpdateStrategy,
-    alloc::{String, Vec, vec, string::ToString},
+    alloc::{String, Vec, vec, string::ToString, format},
     imports::html::Document,
 };
 use core::cmp::Ordering;
@@ -144,6 +144,16 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 update_strategy: UpdateStrategy::Always,
             });
         }
+    }
+
+    // If no mangas found, it might be because the page is loaded dynamically
+    // This indicates we need to use the API instead of HTML parsing
+    if mangas.is_empty() {
+        // For now, return empty with no pagination to signal the issue
+        return Ok(MangaPageResult {
+            entries: mangas,
+            has_next_page: false,
+        });
     }
 
     // Check for pagination - following LelscanFR pattern
@@ -338,6 +348,157 @@ pub fn parse_page_list(html: Document) -> Result<Vec<Page>> {
     }
 
     Ok(pages)
+}
+
+pub fn parse_api_response(api_response: &str) -> Result<MangaPageResult> {
+    let mut mangas = Vec::new();
+    
+    // Simple JSON parsing without serde for the API response
+    // Look for "data" array containing manga objects
+    if let Some(data_start) = api_response.find("\"data\":[") {
+        let data_content = &api_response[data_start + 8..];
+        
+        // Find individual manga objects within the data array
+        let mut current_pos = 0;
+        while let Some(obj_start) = data_content[current_pos..].find("{\"id\":") {
+            let absolute_start = current_pos + obj_start;
+            
+            // Find the end of this object by counting braces
+            let mut brace_count = 0;
+            let mut obj_end = absolute_start;
+            let chars: Vec<char> = data_content.chars().collect();
+            
+            for (i, &ch) in chars[absolute_start..].iter().enumerate() {
+                match ch {
+                    '{' => brace_count += 1,
+                    '}' => {
+                        brace_count -= 1;
+                        if brace_count == 0 {
+                            obj_end = absolute_start + i;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            
+            if obj_end > absolute_start {
+                let obj_str = &data_content[absolute_start..=obj_end];
+                
+                // Extract manga data from this object
+                if let (Some(name), Some(slug)) = (extract_json_string(obj_str, "name"), extract_json_string(obj_str, "slug")) {
+                    let cover_url = extract_json_string(obj_str, "cover_url");
+                    let description = extract_json_string(obj_str, "synopsis");
+                    let manga_type = extract_json_string(obj_str, "type").unwrap_or_default();
+                    
+                    let cover = if let Some(cover) = cover_url {
+                        if cover.starts_with("http") {
+                            Some(cover)
+                        } else {
+                            Some(helper::make_absolute_url("https://crunchyscan.fr", &cover))
+                        }
+                    } else {
+                        None
+                    };
+                    
+                    // Determine status from type or other fields
+                    let status = if manga_type.to_lowercase().contains("ongoing") {
+                        MangaStatus::Ongoing
+                    } else if manga_type.to_lowercase().contains("completed") {
+                        MangaStatus::Completed
+                    } else {
+                        MangaStatus::Unknown
+                    };
+                    
+                    mangas.push(Manga {
+                        key: slug.clone(),
+                        cover,
+                        title: name,
+                        authors: None,
+                        artists: None,
+                        description,
+                        tags: None,
+                        status,
+                        content_rating: ContentRating::Safe,
+                        viewer: Viewer::LeftToRight,
+                        chapters: None,
+                        url: Some(helper::build_manga_url(&slug)),
+                        next_update_time: None,
+                        update_strategy: UpdateStrategy::Always,
+                    });
+                }
+            }
+            
+            current_pos = obj_end + 1;
+        }
+    }
+    
+    // Check for pagination info
+    let has_more = check_api_pagination(api_response);
+    
+    Ok(MangaPageResult {
+        entries: mangas,
+        has_next_page: has_more,
+    })
+}
+
+// Helper function to extract string values from JSON
+fn extract_json_string(json: &str, key: &str) -> Option<String> {
+    let pattern = &format!("\"{}\":\"", key);
+    if let Some(start) = json.find(pattern) {
+        let value_start = start + pattern.len();
+        if let Some(end) = json[value_start..].find("\"") {
+            let value = &json[value_start..value_start + end];
+            // Unescape basic JSON escape sequences
+            let unescaped = value.replace("\\\"", "\"").replace("\\\\", "\\").replace("\\/", "/");
+            return Some(unescaped);
+        }
+    }
+    None
+}
+
+// Helper function to check pagination in API response
+fn check_api_pagination(json: &str) -> bool {
+    // Look for pagination info like "current_page", "last_page", etc.
+    if let (Some(current), Some(last)) = (extract_json_number(json, "current_page"), extract_json_number(json, "last_page")) {
+        return current < last;
+    }
+    
+    // Fallback: check if there are exactly 24 mangas (typical page size)
+    if json.matches("\"id\":").count() >= 24 {
+        return true;
+    }
+    
+    false
+}
+
+// Helper function to extract number values from JSON
+fn extract_json_number(json: &str, key: &str) -> Option<i32> {
+    let pattern = &format!("\"{}\":", key);
+    if let Some(start) = json.find(pattern) {
+        let value_start = start + pattern.len();
+        let remaining = &json[value_start..];
+        
+        // Skip whitespace
+        let trimmed = remaining.trim_start();
+        
+        // Find where the number ends
+        let mut end = 0;
+        for (i, ch) in trimmed.chars().enumerate() {
+            if ch.is_ascii_digit() || ch == '-' {
+                end = i + 1;
+            } else {
+                break;
+            }
+        }
+        
+        if end > 0 {
+            if let Ok(num) = trimmed[..end].parse::<i32>() {
+                return Some(num);
+            }
+        }
+    }
+    None
 }
 
 pub fn search_manga(search_json: &str) -> Result<MangaPageResult> {

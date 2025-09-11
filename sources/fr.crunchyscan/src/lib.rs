@@ -3,7 +3,7 @@
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
     Manga, MangaPageResult, Page, Result, Source,
-    alloc::{String, Vec, format},
+    alloc::{String, Vec, format, vec, string::ToString},
     imports::{net::Request, html::Document},
     prelude::*,
 };
@@ -29,6 +29,13 @@ fn make_request(url: &str) -> Result<Document> {
         .header("Cache-Control", "max-age=0")
         .header("Referer", BASE_URL)
         .html()?)
+}
+
+// Simplified fallback - just return empty for now and focus on getting search to work
+fn make_api_request(_page: i32, _filters: &[FilterValue]) -> Result<String> {
+    // For now, return empty JSON to avoid compilation issues
+    // TODO: Implement proper API request once we understand the exact format needed
+    Ok("{\"data\":[]}".to_string())
 }
 
 pub struct CrunchyScan;
@@ -107,6 +114,11 @@ impl Source for CrunchyScan {
         let html = make_request(&url)?;
         let result = parser::parse_manga_list(html)?;
         
+        // If HTML parsing returned empty (dynamic content), try API
+        if result.entries.is_empty() {
+            let api_response = make_api_request(page, &filters)?;
+            return parser::parse_api_response(&api_response);
+        }
         
         Ok(result)
     }
@@ -155,6 +167,24 @@ impl ListingProvider for CrunchyScan {
         let html = make_request(&url)?;
         let result = parser::parse_manga_list(html)?;
         
+        // If HTML parsing returned empty (dynamic content), try API
+        if result.entries.is_empty() {
+            // Convert listing to filter for API request
+            let filters: Vec<FilterValue> = match listing.name.as_str() {
+                "Récents" => vec![FilterValue::Select { 
+                    id: "sort".to_string(), 
+                    value: "recent".to_string() 
+                }],
+                "Populaires" => vec![FilterValue::Select { 
+                    id: "sort".to_string(), 
+                    value: "popular".to_string() 
+                }],
+                _ => vec![],
+            };
+            
+            let api_response = make_api_request(page, &filters)?;
+            return parser::parse_api_response(&api_response);
+        }
         
         Ok(result)
     }
@@ -174,13 +204,19 @@ impl ImageRequestProvider for CrunchyScan {
 }
 
 impl CrunchyScan {
-    fn search_manga(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-        let encoded_query = helper::urlencode(query);
+    fn search_manga(&self, query: &str, _page: i32) -> Result<MangaPageResult> {
+        // Use the search API directly for text searches
+        let search_url = format!("{}/api/manga/search/manga/{}", BASE_URL, helper::urlencode(query));
         
-        // Simplified: Just use HTML search for now (API can be complex)
-        let search_url = format!("{}/catalog?search={}&page={}", BASE_URL, encoded_query, page);
-        let html = make_request(&search_url)?;
-        parser::parse_manga_list(html)
+        let search_response = Request::get(&search_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Referer", &format!("{}/catalog", BASE_URL))
+            .string()?;
+            
+        // Use the existing search_manga parser for the search API response
+        parser::search_manga(&search_response)
     }
 }
 
