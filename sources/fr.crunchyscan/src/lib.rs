@@ -14,28 +14,113 @@ mod parser;
 mod helper;
 
 pub static BASE_URL: &str = "https://crunchyscan.fr";
-pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
+pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-// Simple HTTP request function - following SushiScans/MangasOrigines pattern
+// Enhanced HTTP request function with better Cloudflare bypass headers
 fn make_request(url: &str) -> Result<Document> {
     Ok(Request::get(url)?
         .header("User-Agent", USER_AGENT)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
         .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
         .header("Accept-Encoding", "gzip, deflate, br")
         .header("DNT", "1")
         .header("Connection", "keep-alive")
         .header("Upgrade-Insecure-Requests", "1")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-Site", "same-origin")
+        .header("Sec-Fetch-User", "?1")
         .header("Cache-Control", "max-age=0")
         .header("Referer", BASE_URL)
         .html()?)
 }
 
-// Simplified fallback - just return empty for now and focus on getting search to work
-fn make_api_request(_page: i32, _filters: &[FilterValue]) -> Result<String> {
-    // For now, return empty JSON to avoid compilation issues
-    // TODO: Implement proper API request once we understand the exact format needed
-    Ok("{\"data\":[]}".to_string())
+// API request function for the advanced search endpoint
+fn make_api_request(page: i32, filters: &[FilterValue]) -> Result<String> {
+    let mut body = format!("page={}", page);
+    
+    // Add default parameters that the site expects
+    body.push_str("&sort=created_at&order=desc");
+    
+    // Add filters from the parameters
+    for filter in filters {
+        match filter {
+            FilterValue::Select { id, value } => {
+                if !value.is_empty() && value != "Tout" && value != "Any" {
+                    match id.as_str() {
+                        "type" => {
+                            let api_type = match value.as_str() {
+                                "Manga" => "manga",
+                                "Manhwa" => "manhwa", 
+                                "Manhua" => "manhua",
+                                _ => &value.to_lowercase(),
+                            };
+                            body.push_str(&format!("&type={}", api_type));
+                        }
+                        "status" => {
+                            let api_status = match value.as_str() {
+                                "En cours" => "ongoing",
+                                "Terminé" => "completed",
+                                "Abandonné" => "dropped",
+                                _ => &value.to_lowercase(),
+                            };
+                            body.push_str(&format!("&status={}", api_status));
+                        }
+                        "genres" => {
+                            body.push_str(&format!("&genre={}", helper::urlencode(value)));
+                        }
+                        "sort" => {
+                            if value == "recent" {
+                                body = body.replace("sort=created_at", "sort=updated_at");
+                            } else if value == "popular" {
+                                body = body.replace("sort=created_at", "sort=views");
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    // Try to make the API request with enhanced headers to bypass Cloudflare
+    let request = Request::post(&format!("{}/api/manga/search/advance", BASE_URL));
+    let response = match request {
+        Ok(req) => {
+            let req_with_body = req
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                .header("Referer", &format!("{}/catalog", BASE_URL))
+                .header("Origin", BASE_URL)
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("DNT", "1")
+                .header("Connection", "keep-alive")
+                .header("Sec-Fetch-Dest", "empty")
+                .header("Sec-Fetch-Mode", "cors")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .body(body.as_bytes());
+                
+            match req_with_body.string() {
+                Ok(resp) => resp,
+                Err(_) => {
+                    // If API fails, return empty data (fallback)
+                    "{\"data\":[],\"current_page\":1,\"last_page\":1}".to_string()
+                }
+            }
+        },
+        Err(_) => {
+            // If request creation fails, return empty data
+            "{\"data\":[],\"current_page\":1,\"last_page\":1}".to_string()
+        }
+    };
+        
+    Ok(response)
 }
 
 pub struct CrunchyScan;
