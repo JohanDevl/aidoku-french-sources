@@ -1,6 +1,6 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-    ContentRating, Viewer, UpdateStrategy,
+    ContentRating, Viewer, UpdateStrategy, println,
     alloc::{String, Vec, vec, string::ToString},
     imports::html::Document,
 };
@@ -9,31 +9,38 @@ extern crate alloc;
 use crate::helper;
 
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
+    println!("[CrunchyScan] Starting parse_manga_list");
     let mut mangas: Vec<Manga> = Vec::new();
 
     // Use the correct container selector from the website analysis
+    println!("[CrunchyScan] Selecting elements with: #advanced_manga_containter .flex.flex-col.w-full.gap-3");
     if let Some(manga_elements) = html.select("#advanced_manga_containter .flex.flex-col.w-full.gap-3") {
-        for item in manga_elements {
+        println!("[CrunchyScan] Found manga elements (count will be shown during processing)");
+        for (index, item) in manga_elements.enumerate() {
+            println!("[CrunchyScan] Processing manga item {}", index);
             // Find the main manga link with "Lire le manga" text
             if let Some(link) = item.select("a[href*='/lecture-en-ligne/']").and_then(|list| list.first()) {
                 let url = link.attr("href").unwrap_or_default();
+                println!("[CrunchyScan] Found URL: {}", url);
                 if url.is_empty() {
+                    println!("[CrunchyScan] Empty URL, skipping");
                     continue;
                 }
                 
                 // Extract title from link text, removing the "Lire le manga " prefix
-                let title = link.text()
-                    .unwrap_or_default()
-                    .replace("Lire le manga ", "")
-                    .trim()
-                    .to_string();
+                let raw_title = link.text().unwrap_or_default();
+                let title = raw_title.replace("Lire le manga ", "").trim().to_string();
+                println!("[CrunchyScan] Raw title: '{}', cleaned title: '{}'", raw_title, title);
                 
                 if title.is_empty() {
+                    println!("[CrunchyScan] Empty title, skipping");
                     continue;
                 }
                 
                 let slug = helper::extract_slug_from_url(&url);
+                println!("[CrunchyScan] Extracted slug: '{}'", slug);
                 if slug.is_empty() {
+                    println!("[CrunchyScan] Empty slug, skipping");
                     continue;
                 }
                 
@@ -60,6 +67,7 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     String::new()
                 };
 
+                println!("[CrunchyScan] Successfully created manga: {}", title);
                 mangas.push(Manga {
                     key: slug.clone(),
                     cover,
@@ -76,11 +84,39 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                     next_update_time: None,
                     update_strategy: UpdateStrategy::Always,
                 });
+            } else {
+                println!("[CrunchyScan] No manga link found in item {}", index);
             }
+        }
+    } else {
+        println!("[CrunchyScan] No manga elements found with selector!");
+        
+        // Try alternative selectors for debugging
+        if let Some(container) = html.select("#advanced_manga_containter") {
+            let mut container_count = 0;
+            for _ in container {
+                container_count += 1;
+            }
+            println!("[CrunchyScan] Found container, children count: {}", container_count);
+        } else {
+            println!("[CrunchyScan] Container #advanced_manga_containter not found!");
+        }
+        
+        // Try to find any elements with lecture-en-ligne links
+        if let Some(lecture_links) = html.select("a[href*='/lecture-en-ligne/']") {
+            let mut links_count = 0;
+            for _ in lecture_links {
+                links_count += 1;
+            }
+            println!("[CrunchyScan] Found {} lecture-en-ligne links total", links_count);
+        } else {
+            println!("[CrunchyScan] No lecture-en-ligne links found at all!");
         }
     }
 
     let has_more = check_pagination(&html);
+    
+    println!("[CrunchyScan] Final result: {} mangas found, has_next_page: {}", mangas.len(), has_more);
 
     Ok(MangaPageResult {
         entries: mangas,

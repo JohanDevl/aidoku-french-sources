@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, Result, Source,
+    Manga, MangaPageResult, Page, Result, Source, println,
     alloc::{String, Vec, format},
     imports::net::Request,
 };
@@ -28,13 +28,16 @@ impl Source for CrunchyScan {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
+        println!("[CrunchyScan] get_search_manga_list called with page: {}", page);
         if let Some(search_query) = query {
             if !search_query.is_empty() {
+                println!("[CrunchyScan] Using search for query: '{}'", search_query);
                 return self.search_manga(&search_query, page);
             }
         }
 
         let mut url = format!("{}/catalog", BASE_URL);
+        println!("[CrunchyScan] Base catalog URL: {}", url);
         
         if page > 1 {
             url.push_str(&format!("?page={}", page));
@@ -88,6 +91,8 @@ impl Source for CrunchyScan {
             }
         }
 
+        println!("[CrunchyScan] Final URL: {}", url);
+        println!("[CrunchyScan] Making HTTP request...");
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -100,6 +105,7 @@ impl Source for CrunchyScan {
             .header("Upgrade-Insecure-Requests", "1")
             .html()?;
         
+        println!("[CrunchyScan] HTTP request successful, parsing HTML...");
         parser::parse_manga_list(html)
     }
 
@@ -168,12 +174,15 @@ impl Source for CrunchyScan {
 
 impl ListingProvider for CrunchyScan {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+        println!("[CrunchyScan] get_manga_list called with listing: '{}', page: {}", listing.name, page);
         let url = match listing.name.as_str() {
             "Récents" => format!("{}/catalog?sort=recent&page={}", BASE_URL, page),
             "Populaires" => format!("{}/catalog?sort=popular&page={}", BASE_URL, page),
             _ => format!("{}/catalog?page={}", BASE_URL, page),
         };
 
+        println!("[CrunchyScan] Listing URL: {}", url);
+        println!("[CrunchyScan] Making listing HTTP request...");
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
@@ -186,6 +195,7 @@ impl ListingProvider for CrunchyScan {
             .header("Upgrade-Insecure-Requests", "1")
             .html()?;
         
+        println!("[CrunchyScan] Listing HTTP request successful, parsing HTML...");
         parser::parse_manga_list(html)
     }
 }
