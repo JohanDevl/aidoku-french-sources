@@ -14,23 +14,18 @@ mod parser;
 mod helper;
 
 pub static BASE_URL: &str = "https://crunchyscan.fr";
-pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 
-// Enhanced HTTP request function with better Cloudflare bypass headers
+// Simple HTTP request function following other sources' pattern
 fn make_request(url: &str) -> Result<Document> {
     Ok(Request::get(url)?
         .header("User-Agent", USER_AGENT)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
         .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
         .header("Accept-Encoding", "gzip, deflate, br")
         .header("DNT", "1")
         .header("Connection", "keep-alive")
         .header("Upgrade-Insecure-Requests", "1")
-        .header("Sec-Fetch-Dest", "document")
-        .header("Sec-Fetch-Mode", "navigate")
-        .header("Sec-Fetch-Site", "same-origin")
-        .header("Sec-Fetch-User", "?1")
-        .header("Cache-Control", "max-age=0")
         .header("Referer", BASE_URL)
         .html()?)
 }
@@ -84,7 +79,7 @@ fn make_api_request(page: i32, filters: &[FilterValue]) -> Result<String> {
         }
     }
     
-    // Try to make the API request with enhanced headers to bypass Cloudflare
+    // Try to make the API request with simple headers following other sources' pattern
     let request = Request::post(&format!("{}/api/manga/search/advance", BASE_URL));
     let response = match request {
         Ok(req) => {
@@ -93,17 +88,12 @@ fn make_api_request(page: i32, filters: &[FilterValue]) -> Result<String> {
                 .header("Accept", "application/json, text/plain, */*")
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                 .header("Accept-Encoding", "gzip, deflate, br")
-                .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Referer", &format!("{}/catalog", BASE_URL))
                 .header("Origin", BASE_URL)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .header("DNT", "1")
                 .header("Connection", "keep-alive")
-                .header("Sec-Fetch-Dest", "empty")
-                .header("Sec-Fetch-Mode", "cors")
-                .header("Sec-Fetch-Site", "same-origin")
-                .header("Cache-Control", "no-cache")
-                .header("Pragma", "no-cache")
                 .body(body.as_bytes());
                 
             match req_with_body.string() {
