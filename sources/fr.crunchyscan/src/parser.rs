@@ -11,9 +11,21 @@ use crate::helper;
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     
-    // Target the specific manga container structure
+    // Target the specific manga container structure (with typo "containter")
     if let Some(manga_container) = html.select("#advanced_manga_containter") {
         if let Some(manga_items) = manga_container.first() {
+            // Check if container only contains loading spinner
+            if let Some(loading_content) = manga_items.select("p.loadingContent") {
+                if !loading_content.is_empty() {
+                    // Container has loading content, this means dynamic loading is still happening
+                    // Return empty result to trigger API fallback
+                    return Ok(MangaPageResult {
+                        entries: Vec::new(),
+                        has_next_page: false,
+                    });
+                }
+            }
+            
             if let Some(manga_divs) = manga_items.select("div.flex.flex-col.w-full.gap-3") {
                 for manga_div in manga_divs {
                     // Find the main manga link (not chapter links)
@@ -149,14 +161,81 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
         }
     }
 
-    // If no mangas found, it might be because the page is loaded dynamically
-    // This indicates we need to use the API instead of HTML parsing
+    // If no mangas found, try alternative selectors as fallback
     if mangas.is_empty() {
-        // For now, return empty with no pagination to signal the issue
-        return Ok(MangaPageResult {
-            entries: mangas,
-            has_next_page: false,
-        });
+        // Try alternative container selectors in case the structure changed
+        let alternative_selectors = [
+            "#advanced_manga_container", // Fix potential typo
+            ".grid.grid-cols-2", // Direct grid selector
+            "[class*='manga_container']", // Any class containing manga_container
+            ".manga-list", // Generic manga list class
+        ];
+        
+        for selector in &alternative_selectors {
+            if let Some(container) = html.select(selector) {
+                if let Some(container_elem) = container.first() {
+                    if let Some(manga_divs) = container_elem.select("div.flex.flex-col.w-full.gap-3") {
+                        for manga_div in manga_divs {
+                            if let Some(manga_links) = manga_div.select("a[href*='/lecture-en-ligne/']") {
+                                let mut main_link = None;
+                                for link in manga_links {
+                                    let href = link.attr("href").unwrap_or_default();
+                                    if !href.contains("/read/") && !href.contains("?") && !href.contains("#") {
+                                        main_link = Some(link);
+                                        break;
+                                    }
+                                }
+                                
+                                if let Some(main_link) = main_link {
+                                    let url = main_link.attr("href").unwrap_or_default();
+                                    let key = helper::extract_slug_from_url(&url);
+                                    
+                                    if !key.is_empty() {
+                                        // Use simplified parsing for fallback
+                                        let title = main_link.attr("title")
+                                            .unwrap_or_default()
+                                            .replace("Lire le manga ", "")
+                                            .trim()
+                                            .to_string();
+                                        
+                                        if !title.is_empty() {
+                                            mangas.push(Manga {
+                                                key: key.clone(),
+                                                cover: None,
+                                                title,
+                                                authors: None,
+                                                artists: None,
+                                                description: None,
+                                                tags: None,
+                                                status: MangaStatus::Unknown,
+                                                content_rating: ContentRating::Safe,
+                                                viewer: Viewer::LeftToRight,
+                                                chapters: None,
+                                                url: Some(helper::make_absolute_url("https://crunchyscan.fr", &url)),
+                                                next_update_time: None,
+                                                update_strategy: UpdateStrategy::Always,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // If we found any mangas with this selector, break and use them
+                if !mangas.is_empty() {
+                    break;
+                }
+            }
+        }
+        
+        // If still no mangas found, return empty to trigger API fallback
+        if mangas.is_empty() {
+            return Ok(MangaPageResult {
+                entries: mangas,
+                has_next_page: false,
+            });
+        }
     }
 
     // Check for pagination - following LelscanFR pattern

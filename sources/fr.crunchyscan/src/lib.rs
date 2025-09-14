@@ -14,18 +14,26 @@ mod parser;
 mod helper;
 
 pub static BASE_URL: &str = "https://crunchyscan.fr";
-pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
+pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
-// Simple HTTP request function following other sources' pattern
+// Enhanced HTTP request function with anti-Cloudflare headers
 fn make_request(url: &str) -> Result<Document> {
     Ok(Request::get(url)?
         .header("User-Agent", USER_AGENT)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-        .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+        .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+        .header("Accept-Encoding", "gzip, deflate, br, zstd")
+        .header("Cache-Control", "max-age=0")
         .header("DNT", "1")
         .header("Connection", "keep-alive")
         .header("Upgrade-Insecure-Requests", "1")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-Site", "none")
+        .header("Sec-Fetch-User", "?1")
+        .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
+        .header("Sec-CH-UA-Mobile", "?0")
+        .header("Sec-CH-UA-Platform", "\"Windows\"")
         .header("Referer", BASE_URL)
         .html()?)
 }
@@ -79,21 +87,28 @@ fn make_api_request(page: i32, filters: &[FilterValue]) -> Result<String> {
         }
     }
     
-    // Try to make the API request with simple headers following other sources' pattern
+    // Enhanced API request with anti-Cloudflare headers
     let request = Request::post(&format!("{}/api/manga/search/advance", BASE_URL));
     let response = match request {
         Ok(req) => {
             let req_with_body = req
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "application/json, text/plain, */*")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Accept-Encoding", "gzip, deflate, br, zstd")
                 .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Cache-Control", "no-cache")
                 .header("Referer", &format!("{}/catalog", BASE_URL))
                 .header("Origin", BASE_URL)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .header("DNT", "1")
                 .header("Connection", "keep-alive")
+                .header("Sec-Fetch-Dest", "empty")
+                .header("Sec-Fetch-Mode", "cors")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
+                .header("Sec-CH-UA-Mobile", "?0")
+                .header("Sec-CH-UA-Platform", "\"Windows\"")
                 .body(body.as_bytes());
                 
             match req_with_body.string() {
@@ -186,16 +201,21 @@ impl Source for CrunchyScan {
             }
         }
 
-        let html = make_request(&url)?;
-        let result = parser::parse_manga_list(html)?;
+        // Try API first as it's more reliable for modern sites with dynamic content
+        let api_response = make_api_request(page, &filters)?;
+        let api_result = parser::parse_api_response(&api_response)?;
         
-        // If HTML parsing returned empty (dynamic content), try API
-        if result.entries.is_empty() {
-            let api_response = make_api_request(page, &filters)?;
-            return parser::parse_api_response(&api_response);
+        // If API returned mangas, use those
+        if !api_result.entries.is_empty() {
+            return Ok(api_result);
         }
         
-        Ok(result)
+        // If API failed or returned empty, fallback to HTML parsing
+        let html = make_request(&url)?;
+        let html_result = parser::parse_manga_list(html)?;
+        
+        // Return HTML result (empty or with content)
+        Ok(html_result)
     }
 
     fn get_manga_update(
@@ -239,29 +259,33 @@ impl ListingProvider for CrunchyScan {
             _ => format!("{}/catalog?page={}", BASE_URL, page),
         };
 
-        let html = make_request(&url)?;
-        let result = parser::parse_manga_list(html)?;
+        // Convert listing to filter for API request
+        let filters: Vec<FilterValue> = match listing.name.as_str() {
+            "Récents" => vec![FilterValue::Select { 
+                id: "sort".to_string(), 
+                value: "recent".to_string() 
+            }],
+            "Populaires" => vec![FilterValue::Select { 
+                id: "sort".to_string(), 
+                value: "popular".to_string() 
+            }],
+            _ => vec![],
+        };
         
-        // If HTML parsing returned empty (dynamic content), try API
-        if result.entries.is_empty() {
-            // Convert listing to filter for API request
-            let filters: Vec<FilterValue> = match listing.name.as_str() {
-                "Récents" => vec![FilterValue::Select { 
-                    id: "sort".to_string(), 
-                    value: "recent".to_string() 
-                }],
-                "Populaires" => vec![FilterValue::Select { 
-                    id: "sort".to_string(), 
-                    value: "popular".to_string() 
-                }],
-                _ => vec![],
-            };
-            
-            let api_response = make_api_request(page, &filters)?;
-            return parser::parse_api_response(&api_response);
+        // Try API first for consistency
+        let api_response = make_api_request(page, &filters)?;
+        let api_result = parser::parse_api_response(&api_response)?;
+        
+        // If API returned mangas, use those
+        if !api_result.entries.is_empty() {
+            return Ok(api_result);
         }
         
-        Ok(result)
+        // Fallback to HTML parsing
+        let html = make_request(&url)?;
+        let html_result = parser::parse_manga_list(html)?;
+        
+        Ok(html_result)
     }
 }
 
@@ -286,7 +310,17 @@ impl CrunchyScan {
         let search_response = Request::get(&search_url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+            .header("Accept-Encoding", "gzip, deflate, br, zstd")
+            .header("Cache-Control", "no-cache")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Sec-Fetch-Dest", "empty")
+            .header("Sec-Fetch-Mode", "cors")
+            .header("Sec-Fetch-Site", "same-origin")
+            .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
+            .header("Sec-CH-UA-Mobile", "?0")
+            .header("Sec-CH-UA-Platform", "\"Windows\"")
             .header("Referer", &format!("{}/catalog", BASE_URL))
             .string()?;
             
