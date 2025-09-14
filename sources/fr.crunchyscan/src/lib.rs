@@ -38,95 +38,6 @@ fn make_request(url: &str) -> Result<Document> {
         .html()?)
 }
 
-// API request function for the advanced search endpoint
-fn make_api_request(page: i32, filters: &[FilterValue]) -> Result<String> {
-    let mut body = format!("page={}", page);
-    
-    // Add default parameters that the site expects
-    body.push_str("&sort=created_at&order=desc");
-    
-    // Add filters from the parameters
-    for filter in filters {
-        match filter {
-            FilterValue::Select { id, value } => {
-                if !value.is_empty() && value != "Tout" && value != "Any" {
-                    match id.as_str() {
-                        "type" => {
-                            let api_type = match value.as_str() {
-                                "Manga" => "manga",
-                                "Manhwa" => "manhwa", 
-                                "Manhua" => "manhua",
-                                _ => &value.to_lowercase(),
-                            };
-                            body.push_str(&format!("&type={}", api_type));
-                        }
-                        "status" => {
-                            let api_status = match value.as_str() {
-                                "En cours" => "ongoing",
-                                "Terminé" => "completed",
-                                "Abandonné" => "dropped",
-                                _ => &value.to_lowercase(),
-                            };
-                            body.push_str(&format!("&status={}", api_status));
-                        }
-                        "genres" => {
-                            body.push_str(&format!("&genre={}", helper::urlencode(value)));
-                        }
-                        "sort" => {
-                            if value == "recent" {
-                                body = body.replace("sort=created_at", "sort=updated_at");
-                            } else if value == "popular" {
-                                body = body.replace("sort=created_at", "sort=views");
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    
-    // Enhanced API request with anti-Cloudflare headers
-    let request = Request::post(&format!("{}/api/manga/search/advance", BASE_URL));
-    let response = match request {
-        Ok(req) => {
-            let req_with_body = req
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "application/json, text/plain, */*")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-                .header("Accept-Encoding", "gzip, deflate, br, zstd")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Cache-Control", "no-cache")
-                .header("Referer", &format!("{}/catalog", BASE_URL))
-                .header("Origin", BASE_URL)
-                .header("X-Requested-With", "XMLHttpRequest")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
-                .header("Sec-Fetch-Dest", "empty")
-                .header("Sec-Fetch-Mode", "cors")
-                .header("Sec-Fetch-Site", "same-origin")
-                .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
-                .header("Sec-CH-UA-Mobile", "?0")
-                .header("Sec-CH-UA-Platform", "\"Windows\"")
-                .body(body.as_bytes());
-                
-            match req_with_body.string() {
-                Ok(resp) => resp,
-                Err(_) => {
-                    // If API fails, return empty data (fallback)
-                    "{\"data\":[],\"current_page\":1,\"last_page\":1}".to_string()
-                }
-            }
-        },
-        Err(_) => {
-            // If request creation fails, return empty data
-            "{\"data\":[],\"current_page\":1,\"last_page\":1}".to_string()
-        }
-    };
-        
-    Ok(response)
-}
 
 pub struct CrunchyScan;
 
@@ -201,21 +112,9 @@ impl Source for CrunchyScan {
             }
         }
 
-        // Try API first as it's more reliable for modern sites with dynamic content
-        let api_response = make_api_request(page, &filters)?;
-        let api_result = parser::parse_api_response(&api_response)?;
-        
-        // If API returned mangas, use those
-        if !api_result.entries.is_empty() {
-            return Ok(api_result);
-        }
-        
-        // If API failed or returned empty, fallback to HTML parsing
+        // Direct HTML parsing (API has CSRF issues)
         let html = make_request(&url)?;
-        let html_result = parser::parse_manga_list(html)?;
-        
-        // Return HTML result (empty or with content)
-        Ok(html_result)
+        parser::parse_manga_list(html)
     }
 
     fn get_manga_update(
@@ -259,8 +158,8 @@ impl ListingProvider for CrunchyScan {
             _ => format!("{}/catalog?page={}", BASE_URL, page),
         };
 
-        // Convert listing to filter for API request
-        let filters: Vec<FilterValue> = match listing.name.as_str() {
+        // Convert listing to filter for API request (not used anymore but kept for future)
+        let _filters: Vec<FilterValue> = match listing.name.as_str() {
             "Récents" => vec![FilterValue::Select { 
                 id: "sort".to_string(), 
                 value: "recent".to_string() 
@@ -272,20 +171,9 @@ impl ListingProvider for CrunchyScan {
             _ => vec![],
         };
         
-        // Try API first for consistency
-        let api_response = make_api_request(page, &filters)?;
-        let api_result = parser::parse_api_response(&api_response)?;
-        
-        // If API returned mangas, use those
-        if !api_result.entries.is_empty() {
-            return Ok(api_result);
-        }
-        
-        // Fallback to HTML parsing
+        // Direct HTML parsing (API has CSRF issues)
         let html = make_request(&url)?;
-        let html_result = parser::parse_manga_list(html)?;
-        
-        Ok(html_result)
+        parser::parse_manga_list(html)
     }
 }
 
@@ -303,29 +191,12 @@ impl ImageRequestProvider for CrunchyScan {
 }
 
 impl CrunchyScan {
-    fn search_manga(&self, query: &str, _page: i32) -> Result<MangaPageResult> {
-        // Use the search API directly for text searches
-        let search_url = format!("{}/api/manga/search/manga/{}", BASE_URL, helper::urlencode(query));
+    fn search_manga(&self, query: &str, page: i32) -> Result<MangaPageResult> {
+        // Use HTML search instead of API (API has CSRF issues)
+        let search_url = format!("{}/catalog?title={}&page={}", BASE_URL, helper::urlencode(query), page);
         
-        let search_response = Request::get(&search_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
-            .header("Accept-Encoding", "gzip, deflate, br, zstd")
-            .header("Cache-Control", "no-cache")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Sec-Fetch-Dest", "empty")
-            .header("Sec-Fetch-Mode", "cors")
-            .header("Sec-Fetch-Site", "same-origin")
-            .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
-            .header("Sec-CH-UA-Mobile", "?0")
-            .header("Sec-CH-UA-Platform", "\"Windows\"")
-            .header("Referer", &format!("{}/catalog", BASE_URL))
-            .string()?;
-            
-        // Use the existing search_manga parser for the search API response
-        parser::search_manga(&search_response)
+        let html = make_request(&search_url)?;
+        parser::parse_manga_list(html)
     }
 }
 
