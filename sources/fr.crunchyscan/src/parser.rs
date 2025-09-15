@@ -1,6 +1,6 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-    ContentRating, Viewer, UpdateStrategy,
+    ContentRating, Viewer, UpdateStrategy, println,
     alloc::{String, Vec, vec, string::ToString},
     imports::html::Document,
 };
@@ -14,7 +14,9 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     // Debug: Check if we have a Cloudflare challenge or error page
     if let Some(title) = html.select("title").and_then(|list| list.first()) {
         let title_text = title.text().unwrap_or_default().to_lowercase();
+        println!("[CrunchyScan] Page title: {}", title_text);
         if title_text.contains("cloudflare") || title_text.contains("just a moment") || title_text.contains("checking") {
+            println!("[CrunchyScan] Cloudflare page detected, returning empty");
             // Return empty result if Cloudflare is blocking
             return Ok(MangaPageResult {
                 entries: vec![],
@@ -24,11 +26,13 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     }
     
     // Target the specific manga container structure
+    println!("[CrunchyScan] Looking for main container #advanced_manga_container");
     if let Some(manga_container) = html.select("#advanced_manga_container") {
         if let Some(manga_items) = manga_container.first() {
-            // No need to check for loading content anymore since we're not using API fallback
+            println!("[CrunchyScan] Found main container, looking for manga divs");
             
             if let Some(manga_divs) = manga_items.select("div.flex.flex-col.w-full.gap-3") {
+                println!("[CrunchyScan] Found manga divs container");
                 for manga_div in manga_divs {
                     // Find the main manga link (not chapter links)
                     if let Some(manga_links) = manga_div.select("a[href*='/lecture-en-ligne/']") {
@@ -165,6 +169,7 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 
     // If no mangas found, try alternative selectors as fallback
     if mangas.is_empty() {
+        println!("[CrunchyScan] No mangas found with main selector, trying fallback selectors");
         // Try alternative container selectors in case the structure changed
         let alternative_selectors = [
             "#advanced_manga_container", // Fixed typo version
@@ -180,8 +185,10 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
         ];
         
         for selector in &alternative_selectors {
+            println!("[CrunchyScan] Trying fallback selector: {}", selector);
             if let Some(container) = html.select(selector) {
                 if let Some(container_elem) = container.first() {
+                    println!("[CrunchyScan] Found container with selector: {}", selector);
                     // Try multiple div selectors for manga items
                     let manga_divs = container_elem.select("div.flex.flex-col.w-full.gap-3")
                         .or_else(|| container_elem.select("div.flex.flex-col"))
@@ -264,6 +271,8 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 
     // Check for pagination - following LelscanFR pattern
     let has_more = check_pagination(&html);
+    
+    println!("[CrunchyScan] Parsing completed: {} mangas found, has_next_page: {}", mangas.len(), has_more);
 
     Ok(MangaPageResult {
         entries: mangas,
