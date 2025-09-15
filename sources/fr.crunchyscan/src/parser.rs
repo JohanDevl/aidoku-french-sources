@@ -11,8 +11,20 @@ use crate::helper;
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     
-    // Target the specific manga container structure (with typo "containter")
-    if let Some(manga_container) = html.select("#advanced_manga_containter") {
+    // Debug: Check if we have a Cloudflare challenge or error page
+    if let Some(title) = html.select("title").and_then(|list| list.first()) {
+        let title_text = title.text().unwrap_or_default().to_lowercase();
+        if title_text.contains("cloudflare") || title_text.contains("just a moment") || title_text.contains("checking") {
+            // Return empty result if Cloudflare is blocking
+            return Ok(MangaPageResult {
+                entries: vec![],
+                has_next_page: false,
+            });
+        }
+    }
+    
+    // Target the specific manga container structure
+    if let Some(manga_container) = html.select("#advanced_manga_container") {
         if let Some(manga_items) = manga_container.first() {
             // No need to check for loading content anymore since we're not using API fallback
             
@@ -155,22 +167,44 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     if mangas.is_empty() {
         // Try alternative container selectors in case the structure changed
         let alternative_selectors = [
-            "#advanced_manga_container", // Fix potential typo
+            "#advanced_manga_container", // Fixed typo version
+            "#advanced_manga_containter", // Original typo version (in case it's intentional)
             ".grid.grid-cols-2", // Direct grid selector
+            ".grid", // Even more generic grid
             "[class*='manga_container']", // Any class containing manga_container
+            "[class*='manga']", // Any class containing manga
             ".manga-list", // Generic manga list class
+            "[id*='manga']", // Any ID containing manga
+            "main", // Main content area
+            ".container", // Generic container
         ];
         
         for selector in &alternative_selectors {
             if let Some(container) = html.select(selector) {
                 if let Some(container_elem) = container.first() {
-                    if let Some(manga_divs) = container_elem.select("div.flex.flex-col.w-full.gap-3") {
+                    // Try multiple div selectors for manga items
+                    let manga_divs = container_elem.select("div.flex.flex-col.w-full.gap-3")
+                        .or_else(|| container_elem.select("div.flex.flex-col"))
+                        .or_else(|| container_elem.select("div[class*='manga']"))
+                        .or_else(|| container_elem.select("div"));
+                    
+                    if let Some(manga_divs) = manga_divs {
                         for manga_div in manga_divs {
-                            if let Some(manga_links) = manga_div.select("a[href*='/lecture-en-ligne/']") {
+                            // Try multiple link selectors
+                            let manga_links = manga_div.select("a[href*='/lecture-en-ligne/']")
+                                .or_else(|| manga_div.select("a[href*='/manga/']"))
+                                .or_else(|| manga_div.select("a[href*='/series/']"))
+                                .or_else(|| manga_div.select("a"));
+                                
+                            if let Some(manga_links) = manga_links {
                                 let mut main_link = None;
                                 for link in manga_links {
                                     let href = link.attr("href").unwrap_or_default();
-                                    if !href.contains("/read/") && !href.contains("?") && !href.contains("#") {
+                                    // More flexible link validation
+                                    if !href.is_empty() && 
+                                       (href.contains("/lecture-en-ligne/") || href.contains("/manga/") || href.contains("/series/")) &&
+                                       !href.contains("/read/") && 
+                                       !href.contains("/chapter/") {
                                         main_link = Some(link);
                                         break;
                                     }

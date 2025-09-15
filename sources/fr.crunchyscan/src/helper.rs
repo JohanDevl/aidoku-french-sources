@@ -32,14 +32,26 @@ pub fn urlencode(string: &str) -> String {
 pub fn extract_slug_from_url(url: &str) -> String {
     let parts: Vec<&str> = url.split('/').collect();
     
-    // Find the position of "lecture-en-ligne" and get the next part
-    for (i, &part) in parts.iter().enumerate() {
-        if part == "lecture-en-ligne" && i + 1 < parts.len() {
-            let slug = parts[i + 1];
-            if !slug.is_empty() && !slug.contains('?') && !slug.contains('#') {
-                // Take only the part before any query parameters or fragments
-                return slug.split('?').next().unwrap_or(slug).split('#').next().unwrap_or(slug).to_string();
+    // Try multiple URL patterns
+    let patterns = ["lecture-en-ligne", "manga", "series"];
+    
+    for pattern in &patterns {
+        for (i, &part) in parts.iter().enumerate() {
+            if part == *pattern && i + 1 < parts.len() {
+                let slug = parts[i + 1];
+                if !slug.is_empty() && !slug.contains('?') && !slug.contains('#') {
+                    // Take only the part before any query parameters or fragments
+                    return slug.split('?').next().unwrap_or(slug).split('#').next().unwrap_or(slug).to_string();
+                }
             }
+        }
+    }
+    
+    // Fallback: try to extract any meaningful slug from the URL
+    if let Some(last_part) = parts.iter().rev().find(|&&part| !part.is_empty() && part != "index.html" && part != "index.php") {
+        let slug = last_part.split('?').next().unwrap_or(last_part).split('#').next().unwrap_or(last_part);
+        if !slug.is_empty() && slug.len() > 1 {
+            return slug.to_string();
         }
     }
     
