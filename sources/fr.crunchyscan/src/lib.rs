@@ -16,9 +16,16 @@ mod helper;
 pub static BASE_URL: &str = "https://crunchyscan.fr";
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
-// Enhanced HTTP request function with anti-Cloudflare headers
+// Enhanced HTTP request function with anti-Cloudflare headers and detailed error logging
 fn make_request(url: &str) -> Result<Document> {
-    Ok(Request::get(url)?
+    // Log the request URL for debugging
+    println!("[DEBUG] Requesting URL: {}", url);
+    
+    let request = Request::get(url)
+        .map_err(|e| {
+            println!("[ERROR] Failed to create request for {}: {:?}", url, e);
+            e
+        })?
         .header("User-Agent", USER_AGENT)
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
         .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
@@ -34,8 +41,46 @@ fn make_request(url: &str) -> Result<Document> {
         .header("Sec-CH-UA", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
         .header("Sec-CH-UA-Mobile", "?0")
         .header("Sec-CH-UA-Platform", "\"Windows\"")
-        .header("Referer", BASE_URL)
-        .html()?)
+        .header("Referer", BASE_URL);
+    
+    println!("[DEBUG] Headers set, executing request...");
+    
+    let result = request.html().map_err(|e| {
+        println!("[ERROR] HTTP request failed for {}: {:?}", url, e);
+        println!("[ERROR] Error type: {}", core::any::type_name_of_val(&e));
+        e
+    });
+    
+    match &result {
+        Ok(_) => println!("[DEBUG] Request successful for {}", url),
+        Err(e) => println!("[ERROR] Final error for {}: {:?}", url, e),
+    }
+    
+    Ok(result?)
+}
+
+// Simple test function with minimal headers to debug connectivity
+fn make_simple_request(url: &str) -> Result<Document> {
+    println!("[DEBUG] Making simple request to: {}", url);
+    
+    let request = Request::get(url)
+        .map_err(|e| {
+            println!("[ERROR] Failed to create simple request for {}: {:?}", url, e);
+            e
+        })?
+        .header("User-Agent", USER_AGENT);
+    
+    let result = request.html().map_err(|e| {
+        println!("[ERROR] Simple HTTP request failed for {}: {:?}", url, e);
+        e
+    });
+    
+    match &result {
+        Ok(_) => println!("[DEBUG] Simple request successful for {}", url),
+        Err(e) => println!("[ERROR] Simple request final error for {}: {:?}", url, e),
+    }
+    
+    Ok(result?)
 }
 
 
@@ -112,9 +157,31 @@ impl Source for CrunchyScan {
             }
         }
 
-        // Direct HTML parsing (API has CSRF issues)
-        let html = make_request(&url)?;
-        parser::parse_manga_list(html)
+        // Test with simple request first, then try full request
+        println!("[DEBUG] Testing connectivity with simple request...");
+        
+        // Try simple request first
+        match make_simple_request(&url) {
+            Ok(simple_html) => {
+                println!("[SUCCESS] Simple request worked, trying full request...");
+                match make_request(&url) {
+                    Ok(html) => {
+                        println!("[SUCCESS] Full request also worked");
+                        parser::parse_manga_list(html)
+                    },
+                    Err(e) => {
+                        println!("[WARNING] Full request failed, using simple request result: {:?}", e);
+                        parser::parse_manga_list(simple_html)
+                    }
+                }
+            },
+            Err(e) => {
+                println!("[ERROR] Even simple request failed: {:?}", e);
+                // Try once more with the full request as fallback
+                let html = make_request(&url)?;
+                parser::parse_manga_list(html)
+            }
+        }
     }
 
     fn get_manga_update(
@@ -124,7 +191,15 @@ impl Source for CrunchyScan {
         needs_chapters: bool,
     ) -> Result<Manga> {
         let url = helper::build_manga_url(&manga.key);
-        let html = make_request(&url)?;
+        println!("[DEBUG] Getting manga update for: {} (URL: {})", manga.key, url);
+        
+        let html = match make_request(&url) {
+            Ok(html) => html,
+            Err(e) => {
+                println!("[ERROR] Failed to get manga update for {}: {:?}", manga.key, e);
+                return Err(e);
+            }
+        };
 
         if needs_details {
             let details = parser::parse_manga_details(html, manga.key.clone())?;
@@ -136,7 +211,14 @@ impl Source for CrunchyScan {
         }
 
         if needs_chapters {
-            let chapter_html = make_request(&helper::build_manga_url(&manga.key))?;
+            println!("[DEBUG] Getting chapters for manga: {}", manga.key);
+            let chapter_html = match make_request(&helper::build_manga_url(&manga.key)) {
+                Ok(html) => html,
+                Err(e) => {
+                    println!("[ERROR] Failed to get chapters for {}: {:?}", manga.key, e);
+                    return Err(e);
+                }
+            };
             manga.chapters = Some(parser::parse_chapter_list(chapter_html, manga.key.clone())?);
         }
 
@@ -144,7 +226,15 @@ impl Source for CrunchyScan {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let html = make_request(&chapter.key)?;
+        println!("[DEBUG] Getting page list for chapter: {}", chapter.key);
+        
+        let html = match make_request(&chapter.key) {
+            Ok(html) => html,
+            Err(e) => {
+                println!("[ERROR] Failed to get page list for chapter {}: {:?}", chapter.key, e);
+                return Err(e);
+            }
+        };
         
         parser::parse_page_list(html)
     }
@@ -171,9 +261,31 @@ impl ListingProvider for CrunchyScan {
             _ => vec![],
         };
         
-        // Direct HTML parsing (API has CSRF issues)
-        let html = make_request(&url)?;
-        parser::parse_manga_list(html)
+        // Test with simple request first, then try full request
+        println!("[DEBUG] Testing listing connectivity with simple request...");
+        
+        // Try simple request first
+        match make_simple_request(&url) {
+            Ok(simple_html) => {
+                println!("[SUCCESS] Simple listing request worked, trying full request...");
+                match make_request(&url) {
+                    Ok(html) => {
+                        println!("[SUCCESS] Full listing request also worked");
+                        parser::parse_manga_list(html)
+                    },
+                    Err(e) => {
+                        println!("[WARNING] Full listing request failed, using simple request result: {:?}", e);
+                        parser::parse_manga_list(simple_html)
+                    }
+                }
+            },
+            Err(e) => {
+                println!("[ERROR] Even simple listing request failed: {:?}", e);
+                // Try once more with the full request as fallback
+                let html = make_request(&url)?;
+                parser::parse_manga_list(html)
+            }
+        }
     }
 }
 
@@ -194,8 +306,15 @@ impl CrunchyScan {
     fn search_manga(&self, query: &str, page: i32) -> Result<MangaPageResult> {
         // Use HTML search instead of API (API has CSRF issues)
         let search_url = format!("{}/catalog?title={}&page={}", BASE_URL, helper::urlencode(query), page);
+        println!("[DEBUG] Searching manga with query: '{}' on page {} (URL: {})", query, page, search_url);
         
-        let html = make_request(&search_url)?;
+        let html = match make_request(&search_url) {
+            Ok(html) => html,
+            Err(e) => {
+                println!("[ERROR] Failed to search manga with query '{}': {:?}", query, e);
+                return Err(e);
+            }
+        };
         parser::parse_manga_list(html)
     }
 }
