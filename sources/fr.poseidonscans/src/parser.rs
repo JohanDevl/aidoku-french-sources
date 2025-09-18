@@ -653,7 +653,130 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 		}
 	});
 
+	// Try to extract precise chapter dates from __NEXT_DATA__ (more reliable than HTML parsing)
+	if let Some(chapter_data) = extract_chapter_dates_from_nextdata(html) {
+		apply_chapter_dates_from_json(&mut chapters, &chapter_data);
+	} else {
+		// Fallback to HTML date extraction if __NEXT_DATA__ fails
+		extract_chapter_dates_from_html(&html, &mut chapters);
+	}
+
 	Ok(chapters)
+}
+
+// Extract chapter dates from __NEXT_DATA__ script tag (primary method)
+fn extract_chapter_dates_from_nextdata(html: &Document) -> Option<Vec<(i32, i64)>> {
+	let mut chapter_dates: Vec<(i32, i64)> = Vec::new();
+
+	// Look for script tags that might contain JSON data
+	if let Some(scripts) = html.select("script") {
+		for script in scripts {
+			if let Some(content) = script.data() {
+				// Skip empty scripts
+				if content.trim().is_empty() {
+					continue;
+				}
+
+				// Try to parse as JSON and find chapters data
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					if let Some(chapters_data) = find_chapters_in_json(&json_data) {
+						for chapter in chapters_data {
+							if let (Some(number), Some(created_at)) = (
+								chapter.get("number").and_then(|n| n.as_i64()).map(|n| n as i32),
+								chapter.get("createdAt").and_then(|d| parse_iso_date_from_nextdata(d))
+							) {
+								chapter_dates.push((number, created_at));
+							}
+						}
+						if !chapter_dates.is_empty() {
+							return Some(chapter_dates);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	None
+}
+
+// Find chapters array in nested JSON data
+fn find_chapters_in_json(json: &serde_json::Value) -> Option<&Vec<serde_json::Value>> {
+	// Try different specific paths first
+	if let Some(chapters) = json.pointer("/manga/chapters").and_then(|v| v.as_array()) {
+		return Some(chapters);
+	}
+	if let Some(chapters) = json.pointer("/chapters").and_then(|v| v.as_array()) {
+		return Some(chapters);
+	}
+	if let Some(chapters) = json.pointer("/data/chapters").and_then(|v| v.as_array()) {
+		return Some(chapters);
+	}
+
+	// Recursive search for any "chapters" key as fallback
+	find_chapters_recursive(json)
+}
+
+// Recursively search for chapters array in JSON
+fn find_chapters_recursive(json: &serde_json::Value) -> Option<&Vec<serde_json::Value>> {
+	match json {
+		serde_json::Value::Object(obj) => {
+			if let Some(chapters) = obj.get("chapters") {
+				if let Some(chapters_array) = chapters.as_array() {
+					return Some(chapters_array);
+				}
+			}
+			// Search recursively in all object values
+			for value in obj.values() {
+				if let Some(result) = find_chapters_recursive(value) {
+					return Some(result);
+				}
+			}
+		}
+		serde_json::Value::Array(arr) => {
+			// Search recursively in all array items
+			for item in arr {
+				if let Some(result) = find_chapters_recursive(item) {
+					return Some(result);
+				}
+			}
+		}
+		_ => {}
+	}
+	None
+}
+
+// Parse ISO date from __NEXT_DATA__ (handles $D prefix)
+fn parse_iso_date_from_nextdata(date_value: &serde_json::Value) -> Option<i64> {
+	if let Some(date_str) = date_value.as_str() {
+		// Handle Next.js date format like "$D2025-09-18T01:11:55.069Z"
+		let clean_date = if date_str.starts_with("$D") {
+			&date_str[2..]  // Remove "$D" prefix
+		} else {
+			date_str
+		};
+
+		// Parse ISO 8601 date
+		if let Some(timestamp) = parse_iso_date_string(clean_date) {
+			return Some(timestamp);
+		}
+	}
+	None
+}
+
+// Apply chapter dates from JSON data to chapters array
+fn apply_chapter_dates_from_json(chapters: &mut Vec<Chapter>, chapter_data: &[(i32, i64)]) {
+	for chapter in chapters {
+		if let Some(chapter_num) = chapter.chapter_number {
+			// Find matching chapter date
+			for &(json_chapter_num, timestamp) in chapter_data {
+				if json_chapter_num == (chapter_num as i32) {
+					chapter.date_uploaded = Some(timestamp);
+					break;
+				}
+			}
+		}
+	}
 }
 
 // Detect if a chapter is premium based on HTML indicators
