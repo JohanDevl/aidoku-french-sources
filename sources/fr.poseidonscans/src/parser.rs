@@ -710,7 +710,16 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 	}
 	
 	// Search in targeted elements likely to contain dates instead of all DOM elements
+	// Prioritize PoseidonScans-specific selectors based on response.html analysis
 	let date_selectors = &[
+		// PoseidonScans-specific date containers (highest priority)
+		"div.flex.items-center.gap-3.text-gray-400 span:last-child",
+		"div.flex.items-center.gap-1 span:last-child",
+		".text-gray-400 .flex.items-center.gap-1 span:last-child",
+		".text-xs.text-gray-400 span",
+		".text-sm.text-gray-400 span",
+
+		// Generic date selectors (fallback)
 		"time", ".date", ".time", ".timestamp", ".chapter-date",
 		"span", "div", "p", "small", ".text-sm", ".text-xs",
 		".chapter-item", ".chapter-link", "a[href*='/chapter/']"
@@ -742,7 +751,27 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 
 // Helper function to find chapter number in nearby elements (parent, siblings, children)
 fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Option<f32> {
-	// Look for href attributes in this element and its children
+	// Strategy 1: Look for chapter text patterns in preceding siblings
+	// This is specific to PoseidonScans where dates follow chapter titles
+	if let Some(parent) = element.parent() {
+		// Search in all children of the parent for chapter title patterns
+		if let Some(siblings) = parent.select("*") {
+			for sibling in siblings {
+				if let Some(text) = sibling.text() {
+					let text_clean = text.trim();
+					// Look for "Chapitre N" patterns common in PoseidonScans
+					if text_clean.contains("Chapitre") || text_clean.contains("Chapter") {
+						// Extract number after "Chapitre" or "Chapter"
+						if let Some(chapter_num) = extract_chapter_number_from_text(&text_clean) {
+							return Some(chapter_num);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Look for href attributes in this element and its children
 	if let Some(links) = element.select("a[href*='/chapter/'], *[href*='/chapter/']") {
 		for link in links {
 			if let Some(href) = link.attr("href") {
@@ -752,8 +781,8 @@ fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Optio
 			}
 		}
 	}
-	
-	// Also check if current element itself has href
+
+	// Strategy 3: Check if current element itself has href
 	if let Some(href) = element.attr("href") {
 		if !href.is_empty() {
 			if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
@@ -761,7 +790,7 @@ fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Optio
 			}
 		}
 	}
-	
+
 	None
 }
 
@@ -841,6 +870,46 @@ fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
 			}
 		}
 	}
+	None
+}
+
+// Extract chapter number from text like "Chapitre 9", "Chapter 42", etc.
+fn extract_chapter_number_from_text(text: &str) -> Option<f32> {
+	let text_lower = text.to_lowercase();
+
+	// Look for "chapitre" or "chapter" followed by a number
+	if let Some(chapitre_pos) = text_lower.find("chapitre") {
+		let after_chapitre = &text[chapitre_pos + 8..]; // "chapitre".len() = 8
+		// Skip whitespace and HTML comments
+		let cleaned = after_chapitre
+			.replace("<!-- -->", "")
+			.trim()
+			.to_string();
+
+		// Parse the first number found
+		for word in cleaned.split_whitespace() {
+			if let Ok(num) = word.parse::<f32>() {
+				if num > 0.0 && num < 10000.0 { // Reasonable range
+					return Some(num);
+				}
+			}
+		}
+	} else if let Some(chapter_pos) = text_lower.find("chapter") {
+		let after_chapter = &text[chapter_pos + 7..]; // "chapter".len() = 7
+		let cleaned = after_chapter
+			.replace("<!-- -->", "")
+			.trim()
+			.to_string();
+
+		for word in cleaned.split_whitespace() {
+			if let Ok(num) = word.parse::<f32>() {
+				if num > 0.0 && num < 10000.0 {
+					return Some(num);
+				}
+			}
+		}
+	}
+
 	None
 }
 
