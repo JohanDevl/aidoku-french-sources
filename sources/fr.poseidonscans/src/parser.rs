@@ -664,7 +664,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	Ok(chapters)
 }
 
-// Extract chapter dates from __NEXT_DATA__ script tag (primary method)
+// Extract chapter dates from Next.js scripts (primary method)
 fn extract_chapter_dates_from_nextdata(html: &Document) -> Option<Vec<(i32, i64)>> {
 	let mut chapter_dates: Vec<(i32, i64)> = Vec::new();
 
@@ -677,7 +677,17 @@ fn extract_chapter_dates_from_nextdata(html: &Document) -> Option<Vec<(i32, i64)
 					continue;
 				}
 
-				// Try to parse as JSON and find chapters data
+				// Method 1: Try Next.js RSC scripts with self.__next_f.push
+				if content.contains("self.__next_f.push") && content.contains("\"chapters\":[") {
+					if let Some(dates) = extract_json_from_nextjs_rsc(&content) {
+						chapter_dates.extend(dates);
+						if !chapter_dates.is_empty() {
+							return Some(chapter_dates);
+						}
+					}
+				}
+
+				// Method 2: Try classic __NEXT_DATA__ format
 				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
 					if let Some(chapters_data) = find_chapters_in_json(&json_data) {
 						for chapter in chapters_data {
@@ -691,6 +701,14 @@ fn extract_chapter_dates_from_nextdata(html: &Document) -> Option<Vec<(i32, i64)
 						if !chapter_dates.is_empty() {
 							return Some(chapter_dates);
 						}
+					}
+				}
+
+				// Method 3: Fallback regex extraction for dates
+				if let Some(dates) = extract_dates_with_regex(&content) {
+					chapter_dates.extend(dates);
+					if !chapter_dates.is_empty() {
+						return Some(chapter_dates);
 					}
 				}
 			}
@@ -764,6 +782,129 @@ fn parse_iso_date_from_nextdata(date_value: &serde_json::Value) -> Option<i64> {
 	None
 }
 
+// Extract JSON data from Next.js RSC scripts
+fn extract_json_from_nextjs_rsc(script_content: &str) -> Option<Vec<(i32, i64)>> {
+	let mut chapter_dates: Vec<(i32, i64)> = Vec::new();
+
+	// Look for the pattern self.__next_f.push([1, '...'])
+	if let Some(start) = script_content.find("self.__next_f.push([") {
+		let content_from_push = &script_content[start..];
+
+		// Find the JSON string inside the push call
+		if let Some(json_start) = content_from_push.find("'") {
+			let json_content = &content_from_push[json_start + 1..];
+
+			// Find the end of the JSON string
+			if let Some(json_end) = json_content.find("'") {
+				let json_str = &json_content[..json_end];
+
+				// Clean up the escaped JSON
+				let clean_json = json_str
+					.replace("\\\"", "\"")
+					.replace("\\\\", "\\");
+
+				// Look for manga object with chapters
+				if let Some(manga_start) = clean_json.find("\"manga\":{") {
+					let manga_section = &clean_json[manga_start..];
+
+					// Extract chapters array
+					if let Some(chapters_start) = manga_section.find("\"chapters\":[") {
+						let chapters_section = &manga_section[chapters_start + 12..]; // Skip "chapters":[
+
+						// Find the end of the chapters array
+						let mut bracket_count = 1;
+						let mut end_pos = 0;
+						let chars: Vec<char> = chapters_section.chars().collect();
+
+						for (i, ch) in chars.iter().enumerate() {
+							match ch {
+								'[' => bracket_count += 1,
+								']' => {
+									bracket_count -= 1;
+									if bracket_count == 0 {
+										end_pos = i;
+										break;
+									}
+								}
+								_ => {}
+							}
+						}
+
+						if end_pos > 0 {
+							let chapters_json = &chapters_section[..end_pos];
+
+							// Parse individual chapters using regex to be more robust
+							extract_chapter_dates_from_json_text(chapters_json, &mut chapter_dates);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if chapter_dates.is_empty() {
+		None
+	} else {
+		Some(chapter_dates)
+	}
+}
+
+// Extract chapter dates from JSON text using regex patterns
+fn extract_chapter_dates_from_json_text(json_text: &str, chapter_dates: &mut Vec<(i32, i64)>) {
+	use regex::Regex;
+
+	// Pattern to match chapter objects: {"id":"...","number":X,...,"createdAt":"$D...","...}
+	if let Ok(chapter_regex) = Regex::new(r#"\{"id":"[^"]+","number":(\d+)[^}]*"createdAt":"([^"]+)"[^}]*\}"#) {
+		for cap in chapter_regex.captures_iter(json_text) {
+			if let (Some(number_str), Some(date_str)) = (cap.get(1), cap.get(2)) {
+				if let Ok(number) = number_str.as_str().parse::<i32>() {
+					// Handle Next.js date format with $D prefix
+					let clean_date = if date_str.as_str().starts_with("$D") {
+						&date_str.as_str()[2..]
+					} else {
+						date_str.as_str()
+					};
+
+					if let Some(timestamp) = parse_iso_date_string(clean_date) {
+						chapter_dates.push((number, timestamp));
+					}
+				}
+			}
+		}
+	}
+}
+
+// Extract dates using regex fallback method
+fn extract_dates_with_regex(script_content: &str) -> Option<Vec<(i32, i64)>> {
+	use regex::Regex;
+	let mut chapter_dates: Vec<(i32, i64)> = Vec::new();
+
+	// Pattern to find chapter number and date pairs
+	if let Ok(regex) = Regex::new(r#""number":(\d+)[^}]*"createdAt":"(\$?D?[^"]+)""#) {
+		for cap in regex.captures_iter(script_content) {
+			if let (Some(number_str), Some(date_str)) = (cap.get(1), cap.get(2)) {
+				if let Ok(number) = number_str.as_str().parse::<i32>() {
+					let clean_date = if date_str.as_str().starts_with("$D") {
+						&date_str.as_str()[2..]
+					} else {
+						date_str.as_str()
+					};
+
+					if let Some(timestamp) = parse_iso_date_string(clean_date) {
+						chapter_dates.push((number, timestamp));
+					}
+				}
+			}
+		}
+	}
+
+	if chapter_dates.is_empty() {
+		None
+	} else {
+		Some(chapter_dates)
+	}
+}
+
 // Apply chapter dates from JSON data to chapters array
 fn apply_chapter_dates_from_json(chapters: &mut Vec<Chapter>, chapter_data: &[(i32, i64)]) {
 	for chapter in chapters {
@@ -835,15 +976,22 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 	// Search in targeted elements likely to contain dates instead of all DOM elements
 	// Prioritize PoseidonScans-specific selectors based on response.html analysis
 	let date_selectors = &[
-		// PoseidonScans-specific date containers (highest priority)
+		// PoseidonScans-specific date containers (highest priority from response.html)
+		"div.flex.items-center.gap-1.sm\\:gap-1\\.5 span:last-child",  // Main pattern
+		"div.flex.items-center.gap-1 span:last-child",  // Simplified gap pattern
+		".flex.items-center.gap-1 span:last-child",  // Flexible class match
+		".flex.items-center.gap-3 span:last-child",  // Alternative gap size
+		".flex.items-center span:last-child",  // Generic flex container
+
+		// Previous patterns kept for compatibility
 		"div.flex.items-center.gap-3.text-gray-400 span:last-child",
-		"div.flex.items-center.gap-1 span:last-child",
 		".text-gray-400 .flex.items-center.gap-1 span:last-child",
 		".text-xs.text-gray-400 span",
 		".text-sm.text-gray-400 span",
 
 		// Generic date selectors (fallback)
 		"time", ".date", ".time", ".timestamp", ".chapter-date",
+		"span[text*='heure']", "span[text*='jour']", "span[text*='mois']", "span[text*='semaine']",
 		"span", "div", "p", "small", ".text-sm", ".text-xs",
 		".chapter-item", ".chapter-link", "a[href*='/chapter/']"
 	];
