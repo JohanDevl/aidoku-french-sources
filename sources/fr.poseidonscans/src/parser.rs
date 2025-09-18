@@ -258,10 +258,49 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	let mut tags: Option<Vec<String>> = None;
 	let mut status = MangaStatus::Unknown;
 
-	// Extract title from page
-	if let Some(title_text) = html.select("h1").and_then(|els| els.first()).and_then(|el| el.text()) {
-		if !title_text.is_empty() {
-			title = title_text.trim().to_string();
+	// Extract title from page - try multiple selectors for robustness
+	let title_selectors = [
+		"h1",
+		"[data-testid=\"manga-title\"]",
+		".manga-title",
+		"h1.entry-title",
+		"meta[property=\"og:title\"]",
+		"title"
+	];
+
+	let mut title_found = false;
+	for selector in &title_selectors {
+		if let Some(title_element) = html.select(selector).and_then(|els| els.first()) {
+			let title_text = if selector.contains("meta") {
+				title_element.attr("content").map(|s| s.to_string()).unwrap_or_default()
+			} else if *selector == "title" {
+				// Extract from title tag, removing site name suffix
+				title_element.text().unwrap_or_default()
+					.replace(" | Poseidon Scans", "")
+					.replace("Lire ", "")
+					.replace(" scan VF / FR gratuit en ligne", "")
+					.trim()
+					.to_string()
+			} else {
+				title_element.text().unwrap_or_default().trim().to_string()
+			};
+
+			if !title_text.is_empty() && title_text != manga_key {
+				title = title_text;
+				title_found = true;
+				break;
+			}
+		}
+	}
+
+	// Try to extract from JSON-LD as additional fallback
+	if !title_found {
+		if let Ok(manga_data) = extract_jsonld_manga_details(html) {
+			if let Some(title_text) = manga_data.get("name").and_then(|t| t.as_str()) {
+				if !title_text.is_empty() && title_text != manga_key {
+					title = title_text.to_string();
+				}
+			}
 		}
 	}
 
@@ -302,7 +341,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 						let status_str = status_text.replace("Status:", "").trim().to_string();
 						if !status_str.is_empty() {
 							status = parse_manga_status(&status_str);
-							tag_list.push(status_str.clone());
 							_status_found = true;
 							break;
 						}
@@ -320,7 +358,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 					let status_str = status_text.trim().to_string();
 					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
 						status = parse_manga_status(&status_str);
-						tag_list.push(status_str);
 						_status_found = true;
 						break;
 					}
@@ -337,7 +374,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 					let status_str = status_text.trim().to_string();
 					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
 						status = parse_manga_status(&status_str);
-						tag_list.push(status_str);
 						break;
 					}
 				}
