@@ -259,8 +259,11 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	let mut status = MangaStatus::Unknown;
 
 	// Extract title from page - try multiple selectors for robustness
+	// Order matters: most specific selectors first to avoid sr-only elements
 	let title_selectors = [
-		"h1",
+		"h1.text-2xl.font-bold.text-white",  // Visible h1 with specific classes from PoseidonScans
+		"h1.font-bold.text-white",            // Alternative visible h1 pattern
+		"h1:not(.sr-only):not([class*=\"sr-only\"])",  // Any h1 that's not screen-reader-only
 		"[data-testid=\"manga-title\"]",
 		".manga-title",
 		"h1.entry-title",
@@ -271,7 +274,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	let mut title_found = false;
 	for selector in &title_selectors {
 		if let Some(title_element) = html.select(selector).and_then(|els| els.first()) {
-			let title_text = if selector.contains("meta") {
+			let mut title_text = if selector.contains("meta") {
 				title_element.attr("content").map(|s| s.to_string()).unwrap_or_default()
 			} else if *selector == "title" {
 				// Extract from title tag, removing site name suffix
@@ -285,7 +288,20 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 				title_element.text().unwrap_or_default().trim().to_string()
 			};
 
-			if !title_text.is_empty() && title_text != manga_key {
+			// Clean up any HTML comments or problematic content
+			title_text = title_text
+				.replace("<!-- -->", "")  // Remove HTML comments
+				.replace("Lire ", "")      // Remove "Lire" prefix if still present
+				.replace(" scan VF / FR gratuit en ligne", "")  // Remove suffix
+				.trim()
+				.to_string();
+
+			// Validate the title is not a placeholder or empty
+			if !title_text.is_empty()
+				&& title_text != manga_key
+				&& !title_text.starts_with("[Image")
+				&& !title_text.contains("#")
+				&& title_text.len() > 2 {
 				title = title_text;
 				title_found = true;
 				break;
