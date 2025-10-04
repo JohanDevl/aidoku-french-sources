@@ -27,6 +27,17 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                 continue;
             }
 
+            // Extract title from text content (not title attribute which includes "Lire le manga")
+            let title = link.text()
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+
+            // Skip links without title (usually image links)
+            if title.is_empty() {
+                continue;
+            }
+
             // Extract slug from URL: /lecture-en-ligne/manga-slug
             let key = href
                 .replace(BASE_URL, "")
@@ -36,16 +47,6 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                 .to_string();
 
             if key.is_empty() || seen_keys.contains(&key) {
-                continue;
-            }
-
-            // Extract title from text content (not title attribute which includes "Lire le manga")
-            let title = link.text()
-                .unwrap_or_default()
-                .trim()
-                .to_string();
-
-            if title.is_empty() {
                 continue;
             }
 
