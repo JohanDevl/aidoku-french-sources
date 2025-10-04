@@ -22,6 +22,11 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                 continue;
             }
 
+            // Skip chapter links (they contain /read/)
+            if href.contains("/read/") {
+                continue;
+            }
+
             // Extract slug from URL: /lecture-en-ligne/manga-slug
             let key = href
                 .replace(BASE_URL, "")
