@@ -67,10 +67,15 @@ jobs:
       - name: Build Online sources
         run: |
           for src in ./sources/*; do
-            (
-              cd "$src"
-              aidoku package
-            )
+            if [ -d "$src" ] && [ -f "$src/Cargo.toml" ]; then
+              echo "Building $(basename "$src")..."
+              (
+                cd "$src"
+                aidoku package
+              )
+            else
+              echo "Skipping $(basename "$src") - not a valid source directory"
+            fi
           done
       - name: Generate offline sources count
         run: |
