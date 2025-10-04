@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
+    Chapter, FilterValue, ImageRequestProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
     imports::net::Request,
@@ -105,29 +105,6 @@ impl Source for CrunchyScan {
     }
 }
 
-impl ListingProvider for CrunchyScan {
-    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let url = match listing.name.as_str() {
-            "Récents" => format!("{}/catalog?page={}", BASE_URL, page),
-            "Populaires" => format!("{}/catalog?page={}&order=popular", BASE_URL, page),
-            _ => format!("{}/catalog?page={}", BASE_URL, page),
-        };
-
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
-
-        parser::parse_manga_list(&html, page)
-    }
-}
-
 impl ImageRequestProvider for CrunchyScan {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
         Ok(Request::get(&url)?
@@ -136,4 +113,4 @@ impl ImageRequestProvider for CrunchyScan {
     }
 }
 
-register_source!(CrunchyScan, ListingProvider, ImageRequestProvider);
+register_source!(CrunchyScan, ImageRequestProvider);
