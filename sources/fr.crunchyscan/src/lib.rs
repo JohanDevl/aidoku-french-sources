@@ -29,15 +29,15 @@ impl Source for CrunchyScan {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        // Build search URL
+        // Build search URL - use /catalog for complete manga list
         let url = if let Some(search_query) = query {
             if !search_query.is_empty() {
-                format!("{}/?s={}&page={}", BASE_URL, helper::urlencode(&search_query), page)
+                format!("{}/catalog?s={}&page={}", BASE_URL, helper::urlencode(&search_query), page)
             } else {
-                format!("{}/?page={}", BASE_URL, page)
+                format!("{}/catalog?page={}", BASE_URL, page)
             }
         } else {
-            format!("{}/?page={}", BASE_URL, page)
+            format!("{}/catalog?page={}", BASE_URL, page)
         };
 
         let html = Request::get(&url)?
@@ -108,9 +108,9 @@ impl Source for CrunchyScan {
 impl ListingProvider for CrunchyScan {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
         let url = match listing.name.as_str() {
-            "Récents" => format!("{}/?page={}", BASE_URL, page),
-            "Populaires" => format!("{}/?page={}&order=popular", BASE_URL, page),
-            _ => format!("{}/?page={}", BASE_URL, page),
+            "Récents" => format!("{}/catalog?page={}", BASE_URL, page),
+            "Populaires" => format!("{}/catalog?page={}&order=popular", BASE_URL, page),
+            _ => format!("{}/catalog?page={}", BASE_URL, page),
         };
 
         let html = Request::get(&url)?
