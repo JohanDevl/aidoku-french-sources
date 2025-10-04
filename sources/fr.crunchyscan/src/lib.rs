@@ -9,6 +9,7 @@ use aidoku::{
 };
 
 extern crate alloc;
+extern crate serde_json;
 
 mod parser;
 mod helper;
@@ -29,29 +30,27 @@ impl Source for CrunchyScan {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        // Build search URL - use /catalog?s= for complete catalog
-        let url = if let Some(search_query) = query {
+        // Build JSON body for API request
+        let body = if let Some(search_query) = query {
             if !search_query.is_empty() {
-                format!("{}/catalog?s={}&page={}", BASE_URL, helper::urlencode(&search_query), page)
+                format!(r#"{{"page":{},"search":"{}"}}"#, page, search_query)
             } else {
-                format!("{}/catalog?s=&page={}", BASE_URL, page)
+                format!(r#"{{"page":{}}}"#, page)
             }
         } else {
-            format!("{}/catalog?s=&page={}", BASE_URL, page)
+            format!(r#"{{"page":{}}}"#, page)
         };
 
-        let html = Request::get(&url)?
+        let data = Request::post(&format!("{}/api/manga/search/advance", BASE_URL))?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+            .header("Referer", &format!("{}/catalog", BASE_URL))
+            .body(body.as_bytes())
+            .data()?;
 
-        parser::parse_manga_list(&html, page)
+        parser::parse_manga_list_json(&data, page)
     }
 
     fn get_manga_update(

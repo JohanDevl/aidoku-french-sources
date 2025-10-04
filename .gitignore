@@ -28,3 +28,5 @@ src/rust/
 
 response.html
 .playwright-mcp
+
+data.json

@@ -4,6 +4,7 @@ use aidoku::{
     alloc::{String, Vec, string::ToString, vec},
     imports::html::Document,
     prelude::*,
+    AidokuError,
 };
 use core::cmp::Ordering;
 use crate::helper;
@@ -363,4 +364,59 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     }
 
     Ok(pages)
+}
+
+// Parse manga list from JSON API response
+pub fn parse_manga_list_json(data: &[u8], _page: i32) -> Result<MangaPageResult> {
+    let mut mangas: Vec<Manga> = Vec::new();
+
+    // Parse JSON
+    let json: serde_json::Value = serde_json::from_slice(data)
+        .map_err(|_| AidokuError::JsonParseError)?;
+
+    // Get data array from JSON
+    let data_array = json.get("data")
+        .and_then(|v| v.as_array())
+        .ok_or(AidokuError::JsonParseError)?;
+
+    for item in data_array {
+        let obj = item.as_object().ok_or(AidokuError::JsonParseError)?;
+
+        // Extract fields
+        let name = obj.get("name")
+            .and_then(|v| v.as_str())
+            .ok_or(AidokuError::JsonParseError)?;
+        let slug = obj.get("slug")
+            .and_then(|v| v.as_str())
+            .ok_or(AidokuError::JsonParseError)?;
+        let cover_url = obj.get("cover_url")
+            .and_then(|v| v.as_str());
+        let synopsis = obj.get("synopsis")
+            .and_then(|v| v.as_str());
+
+        mangas.push(Manga {
+            key: slug.to_string(),
+            title: name.to_string(),
+            cover: cover_url.map(|s| s.to_string()),
+            authors: None,
+            artists: None,
+            description: synopsis.map(|s| s.to_string()),
+            tags: None,
+            url: Some(format!("{}/lecture-en-ligne/{}", BASE_URL, slug)),
+            status: MangaStatus::Unknown,
+            content_rating: ContentRating::Safe,
+            viewer: Viewer::RightToLeft,
+            chapters: None,
+            next_update_time: None,
+            update_strategy: UpdateStrategy::Never,
+        });
+    }
+
+    // Check for next page - if we have 24 items, there might be more
+    let has_next_page = data_array.len() >= 24;
+
+    Ok(MangaPageResult {
+        entries: mangas,
+        has_next_page,
+    })
 }
