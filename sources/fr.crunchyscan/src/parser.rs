@@ -12,77 +12,63 @@ use crate::BASE_URL;
 // Parse manga list from HTML homepage
 pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
+    let mut seen_keys: Vec<String> = Vec::new();
 
-    // Find manga items - similar structure to what we saw in browser
-    let selectors = [
-        ".listupd article",
-        ".page-item-detail",
-        "article",
-        "div[class*='manga']",
-    ];
-
-    for selector in &selectors {
-        if let Some(items) = html.select(selector) {
-            for item in items {
-                // Find the main link to manga
-                if let Some(link) = item.select("a[href*='/lecture-en-ligne/']").and_then(|els| els.first()) {
-                    let href = link.attr("href").unwrap_or_default();
-                    if href.is_empty() {
-                        continue;
-                    }
-
-                    // Extract slug from URL: /lecture-en-ligne/manga-slug
-                    let key = href
-                        .replace(BASE_URL, "")
-                        .replace("/lecture-en-ligne/", "")
-                        .trim_start_matches('/')
-                        .trim_end_matches('/')
-                        .to_string();
-
-                    if key.is_empty() {
-                        continue;
-                    }
-
-                    // Extract title
-                    let title = link.attr("title")
-                        .or_else(|| item.select(".title, h3, h2").and_then(|els| els.first()).and_then(|el| el.text()))
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string();
-
-                    if title.is_empty() {
-                        continue;
-                    }
-
-                    // Extract cover image
-                    let cover = item.select("img").and_then(|imgs| imgs.first())
-                        .and_then(|img| img.attr("data-src")
-                            .or_else(|| img.attr("data-lazy-src"))
-                            .or_else(|| img.attr("src")))
-                        .map(|s| s.to_string());
-
-                    mangas.push(Manga {
-                        key,
-                        title,
-                        cover,
-                        authors: None,
-                        artists: None,
-                        description: None,
-                        tags: None,
-                        url: Some(href),
-                        status: MangaStatus::Unknown,
-                        content_rating: ContentRating::Safe,
-                        viewer: Viewer::RightToLeft,
-                        chapters: None,
-                        next_update_time: None,
-                        update_strategy: UpdateStrategy::Never,
-                    });
-                }
+    // Directly select all links to manga pages to avoid missing items
+    if let Some(links) = html.select("a[href*='/lecture-en-ligne/']") {
+        for link in links {
+            let href = link.attr("href").unwrap_or_default();
+            if href.is_empty() {
+                continue;
             }
 
-            if !mangas.is_empty() {
-                break;
+            // Extract slug from URL: /lecture-en-ligne/manga-slug
+            let key = href
+                .replace(BASE_URL, "")
+                .replace("/lecture-en-ligne/", "")
+                .trim_start_matches('/')
+                .trim_end_matches('/')
+                .to_string();
+
+            if key.is_empty() || seen_keys.contains(&key) {
+                continue;
             }
+
+            // Extract title from text content (not title attribute which includes "Lire le manga")
+            let title = link.text()
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+
+            if title.is_empty() {
+                continue;
+            }
+
+            // Extract cover image from parent or sibling elements
+            let cover = link.parent()
+                .and_then(|parent| parent.select("img").and_then(|imgs| imgs.first()))
+                .and_then(|img| img.attr("data-src")
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src")))
+                .map(|s| s.to_string());
+
+            seen_keys.push(key.clone());
+            mangas.push(Manga {
+                key,
+                title,
+                cover,
+                authors: None,
+                artists: None,
+                description: None,
+                tags: None,
+                url: Some(href),
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::RightToLeft,
+                chapters: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Never,
+            });
         }
     }
 
@@ -254,6 +240,7 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
 // Parse chapter list from HTML
 pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     let mut chapters: Vec<Chapter> = Vec::new();
+    let mut seen_urls: Vec<String> = Vec::new();
 
     // Try to find chapter links
     let chapter_selectors = [
@@ -275,10 +262,16 @@ pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
                         format!("{}/{}", BASE_URL, href)
                     };
 
+                    // Skip duplicates
+                    if seen_urls.contains(&url) {
+                        continue;
+                    }
+
                     // Extract chapter number
                     let chapter_text = link.text().unwrap_or_default();
                     let chapter_number = helper::extract_chapter_number(&chapter_text);
 
+                    seen_urls.push(url.clone());
                     chapters.push(Chapter {
                         key: url.clone(),
                         title: Some(chapter_text.trim().to_string()),
