@@ -1,68 +1,93 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter, UpdateStrategy,
     ContentRating, Viewer,
-    alloc::{String, Vec, string::ToString},
+    alloc::{String, Vec, string::ToString, vec},
     imports::html::Document,
     prelude::*,
 };
-extern crate serde_json;
 use core::cmp::Ordering;
-extern crate alloc;
 use crate::helper;
 use crate::BASE_URL;
 
-// Parse JSON API response
-pub fn parse_api_manga_list(json_str: &str, page: i32) -> Result<MangaPageResult> {
-    let json: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|_| aidoku::AidokuError::JsonParseError)?;
+// Parse manga list from HTML homepage
+pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
 
-    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
-        for item in data {
-            let slug = item.get("slug")
-                .and_then(|s| s.as_str())
-                .unwrap_or("")
-                .to_string();
+    // Find manga items - similar structure to what we saw in browser
+    let selectors = [
+        ".listupd article",
+        ".page-item-detail",
+        "article",
+        "div[class*='manga']",
+    ];
 
-            let title = item.get("title")
-                .and_then(|t| t.as_str())
-                .unwrap_or("")
-                .to_string();
+    for selector in &selectors {
+        if let Some(items) = html.select(selector) {
+            for item in items {
+                // Find the main link to manga
+                if let Some(link) = item.select("a[href*='/lecture-en-ligne/']").and_then(|els| els.first()) {
+                    let href = link.attr("href").unwrap_or_default();
+                    if href.is_empty() {
+                        continue;
+                    }
 
-            let cover = if let Some(cover_path) = item.get("cover_path").and_then(|c| c.as_str()) {
-                if cover_path.starts_with("http") {
-                    Some(cover_path.to_string())
-                } else {
-                    Some(format!("{}/{}", BASE_URL, cover_path.trim_start_matches('/')))
+                    // Extract slug from URL: /lecture-en-ligne/manga-slug
+                    let key = href
+                        .replace(BASE_URL, "")
+                        .replace("/lecture-en-ligne/", "")
+                        .trim_start_matches('/')
+                        .trim_end_matches('/')
+                        .to_string();
+
+                    if key.is_empty() {
+                        continue;
+                    }
+
+                    // Extract title
+                    let title = link.attr("title")
+                        .or_else(|| item.select(".title, h3, h2").and_then(|els| els.first()).and_then(|el| el.text()))
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
+
+                    if title.is_empty() {
+                        continue;
+                    }
+
+                    // Extract cover image
+                    let cover = item.select("img").and_then(|imgs| imgs.first())
+                        .and_then(|img| img.attr("data-src")
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .or_else(|| img.attr("src")))
+                        .map(|s| s.to_string());
+
+                    mangas.push(Manga {
+                        key,
+                        title,
+                        cover,
+                        authors: None,
+                        artists: None,
+                        description: None,
+                        tags: None,
+                        url: Some(href),
+                        status: MangaStatus::Unknown,
+                        content_rating: ContentRating::Safe,
+                        viewer: Viewer::RightToLeft,
+                        chapters: None,
+                        next_update_time: None,
+                        update_strategy: UpdateStrategy::Never,
+                    });
                 }
-            } else {
-                None
-            };
+            }
 
-            mangas.push(Manga {
-                key: slug,
-                title,
-                cover,
-                authors: None,
-                artists: None,
-                description: None,
-                tags: None,
-                url: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::RightToLeft,
-                chapters: None,
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Never,
-            });
+            if !mangas.is_empty() {
+                break;
+            }
         }
     }
 
-    let has_next_page = if let Some(last_page) = json.get("last_page").and_then(|l| l.as_i64()) {
-        page < last_page as i32
-    } else {
-        false
-    };
+    // Check for next page - look for pagination
+    let has_next_page = html.select(".pagination .next, a[rel='next']").is_some();
 
     Ok(MangaPageResult {
         entries: mangas,
@@ -77,6 +102,7 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
     let mut description = String::new();
     let mut tags: Vec<String> = Vec::new();
     let mut status = MangaStatus::Unknown;
+    let mut authors: Option<Vec<String>> = None;
 
     // Extract title
     let title_selectors = [
@@ -102,6 +128,7 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
         ".manga-cover img",
         ".series-image img",
         "img[alt*='cover']",
+        ".thumb img",
     ];
     for selector in &cover_selectors {
         if let Some(img) = html.select(selector).and_then(|els| els.first()) {
@@ -188,15 +215,33 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
         }
     }
 
+    // Extract author
+    let author_selectors = [
+        ".author-content",
+        "[class*='author']",
+        ".manga-author",
+    ];
+    for selector in &author_selectors {
+        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+            if let Some(text) = elem.text() {
+                let author_str = text.trim().to_string();
+                if !author_str.is_empty() {
+                    authors = Some(vec![author_str]);
+                    break;
+                }
+            }
+        }
+    }
+
     Ok(Manga {
         key: key.to_string(),
         title,
         cover: if cover.is_empty() { None } else { Some(cover) },
-        authors: None,
+        authors,
         artists: None,
         description: if description.is_empty() { None } else { Some(description) },
         tags: if tags.is_empty() { None } else { Some(tags) },
-        url: Some(helper::build_manga_url(key)),
+        url: Some(format!("{}/lecture-en-ligne/{}", BASE_URL, key)),
         status,
         content_rating: ContentRating::Safe,
         viewer: Viewer::RightToLeft,
@@ -207,7 +252,7 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
 }
 
 // Parse chapter list from HTML
-pub fn parse_chapter_list(html: &Document, _manga_key: &str) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     let mut chapters: Vec<Chapter> = Vec::new();
 
     // Try to find chapter links
@@ -215,6 +260,7 @@ pub fn parse_chapter_list(html: &Document, _manga_key: &str) -> Result<Vec<Chapt
         "a[href*='/read/']",
         ".chapter-link",
         ".chapter a",
+        "li a[href*='chapitre']",
     ];
 
     for selector in &chapter_selectors {
@@ -233,34 +279,14 @@ pub fn parse_chapter_list(html: &Document, _manga_key: &str) -> Result<Vec<Chapt
                     let chapter_text = link.text().unwrap_or_default();
                     let chapter_number = helper::extract_chapter_number(&chapter_text);
 
-                    // Parse date if available
-                    let date_uploaded = if let Some(parent) = link.parent() {
-                        // Look for date elements
-                        if let Some(date_els) = parent.select(".date, .chapter-date, time") {
-                            if let Some(date_el) = date_els.first() {
-                                if let Some(date_text) = date_el.text() {
-                                    Some(helper::parse_relative_time(&date_text) as i64)
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-
                     chapters.push(Chapter {
-                        key: url,
+                        key: url.clone(),
                         title: Some(chapter_text.trim().to_string()),
                         chapter_number: Some(chapter_number),
                         volume_number: None,
-                        date_uploaded,
+                        date_uploaded: None,
                         scanlators: None,
-                        url: None,
+                        url: Some(url),
                         language: Some(String::from("fr")),
                         thumbnail: None,
                         locked: false,
@@ -321,35 +347,6 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 
             if !pages.is_empty() {
                 break;
-            }
-        }
-    }
-
-    // Fallback: try to extract from script tags
-    if pages.is_empty() {
-        if let Some(scripts) = html.select("script") {
-            for script in scripts {
-                if let Some(script_text) = script.text() {
-                    if script_text.contains("http") && (script_text.contains(".jpg") || script_text.contains(".png") || script_text.contains(".webp")) {
-                        // Try to extract image URLs from script
-                        for line in script_text.lines() {
-                            if line.contains("http") && (line.contains(".jpg") || line.contains(".png") || line.contains(".webp")) {
-                                // Simple extraction - look for URLs in quotes
-                                let parts: Vec<&str> = line.split('"').collect();
-                                for part in parts {
-                                    if part.starts_with("http") && (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp") || part.contains(".jpg?") || part.contains(".png?") || part.contains(".webp?")) {
-                                        pages.push(Page {
-                                            content: PageContent::Url(part.to_string(), None),
-                                            thumbnail: None,
-                                            has_description: false,
-                                            description: None,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }
