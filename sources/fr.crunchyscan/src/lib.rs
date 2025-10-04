@@ -15,7 +15,7 @@ mod parser;
 mod helper;
 
 pub static BASE_URL: &str = "https://crunchyscan.fr";
-pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 pub struct CrunchyScan;
 
@@ -44,9 +44,18 @@ impl Source for CrunchyScan {
         let data = Request::post(&format!("{}/api/manga/search/advance", BASE_URL))?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "application/json, text/plain, */*")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7")
+            .header("Accept-Encoding", "gzip, deflate, br, zstd")
             .header("Content-Type", "application/json")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Origin", BASE_URL)
             .header("Referer", &format!("{}/catalog", BASE_URL))
+            .header("sec-ch-ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"")
+            .header("sec-ch-ua-mobile", "?0")
+            .header("sec-ch-ua-platform", "\"Windows\"")
+            .header("sec-fetch-dest", "empty")
+            .header("sec-fetch-mode", "cors")
+            .header("sec-fetch-site", "same-origin")
+            .header("priority", "u=1, i")
             .body(body.as_bytes())
             .data()?;
 
