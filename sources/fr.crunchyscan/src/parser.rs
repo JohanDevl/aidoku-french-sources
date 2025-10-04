@@ -274,6 +274,18 @@ pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
 
                     // Extract chapter number
                     let chapter_text = link.text().unwrap_or_default();
+
+                    // Skip chapters with time info in title (duplicates from other sections)
+                    let chapter_text_lower = chapter_text.to_lowercase();
+                    if chapter_text_lower.contains("heures") || chapter_text_lower.contains("heure") ||
+                       chapter_text_lower.contains("jours") || chapter_text_lower.contains("jour") ||
+                       chapter_text_lower.contains("années") || chapter_text_lower.contains("année") ||
+                       chapter_text_lower.contains("mois") || chapter_text_lower.contains("semaines") ||
+                       chapter_text_lower.contains("semaine") || chapter_text_lower.contains("minutes") ||
+                       chapter_text_lower.contains("minute") {
+                        continue;
+                    }
+
                     let chapter_number = helper::extract_chapter_number(&chapter_text);
 
                     seen_urls.push(url.clone());
