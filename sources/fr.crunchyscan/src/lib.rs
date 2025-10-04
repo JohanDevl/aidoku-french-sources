@@ -29,15 +29,15 @@ impl Source for CrunchyScan {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        // Build search URL - use /catalog for complete manga list
+        // Build search URL - use /catalog?s= for complete catalog
         let url = if let Some(search_query) = query {
             if !search_query.is_empty() {
                 format!("{}/catalog?s={}&page={}", BASE_URL, helper::urlencode(&search_query), page)
             } else {
-                format!("{}/catalog?page={}", BASE_URL, page)
+                format!("{}/catalog?s=&page={}", BASE_URL, page)
             }
         } else {
-            format!("{}/catalog?page={}", BASE_URL, page)
+            format!("{}/catalog?s=&page={}", BASE_URL, page)
         };
 
         let html = Request::get(&url)?
