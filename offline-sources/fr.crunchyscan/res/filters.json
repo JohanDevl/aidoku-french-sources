@@ -1,0 +1,56 @@
+[
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": ["Tout", "Manga", "Manhwa", "Manhua"]
+  },
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Status",
+    "options": ["Tout", "En cours", "Terminé", "Abandonné"]
+  },
+  {
+    "type": "select",
+    "id": "genres",
+    "title": "Genres",
+    "isGenre": true,
+    "options": [
+      "Tout",
+      "Action",
+      "Aventure",
+      "Comédie", 
+      "Drame",
+      "Ecchi",
+      "Fantastique",
+      "Harem",
+      "Historique",
+      "Horreur",
+      "Isekai",
+      "Josei",
+      "Magie",
+      "Mature",
+      "Mystère",
+      "Post-Apocalyptique",
+      "Psychologique",
+      "Romance",
+      "School Life",
+      "Sci-fi",
+      "Seinen",
+      "Shoujo",
+      "Shounen",
+      "Slice of Life",
+      "Sport",
+      "Surnaturel",
+      "Thriller",
+      "Tragédie",
+      "Webtoon"
+    ]
+  },
+  {
+    "type": "text",
+    "id": "search",
+    "title": "Recherche"
+  }
+]

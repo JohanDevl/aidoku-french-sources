@@ -464,12 +464,12 @@ impl MangaScantrad {
                         continue;
                     }
 
-                    let title = link.text()
+                    let raw_title = link.text()
                         .unwrap_or_default()
                         .trim()
                         .to_string();
                     
-                    if title.is_empty() {
+                    if raw_title.is_empty() {
                         continue;
                     }
 
@@ -481,7 +481,10 @@ impl MangaScantrad {
                         .to_string();
 
                     // Extract chapter number from title or URL
-                    let chapter_number = self.extract_chapter_number(&chapter_key, &title);
+                    let chapter_number = self.extract_chapter_number(&chapter_key, &raw_title);
+                    
+                    // Clean the title for display
+                    let title = self.clean_chapter_title(&raw_title, chapter_number);
 
                     // Extract date if available - with detailed debugging
                     let date_uploaded = if let Some(date_elem) = item.select("span.chapter-release-date i")
@@ -976,7 +979,7 @@ impl MangaScantrad {
                         }
 
                         // Extract chapter title
-                        let title = link.text()
+                        let raw_title = link.text()
                             .or_else(|| {
                                 item.select(".chapternum, .lch a, .chapter-manhwa-title")
                                     .and_then(|elems| elems.first())
@@ -986,7 +989,7 @@ impl MangaScantrad {
                             .trim()
                             .to_string();
                         
-                        if title.is_empty() {
+                        if raw_title.is_empty() {
                             continue;
                         }
 
@@ -998,7 +1001,10 @@ impl MangaScantrad {
                             .to_string();
 
                         // Extract chapter number from title or URL
-                        let chapter_number = self.extract_chapter_number(&chapter_key, &title);
+                        let chapter_number = self.extract_chapter_number(&chapter_key, &raw_title);
+                        
+                        // Clean the title for display
+                        let title = self.clean_chapter_title(&raw_title, chapter_number);
                         
                         // Extract date if available
                         let date_uploaded = item.select(".chapterdate, .chapter-release-date, .dt")
@@ -1042,19 +1048,38 @@ impl MangaScantrad {
     
     
     fn extract_chapter_number(&self, chapter_id: &str, title: &str) -> f32 {
+        // Handle range formats like "Ch.5 - Ch.19.5" by taking the higher number
+        if let Some(dash_pos) = title.find(" - ") {
+            let before_dash = &title[..dash_pos];
+            let after_dash = &title[dash_pos + 3..];
+            
+            let before_num = self.extract_chapter_number_from_string(before_dash);
+            let after_num = self.extract_chapter_number_from_string(after_dash);
+            
+            if after_num > 0.0 && after_num >= before_num {
+                return after_num;
+            } else if before_num > 0.0 {
+                return before_num;
+            }
+        }
+        
         // Try to extract from title first - check for "chapitre" or "ch"
         let title_lower = title.to_lowercase();
         if let Some(pos) = title_lower.find("chapitre") {
             let after_ch = &title[pos + 8..].trim(); // "chapitre" has 8 chars
             if let Some(num_str) = after_ch.split_whitespace().next() {
-                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                let clean_num = num_str.replace(',', ".").trim_end_matches('.').to_string();
+                if let Ok(num) = clean_num.parse::<f32>() {
                     return num;
                 }
             }
         } else if let Some(pos) = title_lower.find("ch") {
             let after_ch = &title[pos + 2..].trim(); // "ch" has 2 chars
+            // Handle formats like "Ch.5" or "Ch 5"
+            let after_ch = after_ch.trim_start_matches('.');
             if let Some(num_str) = after_ch.split_whitespace().next() {
-                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                let clean_num = num_str.replace(',', ".").trim_end_matches('.').to_string();
+                if let Ok(num) = clean_num.parse::<f32>() {
                     return num;
                 }
             }
@@ -1076,6 +1101,80 @@ impl MangaScantrad {
         }
         
         1.0 // Default
+    }
+    
+    fn clean_chapter_title(&self, raw_title: &str, chapter_number: f32) -> String {
+        let mut clean_title = raw_title.trim().to_string();
+        
+        // Handle range formats like "Ch.5 - Ch.19.5" or "Ch.0.19 - Ch.19"
+        if let Some(dash_pos) = clean_title.find(" - ") {
+            let before_dash = &clean_title[..dash_pos];
+            let after_dash = &clean_title[dash_pos + 3..];
+            
+            // If both parts look like chapters, take the more relevant one
+            if before_dash.to_lowercase().starts_with("ch") && after_dash.to_lowercase().starts_with("ch") {
+                // Take the part with the higher number (usually the end of range)
+                let before_num = self.extract_chapter_number_from_string(before_dash);
+                let after_num = self.extract_chapter_number_from_string(after_dash);
+                
+                if after_num > 0.0 && after_num >= before_num {
+                    clean_title = after_dash.to_string();
+                } else if before_num > 0.0 {
+                    clean_title = before_dash.to_string();
+                }
+            }
+        }
+        
+        // Normalize different chapter formats to "Chapitre X"
+        let lower_title = clean_title.to_lowercase();
+        if lower_title.starts_with("ch.") || lower_title.starts_with("chapitre") || lower_title.starts_with("ch ") {
+            // Generate clean title from chapter number
+            return format!("Chapitre {}", chapter_number);
+        }
+        
+        // If the title doesn't look like a chapter title, generate standard format
+        if !clean_title.to_lowercase().contains("chapitre") && !clean_title.to_lowercase().contains("ch") {
+            return format!("Chapitre {}", chapter_number);
+        }
+        
+        // Remove redundant prefixes and clean up
+        clean_title = clean_title
+            .trim_start_matches("Ch.")
+            .trim_start_matches("ch.")
+            .trim_start_matches("CH.")
+            .trim()
+            .to_string();
+            
+        // Add "Chapitre" prefix if not present
+        if !clean_title.to_lowercase().starts_with("chapitre") {
+            if let Ok(num) = clean_title.parse::<f32>() {
+                return format!("Chapitre {}", num);
+            }
+            return format!("Chapitre {}", chapter_number);
+        }
+        
+        clean_title
+    }
+    
+    fn extract_chapter_number_from_string(&self, text: &str) -> f32 {
+        let text_lower = text.to_lowercase();
+        if let Some(pos) = text_lower.find("chapitre") {
+            let after_ch = &text[pos + 8..].trim();
+            if let Some(num_str) = after_ch.split_whitespace().next() {
+                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                    return num;
+                }
+            }
+        } else if let Some(pos) = text_lower.find("ch") {
+            let after_ch = &text[pos + 2..].trim();
+            if let Some(num_str) = after_ch.split_whitespace().next() {
+                let num_str = num_str.trim_start_matches('.');
+                if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
+                    return num;
+                }
+            }
+        }
+        0.0
     }
 
     fn parse_page_list(&self, html: Document) -> Result<Vec<Page>> {

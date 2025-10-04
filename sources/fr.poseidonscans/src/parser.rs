@@ -258,10 +258,65 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	let mut tags: Option<Vec<String>> = None;
 	let mut status = MangaStatus::Unknown;
 
-	// Extract title from page
-	if let Some(title_text) = html.select("h1").and_then(|els| els.first()).and_then(|el| el.text()) {
-		if !title_text.is_empty() {
-			title = title_text.trim().to_string();
+	// Extract title from page - try multiple selectors for robustness
+	// Order matters: most specific selectors first to avoid sr-only elements
+	let title_selectors = [
+		"h1.text-2xl.font-bold.text-white",  // Visible h1 with specific classes from PoseidonScans
+		"h1.font-bold.text-white",            // Alternative visible h1 pattern
+		"h1:not(.sr-only):not([class*=\"sr-only\"])",  // Any h1 that's not screen-reader-only
+		"[data-testid=\"manga-title\"]",
+		".manga-title",
+		"h1.entry-title",
+		"meta[property=\"og:title\"]",
+		"title"
+	];
+
+	let mut title_found = false;
+	for selector in &title_selectors {
+		if let Some(title_element) = html.select(selector).and_then(|els| els.first()) {
+			let mut title_text = if selector.contains("meta") {
+				title_element.attr("content").map(|s| s.to_string()).unwrap_or_default()
+			} else if *selector == "title" {
+				// Extract from title tag, removing site name suffix
+				title_element.text().unwrap_or_default()
+					.replace(" | Poseidon Scans", "")
+					.replace("Lire ", "")
+					.replace(" scan VF / FR gratuit en ligne", "")
+					.trim()
+					.to_string()
+			} else {
+				title_element.text().unwrap_or_default().trim().to_string()
+			};
+
+			// Clean up any HTML comments or problematic content
+			title_text = title_text
+				.replace("<!-- -->", "")  // Remove HTML comments
+				.replace("Lire ", "")      // Remove "Lire" prefix if still present
+				.replace(" scan VF / FR gratuit en ligne", "")  // Remove suffix
+				.trim()
+				.to_string();
+
+			// Validate the title is not a placeholder or empty
+			if !title_text.is_empty()
+				&& title_text != manga_key
+				&& !title_text.starts_with("[Image")
+				&& !title_text.contains("#")
+				&& title_text.len() > 2 {
+				title = title_text;
+				title_found = true;
+				break;
+			}
+		}
+	}
+
+	// Try to extract from JSON-LD as additional fallback
+	if !title_found {
+		if let Ok(manga_data) = extract_jsonld_manga_details(html) {
+			if let Some(title_text) = manga_data.get("name").and_then(|t| t.as_str()) {
+				if !title_text.is_empty() && title_text != manga_key {
+					title = title_text.to_string();
+				}
+			}
 		}
 	}
 
@@ -302,7 +357,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 						let status_str = status_text.replace("Status:", "").trim().to_string();
 						if !status_str.is_empty() {
 							status = parse_manga_status(&status_str);
-							tag_list.push(status_str.clone());
 							_status_found = true;
 							break;
 						}
@@ -320,7 +374,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 					let status_str = status_text.trim().to_string();
 					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
 						status = parse_manga_status(&status_str);
-						tag_list.push(status_str);
 						_status_found = true;
 						break;
 					}
@@ -337,7 +390,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 					let status_str = status_text.trim().to_string();
 					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
 						status = parse_manga_status(&status_str);
-						tag_list.push(status_str);
 						break;
 					}
 				}
@@ -658,8 +710,24 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 	}
 	
 	// Search in targeted elements likely to contain dates instead of all DOM elements
+	// Prioritize PoseidonScans-specific selectors based on response.html analysis
 	let date_selectors = &[
+		// PoseidonScans-specific date containers (highest priority from response.html)
+		"div.flex.items-center.gap-1.sm\\:gap-1\\.5 span:last-child",  // Main pattern
+		"div.flex.items-center.gap-1 span:last-child",  // Simplified gap pattern
+		".flex.items-center.gap-1 span:last-child",  // Flexible class match
+		".flex.items-center.gap-3 span:last-child",  // Alternative gap size
+		".flex.items-center span:last-child",  // Generic flex container
+
+		// Previous patterns kept for compatibility
+		"div.flex.items-center.gap-3.text-gray-400 span:last-child",
+		".text-gray-400 .flex.items-center.gap-1 span:last-child",
+		".text-xs.text-gray-400 span",
+		".text-sm.text-gray-400 span",
+
+		// Generic date selectors (fallback)
 		"time", ".date", ".time", ".timestamp", ".chapter-date",
+		"span[text*='heure']", "span[text*='jour']", "span[text*='mois']", "span[text*='semaine']",
 		"span", "div", "p", "small", ".text-sm", ".text-xs",
 		".chapter-item", ".chapter-link", "a[href*='/chapter/']"
 	];
@@ -690,7 +758,27 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 
 // Helper function to find chapter number in nearby elements (parent, siblings, children)
 fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Option<f32> {
-	// Look for href attributes in this element and its children
+	// Strategy 1: Look for chapter text patterns in preceding siblings
+	// This is specific to PoseidonScans where dates follow chapter titles
+	if let Some(parent) = element.parent() {
+		// Search in all children of the parent for chapter title patterns
+		if let Some(siblings) = parent.select("*") {
+			for sibling in siblings {
+				if let Some(text) = sibling.text() {
+					let text_clean = text.trim();
+					// Look for "Chapitre N" patterns common in PoseidonScans
+					if text_clean.contains("Chapitre") || text_clean.contains("Chapter") {
+						// Extract number after "Chapitre" or "Chapter"
+						if let Some(chapter_num) = extract_chapter_number_from_text(&text_clean) {
+							return Some(chapter_num);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Look for href attributes in this element and its children
 	if let Some(links) = element.select("a[href*='/chapter/'], *[href*='/chapter/']") {
 		for link in links {
 			if let Some(href) = link.attr("href") {
@@ -700,8 +788,8 @@ fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Optio
 			}
 		}
 	}
-	
-	// Also check if current element itself has href
+
+	// Strategy 3: Check if current element itself has href
 	if let Some(href) = element.attr("href") {
 		if !href.is_empty() {
 			if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
@@ -709,7 +797,7 @@ fn find_nearby_chapter_number(element: &aidoku::imports::html::Element) -> Optio
 			}
 		}
 	}
-	
+
 	None
 }
 
@@ -789,6 +877,46 @@ fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
 			}
 		}
 	}
+	None
+}
+
+// Extract chapter number from text like "Chapitre 9", "Chapter 42", etc.
+fn extract_chapter_number_from_text(text: &str) -> Option<f32> {
+	let text_lower = text.to_lowercase();
+
+	// Look for "chapitre" or "chapter" followed by a number
+	if let Some(chapitre_pos) = text_lower.find("chapitre") {
+		let after_chapitre = &text[chapitre_pos + 8..]; // "chapitre".len() = 8
+		// Skip whitespace and HTML comments
+		let cleaned = after_chapitre
+			.replace("<!-- -->", "")
+			.trim()
+			.to_string();
+
+		// Parse the first number found
+		for word in cleaned.split_whitespace() {
+			if let Ok(num) = word.parse::<f32>() {
+				if num > 0.0 && num < 10000.0 { // Reasonable range
+					return Some(num);
+				}
+			}
+		}
+	} else if let Some(chapter_pos) = text_lower.find("chapter") {
+		let after_chapter = &text[chapter_pos + 7..]; // "chapter".len() = 7
+		let cleaned = after_chapter
+			.replace("<!-- -->", "")
+			.trim()
+			.to_string();
+
+		for word in cleaned.split_whitespace() {
+			if let Ok(num) = word.parse::<f32>() {
+				if num > 0.0 && num < 10000.0 {
+					return Some(num);
+				}
+			}
+		}
+	}
+
 	None
 }
 

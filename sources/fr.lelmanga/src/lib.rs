@@ -778,21 +778,55 @@ impl LelManga {
             for img_element in img_elements {
                 let img_url = if let Some(lazy_src) = img_element.attr("data-lazy-src") {
                     if !lazy_src.is_empty() {
-                        lazy_src
+                        lazy_src.to_string()
                     } else if let Some(data_src) = img_element.attr("data-src") {
                         if !data_src.is_empty() {
-                            data_src
+                            data_src.to_string()
                         } else {
-                            img_element.attr("src").unwrap_or_default()
+                            let src = img_element.attr("src").unwrap_or_default();
+                            // Avoid SVG placeholders
+                            if src.contains("/readerarea.svg") || src.ends_with(".svg") {
+                                String::new()
+                            } else {
+                                src
+                            }
                         }
                     } else {
-                        img_element.attr("src").unwrap_or_default()
+                        let src = img_element.attr("src").unwrap_or_default();
+                        // Avoid SVG placeholders
+                        if src.contains("/readerarea.svg") || src.ends_with(".svg") {
+                            String::new()
+                        } else {
+                            src
+                        }
+                    }
+                } else if let Some(data_src) = img_element.attr("data-src") {
+                    if !data_src.is_empty() {
+                        data_src.to_string()
+                    } else {
+                        let src = img_element.attr("src").unwrap_or_default();
+                        // Avoid SVG placeholders
+                        if src.contains("/readerarea.svg") || src.ends_with(".svg") {
+                            String::new()
+                        } else {
+                            src
+                        }
                     }
                 } else {
-                    img_element.attr("src").unwrap_or_default()
+                    let src = img_element.attr("src").unwrap_or_default();
+                    // Avoid SVG placeholders
+                    if src.contains("/readerarea.svg") || src.ends_with(".svg") {
+                        String::new()
+                    } else {
+                        src
+                    }
                 };
 
-                if !img_url.is_empty() {
+                // Additional validation: ensure URL points to a valid image
+                if !img_url.is_empty() &&
+                   (img_url.ends_with(".jpg") || img_url.ends_with(".jpeg") ||
+                    img_url.ends_with(".png") || img_url.ends_with(".webp")) &&
+                   !img_url.contains("/readerarea.svg") {
                     pages.push(Page {
                         content: PageContent::url(img_url),
                         thumbnail: None,
