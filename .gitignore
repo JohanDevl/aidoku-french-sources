@@ -27,3 +27,4 @@ CLAUDE.md
 src/rust/
 
 response.html
+.playwright-mcp

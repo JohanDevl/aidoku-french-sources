@@ -1,453 +1,345 @@
 use aidoku::{
-    Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter,
-    ContentRating, Viewer, UpdateStrategy, println,
-    alloc::{String, Vec, vec, string::ToString},
+    Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter, UpdateStrategy,
+    ContentRating, Viewer,
+    alloc::{String, Vec, string::ToString},
     imports::html::Document,
+    prelude::*,
 };
+extern crate serde_json;
 use core::cmp::Ordering;
 extern crate alloc;
 use crate::helper;
+use crate::BASE_URL;
 
-pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
+// Parse JSON API response
+pub fn parse_api_manga_list(json_str: &str, page: i32) -> Result<MangaPageResult> {
+    let json: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|_| aidoku::AidokuError::JsonParseError)?;
     let mut mangas: Vec<Manga> = Vec::new();
-    
-    // Debug: Check if we have a Cloudflare challenge or error page
-    if let Some(title) = html.select("title").and_then(|list| list.first()) {
-        let title_text = title.text().unwrap_or_default().to_lowercase();
-        println!("[CrunchyScan] Page title: {}", title_text);
-        if title_text.contains("cloudflare") || title_text.contains("just a moment") || title_text.contains("checking") {
-            println!("[CrunchyScan] Cloudflare page detected, returning empty");
-            // Return empty result if Cloudflare is blocking
-            return Ok(MangaPageResult {
-                entries: vec![],
-                has_next_page: false,
+
+    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+        for item in data {
+            let slug = item.get("slug")
+                .and_then(|s| s.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let title = item.get("title")
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let cover = if let Some(cover_path) = item.get("cover_path").and_then(|c| c.as_str()) {
+                if cover_path.starts_with("http") {
+                    Some(cover_path.to_string())
+                } else {
+                    Some(format!("{}/{}", BASE_URL, cover_path.trim_start_matches('/')))
+                }
+            } else {
+                None
+            };
+
+            mangas.push(Manga {
+                key: slug,
+                title,
+                cover,
+                authors: None,
+                artists: None,
+                description: None,
+                tags: None,
+                url: None,
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::RightToLeft,
+                chapters: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Never,
             });
         }
     }
-    
-    // Target the specific manga container structure
-    println!("[CrunchyScan] Looking for main container #advanced_manga_container");
-    if let Some(manga_container) = html.select("#advanced_manga_container") {
-        if let Some(manga_items) = manga_container.first() {
-            println!("[CrunchyScan] Found main container, looking for manga divs");
-            
-            if let Some(manga_divs) = manga_items.select("div.flex.flex-col.w-full.gap-3") {
-                println!("[CrunchyScan] Found manga divs container");
-                for manga_div in manga_divs {
-                    // Find the main manga link (not chapter links)
-                    if let Some(manga_links) = manga_div.select("a[href*='/lecture-en-ligne/']") {
-                        let mut main_link = None;
-                        for link in manga_links {
-                            let href = link.attr("href").unwrap_or_default();
-                            if !href.contains("/read/") && !href.contains("?") && !href.contains("#") {
-                                main_link = Some(link);
-                                break;
-                            }
-                        }
-                        
-                        if let Some(main_link) = main_link {
-                            let url = main_link.attr("href").unwrap_or_default();
-                            let key = helper::extract_slug_from_url(&url);
-                            
-                            if key.is_empty() {
-                                continue;
-                            }
-                            
-                            // Extract title from the title link (not the image link)
-                            let title = if let Some(title_links) = manga_div.select("a.font-bold.text-lg.truncate") {
-                                if let Some(title_link) = title_links.first() {
-                                    let raw_title = title_link.text().unwrap_or_default();
-                                    if raw_title.starts_with("Lire le manga ") {
-                                        raw_title.replace("Lire le manga ", "").trim().to_string()
-                                    } else {
-                                        raw_title.trim().to_string()
-                                    }
-                                } else {
-                                    // Fallback: generate from slug
-                                    key.replace("-", " ")
-                                        .split_whitespace()
-                                        .map(|word| {
-                                            let mut chars = word.chars();
-                                            match chars.next() {
-                                                None => String::new(),
-                                                Some(first) => first.to_uppercase().chain(chars).collect(),
-                                            }
-                                        })
-                                        .collect::<Vec<String>>()
-                                        .join(" ")
-                                }
-                            } else {
-                                // Try alternative title selection
-                                if let Some(title_links) = manga_div.select("a[title*='Lire le manga']") {
-                                    if let Some(title_link) = title_links.first() {
-                                        let title_attr = title_link.attr("title").unwrap_or_default();
-                                        if title_attr.starts_with("Lire le manga ") {
-                                            title_attr.replace("Lire le manga ", "").trim().to_string()
-                                        } else {
-                                            title_attr.trim().to_string()
-                                        }
-                                    } else {
-                                        key.replace("-", " ")
-                                            .split_whitespace()
-                                            .map(|word| {
-                                                let mut chars = word.chars();
-                                                match chars.next() {
-                                                    None => String::new(),
-                                                    Some(first) => first.to_uppercase().chain(chars).collect(),
-                                                }
-                                            })
-                                            .collect::<Vec<String>>()
-                                            .join(" ")
-                                    }
-                                } else {
-                                    key.replace("-", " ")
-                                        .split_whitespace()
-                                        .map(|word| {
-                                            let mut chars = word.chars();
-                                            match chars.next() {
-                                                None => String::new(),
-                                                Some(first) => first.to_uppercase().chain(chars).collect(),
-                                            }
-                                        })
-                                        .collect::<Vec<String>>()
-                                        .join(" ")
-                                }
-                            };
-                            
-                            // Extract cover image
-                            let cover = if let Some(img) = manga_div.select("img").and_then(|imgs| imgs.first()) {
-                                let img_src = img.attr("src")
-                                    .or_else(|| img.attr("data-src"))
-                                    .or_else(|| img.attr("data-lazy-src"))
-                                    .unwrap_or_default();
-                                if !img_src.is_empty() {
-                                    Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
+
+    let has_next_page = if let Some(last_page) = json.get("last_page").and_then(|l| l.as_i64()) {
+        page < last_page as i32
+    } else {
+        false
+    };
+
+    Ok(MangaPageResult {
+        entries: mangas,
+        has_next_page,
+    })
+}
+
+// Parse manga details from HTML
+pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
+    let mut title = String::new();
+    let mut cover = String::new();
+    let mut description = String::new();
+    let mut tags: Vec<String> = Vec::new();
+    let mut status = MangaStatus::Unknown;
+
+    // Extract title
+    let title_selectors = [
+        "h1.entry-title",
+        ".manga-title",
+        ".series-title",
+        "h1",
+    ];
+    for selector in &title_selectors {
+        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+            if let Some(text) = elem.text() {
+                title = text.trim().to_string();
+                if !title.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Extract cover
+    let cover_selectors = [
+        "img[class*='cover']",
+        ".manga-cover img",
+        ".series-image img",
+        "img[alt*='cover']",
+    ];
+    for selector in &cover_selectors {
+        if let Some(img) = html.select(selector).and_then(|els| els.first()) {
+            if let Some(src) = img.attr("data-src")
+                .or_else(|| img.attr("data-lazy-src"))
+                .or_else(|| img.attr("src")) {
+                cover = if src.starts_with("http") {
+                    src.to_string()
+                } else {
+                    format!("{}/{}", BASE_URL, src.trim_start_matches('/'))
+                };
+                if !cover.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Extract description
+    let desc_selectors = [
+        ".description",
+        ".synopsis",
+        "[class*='desc']",
+        ".manga-description",
+        ".summary",
+    ];
+    for selector in &desc_selectors {
+        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+            if let Some(text) = elem.text() {
+                description = text.trim().to_string();
+                if !description.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Extract genres/tags
+    let genre_selectors = [
+        ".genre",
+        ".tag",
+        "[class*='genre'] a",
+        ".genres a",
+    ];
+    for selector in &genre_selectors {
+        if let Some(els) = html.select(selector) {
+            for elem in els {
+                if let Some(text) = elem.text() {
+                    let tag = text.trim().to_string();
+                    if !tag.is_empty() {
+                        tags.push(tag);
+                    }
+                }
+            }
+            if !tags.is_empty() {
+                break;
+            }
+        }
+    }
+
+    // Extract status
+    let status_selectors = [
+        ".status",
+        "[class*='status']",
+        ".manga-status",
+    ];
+    for selector in &status_selectors {
+        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+            if let Some(text) = elem.text() {
+                let status_str = text.to_lowercase();
+                status = if status_str.contains("en cours") || status_str.contains("ongoing") {
+                    MangaStatus::Ongoing
+                } else if status_str.contains("terminé") || status_str.contains("completed") {
+                    MangaStatus::Completed
+                } else if status_str.contains("abandonné") || status_str.contains("cancelled") {
+                    MangaStatus::Cancelled
+                } else if status_str.contains("en pause") || status_str.contains("hiatus") {
+                    MangaStatus::Hiatus
+                } else {
+                    MangaStatus::Unknown
+                };
+                break;
+            }
+        }
+    }
+
+    Ok(Manga {
+        key: key.to_string(),
+        title,
+        cover: if cover.is_empty() { None } else { Some(cover) },
+        authors: None,
+        artists: None,
+        description: if description.is_empty() { None } else { Some(description) },
+        tags: if tags.is_empty() { None } else { Some(tags) },
+        url: Some(helper::build_manga_url(key)),
+        status,
+        content_rating: ContentRating::Safe,
+        viewer: Viewer::RightToLeft,
+        chapters: None,
+        next_update_time: None,
+        update_strategy: UpdateStrategy::Never,
+    })
+}
+
+// Parse chapter list from HTML
+pub fn parse_chapter_list(html: &Document, _manga_key: &str) -> Result<Vec<Chapter>> {
+    let mut chapters: Vec<Chapter> = Vec::new();
+
+    // Try to find chapter links
+    let chapter_selectors = [
+        "a[href*='/read/']",
+        ".chapter-link",
+        ".chapter a",
+    ];
+
+    for selector in &chapter_selectors {
+        if let Some(links) = html.select(selector) {
+            for link in links {
+                if let Some(href) = link.attr("href") {
+                    let url = if href.starts_with("http") {
+                        href.to_string()
+                    } else if href.starts_with("/") {
+                        format!("{}{}", BASE_URL, href)
+                    } else {
+                        format!("{}/{}", BASE_URL, href)
+                    };
+
+                    // Extract chapter number
+                    let chapter_text = link.text().unwrap_or_default();
+                    let chapter_number = helper::extract_chapter_number(&chapter_text);
+
+                    // Parse date if available
+                    let date_uploaded = if let Some(parent) = link.parent() {
+                        // Look for date elements
+                        if let Some(date_els) = parent.select(".date, .chapter-date, time") {
+                            if let Some(date_el) = date_els.first() {
+                                if let Some(date_text) = date_el.text() {
+                                    Some(helper::parse_relative_time(&date_text) as i64)
                                 } else {
                                     None
                                 }
                             } else {
                                 None
-                            };
-                            
-                            // Extract manga type from tag (MANGA/MANHWA/MANHUA)
-                            let manga_type = if let Some(tag_elem) = manga_div.select("p.tag").and_then(|tags| tags.first()) {
-                                tag_elem.text().unwrap_or_default().trim().to_string()
-                            } else {
-                                String::new()
-                            };
-                            
-                            // Create tags from manga type if available
-                            let tags = if !manga_type.is_empty() {
-                                Some(vec![manga_type])
-                            } else {
-                                None
-                            };
-                            
-                            // Create manga entry
-                            mangas.push(Manga {
-                                key: key.clone(),
-                                cover,
-                                title,
-                                authors: None,
-                                artists: None,
-                                description: None,
-                                tags,
-                                status: MangaStatus::Unknown,
-                                content_rating: ContentRating::Safe,
-                                viewer: Viewer::LeftToRight,
-                                chapters: None,
-                                url: Some(helper::make_absolute_url("https://crunchyscan.fr", &url)),
-                                next_update_time: None,
-                                update_strategy: UpdateStrategy::Always,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // If no mangas found, try alternative selectors as fallback
-    if mangas.is_empty() {
-        println!("[CrunchyScan] No mangas found with main selector, trying fallback selectors");
-        // Try alternative container selectors in case the structure changed
-        let alternative_selectors = [
-            "#advanced_manga_container", // Fixed typo version
-            "#advanced_manga_containter", // Original typo version (in case it's intentional)
-            ".grid.grid-cols-2", // Direct grid selector
-            ".grid", // Even more generic grid
-            "[class*='manga_container']", // Any class containing manga_container
-            "[class*='manga']", // Any class containing manga
-            ".manga-list", // Generic manga list class
-            "[id*='manga']", // Any ID containing manga
-            "main", // Main content area
-            ".container", // Generic container
-        ];
-        
-        for selector in &alternative_selectors {
-            println!("[CrunchyScan] Trying fallback selector: {}", selector);
-            if let Some(container) = html.select(selector) {
-                if let Some(container_elem) = container.first() {
-                    println!("[CrunchyScan] Found container with selector: {}", selector);
-                    // Try multiple div selectors for manga items
-                    let manga_divs = container_elem.select("div.flex.flex-col.w-full.gap-3")
-                        .or_else(|| container_elem.select("div.flex.flex-col"))
-                        .or_else(|| container_elem.select("div[class*='manga']"))
-                        .or_else(|| container_elem.select("div"));
-                    
-                    if let Some(manga_divs) = manga_divs {
-                        for manga_div in manga_divs {
-                            // Try multiple link selectors
-                            let manga_links = manga_div.select("a[href*='/lecture-en-ligne/']")
-                                .or_else(|| manga_div.select("a[href*='/manga/']"))
-                                .or_else(|| manga_div.select("a[href*='/series/']"))
-                                .or_else(|| manga_div.select("a"));
-                                
-                            if let Some(manga_links) = manga_links {
-                                let mut main_link = None;
-                                for link in manga_links {
-                                    let href = link.attr("href").unwrap_or_default();
-                                    // More flexible link validation
-                                    if !href.is_empty() && 
-                                       (href.contains("/lecture-en-ligne/") || href.contains("/manga/") || href.contains("/series/")) &&
-                                       !href.contains("/read/") && 
-                                       !href.contains("/chapter/") {
-                                        main_link = Some(link);
-                                        break;
-                                    }
-                                }
-                                
-                                if let Some(main_link) = main_link {
-                                    let url = main_link.attr("href").unwrap_or_default();
-                                    let key = helper::extract_slug_from_url(&url);
-                                    
-                                    if !key.is_empty() {
-                                        // Use simplified parsing for fallback
-                                        let title = main_link.attr("title")
-                                            .unwrap_or_default()
-                                            .replace("Lire le manga ", "")
-                                            .trim()
-                                            .to_string();
-                                        
-                                        if !title.is_empty() {
-                                            mangas.push(Manga {
-                                                key: key.clone(),
-                                                cover: None,
-                                                title,
-                                                authors: None,
-                                                artists: None,
-                                                description: None,
-                                                tags: None,
-                                                status: MangaStatus::Unknown,
-                                                content_rating: ContentRating::Safe,
-                                                viewer: Viewer::LeftToRight,
-                                                chapters: None,
-                                                url: Some(helper::make_absolute_url("https://crunchyscan.fr", &url)),
-                                                next_update_time: None,
-                                                update_strategy: UpdateStrategy::Always,
-                                            });
-                                        }
-                                    }
-                                }
                             }
+                        } else {
+                            None
                         }
-                    }
+                    } else {
+                        None
+                    };
+
+                    chapters.push(Chapter {
+                        key: url,
+                        title: Some(chapter_text.trim().to_string()),
+                        chapter_number: Some(chapter_number),
+                        volume_number: None,
+                        date_uploaded,
+                        scanlators: None,
+                        url: None,
+                        language: Some(String::from("fr")),
+                        thumbnail: None,
+                        locked: false,
+                    });
                 }
-                // If we found any mangas with this selector, break and use them
-                if !mangas.is_empty() {
-                    break;
-                }
             }
-        }
-        
-        // If still no mangas found, return empty to trigger API fallback
-        if mangas.is_empty() {
-            return Ok(MangaPageResult {
-                entries: mangas,
-                has_next_page: false,
-            });
-        }
-    }
 
-    // Check for pagination - following LelscanFR pattern
-    let has_more = check_pagination(&html);
-    
-    println!("[CrunchyScan] Parsing completed: {} mangas found, has_next_page: {}", mangas.len(), has_more);
-
-    Ok(MangaPageResult {
-        entries: mangas,
-        has_next_page: has_more,
-    })
-}
-
-pub fn parse_manga_details(html: Document, manga_key: String) -> Result<Manga> {
-    let title = if let Some(title_elem) = html.select("h1, .manga-title, .series-title").and_then(|list| list.first()) {
-        helper::clean_title(&title_elem.text().unwrap_or_default())
-    } else {
-        String::new()
-    };
-
-    let description = if let Some(desc_elem) = html.select(".description, .synopsis, [class*='desc']").and_then(|list| list.first()) {
-        Some(desc_elem.text().unwrap_or_default().trim().to_string())
-    } else {
-        None
-    };
-
-    let cover = if let Some(img) = html.select("img[class*='cover'], .manga-cover img, .series-cover img").and_then(|list| list.first()) {
-        let img_src = img.attr("src")
-            .or_else(|| img.attr("data-src"))
-            .or_else(|| img.attr("data-lazy-src"))
-            .unwrap_or_default();
-        
-        if !img_src.is_empty() {
-            Some(helper::make_absolute_url("https://crunchyscan.fr", &img_src))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let mut tags = Vec::new();
-    if let Some(genre_elements) = html.select(".genre, .tag, [class*='genre'] a, [class*='tag'] a") {
-        for genre in genre_elements {
-            let tag_text_raw = genre.text().unwrap_or_default();
-            let tag_text = tag_text_raw.trim();
-            if !tag_text.is_empty() {
-                tags.push(tag_text.to_string());
+            if !chapters.is_empty() {
+                break;
             }
         }
     }
 
-    let status = if let Some(status_elem) = html.select(".status, [class*='status']").and_then(|list| list.first()) {
-        let status_text = status_elem.text().unwrap_or_default().to_lowercase();
-        if status_text.contains("terminé") || status_text.contains("complete") {
-            MangaStatus::Completed
-        } else if status_text.contains("en cours") || status_text.contains("ongoing") {
-            MangaStatus::Ongoing
-        } else if status_text.contains("abandonné") || status_text.contains("dropped") {
-            MangaStatus::Cancelled
-        } else {
-            MangaStatus::Unknown
-        }
-    } else {
-        MangaStatus::Unknown
-    };
-
-    Ok(Manga {
-        key: manga_key,
-        cover,
-        title,
-        authors: None,
-        artists: None,
-        description,
-        tags: if tags.is_empty() { None } else { Some(tags) },
-        status,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
-        chapters: None,
-        url: None,
-        next_update_time: None,
-        update_strategy: UpdateStrategy::Always,
-    })
-}
-
-pub fn parse_chapter_list(html: Document, _manga_key: String) -> Result<Vec<Chapter>> {
-    let mut chapters = Vec::new();
-
-    if let Some(chapter_elements) = html.select("a[href*='/read/'], .chapter-link, [class*='chapter'] a") {
-        for chapter_elem in chapter_elements {
-            let url = chapter_elem.attr("href").unwrap_or_default();
-            if url.is_empty() || !url.contains("/read/") {
-                continue;
-            }
-
-            let title = chapter_elem.text().unwrap_or_default().trim().to_string();
-            if title.is_empty() {
-                continue;
-            }
-
-            let chapter_number = helper::extract_chapter_number(&title);
-            let volume = if title.to_lowercase().contains("volume") {
-                Some(chapter_number)
-            } else {
-                None
-            };
-
-            let date_uploaded = if let Some(time_elem) = chapter_elem.parent()
-                .and_then(|parent| parent.select(".time, .date, [class*='time'], [class*='date']").and_then(|list| list.first()))
-            {
-                let time_text = time_elem.text().unwrap_or_default();
-                Some(helper::parse_relative_time(&time_text))
-            } else {
-                None
-            };
-
-            let chapter_key = if url.starts_with("http") {
-                url.clone()
-            } else {
-                helper::make_absolute_url("https://crunchyscan.fr", &url)
-            };
-
-            chapters.push(Chapter {
-                key: chapter_key.clone(),
-                title: Some(title),
-                chapter_number: Some(chapter_number),
-                volume_number: volume,
-                date_uploaded,
-                scanlators: Some(vec!["CrunchyScan".to_string()]),
-                language: Some("fr".to_string()),
-                locked: false,
-                thumbnail: None,
-                url: Some(chapter_key),
-            });
-        }
-    }
-
+    // Sort chapters by number (descending)
     chapters.sort_by(|a, b| {
-        b.chapter_number.partial_cmp(&a.chapter_number).unwrap_or(Ordering::Equal)
+        let a_num = a.chapter_number.unwrap_or(0.0);
+        let b_num = b.chapter_number.unwrap_or(0.0);
+        b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
     });
 
     Ok(chapters)
 }
 
-pub fn parse_page_list(html: Document) -> Result<Vec<Page>> {
-    let mut pages = Vec::new();
+// Parse page list from chapter HTML
+pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
+    let mut pages: Vec<Page> = Vec::new();
 
-    if let Some(img_elements) = html.select("img[class*='page'], .page img, #reader img") {
-        for (_index, img) in img_elements.enumerate() {
-            let img_src = img.attr("src")
-                .or_else(|| img.attr("data-src"))
-                .or_else(|| img.attr("data-lazy-src"))
-                .unwrap_or_default();
+    // Try multiple selectors for images
+    let image_selectors = [
+        "img[class*='page']",
+        ".page img",
+        "#reader img",
+        ".reader-container img",
+        "[class*='reader'] img",
+    ];
 
-            if !img_src.is_empty() {
-                let absolute_url = helper::make_absolute_url("https://crunchyscan.fr", &img_src);
-                pages.push(Page {
-                    content: PageContent::Url(absolute_url, None),
-                    thumbnail: None,
-                    has_description: false,
-                    description: None,
-                });
+    for selector in &image_selectors {
+        if let Some(imgs) = html.select(selector) {
+            for img in imgs {
+                if let Some(src) = img.attr("data-src")
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src")) {
+
+                    let url = if src.starts_with("http") {
+                        src.to_string()
+                    } else {
+                        format!("{}/{}", BASE_URL, src.trim_start_matches('/'))
+                    };
+
+                    pages.push(Page {
+                        content: PageContent::Url(url, None),
+                        thumbnail: None,
+                        has_description: false,
+                        description: None,
+                    });
+                }
+            }
+
+            if !pages.is_empty() {
+                break;
             }
         }
     }
 
+    // Fallback: try to extract from script tags
     if pages.is_empty() {
         if let Some(scripts) = html.select("script") {
             for script in scripts {
-                if let Some(script_content) = script.text() {
-                    if script_content.contains("pages") || script_content.contains("images") {
-                        let lines: Vec<&str> = script_content.lines().collect();
-                        for line in lines {
-                            if (line.contains(".jpg") || line.contains(".png") || line.contains(".jpeg"))
-                                && (line.contains("http") || line.contains("//"))
-                            {
-                                if let Some(start) = line.find("\"http") {
-                                    if let Some(end) = line[start + 1..].find("\"") {
-                                        let url = &line[start + 1..start + 1 + end];
+                if let Some(script_text) = script.text() {
+                    if script_text.contains("http") && (script_text.contains(".jpg") || script_text.contains(".png") || script_text.contains(".webp")) {
+                        // Try to extract image URLs from script
+                        for line in script_text.lines() {
+                            if line.contains("http") && (line.contains(".jpg") || line.contains(".png") || line.contains(".webp")) {
+                                // Simple extraction - look for URLs in quotes
+                                let parts: Vec<&str> = line.split('"').collect();
+                                for part in parts {
+                                    if part.starts_with("http") && (part.ends_with(".jpg") || part.ends_with(".png") || part.ends_with(".webp") || part.contains(".jpg?") || part.contains(".png?") || part.contains(".webp?")) {
                                         pages.push(Page {
-                                            content: PageContent::Url(url.to_string(), None),
+                                            content: PageContent::Url(part.to_string(), None),
                                             thumbnail: None,
                                             has_description: false,
                                             description: None,
@@ -463,72 +355,4 @@ pub fn parse_page_list(html: Document) -> Result<Vec<Page>> {
     }
 
     Ok(pages)
-}
-
-
-fn check_pagination(html: &Document) -> bool {
-    // First, check the specific CrunchyScan pagination structure
-    if let Some(p_elements) = html.select("p") {
-        for elem in p_elements {
-            if let Some(text) = elem.text() {
-                if text.contains("/") && text.chars().any(|c| c.is_ascii_digit()) {
-                    if let Some(slash_pos) = text.find("/") {
-                        let after_slash = &text[slash_pos + 1..].trim();
-                        if let Ok(total_pages) = after_slash.parse::<i32>() {
-                            // Also try to get current page from textbox
-                            if let Some(textbox) = html.select("input[type='text']").and_then(|list| list.first()) {
-                                if let Some(value) = textbox.attr("value") {
-                                    if let Ok(current_page) = value.parse::<i32>() {
-                                        return current_page < total_pages;
-                                    }
-                                }
-                            }
-                            // If we can't find current page, assume we're on page 1 and there are more if total > 1
-                            return total_pages > 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Fallback to the original logic
-    if let Some(page_elements) = html.select("input[type='text'], .paginate_button, [class*='page']") {
-        for elem in page_elements {
-            if let Some(text) = elem.text() {
-                if text.contains("/") {
-                    let parts: Vec<&str> = text.split("/").collect();
-                    if parts.len() == 2 {
-                        if let (Ok(current), Ok(total)) = (parts[0].trim().parse::<i32>(), parts[1].trim().parse::<i32>()) {
-                            return current < total;
-                        }
-                    }
-                }
-            }
-
-            if let Some(value) = elem.attr("value") {
-                if let Ok(current_page) = value.parse::<i32>() {
-                    if let Some(parent) = elem.parent() {
-                        if let Some(total_text) = parent.text() {
-                            if total_text.contains("/") {
-                                let parts: Vec<&str> = total_text.split("/").collect();
-                                if parts.len() == 2 {
-                                    if let Ok(total) = parts[1].trim().parse::<i32>() {
-                                        return current_page < total;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Check for next page buttons as final fallback
-    if let Some(next_links) = html.select("a[href*='page='], .next, [class*='next']") {
-        return !next_links.is_empty();
-    }
-
-    false
 }
