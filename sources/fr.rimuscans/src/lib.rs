@@ -39,13 +39,13 @@ impl Source for RimuScans {
             if page == 1 {
                 format!("{}/manga/?s={}", BASE_URL, encoded_query)
             } else {
-                format!("{}/manga/page/{}/?s={}", BASE_URL, page, encoded_query)
+                format!("{}/manga/?s={}&page={}", BASE_URL, encoded_query, page)
             }
         } else {
             if page == 1 {
                 format!("{}/manga/", BASE_URL)
             } else {
-                format!("{}/manga/page/{}/", BASE_URL, page)
+                format!("{}/manga/?page={}", BASE_URL, page)
             }
         };
 
@@ -148,7 +148,7 @@ impl RimuScans {
         let url = if page == 1 {
             format!("{}/manga/?order=popular", BASE_URL)
         } else {
-            format!("{}/manga/page/{}/?order=popular", BASE_URL, page)
+            format!("{}/manga/?order=popular&page={}", BASE_URL, page)
         };
 
         let html = Request::get(&url)?
@@ -175,7 +175,7 @@ impl RimuScans {
         let url = if page == 1 {
             format!("{}/manga/?order=update", BASE_URL)
         } else {
-            format!("{}/manga/page/{}/?order=update", BASE_URL, page)
+            format!("{}/manga/?order=update&page={}", BASE_URL, page)
         };
 
         let html = Request::get(&url)?
