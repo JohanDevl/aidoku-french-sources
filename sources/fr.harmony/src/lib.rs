@@ -100,17 +100,22 @@ impl Source for Harmony {
         if needs_chapters {
             // Try to fetch chapters from AJAX endpoint first
             let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga.key);
-            let chapters_html = Request::post(&ajax_url)?
-                .header("User-Agent", USER_AGENT)
-                .header("Referer", &url)
-                .html();
 
-            manga.chapters = if let Ok(ajax_html) = chapters_html {
-                Some(parse_chapter_list(&ajax_html)?)
-            } else {
-                // Fallback to main page if AJAX fails
-                Some(parse_chapter_list(&html)?)
-            };
+            let chapters = match Request::post(&ajax_url) {
+                Ok(request) => {
+                    match request
+                        .header("User-Agent", USER_AGENT)
+                        .header("Referer", &url)
+                        .html()
+                    {
+                        Ok(ajax_html) => parse_chapter_list(&ajax_html),
+                        Err(_) => parse_chapter_list(&html)
+                    }
+                }
+                Err(_) => parse_chapter_list(&html)
+            }?;
+
+            manga.chapters = Some(chapters);
         }
 
         Ok(manga)
