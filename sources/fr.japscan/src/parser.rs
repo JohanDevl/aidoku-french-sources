@@ -4,7 +4,6 @@ use aidoku::{
     AidokuError, Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent,
     Result, UpdateStrategy, Viewer,
 };
-use chrono::NaiveDate;
 use serde_json::Value;
 
 use crate::BASE_URL;
@@ -343,9 +342,38 @@ fn parse_chapter_date(date_str: &str) -> Option<i64> {
         _ => return None,
     };
 
-    let date = NaiveDate::from_ymd_opt(year, month, day)?;
-    let timestamp = date.and_hms_opt(0, 0, 0)?.and_utc().timestamp();
-    Some(timestamp * 1000) // Convert to milliseconds
+    if day < 1 || day > 31 || year < 1970 || year > 2100 {
+        return None;
+    }
+
+    // Manual timestamp calculation (same approach as other sources)
+    // Days cumulated before each month in non-leap year (0-indexed)
+    let days_before_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+
+    // Years since epoch
+    let years_since_epoch = year - 1970;
+
+    // Count leap years between 1970 and year (not including current year)
+    let leap_days = ((1970..year)
+        .filter(|&y| (y % 4 == 0 && y % 100 != 0) || y % 400 == 0)
+        .count()) as i32;
+
+    // Days for complete years
+    let mut days = years_since_epoch * 365 + leap_days;
+
+    // Add days for complete months in current year
+    days += days_before_month[(month - 1) as usize] as i32;
+
+    // Add one day if current year is leap and we're past February
+    if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) && month > 2 {
+        days += 1;
+    }
+
+    // Add days in current month (subtract 1 because we count from day 1)
+    days += (day - 1) as i32;
+
+    // Convert to seconds
+    Some(days as i64 * 86400)
 }
 
 pub fn parse_page_list(html_content: String, base_url: &str) -> Result<Vec<Page>> {
