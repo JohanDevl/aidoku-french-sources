@@ -32,25 +32,6 @@ async function loadSources() {
     // Clear loading state
     sourcesContainer.innerHTML = "";
 
-    // Define source types
-    const sourceTypes = {
-      "fr.astralmanga": "Madara",
-      "fr.mangascantrad": "Madara",
-      "fr.mangasorigines": "Madara",
-      "fr.reaperscans": "Madara",
-      "fr.lelmanga": "MangaThemesia",
-      "fr.sushiscan": "MangaStream",
-      "fr.sushiscans": "MangaStream",
-      "fr.mangascan": "MMRCMS",
-      "fr.animesama": "Custom",
-      "fr.fmteam": "Custom",
-      "fr.lelscanfr": "Custom",
-      "fr.phenixscans": "Custom",
-      "fr.poseidonscans": "Custom",
-      "fr.starboundscans": "Custom",
-      "fr.legacyscans": "Custom",
-    };
-
     // Sort sources alphabetically
     const sortedSources = sources.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -58,7 +39,6 @@ async function loadSources() {
     sortedSources.forEach((source, index) => {
       const sourceCard = createSourceCard(
         source,
-        sourceTypes,
         index
       );
       sourcesContainer.appendChild(sourceCard);
@@ -73,13 +53,11 @@ async function loadSources() {
   }
 }
 
-function createSourceCard(source, sourceTypes, index) {
-  const sourceType = sourceTypes[source.id] || "Unknown";
-
+function createSourceCard(source, index) {
   const card = document.createElement("div");
   card.className = "source-card clickable";
   card.style.setProperty("--index", index);
-  
+
   // Add click handler for download
   card.addEventListener('click', () => {
     if (source.downloadURL) {
@@ -101,7 +79,7 @@ function createSourceCard(source, sourceTypes, index) {
   }" class="source-icon" onerror="this.style.display='none'">
             <h3 class="source-name">${source.name}</h3>
         </div>
-        
+
         <div class="source-status">
             <span class="badge badge-active">
                 ✅ Active
@@ -113,15 +91,15 @@ function createSourceCard(source, sourceTypes, index) {
                 : ""
             }
         </div>
-        
+
         <div class="source-version">
-            Version ${source.version} · ${sourceType}
+            Version ${source.version}
         </div>
-        
+
         <div class="source-id">
             ${source.id}
         </div>
-        
+
         <div class="download-hint">
             Click to download
         </div>
