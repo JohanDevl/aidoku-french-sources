@@ -124,14 +124,22 @@ impl Source for Harmony {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        println!("[HARMONY] get_page_list called");
+        println!("[HARMONY] chapter.key = {}", chapter.key);
+
         let url = format!("{}{}/?style=list", BASE_URL, chapter.key);
+        println!("[HARMONY] page_url = {}", url);
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL)
             .html()?;
 
-        parse_page_list(&html)
+        println!("[HARMONY] HTML received, parsing pages");
+        let pages = parse_page_list(&html)?;
+        println!("[HARMONY] Found {} pages", pages.len());
+
+        Ok(pages)
     }
 }
 
@@ -316,24 +324,35 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
 }
 
 fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
+    println!("[HARMONY] parse_page_list called");
     let mut pages: Vec<Page> = Vec::new();
 
     if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
-        for img in img_elements {
-            let img_url = img.attr("data-src")
-                .or_else(|| img.attr("data-lazy-src"))
-                .or_else(|| img.attr("src"))
-                .unwrap_or_default();
+        let count = img_elements.count();
+        println!("[HARMONY] Found {} img elements", count);
 
-            if !img_url.is_empty() && !img_url.contains("loader") {
-                pages.push(Page {
-                    content: PageContent::Text(img_url),
-                    ..Default::default()
-                });
+        if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
+            for (i, img) in img_elements.enumerate() {
+                let img_url = img.attr("data-src")
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src"))
+                    .unwrap_or_default();
+
+                println!("[HARMONY] img[{}] url = {}", i, img_url);
+
+                if !img_url.is_empty() && !img_url.contains("loader") {
+                    pages.push(Page {
+                        content: PageContent::Text(img_url),
+                        ..Default::default()
+                    });
+                }
             }
         }
+    } else {
+        println!("[HARMONY] No img elements found with selector");
     }
 
+    println!("[HARMONY] Returning {} pages", pages.len());
     Ok(pages)
 }
 
