@@ -11,9 +11,9 @@ extern crate alloc;
 pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
     let mut mangas = Vec::new();
 
-    if let Some(items) = html.select("div.unit") {
+    if let Some(items) = html.select(".listupd .bs .bsx, .utao .uta .imgu") {
         for item in items {
-            let link = if let Some(links) = item.select("div.info a, a.c-title") {
+            let link = if let Some(links) = item.select("a") {
                 if let Some(l) = links.first() {
                     l
                 } else {
@@ -24,9 +24,7 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
             };
 
             let url = link.attr("href").unwrap_or_default();
-            let title_attr = link.attr("title").unwrap_or_default();
-            let title_text = link.text().unwrap_or_default();
-            let title = if !title_attr.is_empty() { title_attr } else { title_text };
+            let title = link.attr("title").unwrap_or_default();
 
             if url.is_empty() || title.is_empty() {
                 continue;
@@ -34,7 +32,7 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 
             let key = url.clone();
 
-            let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img, a.poster div.poster-image-wrapper > img") {
+            let cover = if let Some(imgs) = item.select("img") {
                 if let Some(img) = imgs.first() {
                     let cover_url = img.attr("data-lazy-src")
                         .or_else(|| img.attr("data-src"))
