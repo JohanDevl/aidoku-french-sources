@@ -98,24 +98,45 @@ impl Source for Harmony {
         }
 
         if needs_chapters {
+            println!("[HARMONY] needs_chapters = true");
+            println!("[HARMONY] manga.key = {}", manga.key);
+
             // Try to fetch chapters from AJAX endpoint first
             let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga.key);
+            println!("[HARMONY] ajax_url = {}", ajax_url);
 
             let chapters = match Request::get(&ajax_url) {
                 Ok(request) => {
+                    println!("[HARMONY] AJAX request created");
                     match request
                         .header("User-Agent", USER_AGENT)
                         .header("Referer", &url)
                         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                         .html()
                     {
-                        Ok(ajax_html) => parse_chapter_list(&ajax_html),
-                        Err(_) => parse_chapter_list(&html)
+                        Ok(ajax_html) => {
+                            println!("[HARMONY] AJAX HTML received");
+                            let result = parse_chapter_list(&ajax_html);
+                            if let Ok(ref chapters) = result {
+                                println!("[HARMONY] Parsed {} chapters from AJAX", chapters.len());
+                            } else {
+                                println!("[HARMONY] Failed to parse chapters from AJAX");
+                            }
+                            result
+                        },
+                        Err(_) => {
+                            println!("[HARMONY] AJAX html() failed, falling back to main page");
+                            parse_chapter_list(&html)
+                        }
                     }
                 }
-                Err(_) => parse_chapter_list(&html)
+                Err(_) => {
+                    println!("[HARMONY] AJAX request failed, falling back to main page");
+                    parse_chapter_list(&html)
+                }
             }?;
 
+            println!("[HARMONY] Final chapter count = {}", chapters.len());
             manga.chapters = Some(chapters);
         }
 
@@ -277,6 +298,7 @@ fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 }
 
 fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
+    println!("[HARMONY] parse_chapter_list called");
     let mut chapters: Vec<Chapter> = Vec::new();
 
     let chapter_selectors = [
@@ -287,47 +309,62 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     ];
 
     for selector in chapter_selectors {
+        println!("[HARMONY] Trying selector: {}", selector);
         if let Some(chapter_items) = html.select(selector) {
-            for item in chapter_items {
-                let link = if selector.contains(" a") {
-                    Some(item)
-                } else {
-                    item.select("a").and_then(|links| links.first())
-                };
+            let count = chapter_items.count();
+            println!("[HARMONY] Found {} items with selector: {}", count, selector);
 
-                if let Some(link) = link {
-                    let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
-                    if url.is_empty() || !url.contains("chapitre") {
-                        continue;
+            if let Some(chapter_items) = html.select(selector) {
+                for item in chapter_items {
+                    let link = if selector.contains(" a") {
+                        Some(item)
+                    } else {
+                        item.select("a").and_then(|links| links.first())
+                    };
+
+                    if let Some(link) = link {
+                        let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
+                        println!("[HARMONY] Found URL: {}", url);
+
+                        if url.is_empty() || !url.contains("chapitre") {
+                            println!("[HARMONY] URL rejected (empty or no 'chapitre')");
+                            continue;
+                        }
+
+                        let key = url.replace(BASE_URL, "").replace("/?style=list", "");
+                        let title = link.text().unwrap_or_default().trim().to_string();
+
+                        if title.is_empty() {
+                            println!("[HARMONY] Title is empty, skipping");
+                            continue;
+                        }
+
+                        println!("[HARMONY] Adding chapter: {}", title);
+                        let chapter_num = extract_chapter_number(&title);
+                        let chapter_url = format!("{}{}", BASE_URL, key);
+
+                        chapters.push(Chapter {
+                            key,
+                            title: Some(title),
+                            chapter_number: if chapter_num > 0.0 { Some(chapter_num as f32) } else { None },
+                            url: Some(chapter_url),
+                            ..Default::default()
+                        });
                     }
-
-                    let key = url.replace(BASE_URL, "").replace("/?style=list", "");
-                    let title = link.text().unwrap_or_default().trim().to_string();
-
-                    if title.is_empty() {
-                        continue;
-                    }
-
-                    let chapter_num = extract_chapter_number(&title);
-                    let chapter_url = format!("{}{}", BASE_URL, key);
-
-                    chapters.push(Chapter {
-                        key,
-                        title: Some(title),
-                        chapter_number: if chapter_num > 0.0 { Some(chapter_num as f32) } else { None },
-                        url: Some(chapter_url),
-                        ..Default::default()
-                    });
                 }
             }
 
             if !chapters.is_empty() {
+                println!("[HARMONY] Breaking after finding {} chapters", chapters.len());
                 break;
             }
+        } else {
+            println!("[HARMONY] No items found for selector: {}", selector);
         }
     }
 
     chapters.reverse();
+    println!("[HARMONY] Returning {} chapters", chapters.len());
     Ok(chapters)
 }
 
