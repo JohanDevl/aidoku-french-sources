@@ -1,1 +1,43 @@
-[]
+[
+  {
+    "type": "title"
+  },
+  {
+    "type": "group",
+    "name": "Type",
+    "filters": [
+      {
+        "type": "select",
+        "name": "Type",
+        "options": [
+          "Tout",
+          "Manga",
+          "Manhwa",
+          "Manhua",
+          "Webtoon",
+          "Novel",
+          "Doujinshi",
+          "Anime"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "group",
+    "name": "Statut",
+    "filters": [
+      {
+        "type": "select",
+        "name": "Statut",
+        "options": [
+          "Tout",
+          "En cours",
+          "Terminé",
+          "Abandonné",
+          "En pause",
+          "À venir"
+        ]
+      }
+    ]
+  }
+]
