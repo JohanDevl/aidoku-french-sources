@@ -27,9 +27,11 @@ impl Source for Harmony {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let has_query_or_filters = query.is_some() || !filters.is_empty();
+        // Check if query is non-empty
+        let has_query = query.as_ref().map_or(false, |q| !q.trim().is_empty());
+        let has_filters = !filters.is_empty();
 
-        let mut url = if has_query_or_filters {
+        let mut url = if has_query || has_filters {
             // Search/filter format: /?s=query&post_type=wp-manga
             let search_query = query.unwrap_or_default();
             if page > 1 {
