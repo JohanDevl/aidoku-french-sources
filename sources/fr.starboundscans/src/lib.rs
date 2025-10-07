@@ -198,7 +198,8 @@ impl StarBoundScans {
             .unwrap_or_else(|| key.clone());
 
         let cover_selectors = [
-            ".project-cover img",
+            "img.project-cover",
+            ".project-cover",
             ".summary_image img",
             ".tab-summary img",
             "div.summary_image img",
@@ -207,9 +208,9 @@ impl StarBoundScans {
         let mut cover = String::new();
         for selector in &cover_selectors {
             if let Some(img_elem) = html.select(selector).and_then(|elems| elems.first()) {
-                if let Some(src) = img_elem.attr("data-src")
-                    .or_else(|| img_elem.attr("data-lazy-src"))
-                    .or_else(|| img_elem.attr("src")) {
+                if let Some(src) = img_elem.attr("src")
+                    .or_else(|| img_elem.attr("data-src"))
+                    .or_else(|| img_elem.attr("data-lazy-src")) {
                     if !src.is_empty() {
                         cover = src.to_string();
                         break;
