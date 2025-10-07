@@ -114,17 +114,11 @@ impl StarBoundScans {
         for selector in &manga_selectors {
             if let Some(items) = html.select(selector) {
                 for item in items {
-                    let link = if let Some(a_element) = item.select("a") {
-                        if let Some(first_link) = a_element.first() {
-                            first_link
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    };
+                    let href = item.select(".item-thumb a, a")
+                        .and_then(|links| links.first())
+                        .and_then(|link| link.attr("href"))
+                        .unwrap_or_default();
 
-                    let href = link.attr("href").unwrap_or_default();
                     if href.is_empty() {
                         continue;
                     }
@@ -139,11 +133,13 @@ impl StarBoundScans {
                         continue;
                     }
 
-                    let title = link.attr("title")
+                    let title = item.select(".post-title h3 a, h3 a, .item-summary h3 a, h5 a")
+                        .and_then(|elems| elems.first())
+                        .and_then(|elem| elem.text())
                         .or_else(|| {
-                            item.select("h3 a, h5 a, .post-title h3 a, .h5 a")
-                                .and_then(|elems| elems.first())
-                                .and_then(|elem| elem.text())
+                            item.select(".item-thumb a, a")
+                                .and_then(|links| links.first())
+                                .and_then(|link| link.attr("title"))
                         })
                         .unwrap_or_default()
                         .trim()
@@ -153,18 +149,14 @@ impl StarBoundScans {
                         continue;
                     }
 
-                    let cover = if let Some(img_elements) = item.select("img") {
-                        if let Some(img) = img_elements.first() {
-                            img.attr("data-src")
+                    let cover = item.select(".item-thumb img, img")
+                        .and_then(|imgs| imgs.first())
+                        .and_then(|img| {
+                            img.attr("src")
+                                .or_else(|| img.attr("data-src"))
                                 .or_else(|| img.attr("data-lazy-src"))
-                                .or_else(|| img.attr("src"))
-                                .unwrap_or_default()
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        String::new()
-                    };
+                        })
+                        .unwrap_or_default();
 
                     entries.push(Manga {
                         key,
