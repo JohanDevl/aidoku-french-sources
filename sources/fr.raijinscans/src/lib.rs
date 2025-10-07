@@ -198,15 +198,20 @@ impl RaijinScans {
     fn parse_search_results(&self, html: &Document) -> Vec<Manga> {
         let mut mangas = Vec::new();
 
-        if let Some(items) = html.select("a.search-result-card") {
+        if let Some(items) = html.select("div.unit") {
             for item in items {
-                let url = item.attr("href").unwrap_or_default();
-
-                let title = if let Some(title_elem) = item.select("h6.search-result-title").and_then(|e| e.first()) {
-                    title_elem.text().unwrap_or_default()
+                let link = if let Some(links) = item.select("div.info a") {
+                    if let Some(l) = links.first() {
+                        l
+                    } else {
+                        continue;
+                    }
                 } else {
                     continue;
                 };
+
+                let url = link.attr("href").unwrap_or_default();
+                let title = link.text().unwrap_or_default();
 
                 if url.is_empty() || title.is_empty() {
                     continue;
@@ -214,7 +219,7 @@ impl RaijinScans {
 
                 let key = url.clone();
 
-                let cover = if let Some(imgs) = item.select("div.search-result-thumbnail img") {
+                let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img") {
                     if let Some(img) = imgs.first() {
                         let cover_url = img.attr("src")
                             .or_else(|| img.attr("data-src"))
