@@ -124,8 +124,13 @@ impl Source for Harmony {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        use alloc::string::ToString;
+
         println!("[HARMONY] ===== get_page_list START =====");
-        println!("[HARMONY] chapter.key = '{}'", chapter.key);
+
+        // Safe string operations to avoid any potential panic
+        let chapter_key_str = chapter.key.to_string();
+        println!("[HARMONY] chapter.key = '{}'", chapter_key_str);
 
         if let Some(ref title) = chapter.title {
             println!("[HARMONY] chapter.title = '{}'", title);
@@ -135,7 +140,13 @@ impl Source for Harmony {
             println!("[HARMONY] chapter.url = '{}'", url);
         }
 
-        let chapter_key = chapter.key.trim_end_matches('/');
+        // Build URL carefully
+        let chapter_key = if chapter_key_str.ends_with('/') {
+            &chapter_key_str[..chapter_key_str.len()-1]
+        } else {
+            &chapter_key_str
+        };
+
         let url = format!("{}{}/?style=list", BASE_URL, chapter_key);
         println!("[HARMONY] constructed page_url = '{}'", url);
 
@@ -154,6 +165,11 @@ impl Source for Harmony {
         println!("[HARMONY] Parsing pages...");
         let pages = parse_page_list(&html)?;
         println!("[HARMONY] Found {} pages", pages.len());
+
+        if pages.is_empty() {
+            println!("[HARMONY] WARNING: No pages found!");
+        }
+
         println!("[HARMONY] ===== get_page_list END =====");
 
         Ok(pages)
@@ -303,6 +319,7 @@ fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 }
 
 fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
+    println!("[HARMONY] parse_chapter_list called");
     let mut chapters: Vec<Chapter> = Vec::new();
 
     if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
@@ -325,6 +342,8 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
                     let chapter_num = extract_chapter_number(&title);
                     let chapter_url = format!("{}{}", BASE_URL, key);
 
+                    println!("[HARMONY] Creating chapter: key='{}', url='{}', title='{}'", key, chapter_url, title);
+
                     chapters.push(Chapter {
                         key,
                         title: Some(title),
@@ -337,6 +356,7 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
         }
     }
 
+    println!("[HARMONY] Created {} chapters", chapters.len());
     Ok(chapters)
 }
 
