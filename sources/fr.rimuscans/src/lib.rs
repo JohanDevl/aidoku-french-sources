@@ -125,32 +125,56 @@ impl Source for RimuScans {
         }
 
         let search_query = query.unwrap_or_default();
-        let encoded_query = if !search_query.is_empty() {
-            urlencode(search_query)
+        let has_search = !search_query.is_empty();
+
+        // Build URL - don't include s= parameter if search is empty (it breaks filters)
+        let mut url = if has_search {
+            let encoded_query = urlencode(search_query);
+            if page == 1 {
+                format!("{}/manga/?s={}", BASE_URL, encoded_query)
+            } else {
+                format!("{}/manga/page/{}/?s={}", BASE_URL, page, encoded_query)
+            }
         } else {
-            String::new()
+            if page == 1 {
+                format!("{}/manga/?", BASE_URL)
+            } else {
+                format!("{}/manga/page/{}/?", BASE_URL, page)
+            }
         };
 
-        let mut url = if page == 1 {
-            format!("{}/manga/?s={}", BASE_URL, encoded_query)
-        } else {
-            format!("{}/manga/page/{}/?s={}", BASE_URL, page, encoded_query)
-        };
+        // Track if we've added any parameters (to know whether to use & or not)
+        let mut has_params = has_search;
 
         for genre in genre_filters {
-            url.push_str(&format!("&genre%5B%5D={}", genre));
+            if has_params {
+                url.push_str("&");
+            }
+            url.push_str(&format!("genre%5B%5D={}", genre));
+            has_params = true;
         }
 
         if !status_filter.is_empty() {
-            url.push_str(&format!("&status={}", status_filter));
+            if has_params {
+                url.push_str("&");
+            }
+            url.push_str(&format!("status={}", status_filter));
+            has_params = true;
         }
 
         if !type_filter.is_empty() {
-            url.push_str(&format!("&type={}", type_filter));
+            if has_params {
+                url.push_str("&");
+            }
+            url.push_str(&format!("type={}", type_filter));
+            has_params = true;
         }
 
         if !sort_filter.is_empty() {
-            url.push_str(&format!("&order={}", sort_filter));
+            if has_params {
+                url.push_str("&");
+            }
+            url.push_str(&format!("order={}", sort_filter));
         }
 
         let html = Request::get(&url)?
