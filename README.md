@@ -80,58 +80,131 @@ This project uses **Rust** and different templates to support various website te
 ### Project Structure
 
 ```
-sources/
-├── fr.animesama/    # Custom source for AnimeSama
-├── fr.fmteam/       # Custom source for FMTeam
-├── fr.lelmanga/     # MangaThemesia source for LelManga
-├── fr.lelscanfr/    # Custom source for LelscanFR
-├── fr.mangascantrad/ # Madara source for MangaScantrad
-├── fr.mangasorigines/ # Madara source for MangasOrigines
-├── fr.phenixscans/  # Custom source for PhenixScans
-├── fr.poseidonscans/ # Custom source for PoseidonScans
-├── fr.starboundscans/ # Custom source for Starbound Scans
-└── fr.sushiscans/   # MangaStream source for SushiScans
+aidoku-french-sources/
+├── sources/              # Active sources (10 sources)
+│   ├── fr.animesama/
+│   ├── fr.fmteam/
+│   ├── fr.lelmanga/
+│   ├── fr.lelscanfr/
+│   ├── fr.mangascantrad/
+│   ├── fr.mangasorigines/
+│   ├── fr.phenixscans/
+│   ├── fr.poseidonscans/
+│   ├── fr.starboundscans/
+│   └── fr.sushiscans/
+├── offline-sources/      # Offline sources (7 sources)
+│   ├── fr.astralmanga/
+│   ├── fr.crunchyscan/
+│   ├── fr.japscan/
+│   ├── fr.legacyscans/
+│   ├── fr.mangascan/
+│   ├── fr.reaperscansfr/
+│   └── fr.sushiscan/
+├── templates/            # Reusable templates (deprecated)
+├── public/               # Website files
+├── README.md
+└── ROADMAP.md
 ```
 
 ## 👨‍💻 For Developers
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (latest stable version with nightly toolchain)
+- [Rust](https://rustup.rs/) (latest stable version)
 - [Git](https://git-scm.com/)
 - [Aidoku CLI](https://github.com/Aidoku/aidoku-rs): `cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli`
 
 ### Local Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/JohanDevl/aidoku-french-sources.git
 cd aidoku-french-sources
 
-# Install nightly Rust with WASM target
-rustup install nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
+# Add WASM target (if not already installed)
+rustup target add wasm32-unknown-unknown
 ```
 
 ### Building a Source
 
-```bash
-# For template-based sources (Madara, MangaStream, MMRCMS)
-cd src/rust/madara/sources/lelmanga && RUSTUP_TOOLCHAIN=nightly aidoku package
-cd src/rust/mangastream/sources/sushiscans && RUSTUP_TOOLCHAIN=nightly aidoku package
+All sources are built the same way using the Aidoku CLI:
 
-# For custom sources
-cd src/rust/fr.lelscanfr && RUSTUP_TOOLCHAIN=nightly aidoku package
-cd src/rust/fr.phenixscans && RUSTUP_TOOLCHAIN=nightly aidoku package
+```bash
+# Navigate to the source directory
+cd sources/fr.animesama
+
+# Build the source package
+aidoku package
+
+# Verify the package
+aidoku verify package.aix
 ```
+
+#### Examples for Different Sources
+
+```bash
+# Custom sources
+cd sources/fr.lelscanfr && aidoku package
+cd sources/fr.phenixscans && aidoku package
+
+# Template-based sources
+cd sources/fr.mangascantrad && aidoku package
+cd sources/fr.sushiscans && aidoku package
+```
+
+#### Building All Active Sources
+
+```bash
+# Build all active sources
+for source in sources/*; do
+  echo "Building $(basename "$source")..."
+  (cd "$source" && aidoku package)
+done
+```
+
+#### Note on Offline Sources
+
+Sources in `offline-sources/` are **not built** by default. These are:
+- Sources with technical incompatibilities (e.g., JapScan requires JavaScript)
+- Sources with Cloudflare challenges (e.g., CrunchyScan)
+- Temporarily offline websites
+
+These sources are kept for:
+- Documentation purposes
+- Future reactivation if sites change
+- Reference implementations
 
 ### Adding a New Source
 
-1. **Identify the site type** (Madara, MangaStream, MMRCMS, or Custom)
-2. **Create the configuration** in the appropriate folder
-3. **Test the source** locally
-4. **Submit a Pull Request**
+1. **Create source directory**
+   ```bash
+   mkdir sources/fr.newsource
+   cd sources/fr.newsource
+   mkdir -p res src
+   ```
 
-For more details, check the corresponding template in `src/rust/[template]/template/`.
+2. **Add required files**
+   - `res/source.json` - Source metadata
+   - `res/icon.png` - 128x128 opaque PNG icon
+   - `res/filters.json` - Search filters (optional)
+   - `src/lib.rs` - Main implementation
+   - `Cargo.toml` - Rust dependencies
+
+3. **Implement the source**
+   - Implement `Source` trait
+   - Add parsers for manga list, details, chapters, pages
+   - Test thoroughly
+
+4. **Build and verify**
+   ```bash
+   aidoku package
+   aidoku verify package.aix
+   ```
+
+5. **Submit a Pull Request**
+   - Ensure all tests pass
+   - Update README.md if needed
+   - Follow commit message conventions
 
 ## 🤝 Contributing
 
