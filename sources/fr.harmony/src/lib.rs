@@ -106,13 +106,13 @@ impl Source for Harmony {
             let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga_key);
             println!("[HARMONY] ajax_url = {}", ajax_url);
 
-            let chapters = match Request::get(&ajax_url) {
+            let chapters = match Request::post(&ajax_url) {
                 Ok(request) => {
-                    println!("[HARMONY] AJAX request created");
+                    println!("[HARMONY] AJAX POST request created");
                     match request
                         .header("User-Agent", USER_AGENT)
                         .header("Referer", &url)
-                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .body(b"")
                         .html()
                     {
                         Ok(ajax_html) => {
@@ -327,42 +327,45 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     println!("[HARMONY] parse_chapter_list called");
     let mut chapters: Vec<Chapter> = Vec::new();
 
-    // Try to find all links with "chapitre" in href
-    println!("[HARMONY] Searching for all links with 'chapitre'");
-    if let Some(all_links) = html.select("a[href*=\"chapitre\"]") {
-        let count = all_links.count();
-        println!("[HARMONY] Found {} links with 'chapitre'", count);
+    // Look for wp-manga-chapter list items
+    println!("[HARMONY] Searching for li.wp-manga-chapter");
+    if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
+        let count = chapter_items.count();
+        println!("[HARMONY] Found {} chapter items", count);
 
-        if let Some(all_links) = html.select("a[href*=\"chapitre\"]") {
-            for link in all_links {
-                let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
-                println!("[HARMONY] Checking URL: {}", url);
+        if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
+            for item in chapter_items {
+                if let Some(links) = item.select("a") {
+                    if let Some(link) = links.first() {
+                        let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
+                        println!("[HARMONY] Found chapter URL: {}", url);
 
-                // Make sure it's a valid chapter URL from harmony-scan.fr
-                if url.is_empty() || !url.contains("harmony-scan.fr") || !url.contains("/chapitre-") {
-                    println!("[HARMONY] URL rejected");
-                    continue;
+                        if url.is_empty() || !url.contains("chapitre") {
+                            println!("[HARMONY] URL rejected");
+                            continue;
+                        }
+
+                        let key = url.replace(BASE_URL, "").replace("/?style=list", "");
+                        let title = link.text().unwrap_or_default().trim().to_string();
+
+                        if title.is_empty() {
+                            println!("[HARMONY] Title is empty, skipping");
+                            continue;
+                        }
+
+                        println!("[HARMONY] Adding chapter: {}", title);
+                        let chapter_num = extract_chapter_number(&title);
+                        let chapter_url = format!("{}{}", BASE_URL, key);
+
+                        chapters.push(Chapter {
+                            key,
+                            title: Some(title),
+                            chapter_number: if chapter_num > 0.0 { Some(chapter_num as f32) } else { None },
+                            url: Some(chapter_url),
+                            ..Default::default()
+                        });
+                    }
                 }
-
-                let key = url.replace(BASE_URL, "").replace("/?style=list", "");
-                let title = link.text().unwrap_or_default().trim().to_string();
-
-                if title.is_empty() {
-                    println!("[HARMONY] Title is empty, skipping");
-                    continue;
-                }
-
-                println!("[HARMONY] Adding chapter: {}", title);
-                let chapter_num = extract_chapter_number(&title);
-                let chapter_url = format!("{}{}", BASE_URL, key);
-
-                chapters.push(Chapter {
-                    key,
-                    title: Some(title),
-                    chapter_number: if chapter_num > 0.0 { Some(chapter_num as f32) } else { None },
-                    url: Some(chapter_url),
-                    ..Default::default()
-                });
             }
         }
     }
