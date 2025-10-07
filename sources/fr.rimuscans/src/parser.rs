@@ -285,14 +285,8 @@ pub fn parse_page_list(html: &Document) -> Vec<Page> {
 }
 
 pub fn has_next_page(html: &Document) -> bool {
-    if let Some(next_elems) = html.select("li.page-item:not(.disabled) a[rel=next], a.next") {
-        if !next_elems.is_empty() {
-            return true;
-        }
-    }
-
-    if let Some(load_more) = html.select("a#load-more-manga") {
-        if !load_more.is_empty() {
+    if let Some(voir_plus) = html.select("div.hpage a.r") {
+        if !voir_plus.is_empty() {
             return true;
         }
     }
