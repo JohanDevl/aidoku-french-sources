@@ -29,9 +29,31 @@ impl Source for Harmony {
     ) -> Result<MangaPageResult> {
         // Check if query is non-empty
         let has_query = query.as_ref().map_or(false, |q| !q.trim().is_empty());
-        let has_filters = !filters.is_empty();
 
-        let mut url = if has_query || has_filters {
+        // Check if filters have meaningful values (not default values)
+        let has_meaningful_filters = filters.iter().any(|filter| {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "orderby" {
+                        !value.is_empty() && value != "Pertinence"
+                    } else if id == "status" {
+                        !value.is_empty() && value != "Tous"
+                    } else {
+                        false
+                    }
+                }
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
+                    if id == "genre" {
+                        included.iter().any(|g| !g.is_empty() && g != "Tous")
+                    } else {
+                        false
+                    }
+                }
+                _ => false
+            }
+        });
+
+        let mut url = if has_query || has_meaningful_filters {
             // Search/filter format: /?s=query&post_type=wp-manga
             let search_query = query.unwrap_or_default();
             if page > 1 {
