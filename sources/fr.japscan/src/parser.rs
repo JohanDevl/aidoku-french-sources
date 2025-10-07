@@ -151,44 +151,67 @@ pub fn parse_manga_details(html: Document) -> Result<Manga> {
     let mut artists = Vec::new();
     let mut genres = Vec::new();
     let mut status = MangaStatus::Unknown;
+    let mut content_rating = ContentRating::Safe;
 
-    if let Some(rows) = info_element.select(".row, .d-flex") {
-        for elem in rows {
-            if let Some(p) = elem.select("p").and_then(|ps| ps.first()) {
-                let text = p.text().unwrap_or_default();
-                let span_text = p.select("span")
-                    .and_then(|spans| spans.first())
-                    .and_then(|s| s.text())
-                    .unwrap_or_default();
+    // Parse info from div.m-2 or similar containers
+    if let Some(paragraphs) = info_element.select("p") {
+        for p in paragraphs {
+            let full_text = p.text().unwrap_or_default();
+            let label = p.select("span.font-weight-bold")
+                .and_then(|spans| spans.first())
+                .and_then(|s| s.text())
+                .unwrap_or_default();
 
-                if span_text.contains("Auteur(s):") {
-                    let author_str = text.replace("Auteur(s):", "").trim().to_string();
-                    if !author_str.is_empty() {
-                        authors.push(author_str);
+            if label.contains("Auteur") {
+                let author_str = full_text.replace(&label, "").trim().to_string();
+                if !author_str.is_empty() {
+                    // Split multiple authors by comma
+                    for author in author_str.split(',') {
+                        let cleaned = author.trim().to_string();
+                        if !cleaned.is_empty() {
+                            authors.push(cleaned);
+                        }
                     }
-                } else if span_text.contains("Artiste(s):") {
-                    let artist_str = text.replace("Artiste(s):", "").trim().to_string();
-                    if !artist_str.is_empty() {
-                        artists.push(artist_str);
-                    }
-                } else if span_text.contains("Genre(s):") {
-                    let genre_str = text.replace("Genre(s):", "").trim().to_string();
-                    genres = genre_str.split(',').map(|g| String::from(g.trim())).collect();
-                } else if span_text.contains("Statut:") {
-                    let status_str = text.replace("Statut:", "").trim().to_lowercase();
-                    status = if status_str.contains("en cours") {
-                        MangaStatus::Ongoing
-                    } else if status_str.contains("terminé") {
-                        MangaStatus::Completed
-                    } else {
-                        MangaStatus::Unknown
-                    };
                 }
+            } else if label.contains("Artiste") {
+                let artist_str = full_text.replace(&label, "").trim().to_string();
+                if !artist_str.is_empty() {
+                    // Split multiple artists by comma
+                    for artist in artist_str.split(',') {
+                        let cleaned = artist.trim().to_string();
+                        if !cleaned.is_empty() {
+                            artists.push(cleaned);
+                        }
+                    }
+                }
+            } else if label.contains("Genre") {
+                let genre_str = full_text.replace(&label, "").trim().to_string();
+                if !genre_str.is_empty() {
+                    genres = genre_str.split(',').map(|g| String::from(g.trim())).collect();
+                }
+            } else if label.contains("Statut") {
+                let status_str = full_text.replace(&label, "").trim().to_lowercase();
+                status = if status_str.contains("en cours") {
+                    MangaStatus::Ongoing
+                } else if status_str.contains("terminé") || status_str.contains("termine") {
+                    MangaStatus::Completed
+                } else {
+                    MangaStatus::Unknown
+                };
+            } else if label.contains("Âge conseillé") || label.contains("Age conseillé") {
+                let age_str = full_text.replace(&label, "").trim().to_lowercase();
+                content_rating = if age_str.contains("18") || age_str.contains("+18") {
+                    ContentRating::NSFW
+                } else if age_str.contains("16") || age_str.contains("+16") {
+                    ContentRating::Suggestive
+                } else {
+                    ContentRating::Safe
+                };
             }
         }
     }
 
-    let description = info_element.select("div:contains(Synopsis) + p")
+    let description = info_element.select("div:contains(Synopsis) + p, p.description, .synopsis")
         .and_then(|ps| ps.first())
         .and_then(|p| p.own_text());
 
@@ -207,7 +230,7 @@ pub fn parse_manga_details(html: Document) -> Result<Manga> {
         url: None,
         tags: if genres.is_empty() { None } else { Some(genres) },
         status,
-        content_rating: ContentRating::Safe,
+        content_rating,
         viewer: Viewer::RightToLeft,
         chapters: None,
         next_update_time: None,
