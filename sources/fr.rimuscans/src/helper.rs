@@ -31,30 +31,36 @@ pub fn urlencode(string: String) -> String {
 }
 
 pub fn parse_relative_date(text: &str) -> Option<i64> {
-    let text = text.to_lowercase();
+    let text_lower = text.to_lowercase();
+
+    // Try parsing absolute date first (format: "septembre 18, 2025")
+    if let Some(timestamp) = parse_absolute_date(&text_lower) {
+        return Some(timestamp);
+    }
+
     let mut offset: i64 = 0;
 
-    if text.contains("aujourd'hui") || text.contains("today") {
+    if text_lower.contains("aujourd'hui") || text_lower.contains("today") {
         return Some(0);
     }
 
-    if text.contains("hier") || text.contains("yesterday") {
+    if text_lower.contains("hier") || text_lower.contains("yesterday") {
         return Some(-86400);
     }
 
-    if let Some(value_str) = text.split_whitespace().next() {
+    if let Some(value_str) = text_lower.split_whitespace().next() {
         if let Ok(value) = value_str.parse::<i64>() {
-            if text.contains("heure") || text.contains("hour") {
+            if text_lower.contains("heure") || text_lower.contains("hour") {
                 offset = value * 3600;
-            } else if text.contains("min") {
+            } else if text_lower.contains("min") {
                 offset = value * 60;
-            } else if text.contains("jour") || text.contains("day") {
+            } else if text_lower.contains("jour") || text_lower.contains("day") {
                 offset = value * 86400;
-            } else if text.contains("semaine") || text.contains("week") {
+            } else if text_lower.contains("semaine") || text_lower.contains("week") {
                 offset = value * 86400 * 7;
-            } else if text.contains("mois") || text.contains("month") {
+            } else if text_lower.contains("mois") || text_lower.contains("month") {
                 offset = value * 86400 * 30;
-            } else if text.contains("an") || text.contains("year") {
+            } else if text_lower.contains("an") || text_lower.contains("year") {
                 offset = value * 86400 * 365;
             }
             return Some(-offset);
@@ -62,6 +68,71 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
     }
 
     None
+}
+
+fn parse_absolute_date(text: &str) -> Option<i64> {
+    // Parse format: "septembre 18, 2025" or "18 septembre 2025"
+    let parts: Vec<&str> = text.split_whitespace().collect();
+
+    if parts.len() < 3 {
+        return None;
+    }
+
+    let month_num = match parts[0] {
+        "janvier" | "january" => 1,
+        "février" | "february" => 2,
+        "mars" | "march" => 3,
+        "avril" | "april" => 4,
+        "mai" | "may" => 5,
+        "juin" | "june" => 6,
+        "juillet" | "july" => 7,
+        "août" | "august" => 8,
+        "septembre" | "september" => 9,
+        "octobre" | "october" => 10,
+        "novembre" | "november" => 11,
+        "décembre" | "december" => 12,
+        _ => {
+            // Try second word as month (format: "18 septembre 2025")
+            if parts.len() >= 3 {
+                match parts[1] {
+                    "janvier" | "january" => 1,
+                    "février" | "february" => 2,
+                    "mars" | "march" => 3,
+                    "avril" | "april" => 4,
+                    "mai" | "may" => 5,
+                    "juin" | "june" => 6,
+                    "juillet" | "july" => 7,
+                    "août" | "august" => 8,
+                    "septembre" | "september" => 9,
+                    "octobre" | "october" => 10,
+                    "novembre" | "november" => 11,
+                    "décembre" | "december" => 12,
+                    _ => return None,
+                }
+            } else {
+                return None;
+            }
+        }
+    };
+
+    // Determine if format is "month day, year" or "day month year"
+    let (day_str, year_str) = if parts[0].chars().all(|c| c.is_ascii_digit()) {
+        // Format: "18 septembre 2025"
+        (parts[0], parts[2])
+    } else {
+        // Format: "septembre 18, 2025"
+        (parts[1].trim_end_matches(','), parts[2])
+    };
+
+    let day = day_str.parse::<i64>().ok()?;
+    let year = year_str.parse::<i64>().ok()?;
+
+    // Calculate Unix timestamp (simplified - doesn't account for leap years perfectly)
+    let days_since_epoch = (year - 1970) * 365 + (year - 1969) / 4 - (year - 1901) / 100 + (year - 1601) / 400;
+    let days_in_months = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+    let total_days = days_since_epoch + days_in_months[(month_num - 1) as usize] + day - 1;
+
+    Some(total_days * 86400)
 }
 
 pub fn make_absolute_url(base: &str, url: &str) -> String {
