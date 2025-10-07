@@ -17,7 +17,7 @@ use helper::urlencode;
 use parser::{parse_chapter_list, parse_manga_details, parse_manga_list, parse_page_list, has_next_page};
 
 pub static BASE_URL: &str = "https://raijinscan.co";
-pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
 
 pub struct RaijinScans;
 
@@ -96,8 +96,13 @@ impl Source for RaijinScans {
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Referer", BASE_URL)
             .html()?;
 
         let mangas = parse_manga_list(&html, BASE_URL);
@@ -121,8 +126,13 @@ impl Source for RaijinScans {
 
             let html = Request::get(&manga_url)?
                 .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("DNT", "1")
+                .header("Connection", "keep-alive")
+                .header("Upgrade-Insecure-Requests", "1")
+                .header("Referer", BASE_URL)
                 .html()?;
 
             if needs_details {
@@ -146,8 +156,12 @@ impl Source for RaijinScans {
 
         let html = Request::get(&chapter_url)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
 
@@ -178,8 +192,13 @@ impl RaijinScans {
     fn get_popular_manga(&self, _page: i32) -> Result<MangaPageResult> {
         let html = Request::get(BASE_URL)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Referer", BASE_URL)
             .html()?;
 
         let mut mangas = Vec::new();
@@ -251,8 +270,13 @@ impl RaijinScans {
         if page == 1 {
             let html = Request::get(BASE_URL)?
                 .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("DNT", "1")
+                .header("Connection", "keep-alive")
+                .header("Upgrade-Insecure-Requests", "1")
+                .header("Referer", BASE_URL)
                 .html()?;
 
             let mut mangas = Vec::new();
