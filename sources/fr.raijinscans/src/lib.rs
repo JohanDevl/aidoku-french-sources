@@ -224,11 +224,13 @@ impl RaijinScans {
 
                 let key = url.clone();
 
-                let cover = if let Some(imgs) = item.select("a.poster div.poster-image-wrapper img") {
+                let cover = if let Some(imgs) = item.select("img") {
                     if let Some(img) = imgs.first() {
-                        let data_src = img.attr("data-src").unwrap_or_default();
-                        let src = img.attr("src").unwrap_or_default();
-                        let cover_url = if !data_src.is_empty() { data_src } else { src };
+                        let cover_url = img.attr("data-src")
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .or_else(|| img.attr("src"))
+                            .unwrap_or_default();
+
                         if !cover_url.is_empty() {
                             Some(helper::make_absolute_url(BASE_URL, &cover_url))
                         } else {
@@ -302,11 +304,13 @@ impl RaijinScans {
 
                     let key = url.clone();
 
-                    let cover = if let Some(imgs) = item.select("div.poster-image-wrapper img") {
+                    let cover = if let Some(imgs) = item.select("img") {
                         if let Some(img) = imgs.first() {
-                            let data_src = img.attr("data-src").unwrap_or_default();
-                            let src = img.attr("src").unwrap_or_default();
-                            let cover_url = if !data_src.is_empty() { data_src } else { src };
+                            let cover_url = img.attr("data-src")
+                                .or_else(|| img.attr("data-lazy-src"))
+                                .or_else(|| img.attr("src"))
+                                .unwrap_or_default();
+
                             if !cover_url.is_empty() {
                                 Some(helper::make_absolute_url(BASE_URL, &cover_url))
                             } else {
