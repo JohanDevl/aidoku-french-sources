@@ -127,50 +127,86 @@ impl Source for Harmony {
         use alloc::string::ToString;
 
         println!("[HARMONY] ===== get_page_list START =====");
+        println!("[HARMONY] Source version: 17");
 
         // Safe string operations to avoid any potential panic
         let chapter_key_str = chapter.key.to_string();
+        println!("[HARMONY] chapter.key length: {}", chapter_key_str.len());
         println!("[HARMONY] chapter.key = '{}'", chapter_key_str);
 
         if let Some(ref title) = chapter.title {
             println!("[HARMONY] chapter.title = '{}'", title);
+        } else {
+            println!("[HARMONY] chapter.title = None");
         }
 
         if let Some(ref url) = chapter.url {
             println!("[HARMONY] chapter.url = '{}'", url);
+        } else {
+            println!("[HARMONY] chapter.url = None");
         }
 
-        // Build URL carefully
+        // Build URL very carefully with explicit steps
+        println!("[HARMONY] Step 1: Trim trailing slash");
         let chapter_key = if chapter_key_str.ends_with('/') {
-            &chapter_key_str[..chapter_key_str.len()-1]
+            let trimmed = &chapter_key_str[..chapter_key_str.len()-1];
+            println!("[HARMONY] Trimmed '{}' -> '{}'", chapter_key_str, trimmed);
+            trimmed
         } else {
+            println!("[HARMONY] No trailing slash to trim");
             &chapter_key_str
         };
 
+        println!("[HARMONY] Step 2: Build final URL");
         let url = format!("{}{}/?style=list", BASE_URL, chapter_key);
-        println!("[HARMONY] constructed page_url = '{}'", url);
+        println!("[HARMONY] Final URL length: {}", url.len());
+        println!("[HARMONY] Final URL = '{}'", url);
 
-        println!("[HARMONY] Making request...");
-        let request = Request::get(&url)?;
-        println!("[HARMONY] Request created");
+        println!("[HARMONY] Step 3: Create request");
+        let request = match Request::get(&url) {
+            Ok(r) => {
+                println!("[HARMONY] Request created successfully");
+                r
+            },
+            Err(_) => {
+                println!("[HARMONY] ERROR: Failed to create request");
+                return Err(aidoku::AidokuError::Message("Failed to create request".to_string()));
+            }
+        };
 
-        println!("[HARMONY] Adding headers...");
-        let html = request
+        println!("[HARMONY] Step 4: Add headers and fetch");
+        let html = match request
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL)
-            .html()?;
+            .html()
+        {
+            Ok(h) => {
+                println!("[HARMONY] HTML received successfully");
+                h
+            },
+            Err(_) => {
+                println!("[HARMONY] ERROR: Failed to fetch HTML");
+                return Err(aidoku::AidokuError::Message("Failed to fetch HTML".to_string()));
+            }
+        };
 
-        println!("[HARMONY] HTML received successfully");
-
-        println!("[HARMONY] Parsing pages...");
-        let pages = parse_page_list(&html)?;
-        println!("[HARMONY] Found {} pages", pages.len());
+        println!("[HARMONY] Step 5: Parse pages");
+        let pages = match parse_page_list(&html) {
+            Ok(p) => {
+                println!("[HARMONY] Pages parsed successfully: {} pages", p.len());
+                p
+            },
+            Err(_) => {
+                println!("[HARMONY] ERROR: Failed to parse pages");
+                return Err(aidoku::AidokuError::Message("Failed to parse pages".to_string()));
+            }
+        };
 
         if pages.is_empty() {
             println!("[HARMONY] WARNING: No pages found!");
         }
 
-        println!("[HARMONY] ===== get_page_list END =====");
+        println!("[HARMONY] ===== get_page_list END - SUCCESS =====");
 
         Ok(pages)
     }
