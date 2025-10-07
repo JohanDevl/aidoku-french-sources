@@ -27,10 +27,23 @@ impl Source for Harmony {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let mut url = if let Some(search_query) = query {
-            format!("{}/page/{}/?s={}&post_type=wp-manga", BASE_URL, page, urlencode(&search_query))
+        let has_query_or_filters = query.is_some() || !filters.is_empty();
+
+        let mut url = if has_query_or_filters {
+            // Search/filter format: /?s=query&post_type=wp-manga
+            let search_query = query.unwrap_or_default();
+            if page > 1 {
+                format!("{}/page/{}/?s={}&post_type=wp-manga", BASE_URL, page, urlencode(&search_query))
+            } else {
+                format!("{}/?s={}&post_type=wp-manga", BASE_URL, urlencode(&search_query))
+            }
         } else {
-            format!("{}/manga/page/{}/", BASE_URL, page)
+            // Normal listing format: /manga/page/X/
+            if page > 1 {
+                format!("{}/manga/page/{}/", BASE_URL, page)
+            } else {
+                format!("{}/manga/", BASE_URL)
+            }
         };
 
         for filter in filters {
@@ -148,9 +161,10 @@ fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
     let has_more = true;
 
-    if let Some(manga_items) = html.select("div.page-item-detail") {
+    // Try search/filter format first (div.c-tabs-item__content)
+    if let Some(manga_items) = html.select("div.c-tabs-item__content") {
         for item in manga_items {
-            let link = if let Some(links) = item.select("div.post-title a") {
+            let link = if let Some(links) = item.select("div.post-title h3 a, div.tab-summary div.post-title h3 a") {
                 if let Some(first_link) = links.first() {
                     first_link
                 } else {
@@ -160,8 +174,8 @@ fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 continue;
             };
 
-            let url = link.attr("abs:href").unwrap_or_default();
-            let title = link.own_text().unwrap_or_default().trim().to_string();
+            let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
+            let title = link.text().unwrap_or_default().trim().to_string();
 
             if url.is_empty() || title.is_empty() {
                 continue;
@@ -189,6 +203,53 @@ fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 url: Some(url),
                 ..Default::default()
             });
+        }
+    }
+
+    // Fallback to normal listing format (div.page-item-detail)
+    if mangas.is_empty() {
+        if let Some(manga_items) = html.select("div.page-item-detail") {
+            for item in manga_items {
+                let link = if let Some(links) = item.select("div.post-title a") {
+                    if let Some(first_link) = links.first() {
+                        first_link
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                };
+
+                let url = link.attr("abs:href").unwrap_or_default();
+                let title = link.own_text().unwrap_or_default().trim().to_string();
+
+                if url.is_empty() || title.is_empty() {
+                    continue;
+                }
+
+                let key = url.replace(BASE_URL, "");
+
+                let cover = if let Some(img_elements) = item.select("img") {
+                    if let Some(img) = img_elements.first() {
+                        img.attr("data-src")
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .or_else(|| img.attr("src"))
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+
+                mangas.push(Manga {
+                    key,
+                    title,
+                    cover: if cover.is_empty() { None } else { Some(cover) },
+                    url: Some(url),
+                    ..Default::default()
+                });
+            }
         }
     }
 
