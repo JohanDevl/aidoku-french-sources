@@ -5,8 +5,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 ## 📊 Current Status
 
 - **Implemented sources**: 17 (10 active + 7 offline)
-- **Remaining sources**: 6
-- **Total available sources**: 23
+- **Remaining sources**: 5
+- **Total available sources**: 22
 
 ## 🔄 Work in Progress
 
@@ -16,14 +16,13 @@ Currently no sources are being actively developed.
 
 ### Standard Priority Sources
 
-| Source Name      | URL                                          | Expected Type | Priority  | Notes                  |
-| ---------------- | -------------------------------------------- | ------------- | --------- | ---------------------- |
-| **Manga-Kawaii** | [mangakawaii.io](https://mangakawaii.io)     | Unknown       | 🟡 Medium | Popular community site |
-| **BananaScan**   | [harmony-scan.fr](https://harmony-scan.fr)   | Unknown       | 🟡 Medium | Community source       |
-| **EdScanlation** | [edscanlation.fr](https://edscanlation.fr)   | Unknown       | 🟡 Medium | Scanlation team        |
-| **MangasScans**  | [mangas-scans.com](https://mangas-scans.com) | Unknown       | 🟡 Medium | Manga scanning source  |
-| **RaijinScans**  | [raijinscan.co](https://raijinscan.co)       | Unknown       | 🟡 Medium | Scanlation group       |
-| **RimuScans**    | [rimuscans.com](https://rimuscans.com)       | Unknown       | 🟡 Medium | Scanlation team        |
+| Source Name      | URL                                          | Expected Type | Priority  | Notes                 |
+| ---------------- | -------------------------------------------- | ------------- | --------- | --------------------- |
+| **BananaScan**   | [harmony-scan.fr](https://harmony-scan.fr)   | Unknown       | 🟡 Medium | Community source      |
+| **EdScanlation** | [edscanlation.fr](https://edscanlation.fr)   | Unknown       | 🟡 Medium | Scanlation team       |
+| **MangasScans**  | [mangas-scans.com](https://mangas-scans.com) | Unknown       | 🟡 Medium | Manga scanning source |
+| **RaijinScans**  | [raijinscan.co](https://raijinscan.co)       | Unknown       | 🟡 Medium | Scanlation group      |
+| **RimuScans**    | [rimuscans.com](https://rimuscans.com)       | Unknown       | 🟡 Medium | Scanlation team       |
 
 ## 🏗️ Implementation Guidelines
 
