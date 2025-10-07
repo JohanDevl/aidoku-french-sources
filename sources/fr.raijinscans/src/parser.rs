@@ -204,6 +204,13 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 
     if let Some(items) = html.select("ul.scroll-sm li.item") {
         for item in items {
+            // Skip premium chapters
+            if let Some(class) = item.attr("class") {
+                if class.contains("premium-chapter") {
+                    continue;
+                }
+            }
+
             let link = if let Some(links) = item.select("a") {
                 if let Some(l) = links.first() {
                     l
@@ -217,7 +224,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
             let url = link.attr("href").unwrap_or_default();
             let title = link.attr("title").unwrap_or_default();
 
-            if url.is_empty() {
+            if url.is_empty() || url.contains("/connexion") {
                 continue;
             }
 
