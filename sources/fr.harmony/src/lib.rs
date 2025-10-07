@@ -166,6 +166,7 @@ fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
                 key,
                 title,
                 cover: if cover.is_empty() { None } else { Some(cover) },
+                url: Some(url),
                 ..Default::default()
             });
         }
@@ -252,6 +253,7 @@ fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 
     manga.content_rating = ContentRating::NSFW;
     manga.viewer = Viewer::default();
+    manga.url = Some(format!("{}{}", BASE_URL, manga.key));
 
     Ok(manga)
 }
