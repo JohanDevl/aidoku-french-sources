@@ -250,11 +250,19 @@ pub fn parse_chapter_list(html: Document, hide_spoilers: bool) -> Result<Vec<Cha
             }
 
             if !chapter_url.is_empty() {
-                let chapter_number = extract_chapter_number(&chapter_title);
+                // Clean up title by removing "- Read On Japscan" suffix
+                let cleaned_title = chapter_title
+                    .replace(" - Read On Japscan", "")
+                    .replace(" - Read On JapScan", "")
+                    .replace(" - Read on Japscan", "")
+                    .trim()
+                    .to_string();
+
+                let chapter_number = extract_chapter_number(&cleaned_title);
 
                 chapters.push(Chapter {
                     key: chapter_url.clone(),
-                    title: Some(chapter_title),
+                    title: Some(cleaned_title),
                     volume_number: None,
                     chapter_number: if chapter_number > 0.0 { Some(chapter_number) } else { None },
                     date_uploaded: None,

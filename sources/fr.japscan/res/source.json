@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.japscan",
     "name": "JapScan",
-    "version": 2,
+    "version": 3,
     "url": "https://www.japscan.si",
     "contentRating": 1,
     "languages": ["fr"]
