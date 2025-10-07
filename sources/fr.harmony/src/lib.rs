@@ -117,6 +117,18 @@ impl Source for Harmony {
                     {
                         Ok(ajax_html) => {
                             println!("[HARMONY] AJAX HTML received");
+
+                            // Debug: check what's in the HTML
+                            if let Some(all_lis) = ajax_html.select("li") {
+                                println!("[HARMONY] Total <li> elements: {}", all_lis.count());
+                            }
+                            if let Some(all_as) = ajax_html.select("a") {
+                                println!("[HARMONY] Total <a> elements: {}", all_as.count());
+                            }
+                            if let Some(all_divs) = ajax_html.select("div") {
+                                println!("[HARMONY] Total <div> elements: {}", all_divs.count());
+                            }
+
                             let result = parse_chapter_list(&ajax_html);
                             if let Ok(ref chapters) = result {
                                 println!("[HARMONY] Parsed {} chapters from AJAX", chapters.len());
