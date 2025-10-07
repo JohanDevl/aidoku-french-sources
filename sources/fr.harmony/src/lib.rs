@@ -27,8 +27,6 @@ impl Source for Harmony {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        use aidoku::println;
-
         // Check if query is non-empty
         let has_query = query.as_ref().map_or(false, |q| !q.trim().is_empty());
 
@@ -54,11 +52,6 @@ impl Source for Harmony {
                 _ => false
             }
         });
-
-        println!("Query: {:?}", query);
-        println!("Filters count: {}", filters.len());
-        println!("Has query: {}", has_query);
-        println!("Has meaningful filters: {}", has_meaningful_filters);
 
         let mut url = if has_query || has_meaningful_filters {
             // Search/filter format: /?s=query&post_type=wp-manga
@@ -114,8 +107,6 @@ impl Source for Harmony {
                 _ => {}
             }
         }
-
-        println!("URL: {}", url);
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
