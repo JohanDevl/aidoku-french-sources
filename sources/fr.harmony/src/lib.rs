@@ -214,9 +214,18 @@ impl Source for Harmony {
 
 impl ImageRequestProvider for Harmony {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-        Ok(Request::get(url)?
+        println!("[HARMONY] get_image_request called for: {}", url);
+
+        let request = Request::get(&url)?;
+        println!("[HARMONY] Image request created");
+
+        let request_with_headers = request
             .header("User-Agent", USER_AGENT)
-            .header("Referer", BASE_URL))
+            .header("Referer", BASE_URL);
+
+        println!("[HARMONY] Headers added to image request");
+
+        Ok(request_with_headers)
     }
 }
 
