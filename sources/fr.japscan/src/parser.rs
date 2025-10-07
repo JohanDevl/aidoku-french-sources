@@ -4,6 +4,7 @@ use aidoku::{
     AidokuError, Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent,
     Result, UpdateStrategy, Viewer,
 };
+use chrono::NaiveDate;
 use serde_json::Value;
 
 use crate::BASE_URL;
@@ -252,6 +253,14 @@ pub fn parse_chapter_list(html: Document, hide_spoilers: bool) -> Result<Vec<Cha
         for elem in elem_list {
             let mut chapter_url = String::new();
             let mut chapter_title = String::new();
+            let mut date_uploaded: Option<i64> = None;
+
+            // Extract date from span.float-right
+            if let Some(span) = elem.select("span.float-right").and_then(|spans| spans.first()) {
+                if let Some(date_text) = span.text() {
+                    date_uploaded = parse_chapter_date(&date_text);
+                }
+            }
 
             if let Some(link_list) = elem.select("a") {
                 for link in link_list {
@@ -289,7 +298,7 @@ pub fn parse_chapter_list(html: Document, hide_spoilers: bool) -> Result<Vec<Cha
                     title: Some(cleaned_title),
                     volume_number: None,
                     chapter_number: if chapter_number > 0.0 { Some(chapter_number) } else { None },
-                    date_uploaded: None,
+                    date_uploaded,
                     scanlators: None,
                     url: Some(chapter_url),
                     language: Some(String::from("fr")),
@@ -314,6 +323,29 @@ fn extract_chapter_number(title: &str) -> f32 {
         }
     }
     -1.0
+}
+
+fn parse_chapter_date(date_str: &str) -> Option<i64> {
+    // Format: "07 Oct 2025" or "30 Sep 2025"
+    let parts: Vec<&str> = date_str.trim().split_whitespace().collect();
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let day: u32 = parts[0].parse().ok()?;
+    let month_str = parts[1];
+    let year: i32 = parts[2].parse().ok()?;
+
+    let month = match month_str {
+        "Jan" => 1, "Feb" => 2, "Mar" => 3, "Apr" => 4,
+        "May" => 5, "Jun" => 6, "Jul" => 7, "Aug" => 8,
+        "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
+        _ => return None,
+    };
+
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let timestamp = date.and_hms_opt(0, 0, 0)?.and_utc().timestamp();
+    Some(timestamp * 1000) // Convert to milliseconds
 }
 
 pub fn parse_page_list(html_content: String, base_url: &str) -> Result<Vec<Page>> {
