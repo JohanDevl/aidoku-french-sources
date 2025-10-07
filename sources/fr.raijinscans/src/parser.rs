@@ -34,11 +34,11 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 
             let key = url.clone();
 
-            let cover = if let Some(imgs) = item.select("img") {
+            let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img") {
                 if let Some(img) = imgs.first() {
-                    let cover_url = img.attr("data-src")
+                    let cover_url = img.attr("src")
+                        .or_else(|| img.attr("data-src"))
                         .or_else(|| img.attr("data-lazy-src"))
-                        .or_else(|| img.attr("src"))
                         .unwrap_or_default();
 
                     if !cover_url.is_empty() {
