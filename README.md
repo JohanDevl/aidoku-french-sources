@@ -1,6 +1,6 @@
 # 📚 Aidoku French Sources
 
-[![Sources](https://img.shields.io/badge/sources-16-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Sources](https://img.shields.io/badge/sources-17-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Active](https://img.shields.io/badge/active-10-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
@@ -52,6 +52,7 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
 | **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ✅ **Active**  |    Custom     | French manhwa scanlations     |
 |     **JapScan**     |       [japscan.si](https://www.japscan.si/)       | ❌ **Offline** |    Custom     | Dynamic JS/Shadow DOM incompatible |
+|   **CrunchyScan**   |     [crunchyscan.fr](https://crunchyscan.fr/)     | ❌ **Offline** |    Custom     | Cloudflare interactive challenge |
 |   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** |  MangaStream  | Chapter loading issues        |
 | **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
 |   **Manga Scan**   |   [mangascan-fr.com](https://mangascan-fr.com/)   | ❌ **Offline** |    MMRCMS     | Website temporarily down      |
@@ -74,7 +75,7 @@ This project uses **Rust** and different templates to support various website te
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
-|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, AnimeSama, FMTeam, Starbound Scans, JapScan, LegacyScans |
+|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, AnimeSama, FMTeam, Starbound Scans, JapScan, CrunchyScan, LegacyScans |
 
 ### Project Structure
 

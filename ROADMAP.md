@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 16 (10 active + 6 offline)
-- **Remaining sources**: 31
+- **Implemented sources**: 17 (10 active + 7 offline)
+- **Remaining sources**: 30
 - **Total available sources**: 47
 
 ## 🔄 Work in Progress
@@ -97,4 +97,4 @@ When working on a source:
 ---
 
 _Last updated: 2025-10-07_
-_Total sources tracked: 31 upcoming_
+_Total sources tracked: 30 upcoming_
