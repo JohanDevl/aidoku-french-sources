@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, MangaStatus, Chapter, Page, PageContent,
     ContentRating, Viewer, UpdateStrategy,
-    alloc::{String, Vec, vec, string::ToString},
+    alloc::{String, Vec, string::ToString},
     imports::html::Document,
 };
 use crate::helper::{make_absolute_url, parse_relative_date};
@@ -74,7 +74,7 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 }
 
 pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -> Result<Manga> {
-    let title = if let Some(title_elems) = html.select("h1.serie-title") {
+    let title = if let Some(title_elems) = html.select("h1.entry-title") {
         if let Some(elem) = title_elems.first() {
             elem.text().unwrap_or_default()
         } else {
@@ -84,10 +84,17 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
         String::new()
     };
 
-    let author = if let Some(author_elems) = html.select("div.stat-item:has(span:contains(Auteur)) span.stat-value") {
-        if let Some(elem) = author_elems.first() {
-            let text = elem.text().unwrap_or_default();
-            if !text.is_empty() { Some(vec![text]) } else { None }
+    let author = None; // Site doesn't show author info
+    let artist = None; // Site doesn't show artist info
+
+    let description = if let Some(desc_elems) = html.select("div.entry-content-single") {
+        if let Some(elem) = desc_elems.first() {
+            let text = elem.text().unwrap_or_default().trim().to_string();
+            if !text.is_empty() {
+                Some(text)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -95,46 +102,7 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
         None
     };
 
-    let artist = if let Some(artist_elems) = html.select("div.stat-item:has(span:contains(Artiste)) span.stat-value") {
-        if let Some(elem) = artist_elems.first() {
-            let text = elem.text().unwrap_or_default();
-            if !text.is_empty() { Some(vec![text]) } else { None }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let mut description = None;
-    if let Some(scripts) = html.select("script") {
-        for script in scripts {
-            if let Some(html_content) = script.html() {
-                if html_content.contains("content.innerHTML") {
-                    if let Some(start) = html_content.find("content.innerHTML = `") {
-                        let desc_start = start + 21;
-                        if let Some(end) = html_content[desc_start..].find("`;") {
-                            description = Some(html_content[desc_start..desc_start + end].to_string());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if description.is_none() {
-        if let Some(desc_elems) = html.select("div.description-content") {
-            if let Some(elem) = desc_elems.first() {
-                let text = elem.text().unwrap_or_default();
-                if !text.is_empty() {
-                    description = Some(text);
-                }
-            }
-        }
-    }
-
-    let tags = if let Some(genre_elems) = html.select("div.genre-list div.genre-link, div.tags a") {
+    let tags = if let Some(genre_elems) = html.select("div.wd-full span.mgen a") {
         let mut tags_vec = Vec::new();
         for elem in genre_elems {
             let tag = elem.text().unwrap_or_default();
@@ -147,7 +115,7 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
         None
     };
 
-    let cover = if let Some(cover_elems) = html.select("img.cover") {
+    let cover = if let Some(cover_elems) = html.select("div.thumb img") {
         if let Some(elem) = cover_elems.first() {
             let src = elem.attr("src").unwrap_or_default();
             if !src.is_empty() {
@@ -162,19 +130,20 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
         None
     };
 
-    let status = if let Some(status_elems) = html.select("div.stat-item:has(span:contains(État)) span.manga, div.status") {
-        if let Some(elem) = status_elems.first() {
-            let status_text = elem.text().unwrap_or_default().to_lowercase();
-            if status_text.contains("en cours") || status_text.contains("ongoing") {
-                MangaStatus::Ongoing
-            } else if status_text.contains("terminé") || status_text.contains("termine") || status_text.contains("completed") {
-                MangaStatus::Completed
-            } else {
-                MangaStatus::Unknown
+    let status = if let Some(status_items) = html.select("div.imptdt") {
+        let mut found_status = MangaStatus::Unknown;
+        for item in status_items {
+            let text = item.text().unwrap_or_default().to_lowercase();
+            if text.contains("status") {
+                if text.contains("ongoing") || text.contains("en cours") {
+                    found_status = MangaStatus::Ongoing;
+                } else if text.contains("completed") || text.contains("terminé") {
+                    found_status = MangaStatus::Completed;
+                }
+                break;
             }
-        } else {
-            MangaStatus::Unknown
         }
+        found_status
     } else {
         MangaStatus::Unknown
     };
@@ -200,21 +169,9 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
 
-    if let Some(items) = html.select("ul.scroll-sm li.item, div.bxcl li, div.cl li, #chapterlist li") {
+    if let Some(items) = html.select("div.eplister ul li") {
         for item in items {
-            if let Some(class) = item.attr("class") {
-                if class.contains("premium-chapter") {
-                    continue;
-                }
-            }
-
-            if let Some(locked_links) = item.select("a[data-bs-target='#lockedChapterModal']") {
-                if locked_links.first().is_some() {
-                    continue;
-                }
-            }
-
-            let link = if let Some(links) = item.select("a") {
+            let link = if let Some(links) = item.select("div.eph-num a") {
                 if let Some(l) = links.first() {
                     l
                 } else {
@@ -225,14 +182,23 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
             };
 
             let url = link.attr("href").unwrap_or_default();
-            let title = link.attr("title").unwrap_or_default();
 
-            if url.is_empty() || url.contains("/connexion") {
+            if url.is_empty() {
                 continue;
             }
 
-            let date_uploaded = if let Some(spans) = item.select("a span:nth-of-type(2), span.date") {
-                if let Some(span) = spans.first() {
+            let title = if let Some(title_span) = item.select("span.chapternum") {
+                if let Some(span) = title_span.first() {
+                    span.text().unwrap_or_default()
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
+            let date_uploaded = if let Some(date_span) = item.select("span.chapterdate") {
+                if let Some(span) = date_span.first() {
                     let date_text = span.text().unwrap_or_default().to_lowercase();
                     parse_relative_date(&date_text)
                 } else {
