@@ -9,7 +9,15 @@
     "type": "select",
     "id": "orderby",
     "title": "Trier par",
-    "options": ["Pertinence", "Dernières sorties", "Alphabétique", "Note", "Tendances", "Vues", "Nouveautés"]
+    "options": [
+      "Pertinence",
+      "Dernières sorties",
+      "Alphabétique",
+      "Note",
+      "Tendances",
+      "Vues",
+      "Nouveautés"
+    ]
   },
   {
     "type": "multi-select",
@@ -17,7 +25,6 @@
     "title": "Genres",
     "isGenre": true,
     "options": [
-      "Tous",
       "Action",
       "Aventure",
       "Comédie",
