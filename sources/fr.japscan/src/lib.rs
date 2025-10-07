@@ -31,8 +31,11 @@ impl JapScan {
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                 .header("Accept-Encoding", "gzip, deflate, br")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "none")
                 .header("Upgrade-Insecure-Requests", "1")
                 .header("Referer", &format!("{}/", BASE_URL));
 
@@ -157,8 +160,11 @@ impl JapScan {
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                 .header("Accept-Encoding", "gzip, deflate, br")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "none")
                 .header("Upgrade-Insecure-Requests", "1")
                 .header("Referer", &format!("{}/", BASE_URL));
 
@@ -173,7 +179,8 @@ impl JapScan {
                 }
             };
 
-            match response.status_code() {
+            let status = response.status_code();
+            match status {
                 200..=299 => return response.get_string(),
                 403 => {
                     if attempt >= MAX_RETRIES {
@@ -196,7 +203,9 @@ impl JapScan {
                     attempt += 1;
                     continue;
                 },
-                _ => return Err(AidokuError::message("Request failed")),
+                _ => {
+                    return Err(AidokuError::message(&format!("Request failed with status {}", status)));
+                },
             }
         }
     }
