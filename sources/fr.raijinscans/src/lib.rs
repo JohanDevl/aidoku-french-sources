@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format, string::ToString},
-    imports::net::Request,
+    imports::{net::Request, html::Document},
     prelude::*,
 };
 
@@ -14,7 +14,7 @@ mod helper;
 mod parser;
 
 use helper::urlencode;
-use parser::{parse_chapter_list, parse_manga_details, parse_manga_list, parse_page_list, has_next_page};
+use parser::{parse_chapter_list, parse_manga_details, parse_page_list, has_next_page};
 
 pub static BASE_URL: &str = "https://raijinscan.co";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
@@ -105,7 +105,7 @@ impl Source for RaijinScans {
             .header("Referer", BASE_URL)
             .html()?;
 
-        let mangas = parse_manga_list(&html, BASE_URL);
+        let mangas = self.parse_search_results(&html);
         let has_more = has_next_page(&html);
 
         Ok(MangaPageResult {
@@ -189,6 +189,71 @@ impl ImageRequestProvider for RaijinScans {
 }
 
 impl RaijinScans {
+    fn parse_search_results(&self, html: &Document) -> Vec<Manga> {
+        let mut mangas = Vec::new();
+
+        if let Some(items) = html.select("div.original.card-lg div.unit") {
+            for item in items {
+                let link = if let Some(links) = item.select("div.info > a") {
+                    if let Some(l) = links.first() {
+                        l
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                };
+
+                let url = link.attr("href").unwrap_or_default();
+                let title = link.text().unwrap_or_default();
+
+                if url.is_empty() || title.is_empty() {
+                    continue;
+                }
+
+                let key = url.clone();
+
+                let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img") {
+                    if let Some(img) = imgs.first() {
+                        let cover_url = img.attr("src")
+                            .or_else(|| img.attr("data-src"))
+                            .or_else(|| img.attr("data-lazy-src"))
+                            .unwrap_or_default();
+
+                        if !cover_url.is_empty() {
+                            Some(helper::make_absolute_url(BASE_URL, &cover_url))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                mangas.push(Manga {
+                    key: key.clone(),
+                    cover,
+                    title,
+                    authors: None,
+                    artists: None,
+                    description: None,
+                    tags: None,
+                    status: aidoku::MangaStatus::Unknown,
+                    content_rating: aidoku::ContentRating::Safe,
+                    viewer: aidoku::Viewer::LeftToRight,
+                    chapters: None,
+                    url: Some(helper::make_absolute_url(BASE_URL, &url)),
+                    next_update_time: None,
+                    update_strategy: aidoku::UpdateStrategy::Always,
+                });
+            }
+        }
+
+        mangas
+    }
+
     fn get_popular_manga(&self, _page: i32) -> Result<MangaPageResult> {
         let html = Request::get(BASE_URL)?
             .header("User-Agent", USER_AGENT)
