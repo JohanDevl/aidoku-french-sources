@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
-[![Sources](https://img.shields.io/badge/sources-17-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-10-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Sources](https://img.shields.io/badge/sources-18-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-11-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -51,6 +51,7 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |    **LelManga**    |     [lelmanga.com](https://www.lelmanga.com/)     | ✅ **Active**  | MangaThemesia | French manga catalog          |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
 | **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ✅ **Active**  |    Custom     | French manhwa scanlations     |
+|  **Harmony Scan**   |    [harmony-scan.fr](https://harmony-scan.fr/)    | ✅ **Active**  |    Madara     | French manga and manhwa       |
 |     **JapScan**     |       [japscan.si](https://www.japscan.si/)       | ❌ **Offline** |    Custom     | Dynamic JS/Shadow DOM incompatible |
 |   **CrunchyScan**   |     [crunchyscan.fr](https://crunchyscan.fr/)     | ❌ **Offline** |    Custom     | Cloudflare interactive challenge |
 |   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** |  MangaStream  | Chapter loading issues        |
@@ -71,7 +72,7 @@ This project uses **Rust** and different templates to support various website te
 
 |     Template      |           Description           |                       Compatible Sites                        |
 | :---------------: | :-----------------------------: | :-----------------------------------------------------------: |
-|    **Madara**     | Popular WordPress CMS for manga |                  MangasOrigines, MangaScantrad                  |
+|    **Madara**     | Popular WordPress CMS for manga |            MangasOrigines, MangaScantrad, Harmony Scan            |
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
@@ -81,9 +82,10 @@ This project uses **Rust** and different templates to support various website te
 
 ```
 aidoku-french-sources/
-├── sources/              # Active sources (10 sources)
+├── sources/              # Active sources (11 sources)
 │   ├── fr.animesama/
 │   ├── fr.fmteam/
+│   ├── fr.harmony/
 │   ├── fr.lelmanga/
 │   ├── fr.lelscanfr/
 │   ├── fr.mangascantrad/
