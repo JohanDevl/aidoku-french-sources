@@ -1,0 +1,14 @@
+[
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": ["Tout", "Manga", "Manhua", "Manhwa"]
+  },
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": ["Tout", "En Cours", "Terminé"]
+  }
+]

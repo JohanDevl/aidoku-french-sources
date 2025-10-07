@@ -1,0 +1,18 @@
+[package]
+name = "japscan"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", features = ["json"] }
+serde = { version = "1.0", default-features = false }
+serde_json = { version = "1.0", default-features = false }
