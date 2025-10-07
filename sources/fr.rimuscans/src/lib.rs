@@ -30,105 +30,11 @@ impl Source for RimuScans {
         &self,
         query: Option<String>,
         page: i32,
-        filters: Vec<FilterValue>,
+        _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let mut genre_filters: Vec<String> = Vec::new();
-        let mut status_filter = String::new();
-        let mut type_filter = String::new();
-        let mut sort_filter = String::new();
-
-        for filter in filters {
-            match filter {
-                FilterValue::Select { id, value } => {
-                    if id == "sort" && !value.is_empty() && value != "Défaut" {
-                        sort_filter = match value.as_str() {
-                            "A-Z" => String::from("title"),
-                            "Z-A" => String::from("titlereverse"),
-                            "Dernières sorties" => String::from("update"),
-                            "Nouveau" => String::from("latest"),
-                            "Populaire" => String::from("popular"),
-                            _ => String::new(),
-                        };
-                    } else if id == "status" && !value.is_empty() && value != "Tous" {
-                        status_filter = match value.as_str() {
-                            "En cours" => String::from("ongoing"),
-                            "Terminé" => String::from("completed"),
-                            "En pause" => String::from("hiatus"),
-                            _ => String::new(),
-                        };
-                    } else if id == "type" && !value.is_empty() && value != "Tous" {
-                        type_filter = match value.as_str() {
-                            "Manga" => String::from("manga"),
-                            "Manhwa" => String::from("manhwa"),
-                            "Manhua" => String::from("manhua"),
-                            "Comic" => String::from("comic"),
-                            "Novel" => String::from("novel"),
-                            _ => String::new(),
-                        };
-                    }
-                }
-                FilterValue::MultiSelect { id, included, excluded: _ } => {
-                    if id == "genre" {
-                        for genre_name in included {
-                            if !genre_name.is_empty() {
-                                let genre_id = match genre_name.as_str() {
-                                    "Académie" => "130",
-                                    "Action" => "2",
-                                    "Action Aventure" => "22",
-                                    "Art Martiaux" => "34",
-                                    "Arts martiaux" => "8",
-                                    "Arts martiaux Aventure" => "30",
-                                    "Aventure" => "3",
-                                    "Combat" => "9",
-                                    "Demon" => "91",
-                                    "Dieu" => "60",
-                                    "Donjon" => "116",
-                                    "Dragon" => "79",
-                                    "Drame" => "42",
-                                    "Fantastique" => "27",
-                                    "Fantasy" => "125",
-                                    "Guilde" => "138",
-                                    "Héro" => "96",
-                                    "Horreur" => "15",
-                                    "Humour" => "101",
-                                    "Joueur" => "104",
-                                    "Magie" => "54",
-                                    "Manga" => "124",
-                                    "Murim" => "77",
-                                    "Muscu" => "100",
-                                    "Mystère" => "43",
-                                    "Necromancie" => "132",
-                                    "Psychologique" => "32",
-                                    "Regression" => "165",
-                                    "Réincarnation" => "94",
-                                    "Restaurent" => "154",
-                                    "Résurrection" => "118",
-                                    "Romance" => "156",
-                                    "Sang" => "162",
-                                    "Shônen" => "10",
-                                    "Surnaturel" => "40",
-                                    "Tour" => "81",
-                                    "Vengeance" => "137",
-                                    "Vie scolaire" => "44",
-                                    "Webtoons" => "46",
-                                    _ => "",
-                                };
-                                if !genre_id.is_empty() {
-                                    genre_filters.push(String::from(genre_id));
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
         let search_query = query.unwrap_or_default();
-        let has_search = !search_query.is_empty();
 
-        // Build URL - don't include s= parameter if search is empty (it breaks filters)
-        let mut url = if has_search {
+        let url = if !search_query.is_empty() {
             let encoded_query = urlencode(search_query);
             if page == 1 {
                 format!("{}/manga/?s={}", BASE_URL, encoded_query)
@@ -137,45 +43,11 @@ impl Source for RimuScans {
             }
         } else {
             if page == 1 {
-                format!("{}/manga/?", BASE_URL)
+                format!("{}/manga/", BASE_URL)
             } else {
-                format!("{}/manga/page/{}/?", BASE_URL, page)
+                format!("{}/manga/page/{}/", BASE_URL, page)
             }
         };
-
-        // Track if we've added any parameters (to know whether to use & or not)
-        let mut has_params = has_search;
-
-        for genre in genre_filters {
-            if has_params {
-                url.push_str("&");
-            }
-            url.push_str(&format!("genre%5B%5D={}", genre));
-            has_params = true;
-        }
-
-        if !status_filter.is_empty() {
-            if has_params {
-                url.push_str("&");
-            }
-            url.push_str(&format!("status={}", status_filter));
-            has_params = true;
-        }
-
-        if !type_filter.is_empty() {
-            if has_params {
-                url.push_str("&");
-            }
-            url.push_str(&format!("type={}", type_filter));
-            has_params = true;
-        }
-
-        if !sort_filter.is_empty() {
-            if has_params {
-                url.push_str("&");
-            }
-            url.push_str(&format!("order={}", sort_filter));
-        }
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
