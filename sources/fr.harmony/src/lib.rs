@@ -102,7 +102,8 @@ impl Source for Harmony {
             println!("[HARMONY] manga.key = {}", manga.key);
 
             // Try to fetch chapters from AJAX endpoint first
-            let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga.key);
+            let manga_key = manga.key.trim_end_matches('/');
+            let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga_key);
             println!("[HARMONY] ajax_url = {}", ajax_url);
 
             let chapters = match Request::get(&ajax_url) {
