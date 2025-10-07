@@ -25,9 +25,18 @@ impl Source for StarBoundScans {
         &self,
         query: Option<String>,
         page: i32,
-        filters: Vec<FilterValue>,
+        _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let url = self.build_search_url(query, page, filters);
+        let url = if let Some(search_query) = query {
+            if !search_query.is_empty() {
+                format!("{}/?s={}&post_type=wp-manga&page={}", BASE_URL, search_query.replace(' ', "+"), page)
+            } else {
+                format!("{}/manga/page/{}/", BASE_URL, page)
+            }
+        } else {
+            format!("{}/manga/page/{}/", BASE_URL, page)
+        };
+
         self.get_manga_from_page(&url)
     }
 
@@ -86,55 +95,6 @@ impl ImageRequestProvider for StarBoundScans {
 }
 
 impl StarBoundScans {
-    fn build_search_url(&self, query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
-        let mut params: Vec<String> = Vec::new();
-        let mut manga_type = String::new();
-        let mut status = String::new();
-
-        for filter in filters {
-            match filter {
-                FilterValue::Select { id, value } => {
-                    match id.as_str() {
-                        "type" => {
-                            if !value.is_empty() {
-                                manga_type = value;
-                            }
-                        },
-                        "status" => {
-                            if !value.is_empty() {
-                                status = value;
-                            }
-                        },
-                        _ => {}
-                    }
-                },
-                _ => {}
-            }
-        }
-
-        if let Some(search_query) = query {
-            if !search_query.is_empty() {
-                params.push(format!("s={}", search_query.replace(' ', "+")));
-            }
-        }
-
-        if !manga_type.is_empty() {
-            params.push(format!("type[]={}", manga_type));
-        }
-
-        if !status.is_empty() {
-            params.push(format!("status[]={}", status));
-        }
-
-        if params.is_empty() {
-            format!("{}/manga/page/{}/", BASE_URL, page)
-        } else {
-            params.push("post_type=wp-manga".to_string());
-            params.push(format!("page={}", page));
-            format!("{}/?{}", BASE_URL, params.join("&"))
-        }
-    }
-
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
             .header("User-Agent", USER_AGENT)
