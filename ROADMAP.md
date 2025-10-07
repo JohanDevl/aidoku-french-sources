@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 18 (11 active + 7 offline)
-- **Remaining sources**: 4
+- **Implemented sources**: 19 (12 active + 7 offline)
+- **Remaining sources**: 3
 - **Total available sources**: 22
 
 ## 🔄 Work in Progress
@@ -20,7 +20,6 @@ Currently no sources are being actively developed.
 | ---------------- | -------------------------------------------- | ------------- | --------- | --------------------- |
 | **EdScanlation** | [edscanlation.fr](https://edscanlation.fr)   | Unknown       | 🟡 Medium | Scanlation team       |
 | **MangasScans**  | [mangas-scans.com](https://mangas-scans.com) | Unknown       | 🟡 Medium | Manga scanning source |
-| **RaijinScans**  | [raijinscan.co](https://raijinscan.co)       | Unknown       | 🟡 Medium | Scanlation group      |
 | **RimuScans**    | [rimuscans.com](https://rimuscans.com)       | Unknown       | 🟡 Medium | Scanlation team       |
 
 ## 🏗️ Implementation Guidelines
@@ -76,4 +75,4 @@ When working on a source:
 ---
 
 _Last updated: 2025-10-07_
-_Total sources tracked: 4 upcoming_
+_Total sources tracked: 3 upcoming_
