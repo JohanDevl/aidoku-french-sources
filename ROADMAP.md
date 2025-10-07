@@ -4,8 +4,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 17 (10 active + 7 offline)
-- **Remaining sources**: 5
+- **Implemented sources**: 18 (11 active + 7 offline)
+- **Remaining sources**: 4
 - **Total available sources**: 22
 
 ## 🔄 Work in Progress
@@ -18,7 +18,6 @@ Currently no sources are being actively developed.
 
 | Source Name      | URL                                          | Expected Type | Priority  | Notes                 |
 | ---------------- | -------------------------------------------- | ------------- | --------- | --------------------- |
-| **BananaScan**   | [harmony-scan.fr](https://harmony-scan.fr)   | Unknown       | 🟡 Medium | Community source      |
 | **EdScanlation** | [edscanlation.fr](https://edscanlation.fr)   | Unknown       | 🟡 Medium | Scanlation team       |
 | **MangasScans**  | [mangas-scans.com](https://mangas-scans.com) | Unknown       | 🟡 Medium | Manga scanning source |
 | **RaijinScans**  | [raijinscan.co](https://raijinscan.co)       | Unknown       | 🟡 Medium | Scanlation group      |
@@ -77,4 +76,4 @@ When working on a source:
 ---
 
 _Last updated: 2025-10-07_
-_Total sources tracked: 29 upcoming_
+_Total sources tracked: 4 upcoming_

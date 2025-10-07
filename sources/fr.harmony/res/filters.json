@@ -1,0 +1,57 @@
+[
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": ["Tous", "En cours", "Terminé", "En pause", "Annulé"]
+  },
+  {
+    "type": "select",
+    "id": "orderby",
+    "title": "Trier par",
+    "options": [
+      "Pertinence",
+      "Dernières sorties",
+      "Alphabétique",
+      "Note",
+      "Tendances",
+      "Vues",
+      "Nouveautés"
+    ]
+  },
+  {
+    "type": "multi-select",
+    "id": "genre",
+    "title": "Genres",
+    "isGenre": true,
+    "options": [
+      "Action",
+      "Aventure",
+      "Comédie",
+      "Drame",
+      "Ecchi",
+      "Fantasy",
+      "Harem",
+      "Historique",
+      "Horreur",
+      "Josei",
+      "Arts martiaux",
+      "Mecha",
+      "Mystère",
+      "Psychologique",
+      "Romance",
+      "School Life",
+      "Sci-fi",
+      "Seinen",
+      "Shojo",
+      "Shonen",
+      "Slice of Life",
+      "Sports",
+      "Surnaturel",
+      "Tragédie",
+      "Webtoon",
+      "Yaoi",
+      "Yuri"
+    ]
+  }
+]
