@@ -428,7 +428,7 @@ fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
                 if !img_url.is_empty() && !img_url.contains("loader") {
                     println!("[HARMONY] Adding page {}", i);
                     pages.push(Page {
-                        content: PageContent::Text(img_url),
+                        content: PageContent::Url(img_url, None),
                         ..Default::default()
                     });
                 }
@@ -450,7 +450,7 @@ fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 
                 if !img_url.is_empty() && !img_url.contains("loader") {
                     pages.push(Page {
-                        content: PageContent::Text(img_url),
+                        content: PageContent::Url(img_url, None),
                         ..Default::default()
                     });
                 }
