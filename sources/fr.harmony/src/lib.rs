@@ -124,20 +124,37 @@ impl Source for Harmony {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        println!("[HARMONY] get_page_list called");
-        println!("[HARMONY] chapter.key = {}", chapter.key);
+        println!("[HARMONY] ===== get_page_list START =====");
+        println!("[HARMONY] chapter.key = '{}'", chapter.key);
 
-        let url = format!("{}{}/?style=list", BASE_URL, chapter.key);
-        println!("[HARMONY] page_url = {}", url);
+        if let Some(ref title) = chapter.title {
+            println!("[HARMONY] chapter.title = '{}'", title);
+        }
 
-        let html = Request::get(&url)?
+        if let Some(ref url) = chapter.url {
+            println!("[HARMONY] chapter.url = '{}'", url);
+        }
+
+        let chapter_key = chapter.key.trim_end_matches('/');
+        let url = format!("{}{}/?style=list", BASE_URL, chapter_key);
+        println!("[HARMONY] constructed page_url = '{}'", url);
+
+        println!("[HARMONY] Making request...");
+        let request = Request::get(&url)?;
+        println!("[HARMONY] Request created");
+
+        println!("[HARMONY] Adding headers...");
+        let html = request
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL)
             .html()?;
 
-        println!("[HARMONY] HTML received, parsing pages");
+        println!("[HARMONY] HTML received successfully");
+
+        println!("[HARMONY] Parsing pages...");
         let pages = parse_page_list(&html)?;
         println!("[HARMONY] Found {} pages", pages.len());
+        println!("[HARMONY] ===== get_page_list END =====");
 
         Ok(pages)
     }
