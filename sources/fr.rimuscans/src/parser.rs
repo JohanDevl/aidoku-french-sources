@@ -36,9 +36,9 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 
             let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img, a.poster div.poster-image-wrapper > img") {
                 if let Some(img) = imgs.first() {
-                    let cover_url = img.attr("src")
+                    let cover_url = img.attr("data-lazy-src")
                         .or_else(|| img.attr("data-src"))
-                        .or_else(|| img.attr("data-lazy-src"))
+                        .or_else(|| img.attr("src"))
                         .unwrap_or_default();
 
                     if !cover_url.is_empty() {
@@ -202,10 +202,16 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
 
-    if let Some(items) = html.select("ul.scroll-sm li.item, div.chapter-list li") {
+    if let Some(items) = html.select("ul.scroll-sm li.item, div.bxcl li, div.cl li, #chapterlist li") {
         for item in items {
             if let Some(class) = item.attr("class") {
                 if class.contains("premium-chapter") {
+                    continue;
+                }
+            }
+
+            if let Some(locked_links) = item.select("a[data-bs-target='#lockedChapterModal']") {
+                if locked_links.first().is_some() {
                     continue;
                 }
             }
@@ -259,10 +265,11 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 pub fn parse_page_list(html: &Document) -> Vec<Page> {
     let mut pages = Vec::new();
 
-    if let Some(items) = html.select("#content img[src], #content img[data-src]") {
+    if let Some(items) = html.select("#content img, div#readerarea img") {
         for item in items {
-            let url = item.attr("src")
+            let url = item.attr("data-lazy-src")
                 .or_else(|| item.attr("data-src"))
+                .or_else(|| item.attr("src"))
                 .unwrap_or_default();
 
             if !url.is_empty() && !url.contains("logo") && !url.contains("icon") {
