@@ -4,9 +4,9 @@ This document tracks the upcoming French manga sources to implement and work in 
 
 ## 📊 Current Status
 
-- **Implemented sources**: 14 (10 active + 4 offline)
-- **Remaining sources**: 33
-- **Total available sources**: 47
+- **Implemented sources**: 17 (10 active + 7 offline)
+- **Remaining sources**: 29
+- **Total available sources**: 46
 
 ## 🔄 Work in Progress
 
@@ -18,7 +18,6 @@ Currently no sources are being actively developed.
 
 | Source Name         | URL                                              | Expected Type | Priority  | Notes                      |
 | ------------------- | ------------------------------------------------ | ------------- | --------- | -------------------------- |
-| **JapScan**         | [japscan.si](https://japscan.si)                 | Custom        | 🔴 High   | Major French manga source  |
 | **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🟡 Medium | Popular community site     |
 | **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🟡 Medium | Active scanlation group    |
 | **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🟡 Medium | Well-known French site     |
@@ -40,9 +39,7 @@ Currently no sources are being actively developed.
 | **ScanTradUnion**   | [scantrad-union.com](https://scantrad-union.com) | Unknown       | 🟡 Medium | Scanlation union           |
 | **ScanVFOrg**       | [scanvf.org](https://scanvf.org)                 | Unknown       | 🟡 Medium | VF scanning organization   |
 | **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
-| **StarboundScans**  | [starboundscans.com](https://starboundscans.com) | Unknown       | 🟡 Medium | Scanlation group           |
 | **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
-| **CrunchyScan**     | [crunchyscan.fr](https://crunchyscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
 
 ## 🏗️ Implementation Guidelines
 
@@ -98,5 +95,5 @@ When working on a source:
 
 ---
 
-_Last updated: 2025-09-09_
-_Total sources tracked: 33 upcoming_
+_Last updated: 2025-10-07_
+_Total sources tracked: 29 upcoming_
