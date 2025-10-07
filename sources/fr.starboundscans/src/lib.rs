@@ -182,8 +182,6 @@ impl StarBoundScans {
             }
         }
 
-        entries.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-
         let has_next_page = html.select(".nav-previous, .next.page-numbers, a.next").is_some();
 
         Ok(MangaPageResult {
