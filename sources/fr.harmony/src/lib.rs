@@ -101,11 +101,12 @@ impl Source for Harmony {
             // Try to fetch chapters from AJAX endpoint first
             let ajax_url = format!("{}{}/ajax/chapters/", BASE_URL, manga.key);
 
-            let chapters = match Request::post(&ajax_url) {
+            let chapters = match Request::get(&ajax_url) {
                 Ok(request) => {
                     match request
                         .header("User-Agent", USER_AGENT)
                         .header("Referer", &url)
+                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                         .html()
                     {
                         Ok(ajax_html) => parse_chapter_list(&ajax_html),
