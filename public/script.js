@@ -47,6 +47,7 @@ async function loadSources() {
       "fr.lelscanfr": "Custom",
       "fr.phenixscans": "Custom",
       "fr.poseidonscans": "Custom",
+      "fr.starboundscans": "Custom",
       "fr.legacyscans": "Custom",
     };
 
