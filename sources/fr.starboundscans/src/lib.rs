@@ -95,11 +95,15 @@ impl StarBoundScans {
             match filter {
                 FilterValue::Select { id, value } => {
                     match id.as_str() {
-                        "Type" => {
-                            manga_type = self.type_to_slug(&value);
+                        "type" => {
+                            if !value.is_empty() {
+                                manga_type = value;
+                            }
                         },
-                        "Statut" => {
-                            status = self.status_to_slug(&value);
+                        "status" => {
+                            if !value.is_empty() {
+                                status = value;
+                            }
                         },
                         _ => {}
                     }
@@ -129,32 +133,6 @@ impl StarBoundScans {
             params.push(format!("page={}", page));
             format!("{}/?{}", BASE_URL, params.join("&"))
         }
-    }
-
-    fn type_to_slug(&self, type_name: &str) -> String {
-        match type_name {
-            "Tout" => "",
-            "Manga" => "manga",
-            "Manhwa" => "manhwa",
-            "Manhua" => "manhua",
-            "Webtoon" => "webtoon",
-            "Novel" => "novel",
-            "Doujinshi" => "doujinshi",
-            "Anime" => "anime",
-            _ => ""
-        }.to_string()
-    }
-
-    fn status_to_slug(&self, status_name: &str) -> String {
-        match status_name {
-            "Tout" => "",
-            "En cours" => "on-going",
-            "Terminé" => "end",
-            "Abandonné" => "canceled",
-            "En pause" => "on-hold",
-            "À venir" => "upcoming",
-            _ => ""
-        }.to_string()
     }
 
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {

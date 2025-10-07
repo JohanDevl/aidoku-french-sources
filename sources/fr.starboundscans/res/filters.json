@@ -8,16 +8,16 @@
     "filters": [
       {
         "type": "select",
-        "name": "Type",
+        "name": "type",
         "options": [
-          "Tout",
-          "Manga",
-          "Manhwa",
-          "Manhua",
-          "Webtoon",
-          "Novel",
-          "Doujinshi",
-          "Anime"
+          "",
+          "manga",
+          "manhwa",
+          "manhua",
+          "webtoon",
+          "novel",
+          "doujinshi",
+          "anime"
         ]
       }
     ]
@@ -28,14 +28,14 @@
     "filters": [
       {
         "type": "select",
-        "name": "Statut",
+        "name": "status",
         "options": [
-          "Tout",
-          "En cours",
-          "Terminé",
-          "Abandonné",
-          "En pause",
-          "À venir"
+          "",
+          "on-going",
+          "end",
+          "canceled",
+          "on-hold",
+          "upcoming"
         ]
       }
     ]
