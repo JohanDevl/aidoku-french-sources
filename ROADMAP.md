@@ -5,8 +5,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 ## 📊 Current Status
 
 - **Implemented sources**: 17 (10 active + 7 offline)
-- **Remaining sources**: 30
-- **Total available sources**: 47
+- **Remaining sources**: 29
+- **Total available sources**: 46
 
 ## 🔄 Work in Progress
 
@@ -39,7 +39,6 @@ Currently no sources are being actively developed.
 | **ScanTradUnion**   | [scantrad-union.com](https://scantrad-union.com) | Unknown       | 🟡 Medium | Scanlation union           |
 | **ScanVFOrg**       | [scanvf.org](https://scanvf.org)                 | Unknown       | 🟡 Medium | VF scanning organization   |
 | **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
-| **StarboundScans**  | [starboundscans.com](https://starboundscans.com) | Unknown       | 🟡 Medium | Scanlation group           |
 | **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
 
 ## 🏗️ Implementation Guidelines
@@ -97,4 +96,4 @@ When working on a source:
 ---
 
 _Last updated: 2025-10-07_
-_Total sources tracked: 30 upcoming_
+_Total sources tracked: 29 upcoming_
