@@ -122,11 +122,24 @@ impl Source for Harmony {
                             if let Some(all_lis) = ajax_html.select("li") {
                                 println!("[HARMONY] Total <li> elements: {}", all_lis.count());
                             }
-                            if let Some(all_as) = ajax_html.select("a") {
-                                println!("[HARMONY] Total <a> elements: {}", all_as.count());
-                            }
-                            if let Some(all_divs) = ajax_html.select("div") {
-                                println!("[HARMONY] Total <div> elements: {}", all_divs.count());
+
+                            // Debug: print first few li elements with their class and content
+                            if let Some(all_lis) = ajax_html.select("li") {
+                                let mut count = 0;
+                                for li in all_lis {
+                                    if count >= 3 { break; }
+                                    let class_attr = li.attr("class").unwrap_or_default();
+                                    let text = li.text().unwrap_or_default();
+                                    println!("[HARMONY] li[{}] class='{}' text='{}'", count, class_attr, text.chars().take(50).collect::<String>());
+
+                                    if let Some(a_tags) = li.select("a") {
+                                        if let Some(first_a) = a_tags.first() {
+                                            let href = first_a.attr("href").unwrap_or_default();
+                                            println!("[HARMONY]   -> has <a> with href='{}'", href);
+                                        }
+                                    }
+                                    count += 1;
+                                }
                             }
 
                             let result = parse_chapter_list(&ajax_html);
