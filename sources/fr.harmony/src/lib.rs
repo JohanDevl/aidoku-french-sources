@@ -124,108 +124,23 @@ impl Source for Harmony {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        use alloc::string::ToString;
-
-        println!("[HARMONY] ===== get_page_list START =====");
-        println!("[HARMONY] Source version: 17");
-
-        // Safe string operations to avoid any potential panic
-        let chapter_key_str = chapter.key.to_string();
-        println!("[HARMONY] chapter.key length: {}", chapter_key_str.len());
-        println!("[HARMONY] chapter.key = '{}'", chapter_key_str);
-
-        if let Some(ref title) = chapter.title {
-            println!("[HARMONY] chapter.title = '{}'", title);
-        } else {
-            println!("[HARMONY] chapter.title = None");
-        }
-
-        if let Some(ref url) = chapter.url {
-            println!("[HARMONY] chapter.url = '{}'", url);
-        } else {
-            println!("[HARMONY] chapter.url = None");
-        }
-
-        // Build URL very carefully with explicit steps
-        println!("[HARMONY] Step 1: Trim trailing slash");
-        let chapter_key = if chapter_key_str.ends_with('/') {
-            let trimmed = &chapter_key_str[..chapter_key_str.len()-1];
-            println!("[HARMONY] Trimmed '{}' -> '{}'", chapter_key_str, trimmed);
-            trimmed
-        } else {
-            println!("[HARMONY] No trailing slash to trim");
-            &chapter_key_str
-        };
-
-        println!("[HARMONY] Step 2: Build final URL");
+        let chapter_key = chapter.key.trim_end_matches('/');
         let url = format!("{}{}/?style=list", BASE_URL, chapter_key);
-        println!("[HARMONY] Final URL length: {}", url.len());
-        println!("[HARMONY] Final URL = '{}'", url);
 
-        println!("[HARMONY] Step 3: Create request");
-        let request = match Request::get(&url) {
-            Ok(r) => {
-                println!("[HARMONY] Request created successfully");
-                r
-            },
-            Err(_) => {
-                println!("[HARMONY] ERROR: Failed to create request");
-                return Err(aidoku::AidokuError::Message("Failed to create request".to_string()));
-            }
-        };
-
-        println!("[HARMONY] Step 4: Add headers and fetch");
-        let html = match request
+        let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL)
-            .html()
-        {
-            Ok(h) => {
-                println!("[HARMONY] HTML received successfully");
-                h
-            },
-            Err(_) => {
-                println!("[HARMONY] ERROR: Failed to fetch HTML");
-                return Err(aidoku::AidokuError::Message("Failed to fetch HTML".to_string()));
-            }
-        };
+            .html()?;
 
-        println!("[HARMONY] Step 5: Parse pages");
-        let pages = match parse_page_list(&html) {
-            Ok(p) => {
-                println!("[HARMONY] Pages parsed successfully: {} pages", p.len());
-                p
-            },
-            Err(_) => {
-                println!("[HARMONY] ERROR: Failed to parse pages");
-                return Err(aidoku::AidokuError::Message("Failed to parse pages".to_string()));
-            }
-        };
-
-        if pages.is_empty() {
-            println!("[HARMONY] WARNING: No pages found!");
-        }
-
-        println!("[HARMONY] ===== get_page_list END - SUCCESS =====");
-
-        Ok(pages)
+        parse_page_list(&html)
     }
 }
 
 impl ImageRequestProvider for Harmony {
     fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-        println!("[HARMONY] get_image_request called for: {}", url);
-
-        let request = Request::get(&url)?;
-        println!("[HARMONY] Image request created");
-
-        let request_with_headers = request
+        Ok(Request::get(&url)?
             .header("User-Agent", USER_AGENT)
-            .header("Referer", BASE_URL);
-
-        println!("[HARMONY] Headers added to image request");
-
-        Ok(request_with_headers)
+            .header("Referer", BASE_URL))
     }
 }
 
@@ -364,7 +279,6 @@ fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 }
 
 fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
-    println!("[HARMONY] parse_chapter_list called");
     let mut chapters: Vec<Chapter> = Vec::new();
 
     if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
@@ -387,8 +301,6 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
                     let chapter_num = extract_chapter_number(&title);
                     let chapter_url = format!("{}{}", BASE_URL, key);
 
-                    println!("[HARMONY] Creating chapter: key='{}', url='{}', title='{}'", key, chapter_url, title);
-
                     chapters.push(Chapter {
                         key,
                         title: Some(title),
@@ -401,44 +313,33 @@ fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
         }
     }
 
-    println!("[HARMONY] Created {} chapters", chapters.len());
     Ok(chapters)
 }
 
 fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
-    println!("[HARMONY] parse_page_list called");
     let mut pages: Vec<Page> = Vec::new();
 
     // Try wp-manga-chapter-img first (most common)
     if let Some(img_elements) = html.select("img.wp-manga-chapter-img") {
-        let count = img_elements.count();
-        println!("[HARMONY] Found {} wp-manga-chapter-img elements", count);
+        for img in img_elements {
+            let img_url = img.attr("data-src")
+                .or_else(|| img.attr("data-lazy-src"))
+                .or_else(|| img.attr("src"))
+                .unwrap_or_default()
+                .trim()
+                .to_string();
 
-        if let Some(img_elements) = html.select("img.wp-manga-chapter-img") {
-            for (i, img) in img_elements.enumerate() {
-                let img_url = img.attr("data-src")
-                    .or_else(|| img.attr("data-lazy-src"))
-                    .or_else(|| img.attr("src"))
-                    .unwrap_or_default()
-                    .trim()
-                    .to_string();
-
-                println!("[HARMONY] img[{}] raw url = '{}'", i, img_url);
-
-                if !img_url.is_empty() && !img_url.contains("loader") {
-                    println!("[HARMONY] Adding page {}", i);
-                    pages.push(Page {
-                        content: PageContent::Url(img_url, None),
-                        ..Default::default()
-                    });
-                }
+            if !img_url.is_empty() && !img_url.contains("loader") {
+                pages.push(Page {
+                    content: PageContent::Url(img_url, None),
+                    ..Default::default()
+                });
             }
         }
     }
 
     // Fallback to other selectors if no pages found
     if pages.is_empty() {
-        println!("[HARMONY] No wp-manga-chapter-img found, trying fallback selectors");
         if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
             for img in img_elements {
                 let img_url = img.attr("data-src")
@@ -458,7 +359,6 @@ fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
         }
     }
 
-    println!("[HARMONY] Returning {} pages", pages.len());
     Ok(pages)
 }
 

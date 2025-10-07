@@ -1,8 +1,8 @@
 {
   "info": {
     "id": "fr.harmony",
-    "name": "Harmony-Scan",
-    "version": 20,
+    "name": "Harmony Scan",
+    "version": 1,
     "url": "https://harmony-scan.fr",
     "contentRating": 2,
     "languages": ["fr"]
