@@ -210,7 +210,7 @@ impl Source for JapScan {
     fn get_search_manga_list(
         &self,
         query: Option<String>,
-        page: i32,
+        _page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         if let Some(search_query) = query {
@@ -219,11 +219,12 @@ impl Source for JapScan {
             }
         }
 
-        let url = format!("{}/mangas/{}", BASE_URL, page);
-        let html = self.get_html(&url)?;
-
-        let base_host = "japscan.si";
-        parser::parse_browse_list(html, base_host)
+        // Cloudflare blocks direct catalog access
+        // Users should use the "Populaire" and "Dernières Mises à Jour" listings instead
+        Ok(MangaPageResult {
+            entries: Vec::new(),
+            has_next_page: false,
+        })
     }
 
     fn get_manga_update(

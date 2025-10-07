@@ -93,6 +93,7 @@ pub fn parse_search_json(json_str: String) -> Result<MangaPageResult> {
     })
 }
 
+#[allow(dead_code)]
 pub fn parse_browse_list(html: Document, base_host: &str) -> Result<MangaPageResult> {
     let mut mangas = Vec::new();
 
