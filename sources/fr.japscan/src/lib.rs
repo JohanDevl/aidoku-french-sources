@@ -107,7 +107,8 @@ impl JapScan {
                 }
             };
 
-            match response.status_code() {
+            let status = response.status_code();
+            match status {
                 200..=299 => {
                     let json_str = response.get_string()?;
                     return parser::parse_search_json(json_str);
@@ -133,7 +134,9 @@ impl JapScan {
                     attempt += 1;
                     continue;
                 },
-                _ => return Err(AidokuError::message("Request failed")),
+                _ => {
+                    return Err(AidokuError::message(&format!("Search request failed with status {}", status)));
+                },
             }
         }
     }
