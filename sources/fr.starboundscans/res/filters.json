@@ -1,43 +1,48 @@
 [
   {
-    "type": "title"
-  },
-  {
-    "type": "group",
-    "name": "Type",
-    "filters": [
-      {
-        "type": "select",
-        "name": "type",
-        "options": [
-          "",
-          "manga",
-          "manhwa",
-          "manhua",
-          "webtoon",
-          "novel",
-          "doujinshi",
-          "anime"
-        ]
-      }
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": [
+      "Tout",
+      "Manga",
+      "Manhwa",
+      "Manhua",
+      "Webtoon",
+      "Novel",
+      "Doujinshi",
+      "Anime"
+    ],
+    "ids": [
+      "",
+      "manga",
+      "manhwa",
+      "manhua",
+      "webtoon",
+      "novel",
+      "doujinshi",
+      "anime"
     ]
   },
   {
-    "type": "group",
-    "name": "Statut",
-    "filters": [
-      {
-        "type": "select",
-        "name": "status",
-        "options": [
-          "",
-          "on-going",
-          "end",
-          "canceled",
-          "on-hold",
-          "upcoming"
-        ]
-      }
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": [
+      "Tout",
+      "En cours",
+      "Terminé",
+      "Abandonné",
+      "En pause",
+      "À venir"
+    ],
+    "ids": [
+      "",
+      "on-going",
+      "end",
+      "canceled",
+      "on-hold",
+      "upcoming"
     ]
   }
 ]
