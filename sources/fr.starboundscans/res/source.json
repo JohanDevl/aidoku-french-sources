@@ -1,0 +1,10 @@
+{
+  "info": {
+    "id": "fr.starboundscans",
+    "name": "Starbound Scans",
+    "version": 1,
+    "url": "https://starboundscans.com",
+    "contentRating": 1,
+    "languages": ["fr"]
+  }
+}
