@@ -1,0 +1,43 @@
+[
+  {
+    "type": "select",
+    "id": "genre",
+    "title": "Genre",
+    "options": [
+      "Tous",
+      "Action",
+      "Aventure",
+      "Comédie",
+      "Drame",
+      "Fantaisie",
+      "Horreur",
+      "Romance",
+      "Science-Fiction",
+      "Tranche de vie",
+      "Seinen",
+      "Shōnen",
+      "Shōjo"
+    ]
+  },
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": [
+      "Tous",
+      "En cours",
+      "Terminé"
+    ]
+  },
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": [
+      "Tous",
+      "Manga",
+      "Manhwa",
+      "Manhua"
+    ]
+  }
+]

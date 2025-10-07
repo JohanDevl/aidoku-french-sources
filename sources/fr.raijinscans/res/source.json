@@ -1,0 +1,20 @@
+{
+  "info": {
+    "id": "fr.raijinscans",
+    "name": "RaijinScans",
+    "version": 1,
+    "url": "https://raijinscan.co",
+    "contentRating": 1,
+    "languages": ["fr"]
+  },
+  "listings": [
+    {
+      "name": "Populaire",
+      "id": "popular"
+    },
+    {
+      "name": "Dernières Sorties",
+      "id": "latest"
+    }
+  ]
+}
