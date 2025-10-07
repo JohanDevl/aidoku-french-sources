@@ -327,18 +327,44 @@ fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
     println!("[HARMONY] parse_page_list called");
     let mut pages: Vec<Page> = Vec::new();
 
-    if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
+    // Try wp-manga-chapter-img first (most common)
+    if let Some(img_elements) = html.select("img.wp-manga-chapter-img") {
         let count = img_elements.count();
-        println!("[HARMONY] Found {} img elements", count);
+        println!("[HARMONY] Found {} wp-manga-chapter-img elements", count);
 
-        if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
+        if let Some(img_elements) = html.select("img.wp-manga-chapter-img") {
             for (i, img) in img_elements.enumerate() {
                 let img_url = img.attr("data-src")
                     .or_else(|| img.attr("data-lazy-src"))
                     .or_else(|| img.attr("src"))
-                    .unwrap_or_default();
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
 
-                println!("[HARMONY] img[{}] url = {}", i, img_url);
+                println!("[HARMONY] img[{}] raw url = '{}'", i, img_url);
+
+                if !img_url.is_empty() && !img_url.contains("loader") {
+                    println!("[HARMONY] Adding page {}", i);
+                    pages.push(Page {
+                        content: PageContent::Text(img_url),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback to other selectors if no pages found
+    if pages.is_empty() {
+        println!("[HARMONY] No wp-manga-chapter-img found, trying fallback selectors");
+        if let Some(img_elements) = html.select("div.page-break img, li.blocks-gallery-item img") {
+            for img in img_elements {
+                let img_url = img.attr("data-src")
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src"))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
 
                 if !img_url.is_empty() && !img_url.contains("loader") {
                     pages.push(Page {
@@ -348,8 +374,6 @@ fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
                 }
             }
         }
-    } else {
-        println!("[HARMONY] No img elements found with selector");
     }
 
     println!("[HARMONY] Returning {} pages", pages.len());
