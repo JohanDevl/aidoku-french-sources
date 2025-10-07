@@ -318,7 +318,9 @@ fn extract_chapter_number(title: &str) -> f32 {
 
 pub fn parse_page_list(html_content: String, base_url: &str) -> Result<Vec<Page>> {
     let urls = crate::helper::extract_images_from_script(&html_content)
-        .ok_or_else(|| AidokuError::message("Cannot find images in chapter page. Site may be blocked by Cloudflare."))?;
+        .ok_or_else(|| AidokuError::message(
+            "Cannot extract images. JapScan uses dynamic JavaScript loading which is not supported. The site may also be blocked by Cloudflare."
+        ))?;
 
     let base_host = if let Some(domain_start) = base_url.find("://") {
         let after_protocol = &base_url[domain_start + 3..];

@@ -29,15 +29,17 @@ pub fn urlencode(string: String) -> String {
 }
 
 pub fn extract_images_from_script(html: &str) -> Option<Vec<String>> {
-    let _patterns = [
-        r#"imagesLink\s*=\s*\[(.*?)\]"#,
-        r#"var\s+imagesLink\s*=\s*\[(.*?)\]"#,
-        r#"let\s+imagesLink\s*=\s*\[(.*?)\]"#,
-        r#"const\s+imagesLink\s*=\s*\[(.*?)\]"#,
+    // Try multiple patterns for image URL arrays
+    let patterns = [
+        "imagesLink",
+        "pages",
+        "pagesLink",
+        "imageUrls",
+        "images",
     ];
 
-    for _pattern in &_patterns {
-        if let Some(start) = html.find("imagesLink") {
+    for pattern in &patterns {
+        if let Some(start) = html.find(pattern) {
             let after = &html[start..];
             if let Some(bracket_start) = after.find('[') {
                 if let Some(bracket_end) = after.find(']') {
@@ -51,7 +53,7 @@ pub fn extract_images_from_script(html: &str) -> Option<Vec<String>> {
                                 .trim_matches('\'')
                                 .trim();
                             if cleaned.starts_with("http") {
-                                Some(String::from(cleaned) + "?y=1")
+                                Some(String::from(cleaned))
                             } else {
                                 None
                             }
