@@ -5,8 +5,8 @@ This document tracks the upcoming French manga sources to implement and work in 
 ## 📊 Current Status
 
 - **Implemented sources**: 17 (10 active + 7 offline)
-- **Remaining sources**: 29
-- **Total available sources**: 46
+- **Remaining sources**: 6
+- **Total available sources**: 23
 
 ## 🔄 Work in Progress
 
@@ -16,43 +16,25 @@ Currently no sources are being actively developed.
 
 ### Standard Priority Sources
 
-| Source Name         | URL                                              | Expected Type | Priority  | Notes                      |
-| ------------------- | ------------------------------------------------ | ------------- | --------- | -------------------------- |
-| **Manga-Kawaii**    | [mangakawaii.io](https://mangakawaii.io)         | Unknown       | 🟡 Medium | Popular community site     |
-| **FlameScansFR**    | [legacy-scans.com](https://legacy-scans.com)     | Unknown       | 🟡 Medium | Active scanlation group    |
-| **Scan-VF**         | [scan-vf.net](https://scan-vf.net)               | Unknown       | 🟡 Medium | Well-known French site     |
-| **AnteikuScan**     | [anteikuscan.fr](https://anteikuscan.fr)         | Unknown       | 🟡 Medium | Scanlation group           |
-| **BananaScan**      | [harmony-scan.fr](https://harmony-scan.fr)       | Unknown       | 🟡 Medium | Community source           |
-| **EdScanlation**    | [edscanlation.fr](https://edscanlation.fr)       | Unknown       | 🟡 Medium | Scanlation team            |
-| **EnligneManga**    | [enlignemanga.com](https://enlignemanga.com)     | Unknown       | 🟡 Medium | Online manga platform      |
-| **EpsilonScan**     | [epsilonscan.to](https://epsilonscan.to)         | Unknown       | 🟡 Medium | Scanlation group           |
-| **FrManga**         | [frmanga.com](https://frmanga.com)               | Unknown       | 🟡 Medium | French manga source        |
-| **FuryoSquad**      | [furyosociety.com](https://furyosociety.com)     | Unknown       | 🟡 Medium | Scanlation group           |
-| **InovaScanManga**  | [inovascanmanga.com](https://inovascanmanga.com) | Unknown       | 🟡 Medium | Scan community             |
-| **MangaHubFR**      | [mangahub.fr](https://mangahub.fr)               | Unknown       | 🟡 Medium | French manga hub           |
-| **MangasScans**     | [mangas-scans.com](https://mangas-scans.com)     | Unknown       | 🟡 Medium | Manga scanning source      |
-| **PantheonScan**    | [pantheon-scan.com](https://pantheon-scan.com)   | Unknown       | 🟡 Medium | Scanlation group           |
-| **PerfScan**        | [perf-scan.net](https://perf-scan.net)           | Unknown       | 🟡 Medium | Quality-focused scans      |
-| **RaijinScans**     | [raijinscan.co](https://raijinscan.co)           | Unknown       | 🟡 Medium | Scanlation group           |
-| **RimuScans**       | [rimuscans.com](https://rimuscans.com)           | Unknown       | 🟡 Medium | Scanlation team            |
-| **RoyalManga**      | [royalmanga.com](https://royalmanga.com)         | Unknown       | 🟡 Medium | Premium manga source       |
-| **ScanTradUnion**   | [scantrad-union.com](https://scantrad-union.com) | Unknown       | 🟡 Medium | Scanlation union           |
-| **ScanVFOrg**       | [scanvf.org](https://scanvf.org)                 | Unknown       | 🟡 Medium | VF scanning organization   |
-| **SoftEpsilonScan** | [epsilonsoft.to](https://epsilonsoft.to)         | Unknown       | 🟡 Medium | Related to EpsilonScan     |
-| **ToonFR**          | [toonfr.com](https://toonfr.com)                 | Unknown       | 🟡 Medium | French toon/webtoon source |
+| Source Name      | URL                                          | Expected Type | Priority  | Notes                  |
+| ---------------- | -------------------------------------------- | ------------- | --------- | ---------------------- |
+| **Manga-Kawaii** | [mangakawaii.io](https://mangakawaii.io)     | Unknown       | 🟡 Medium | Popular community site |
+| **BananaScan**   | [harmony-scan.fr](https://harmony-scan.fr)   | Unknown       | 🟡 Medium | Community source       |
+| **EdScanlation** | [edscanlation.fr](https://edscanlation.fr)   | Unknown       | 🟡 Medium | Scanlation team        |
+| **MangasScans**  | [mangas-scans.com](https://mangas-scans.com) | Unknown       | 🟡 Medium | Manga scanning source  |
+| **RaijinScans**  | [raijinscan.co](https://raijinscan.co)       | Unknown       | 🟡 Medium | Scanlation group       |
+| **RimuScans**    | [rimuscans.com](https://rimuscans.com)       | Unknown       | 🟡 Medium | Scanlation team        |
 
 ## 🏗️ Implementation Guidelines
 
 ### Before Starting a Source
 
 1. **Research the site architecture**:
-
    - Check if it uses a known template (Madara, MangaStream, MMRCMS)
    - Analyze the HTML structure and API endpoints
    - Test the site availability and stability
 
 2. **Update this roadmap**:
-
    - Move the source from "Upcoming" to "Work in Progress"
    - Add your name and start date
    - Include any specific technical notes
