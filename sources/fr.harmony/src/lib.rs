@@ -261,27 +261,50 @@ fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     let mut chapters: Vec<Chapter> = Vec::new();
 
-    if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
-        for item in chapter_items {
-            if let Some(links) = item.select("a") {
-                if let Some(link) = links.first() {
-                    let url = link.attr("abs:href").unwrap_or_default();
-                    if url.is_empty() {
+    let chapter_selectors = [
+        "li.wp-manga-chapter",
+        ".main li a[href*=\"chapitre\"]",
+        "ul.main li",
+        ".chapter-list li"
+    ];
+
+    for selector in chapter_selectors {
+        if let Some(chapter_items) = html.select(selector) {
+            for item in chapter_items {
+                let link = if selector.contains(" a") {
+                    Some(item)
+                } else {
+                    item.select("a").and_then(|links| links.first())
+                };
+
+                if let Some(link) = link {
+                    let url = link.attr("abs:href").or_else(|| link.attr("href")).unwrap_or_default();
+                    if url.is_empty() || !url.contains("chapitre") {
                         continue;
                     }
 
                     let key = url.replace(BASE_URL, "").replace("/?style=list", "");
                     let title = link.text().unwrap_or_default().trim().to_string();
 
+                    if title.is_empty() {
+                        continue;
+                    }
+
                     let chapter_num = extract_chapter_number(&title);
+                    let chapter_url = format!("{}{}", BASE_URL, key);
 
                     chapters.push(Chapter {
                         key,
                         title: Some(title),
                         chapter_number: if chapter_num > 0.0 { Some(chapter_num as f32) } else { None },
+                        url: Some(chapter_url),
                         ..Default::default()
                     });
                 }
+            }
+
+            if !chapters.is_empty() {
+                break;
             }
         }
     }
