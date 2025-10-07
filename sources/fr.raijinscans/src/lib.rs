@@ -32,45 +32,50 @@ impl Source for RaijinScans {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let mut genre_filter = String::new();
-        let mut status_filter = String::new();
-        let mut type_filter = String::new();
+        let mut genre_filters: Vec<String> = Vec::new();
+        let mut status_filters: Vec<String> = Vec::new();
+        let mut type_filters: Vec<String> = Vec::new();
+        let mut release_filters: Vec<String> = Vec::new();
+        let mut sort_filter = String::from("recently_added");
 
         for filter in filters {
             match filter {
                 FilterValue::Select { id, value } => {
-                    if id == "genre" && !value.is_empty() {
-                        genre_filter = match value.as_str() {
-                            "Action" => "action",
-                            "Aventure" => "aventure",
-                            "Comédie" => "comedie",
-                            "Drame" => "drame",
-                            "Fantaisie" => "fantaisie",
-                            "Horreur" => "horreur",
-                            "Romance" => "romance",
-                            "Science-Fiction" => "science-fiction",
-                            "Tranche de vie" => "tranche-de-vie",
-                            "Seinen" => "seinen",
-                            "Shōnen" => "shonen",
-                            "Shōjo" => "shoujo",
-                            _ => "",
+                    if id == "sort" && !value.is_empty() {
+                        sort_filter = value;
+                    }
+                }
+                FilterValue::MultiSelect { id, included, excluded: _ } => {
+                    match id.as_str() {
+                        "genre" => {
+                            for genre_id in included {
+                                if !genre_id.is_empty() {
+                                    genre_filters.push(genre_id);
+                                }
+                            }
                         }
-                        .to_string();
-                    } else if id == "status" && !value.is_empty() {
-                        status_filter = match value.as_str() {
-                            "En cours" => "en-cours",
-                            "Terminé" => "termine",
-                            _ => "",
+                        "status" => {
+                            for status_id in included {
+                                if !status_id.is_empty() {
+                                    status_filters.push(status_id);
+                                }
+                            }
                         }
-                        .to_string();
-                    } else if id == "type" && !value.is_empty() {
-                        type_filter = match value.as_str() {
-                            "Manga" => "manga",
-                            "Manhwa" => "manhwa",
-                            "Manhua" => "manhua",
-                            _ => "",
+                        "type" => {
+                            for type_id in included {
+                                if !type_id.is_empty() {
+                                    type_filters.push(type_id);
+                                }
+                            }
                         }
-                        .to_string();
+                        "release" => {
+                            for release_id in included {
+                                if !release_id.is_empty() {
+                                    release_filters.push(release_id);
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 _ => {}
@@ -85,19 +90,22 @@ impl Source for RaijinScans {
         };
 
         let mut url = if page == 1 {
-            format!("{}/?post_type=wp-manga&s={}&sort=recently_added", BASE_URL, encoded_query)
+            format!("{}/?post_type=wp-manga&s={}&sort={}", BASE_URL, encoded_query, sort_filter)
         } else {
-            format!("{}/page/{}/?post_type=wp-manga&s={}&sort=recently_added", BASE_URL, page, encoded_query)
+            format!("{}/page/{}/?post_type=wp-manga&s={}&sort={}", BASE_URL, page, encoded_query, sort_filter)
         };
 
-        if !genre_filter.is_empty() {
-            url.push_str(&format!("&genre={}", genre_filter));
+        for genre in genre_filters {
+            url.push_str(&format!("&genre%5B%5D={}", genre));
         }
-        if !status_filter.is_empty() {
-            url.push_str(&format!("&status={}", status_filter));
+        for status in status_filters {
+            url.push_str(&format!("&status%5B%5D={}", status));
         }
-        if !type_filter.is_empty() {
-            url.push_str(&format!("&type={}", type_filter));
+        for type_val in type_filters {
+            url.push_str(&format!("&type%5B%5D={}", type_val));
+        }
+        for release in release_filters {
+            url.push_str(&format!("&release%5B%5D={}", release));
         }
 
         let html = Request::get(&url)?
