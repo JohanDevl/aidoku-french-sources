@@ -689,14 +689,63 @@ fn is_chapter_premium(chapter_element: &Element, _html: &Document, _href: &str) 
 
 // Extract chapter dates from HTML and associate them with chapters
 fn extract_chapter_dates_from_html(html: &Document, chapters: &mut Vec<Chapter>) {
-	// Strategy 1: Search for all elements containing relative dates first, then match to chapters
+	// Strategy 1: Direct link container extraction (highest priority for PoseidonScans structure)
+	extract_dates_by_link_container(html, chapters);
+
+	// Strategy 2: Search for all elements containing relative dates first, then match to chapters
 	extract_dates_by_text_search(html, chapters);
-	
-	// Strategy 2: If strategy 1 fails, try link-based extraction
+
+	// Strategy 3: If previous strategies fail, try link-based extraction
 	extract_dates_by_link_association(html, chapters);
-	
-	// Strategy 3: JSON-LD schema.org fallback for chapters without dates
+
+	// Strategy 4: JSON-LD schema.org fallback for chapters without dates
 	extract_dates_from_jsonld_fallback(html, chapters);
+}
+
+// Extract dates directly from chapter link containers (PoseidonScans structure)
+// This is the most reliable method for PoseidonScans where dates are inside <a> tags
+fn extract_dates_by_link_container(html: &Document, chapters: &mut Vec<Chapter>) {
+	// Create HashMap for O(1) chapter lookup by number
+	let mut chapter_map: HashMap<i32, usize> = HashMap::new();
+	for (index, chapter) in chapters.iter().enumerate() {
+		if let Some(ch_num) = chapter.chapter_number {
+			chapter_map.insert(ch_num as i32, index);
+		}
+	}
+
+	// Find all chapter links: <a href="/serie/{manga}/chapter/{num}">
+	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
+		for link in chapter_links {
+			// Extract chapter number from URL
+			if let Some(href) = link.attr("href") {
+				if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+					// Search for date spans inside this link
+					// Structure: <a> → <div> → <div class="flex items-center gap-1"> → <span>1 jour</span>
+					if let Some(date_spans) = link.select("span") {
+						for span in date_spans {
+							if let Some(text) = span.text() {
+								let text_trimmed = text.trim();
+
+								// Check if this is a relative date
+								if !text_trimmed.is_empty() && is_relative_date(text_trimmed) {
+									let timestamp = parse_relative_date(text_trimmed);
+
+									// Associate date with chapter using O(1) lookup
+									if let Some(&chapter_index) = chapter_map.get(&(chapter_num as i32)) {
+										// Only set if not already set (preserve more specific dates)
+										if chapters[chapter_index].date_uploaded.is_none() {
+											chapters[chapter_index].date_uploaded = Some(timestamp);
+										}
+									}
+									break; // Found date for this chapter, move to next link
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // Extract dates by searching for relative date text patterns in targeted elements
@@ -710,26 +759,22 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 	}
 	
 	// Search in targeted elements likely to contain dates instead of all DOM elements
-	// Prioritize PoseidonScans-specific selectors based on response.html analysis
+	// Simplified selectors for better compatibility with modern CSS frameworks
 	let date_selectors = &[
-		// PoseidonScans-specific date containers (highest priority from response.html)
-		"div.flex.items-center.gap-1.sm\\:gap-1\\.5 span:last-child",  // Main pattern
-		"div.flex.items-center.gap-1 span:last-child",  // Simplified gap pattern
-		".flex.items-center.gap-1 span:last-child",  // Flexible class match
-		".flex.items-center.gap-3 span:last-child",  // Alternative gap size
-		".flex.items-center span:last-child",  // Generic flex container
+		// PoseidonScans-specific date containers (simplified, no escaping needed)
+		"div.flex.items-center span",  // Generic flex container spans
+		".flex.items-center span",     // Class-based flex container
+		"div.flex span",               // Simplified flex spans
 
-		// Previous patterns kept for compatibility
-		"div.flex.items-center.gap-3.text-gray-400 span:last-child",
-		".text-gray-400 .flex.items-center.gap-1 span:last-child",
-		".text-xs.text-gray-400 span",
-		".text-sm.text-gray-400 span",
+		// Text color-based selectors (common pattern)
+		".text-gray-400 span",
+		".text-xs span",
+		".text-sm span",
 
 		// Generic date selectors (fallback)
 		"time", ".date", ".time", ".timestamp", ".chapter-date",
-		"span[text*='heure']", "span[text*='jour']", "span[text*='mois']", "span[text*='semaine']",
-		"span", "div", "p", "small", ".text-sm", ".text-xs",
-		".chapter-item", ".chapter-link", "a[href*='/chapter/']"
+		"span", "div", "p", "small",
+		".chapter-item", ".chapter-link"
 	];
 	
 	for selector in date_selectors {
@@ -743,10 +788,13 @@ fn extract_dates_by_text_search(html: &Document, chapters: &mut Vec<Chapter>) {
 						// Try to find a nearby chapter link to associate this date with
 						if let Some(chapter_number) = find_nearby_chapter_number(&element) {
 							let timestamp = parse_relative_date(text_trimmed);
-							
+
 							// O(1) lookup instead of O(n) search
 							if let Some(&chapter_index) = chapter_map.get(&(chapter_number as i32)) {
-								chapters[chapter_index].date_uploaded = Some(timestamp);
+								// Only set if not already set (preserve more specific dates from link container strategy)
+								if chapters[chapter_index].date_uploaded.is_none() {
+									chapters[chapter_index].date_uploaded = Some(timestamp);
+								}
 							}
 						}
 					}
@@ -844,10 +892,13 @@ fn extract_dates_by_link_association(html: &Document, chapters: &mut Vec<Chapter
 										if !date_text_trimmed.is_empty() && is_relative_date(date_text_trimmed) {
 											// Convert to timestamp
 											let timestamp = parse_relative_date(date_text_trimmed);
-											
+
 											// O(1) lookup instead of O(n) search
 											if let Some(&chapter_index) = chapter_map.get(&(chapter_number as i32)) {
-												chapters[chapter_index].date_uploaded = Some(timestamp);
+												// Only set if not already set (preserve more specific dates from previous strategies)
+												if chapters[chapter_index].date_uploaded.is_none() {
+													chapters[chapter_index].date_uploaded = Some(timestamp);
+												}
 											}
 										}
 									}
