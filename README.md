@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
 [![Sources](https://img.shields.io/badge/sources-20-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-13-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-12-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -53,8 +53,8 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |    **LelManga**    |     [lelmanga.com](https://www.lelmanga.com/)     | ✅ **Active**  | MangaThemesia | French manga catalog          |
 |  **MangasScans**   |   [mangas-scans.com](https://mangas-scans.com/)   | ✅ **Active**  | MangaThemesia | French manga and manhwa       |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
-| **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ✅ **Active**  |    Custom     | French manhwa scanlations     |
 |     **JapScan**     |       [japscan.si](https://www.japscan.si/)       | ❌ **Offline** |    Custom     | Dynamic JS/Shadow DOM incompatible |
+| **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ❌ **Offline** |    Custom     | Merged with Poseidon Scans    |
 |   **CrunchyScan**   |     [crunchyscan.fr](https://crunchyscan.fr/)     | ❌ **Offline** |    Custom     | Cloudflare interactive challenge |
 |   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** |  MangaStream  | Chapter loading issues        |
 | **ReaperScansFR**  |    [reaper-scans.fr](https://reaper-scans.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
@@ -78,13 +78,13 @@ This project uses **Rust** and different templates to support various website te
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
-|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, RaijinScans, RimuScans, AnimeSama, FMTeam, Starbound Scans, JapScan, CrunchyScan, LegacyScans |
+|    **Custom**     |      Custom implementation      | LelscanFR, PhenixScans, PoseidonScans, RaijinScans, RimuScans, AnimeSama, FMTeam, JapScan, CrunchyScan, LegacyScans, Starbound Scans |
 
 ### Project Structure
 
 ```
 aidoku-french-sources/
-├── sources/              # Active sources (13 sources)
+├── sources/              # Active sources (12 sources)
 │   ├── fr.animesama/
 │   ├── fr.fmteam/
 │   ├── fr.lelmanga/
@@ -96,15 +96,15 @@ aidoku-french-sources/
 │   ├── fr.poseidonscans/
 │   ├── fr.raijinscans/
 │   ├── fr.rimuscans/
-│   ├── fr.starboundscans/
 │   └── fr.sushiscans/
-├── offline-sources/      # Offline sources (7 sources)
+├── offline-sources/      # Offline sources (8 sources)
 │   ├── fr.astralmanga/
 │   ├── fr.crunchyscan/
 │   ├── fr.japscan/
 │   ├── fr.legacyscans/
 │   ├── fr.mangascan/
 │   ├── fr.reaperscansfr/
+│   ├── fr.starboundscans/
 │   └── fr.sushiscan/
 ├── templates/            # Reusable templates (deprecated)
 ├── public/               # Website files
