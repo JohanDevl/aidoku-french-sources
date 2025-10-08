@@ -12,9 +12,10 @@
     "options": ["Tout", "En cours", "Terminé", "En pause", "Annulé"]
   },
   {
-    "type": "genre",
+    "type": "multi-select",
     "id": "genre",
     "title": "Genres",
+    "isGenre": true,
     "options": [
       "Action",
       "Adult",

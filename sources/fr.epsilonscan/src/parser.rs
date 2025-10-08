@@ -47,7 +47,7 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 
             let cover = item.select("img")
                 .and_then(|nodes| nodes.first())
-                .map(|node| helper::get_image_url(node))
+                .map(|node| helper::get_image_url(&node))
                 .filter(|url| !url.is_empty());
 
             entries.push(Manga {
@@ -92,7 +92,7 @@ pub fn parse_manga_details(manga_id: &str, html: &Document) -> Result<Manga> {
 
     let cover = html.select("div.summary_image img")
         .and_then(|nodes| nodes.first())
-        .map(|node| helper::get_image_url(node))
+        .map(|node| helper::get_image_url(&node))
         .filter(|url| !url.is_empty());
 
     let author = html.select("div.author-content a")
@@ -146,11 +146,11 @@ pub fn parse_manga_details(manga_id: &str, html: &Document) -> Result<Manga> {
     let viewer = if series_type.contains("manhwa")
         || series_type.contains("manhua")
         || series_type.contains("webtoon") {
-        Viewer::Scroll
+        Viewer::Webtoon
     } else if series_type.contains("manga") {
-        Viewer::Rtl
+        Viewer::RightToLeft
     } else {
-        Viewer::Scroll
+        Viewer::Webtoon
     };
 
     let nsfw_tags = ["adult", "mature", "pornhwa", "smut", "ecchi"];
@@ -162,14 +162,14 @@ pub fn parse_manga_details(manga_id: &str, html: &Document) -> Result<Manga> {
         .unwrap_or_default();
 
     if !adult_badge.is_empty() {
-        content_rating = ContentRating::Nsfw;
+        content_rating = ContentRating::NSFW;
     } else {
         for tag in nsfw_tags {
             if tags.iter().any(|v| v.to_lowercase().contains(tag)) {
                 content_rating = if tag == "ecchi" {
                     ContentRating::Suggestive
                 } else {
-                    ContentRating::Nsfw
+                    ContentRating::NSFW
                 };
                 break;
             }
@@ -255,14 +255,15 @@ pub fn parse_chapter_list(manga_id: &str, html: Document) -> Result<Vec<Chapter>
 
             chapters.push(Chapter {
                 key,
-                title,
-                volume_number: -1.0,
-                chapter_number: -1.0,
-                date_uploaded,
-                scanlator: String::new(),
-                url: href,
-                lang: String::from("fr"),
-                warning_watermark: None,
+                title: Some(title),
+                volume_number: None,
+                chapter_number: None,
+                date_uploaded: if date_uploaded > 0 { Some(date_uploaded) } else { None },
+                scanlators: None,
+                url: Some(href),
+                language: Some(String::from("fr")),
+                locked: false,
+                thumbnail: None,
             });
         }
     }
@@ -272,20 +273,20 @@ pub fn parse_chapter_list(manga_id: &str, html: Document) -> Result<Vec<Chapter>
 
 pub fn parse_page_list(html: Document) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
-    let mut index = 0;
 
     if let Some(page_items) = html.select("div.page-break, li.blocks-gallery-item") {
         for item in page_items {
             if let Some(img_nodes) = item.select("img") {
                 if let Some(img) = img_nodes.first() {
-                    let url = helper::get_image_url(img);
+                    let url = helper::get_image_url(&img);
 
                     if !url.is_empty() {
                         pages.push(Page {
-                            index,
-                            content: PageContent::Url(url),
+                            content: PageContent::Url(url, None),
+                            thumbnail: None,
+                            has_description: false,
+                            description: None,
                         });
-                        index += 1;
                     }
                 }
             }
@@ -295,7 +296,7 @@ pub fn parse_page_list(html: Document) -> Result<Vec<Page>> {
     Ok(pages)
 }
 
-fn parse_date(date_str: &str) -> f64 {
+fn parse_date(date_str: &str) -> i64 {
     let date_lower = date_str.to_lowercase();
 
     if date_lower.contains("il y a") {
@@ -303,27 +304,27 @@ fn parse_date(date_str: &str) -> f64 {
 
         if date_lower.contains("minute") {
             if let Some(mins) = extract_number(&date_lower) {
-                return now - (mins as f64 * 60.0);
+                return now - (mins as i64 * 60);
             }
         } else if date_lower.contains("heure") {
             if let Some(hours) = extract_number(&date_lower) {
-                return now - (hours as f64 * 3600.0);
+                return now - (hours as i64 * 3600);
             }
         } else if date_lower.contains("jour") {
             if let Some(days) = extract_number(&date_lower) {
-                return now - (days as f64 * 86400.0);
+                return now - (days as i64 * 86400);
             }
         } else if date_lower.contains("semaine") {
             if let Some(weeks) = extract_number(&date_lower) {
-                return now - (weeks as f64 * 604800.0);
+                return now - (weeks as i64 * 604800);
             }
         } else if date_lower.contains("mois") {
             if let Some(months) = extract_number(&date_lower) {
-                return now - (months as f64 * 2592000.0);
+                return now - (months as i64 * 2592000);
             }
         } else if date_lower.contains("an") {
             if let Some(years) = extract_number(&date_lower) {
-                return now - (years as f64 * 31536000.0);
+                return now - (years as i64 * 31536000);
             }
         }
     }
@@ -332,7 +333,7 @@ fn parse_date(date_str: &str) -> f64 {
         return timestamp;
     }
 
-    -1.0
+    -1
 }
 
 fn extract_number(text: &str) -> Option<i32> {
@@ -344,7 +345,7 @@ fn extract_number(text: &str) -> Option<i32> {
     None
 }
 
-fn parse_french_date(date_str: &str) -> Result<f64> {
+fn parse_french_date(date_str: &str) -> Result<i64> {
     let parts: Vec<&str> = date_str.split('/').collect();
 
     if parts.len() == 3 {
@@ -365,7 +366,7 @@ fn parse_french_date(date_str: &str) -> Result<f64> {
     Err(AidokuError::Unimplemented)
 }
 
-fn calculate_timestamp(year: i32, month: i32, day: i32) -> f64 {
+fn calculate_timestamp(year: i32, month: i32, day: i32) -> i64 {
     let days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
     let is_leap_year = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
@@ -384,5 +385,5 @@ fn calculate_timestamp(year: i32, month: i32, day: i32) -> f64 {
 
     total_days += day - 1;
 
-    (total_days as f64) * 86400.0
+    (total_days as i64) * 86400
 }

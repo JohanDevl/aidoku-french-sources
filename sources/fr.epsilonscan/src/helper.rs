@@ -1,7 +1,4 @@
-use aidoku::{
-    alloc::{String, format},
-    imports::html::Node,
-};
+use aidoku::alloc::{String, format};
 
 pub fn urlencode(string: String) -> String {
     let mut result = String::new();
@@ -21,7 +18,7 @@ pub fn urlencode(string: String) -> String {
     result
 }
 
-pub fn get_image_url(node: &Node) -> String {
+pub fn get_image_url(node: &aidoku::imports::html::Element) -> String {
     node.attr("data-src")
         .or_else(|| node.attr("data-lazy-src"))
         .or_else(|| node.attr("src"))
