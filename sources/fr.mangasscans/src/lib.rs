@@ -17,7 +17,7 @@ use helper::urlencode;
 use parser::{has_next_page, parse_chapter_list, parse_manga_details, parse_manga_list, parse_page_list};
 
 pub static BASE_URL: &str = "https://mangas-scans.com";
-pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
 
 pub struct MangasScans;
 
@@ -45,6 +45,10 @@ impl Source for MangasScans {
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
 
@@ -76,6 +80,10 @@ impl Source for MangasScans {
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("DNT", "1")
+                .header("Connection", "keep-alive")
+                .header("Upgrade-Insecure-Requests", "1")
                 .header("Referer", BASE_URL)
                 .html()?;
 
@@ -102,6 +110,10 @@ impl Source for MangasScans {
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
 
@@ -121,6 +133,10 @@ impl ListingProvider for MangasScans {
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
 
