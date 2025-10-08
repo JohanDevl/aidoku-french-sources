@@ -5,7 +5,7 @@ use aidoku::{
     imports::html::Document,
 };
 
-use crate::helper::{extract_and_clean_title, extract_chapter_number, make_absolute_url, parse_status};
+use crate::helper::{extract_chapter_number, make_absolute_url, parse_status};
 
 extern crate alloc;
 
@@ -285,7 +285,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim_end_matches('/')
                             .to_string();
 
-                        let raw_title = link
+                        let title_text = link
                             .text()
                             .unwrap_or_else(|| {
                                 item.select(".chapternum, .chapter-title")
@@ -296,16 +296,24 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim()
                             .to_string();
 
-                        let (cleaned_title, date_uploaded) = extract_and_clean_title(&raw_title);
-                        let chapter_num = extract_chapter_number(&cleaned_title);
+                        let date_uploaded = item
+                            .select(".chapterdate, span.chapterdate, time")
+                            .and_then(|els| els.first())
+                            .and_then(|el| el.text())
+                            .and_then(|text| {
+                                use crate::helper::parse_chapter_date;
+                                parse_chapter_date(&text)
+                            });
+
+                        let chapter_num = extract_chapter_number(&title_text);
 
                         if !key.is_empty() {
                             let chapter_url = make_absolute_url("https://mangas-scans.com", &format!("/{}/", key));
 
                             chapters.push(Chapter {
                                 key: key.clone(),
-                                title: if !cleaned_title.is_empty() {
-                                    Some(cleaned_title)
+                                title: if !title_text.is_empty() {
+                                    Some(title_text)
                                 } else {
                                     None
                                 },
