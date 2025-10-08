@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.epsilonscan",
     "name": "Epsilon Scan",
-    "version": 1,
+    "version": 2,
     "url": "https://epsilonscan.to/",
     "contentRating": 2,
     "languages": ["fr"]

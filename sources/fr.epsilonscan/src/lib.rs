@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult,
     Page, Result, Source,
     alloc::{String, Vec, format},
-    imports::net::{Request, HttpMethod},
+    imports::net::Request,
     prelude::*,
 };
 
@@ -19,16 +19,6 @@ pub const AJAX_URL: &str = "https://epsilonscan.to/wp-admin/admin-ajax.php";
 struct EpsilonScan;
 
 impl EpsilonScan {
-    fn make_request(&self, url: &str, method: HttpMethod) -> Result<Request> {
-        Ok(Request::new(url, method)?
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Referer", BASE_URL)
-            .header("x-requested-with", "app.notMihon"))
-    }
-
     fn get_ajax_manga_list(&self, page: i32, meta_key: &str) -> Result<MangaPageResult> {
         let body = format!(
             "action=madara_load_more&page={}&template=madara-core%2Fcontent%2Fcontent-archive&vars%5Bpaged%5D=1&vars%5Borderby%5D=meta_value_num&vars%5Btemplate%5D=archive&vars%5Bsidebar%5D=full&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_key%5D={}&vars%5Border%5D=desc&vars%5Bmeta_query%5D%5Brelation%5D=OR&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
@@ -36,11 +26,18 @@ impl EpsilonScan {
             meta_key
         );
 
-        let html = self.make_request(AJAX_URL, HttpMethod::Post)?
+        let html = Request::post(AJAX_URL)?
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Referer", BASE_URL)
             .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("x-requested-with", "app.notMihon")
             .body(body.as_bytes())
-            .send()?
-            .get_html()?;
+            .html()?;
 
         parser::parse_manga_list(html)
     }
@@ -114,7 +111,15 @@ impl Source for EpsilonScan {
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         let url = self.build_search_url(query, page, filters);
-        let html = self.make_request(&url, HttpMethod::Get)?.send()?.get_html()?;
+        let html = Request::get(&url)?
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Referer", BASE_URL)
+            .html()?;
         parser::parse_manga_list(html)
     }
 
@@ -126,7 +131,15 @@ impl Source for EpsilonScan {
     ) -> Result<Manga> {
         if needs_details || needs_chapters {
             let url = format!("{}/manga/{}/", BASE_URL, manga.key);
-            let html = self.make_request(&url, HttpMethod::Get)?.send()?.get_html()?;
+            let html = Request::get(&url)?
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Accept-Encoding", "gzip, deflate, br")
+                .header("DNT", "1")
+                .header("Connection", "keep-alive")
+                .header("Referer", BASE_URL)
+                .html()?;
 
             if needs_details {
                 if let Ok(detailed) = parser::parse_manga_details(&manga.key, &html) {
@@ -154,7 +167,15 @@ impl Source for EpsilonScan {
 
     fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         let url = format!("{}/manga/{}/{}/", BASE_URL, manga.key, chapter.key);
-        let html = self.make_request(&url, HttpMethod::Get)?.send()?.get_html()?;
+        let html = Request::get(&url)?
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Referer", BASE_URL)
+            .html()?;
         parser::parse_page_list(html)
     }
 }
@@ -163,11 +184,18 @@ impl EpsilonScan {
     fn get_ajax_chapters(&self, manga_id: &str, post_id: &str) -> Result<Vec<Chapter>> {
         let body = format!("action=manga_get_chapters&manga={}", post_id);
 
-        let html = self.make_request(AJAX_URL, HttpMethod::Post)?
+        let html = Request::post(AJAX_URL)?
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .header("Accept-Encoding", "gzip, deflate, br")
+            .header("DNT", "1")
+            .header("Connection", "keep-alive")
+            .header("Referer", BASE_URL)
             .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("x-requested-with", "app.notMihon")
             .body(body.as_bytes())
-            .send()?
-            .get_html()?;
+            .html()?;
 
         parser::parse_chapter_list(manga_id, html)
     }
