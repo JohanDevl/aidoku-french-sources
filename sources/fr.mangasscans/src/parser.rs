@@ -89,11 +89,46 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 }
 
 pub fn has_next_page(html: &Document) -> bool {
-    if let Some(pagination) = html.select(".pagination a, .nav-links a, .nextpostslink") {
-        !pagination.is_empty()
-    } else {
-        false
+    // Check for specific "next" link selectors
+    if html.select(".pagination .next").is_some() {
+        return true;
     }
+
+    if html.select(".nextpostslink").is_some() {
+        return true;
+    }
+
+    if html.select(".nav-links a[rel='next']").is_some() {
+        return true;
+    }
+
+    if html.select(".hpage a.r").is_some() {
+        return true;
+    }
+
+    // Check for pagination links with "next" or "›" text
+    if let Some(links) = html.select(".pagination a, .nav-links a") {
+        for link in links {
+            if let Some(text) = link.text() {
+                let text_lower = text.to_lowercase();
+                if text_lower.contains("next")
+                    || text_lower.contains("suivant")
+                    || text_lower.contains("›")
+                    || text_lower.contains("»") {
+                    return true;
+                }
+            }
+
+            // Check for rel="next" attribute
+            if let Some(rel) = link.attr("rel") {
+                if rel == "next" {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }
 
 pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -> Result<Manga> {
