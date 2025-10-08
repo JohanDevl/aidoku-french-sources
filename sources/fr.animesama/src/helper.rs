@@ -1,5 +1,5 @@
 use aidoku::{
-	alloc::{String, Vec, format},
+	alloc::{String, Vec, format, string::ToString},
 };
 
 pub fn urlencode(text: &str) -> String {
@@ -118,7 +118,7 @@ pub fn _parse_date_string(_date_str: &str) -> f64 {
 pub fn _urldecode(text: &str) -> String {
 	let mut result = String::new();
 	let mut chars = text.chars();
-	
+
 	while let Some(ch) = chars.next() {
 		match ch {
 			'%' => {
@@ -140,7 +140,20 @@ pub fn _urldecode(text: &str) -> String {
 			_ => result.push(ch),
 		}
 	}
-	
+
 	result
 }
 
+pub fn clean_url(url: &str) -> String {
+	if url.contains("/scan/vf/") {
+		url.replace("/scan/vf/", "")
+	} else if url.contains("/scan_noir-et-blanc/vf/") {
+		url.replace("/scan_noir-et-blanc/vf/", "")
+	} else {
+		url.to_string()
+	}
+}
+
+pub fn is_one_piece_manga(manga_key: &str) -> bool {
+	manga_key.contains("one-piece") || manga_key.contains("one_piece")
+}

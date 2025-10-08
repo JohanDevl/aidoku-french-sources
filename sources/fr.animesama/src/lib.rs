@@ -1,9 +1,9 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
 	Page, PageContext, Result, Source,
-	alloc::{String, Vec, vec, string::ToString},
+	alloc::{String, Vec, vec},
 	imports::{net::{Request, Response}, std::send_partial_result},
 	prelude::*,
 	AidokuError,
@@ -138,11 +138,6 @@ fn get_genre_ids() -> Vec<&'static str> {
 	]
 }
 
-// Vérifier si un ID de genre est valide
-fn is_valid_genre_id(genre_id: &str) -> bool {
-	get_genre_ids().contains(&genre_id)
-}
-
 // Helper function for robust HTTP requests with Cloudflare bypass and error handling
 fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 	let mut attempt = 0;
@@ -211,15 +206,9 @@ fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 	}
 }
 
-// Wrapper function with fallback for HTML parsing
 fn make_realistic_request(url: &str) -> Result<aidoku::imports::html::Document> {
-	match make_request_with_cloudflare_retry(url) {
-		Ok(response) => Ok(response.get_html()?),
-		Err(_) => {
-			// If all retries fail, return an error that can be handled gracefully
-			Err(AidokuError::message("Request failed after retries"))
-		}
-	}
+	let response = make_request_with_cloudflare_retry(url)?;
+	Ok(response.get_html()?)
 }
 
 struct AnimeSama;
@@ -249,17 +238,14 @@ impl Source for AnimeSama {
 						// Traiter chaque genre inclus
 						for selected_value in included {
 							if !selected_value.is_empty() {
-								// Essayer de parser la valeur comme un index
 								if let Ok(selected_index) = selected_value.parse::<i32>() {
 									if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
 										let genre_id = genre_ids[selected_index as usize];
-										// Format correct pour AnimeSama : utiliser genre%5B%5D=
 										if !genre_id.is_empty() {
 											filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_id)));
 										}
 									}
-								} else if is_valid_genre_id(selected_value) {
-									// Si ce n'est pas un index, peut-être que c'est directement l'ID
+								} else if !selected_value.is_empty() {
 									filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(selected_value)));
 								}
 							}
@@ -267,8 +253,7 @@ impl Source for AnimeSama {
 					}
 				}
 				FilterValue::Text { id, value } => {
-					// Les filtres Text avec ID genre (pour compatibilité)
-					if id == "genre" && !value.is_empty() && is_valid_genre_id(value) {
+					if id == "genre" && !value.is_empty() {
 						filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 					}
 				}
@@ -310,34 +295,13 @@ impl Source for AnimeSama {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		// Construire l'URL de base du manga (sans /scan/vf/) pour les détails
-		let base_manga_url = if manga.key.starts_with("http") {
-			// Si c'est une URL complète, s'assurer qu'elle ne contient pas /scan/vf/
-			if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
-				// Retirer la partie /scan.../vf/... pour avoir l'URL de base
-				let parts: Vec<&str> = manga.key.split("/scan").collect();
-				if parts.len() > 1 {
-					parts[0].to_string()
-				} else {
-					manga.key.clone()
-				}
-			} else {
-				manga.key.clone()
-			}
+		let clean_key = if manga.key.starts_with("http") {
+			helper::clean_url(&manga.key)
 		} else {
-			// S'assurer que manga.key ne contient pas /scan/vf/
-			let clean_key = if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
-				let parts: Vec<&str> = manga.key.split("/scan").collect();
-				if parts.len() > 1 {
-					parts[0]
-				} else {
-					&manga.key
-				}
-			} else {
-				&manga.key
-			};
-			format!("{}{}", BASE_URL, clean_key)
+			let cleaned = helper::clean_url(&manga.key);
+			format!("{}{}", BASE_URL, cleaned)
 		};
+		let base_manga_url = clean_key;
 		
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
@@ -372,35 +336,14 @@ impl Source for AnimeSama {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		// Construire l'URL du chapitre si elle n'existe pas
 		let chapter_url = chapter.url.unwrap_or_else(|| {
-			// Nettoyer manga.key pour s'assurer qu'il ne contient pas déjà /scan/vf/
 			let clean_manga_key = if manga.key.starts_with("http") {
-				if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
-					let parts: Vec<&str> = manga.key.split("/scan").collect();
-					if parts.len() > 1 {
-						parts[0].to_string()
-					} else {
-						manga.key.clone()
-					}
-				} else {
-					manga.key.clone()
-				}
+				helper::clean_url(&manga.key)
 			} else {
-				if manga.key.contains("/scan/vf/") || manga.key.contains("/scan_noir-et-blanc/vf/") {
-					let parts: Vec<&str> = manga.key.split("/scan").collect();
-					if parts.len() > 1 {
-						parts[0].to_string()
-					} else {
-						manga.key.clone()
-					}
-				} else {
-					manga.key.clone()
-				}
+				helper::clean_url(&manga.key)
 			};
-			
-			// Déterminer le scan path (One Piece special case)
-			let is_one_piece = clean_manga_key.contains("one-piece") || clean_manga_key.contains("one_piece");
+
+			let is_one_piece = helper::is_one_piece_manga(&clean_manga_key);
 			let scan_path = if is_one_piece {
 				// For One Piece chapters 1046+, try using normal scan path instead of noir-et-blanc
 				if let Ok(chapter_num) = chapter.key.parse::<i32>() {
