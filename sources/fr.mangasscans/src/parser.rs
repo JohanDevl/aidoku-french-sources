@@ -1,7 +1,7 @@
 use aidoku::{
     Chapter, ContentRating, Manga, MangaStatus, Page, PageContent,
     Result, UpdateStrategy, Viewer,
-    alloc::{String, Vec, string::ToString},
+    alloc::{String, Vec, string::ToString, format},
     imports::html::Document,
 };
 
@@ -239,6 +239,8 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
         }
     }
 
+    let manga_url = make_absolute_url(base_url, &format!("/manga/{}/", manga_key));
+
     Ok(Manga {
         key: manga_key.clone(),
         cover,
@@ -251,7 +253,7 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
         content_rating: ContentRating::Safe,
         viewer: Viewer::LeftToRight,
         chapters: None,
-        url: Some(manga_key),
+        url: Some(manga_url),
         next_update_time: None,
         update_strategy: UpdateStrategy::Always,
     })
@@ -298,6 +300,8 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                         let chapter_num = extract_chapter_number(&cleaned_title);
 
                         if !key.is_empty() {
+                            let chapter_url = make_absolute_url("https://mangas-scans.com", &format!("/{}/", key));
+
                             chapters.push(Chapter {
                                 key: key.clone(),
                                 title: if !cleaned_title.is_empty() {
@@ -306,7 +310,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                                     None
                                 },
                                 date_uploaded,
-                                url: Some(key),
+                                url: Some(chapter_url),
                                 chapter_number: if chapter_num > 0.0 {
                                     Some(chapter_num)
                                 } else {
