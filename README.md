@@ -1,7 +1,7 @@
 # 📚 Aidoku French Sources
 
-[![Sources](https://img.shields.io/badge/sources-20-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
-[![Active](https://img.shields.io/badge/active-13-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Sources](https://img.shields.io/badge/sources-21-blue.svg)](https://github.com/JohanDevl/aidoku-french-sources)
+[![Active](https://img.shields.io/badge/active-14-green.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 [![Status](https://img.shields.io/badge/status-maintained-brightgreen.svg)](https://github.com/JohanDevl/aidoku-french-sources)
 
 This repository hosts French manga/scan sources compatible with the [Aidoku](https://aidoku.app/) application. Aidoku is a free and open-source manga reader for iOS that allows reading manga from various sources.
@@ -51,6 +51,7 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |   **AnimeSama**    |      [anime-sama.fr](https://anime-sama.fr/)      | ✅ **Active**  |    Custom     | Anime/Manga hybrid platform   |
 |     **FMTeam**     |        [fmteam.fr](https://fmteam.fr/)        | ✅ **Active**  |    Custom     | French scanlation team        |
 |    **LelManga**    |     [lelmanga.com](https://www.lelmanga.com/)     | ✅ **Active**  | MangaThemesia | French manga catalog          |
+|  **MangasScans**   |   [mangas-scans.com](https://mangas-scans.com/)   | ✅ **Active**  | MangaThemesia | French manga and manhwa       |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
 | **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ✅ **Active**  |    Custom     | French manhwa scanlations     |
 |  **Harmony Scan**   |    [harmony-scan.fr](https://harmony-scan.fr/)    | ✅ **Active**  |    Madara     | French manga and manhwa       |
@@ -84,7 +85,7 @@ This project uses **Rust** and different templates to support various website te
 
 ```
 aidoku-french-sources/
-├── sources/              # Active sources (13 sources)
+├── sources/              # Active sources (14 sources)
 │   ├── fr.animesama/
 │   ├── fr.fmteam/
 │   ├── fr.harmony/
@@ -92,6 +93,7 @@ aidoku-french-sources/
 │   ├── fr.lelscanfr/
 │   ├── fr.mangascantrad/
 │   ├── fr.mangasorigines/
+│   ├── fr.mangasscans/
 │   ├── fr.phenixscans/
 │   ├── fr.poseidonscans/
 │   ├── fr.raijinscans/
