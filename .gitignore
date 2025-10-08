@@ -1,32 +1,58 @@
+# macOS
 .DS_Store
+
+# Build artifacts
 .build
 *.aix
+wasm-ld
 
-src/**/out
-src/**/public
-
-src/as/*/build
-src/as/*/node_modules
-src/as/*/.wireit
-
-src/rust/*/target
-src/rust/node_modules
-
-# New structure with sources directory
+# Rust
 sources/*/target
 offline-sources/*/target
 templates/*/target
+**/Cargo.lock
 
-wasm-ld
-.env
+# Nix
+flake.lock
 
-.claude/
-CLAUDE.md
-.mcp.json
+# JavaScript/Node
+**/node_modules
+**/.wireit
 
+# Build outputs
+src/**/out
+src/**/public
+src/as/*/build
+
+# Legacy structure (deprecated)
 src/rust/
 
-response.html
+# Environment & Secrets
+.env
+*.pem
+*.key
+
+# Claude Code
+.claude/
+.mcp.json
+
+# Playwright MCP
 .playwright-mcp
 
+# Temporary files
+response.html
 data.json
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ignore documentation files
+REVIEW.md
+CODE_REVIEW_SUMMARY.md
+CLAUDE.md
