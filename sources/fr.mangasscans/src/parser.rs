@@ -298,14 +298,11 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim_end_matches('/')
                             .to_string();
 
-                        let title_text = link
-                            .text()
-                            .unwrap_or_else(|| {
-                                item.select(".chapternum, .chapter-title")
-                                    .and_then(|els| els.first())
-                                    .and_then(|el| el.text())
-                                    .unwrap_or_default()
-                            })
+                        let title_text = item
+                            .select(".chapternum, .chapter-title")
+                            .and_then(|els| els.first())
+                            .and_then(|el| el.text())
+                            .unwrap_or_else(|| link.text().unwrap_or_default())
                             .trim()
                             .to_string();
 
