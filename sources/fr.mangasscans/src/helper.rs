@@ -80,14 +80,15 @@ pub fn extract_chapter_number(title: &str) -> f32 {
 pub fn parse_status(status_text: &str) -> aidoku::MangaStatus {
     use aidoku::MangaStatus;
 
-    let status_lower = status_text.to_lowercase();
+    let status_lower = status_text.trim().to_lowercase();
 
     if status_lower.contains("en cours") || status_lower.contains("ongoing") {
         return MangaStatus::Ongoing;
     }
     if status_lower.contains("complété")
         || status_lower.contains("completed")
-        || status_lower.contains("termine") {
+        || status_lower.contains("termine")
+        || status_lower.contains("terminé") {
         return MangaStatus::Completed;
     }
     if status_lower.contains("en pause") || status_lower.contains("hiatus") {
@@ -97,6 +98,9 @@ pub fn parse_status(status_text: &str) -> aidoku::MangaStatus {
         || status_lower.contains("cancelled")
         || status_lower.contains("dropped") {
         return MangaStatus::Cancelled;
+    }
+    if status_lower.contains("partenaire") {
+        return MangaStatus::Ongoing;
     }
 
     MangaStatus::Unknown

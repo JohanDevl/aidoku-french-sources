@@ -206,43 +206,94 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
         }
     }
 
-    let author_selectors = [
-        ".infotable tr:contains(Auteur) td:last-child",
-        ".tsinfo .imptdt:contains(Auteur) i",
-        ".author-content a",
-        ".fmed:contains(Auteur) span",
-    ];
-
     let mut authors = None;
-    for selector in &author_selectors {
-        if let Some(elems) = html.select(selector) {
-            if let Some(elem) = elems.first() {
-                if let Some(text) = elem.text() {
-                    let trimmed = text.trim().to_string();
-                    if !trimmed.is_empty() {
-                        authors = Some(trimmed);
-                        break;
+
+    // First try: parse from .infotable by finding the Auteur/Author row
+    if let Some(rows) = html.select(".infotable tr") {
+        for row in rows {
+            if let Some(cells) = row.select("td") {
+                let cells_vec: Vec<_> = cells.collect();
+                if cells_vec.len() >= 2 {
+                    if let Some(label) = cells_vec[0].text() {
+                        let label_lower = label.to_lowercase();
+                        if label_lower.contains("auteur") || label_lower.contains("author") {
+                            if let Some(value) = cells_vec[1].text() {
+                                let trimmed = value.trim().to_string();
+                                if !trimmed.is_empty() {
+                                    authors = Some(trimmed);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    let status_selectors = [
-        ".infotable tr:contains(Statut) td:last-child",
-        ".tsinfo .imptdt:contains(Statut) i",
-        ".status",
-        ".fmed:contains(Status) span",
-    ];
+    // Fallback to other selectors if not found
+    if authors.is_none() {
+        let author_selectors = [
+            ".tsinfo .imptdt:contains(Auteur) i",
+            ".author-content a",
+            ".fmed:contains(Auteur) span",
+        ];
+
+        for selector in &author_selectors {
+            if let Some(elems) = html.select(selector) {
+                if let Some(elem) = elems.first() {
+                    if let Some(text) = elem.text() {
+                        let trimmed = text.trim().to_string();
+                        if !trimmed.is_empty() {
+                            authors = Some(trimmed);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let mut status = MangaStatus::Unknown;
-    for selector in &status_selectors {
-        if let Some(elems) = html.select(selector) {
-            if let Some(elem) = elems.first() {
-                if let Some(text) = elem.text() {
-                    status = parse_status(&text);
-                    if status != MangaStatus::Unknown {
-                        break;
+
+    // First try: parse from .infotable by finding the Status/Statut row
+    if let Some(rows) = html.select(".infotable tr") {
+        for row in rows {
+            if let Some(cells) = row.select("td") {
+                let cells_vec: Vec<_> = cells.collect();
+                if cells_vec.len() >= 2 {
+                    if let Some(label) = cells_vec[0].text() {
+                        let label_lower = label.to_lowercase();
+                        if label_lower.contains("status") || label_lower.contains("statut") {
+                            if let Some(value) = cells_vec[1].text() {
+                                status = parse_status(&value);
+                                if status != MangaStatus::Unknown {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to other selectors if not found
+    if status == MangaStatus::Unknown {
+        let status_selectors = [
+            ".tsinfo .imptdt:contains(Statut) i",
+            ".status",
+            ".fmed:contains(Status) span",
+        ];
+
+        for selector in &status_selectors {
+            if let Some(elems) = html.select(selector) {
+                if let Some(elem) = elems.first() {
+                    if let Some(text) = elem.text() {
+                        status = parse_status(&text);
+                        if status != MangaStatus::Unknown {
+                            break;
+                        }
                     }
                 }
             }
