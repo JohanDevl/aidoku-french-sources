@@ -263,6 +263,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
 
     let chapter_selectors = [
+        "div.eplister ul li",
         "div.bxcl li",
         "div.cl li",
         "#chapterlist li",
@@ -276,7 +277,19 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
         if let Some(items) = html.select(selector) {
             if !items.is_empty() {
                 for item in items {
-                    if let Some(link) = item.select("a").and_then(|links| links.first()) {
+                    let link_selectors = ["div.eph-num a", ".eph-num a", "a"];
+                    let mut link = None;
+
+                    for link_selector in &link_selectors {
+                        if let Some(links) = item.select(link_selector) {
+                            if let Some(l) = links.first() {
+                                link = Some(l);
+                                break;
+                            }
+                        }
+                    }
+
+                    if let Some(link) = link {
                         let href = link.attr("href").unwrap_or_default();
                         let key = href
                             .trim_start_matches("https://")
@@ -296,14 +309,29 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim()
                             .to_string();
 
-                        let date_uploaded = item
-                            .select(".chapterdate, span.chapterdate, time")
-                            .and_then(|els| els.first())
-                            .and_then(|el| el.text())
-                            .and_then(|text| {
-                                use crate::helper::parse_chapter_date;
-                                parse_chapter_date(&text)
-                            });
+                        let date_selectors = [
+                            ".chapterdate",
+                            "span.chapterdate",
+                            ".eph-num .chapterdate",
+                            ".epl-num .chapterdate",
+                            "time",
+                            ".dt",
+                        ];
+
+                        let mut date_uploaded = None;
+                        for date_selector in &date_selectors {
+                            if let Some(date_els) = item.select(date_selector) {
+                                if let Some(date_el) = date_els.first() {
+                                    if let Some(date_text) = date_el.text() {
+                                        use crate::helper::parse_chapter_date;
+                                        if let Some(timestamp) = parse_chapter_date(&date_text) {
+                                            date_uploaded = Some(timestamp);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         let chapter_num = extract_chapter_number(&title_text);
 
