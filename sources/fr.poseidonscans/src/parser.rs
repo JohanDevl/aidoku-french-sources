@@ -514,10 +514,18 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			});
 		}
 	}
-	
+
 	// Extract chapter dates from HTML (like old implementation)
-	extract_chapter_dates_from_html(&html, &mut chapters);
-	
+	{
+		use aidoku::println;
+		println!("[PARSE_CHAPTERS] About to extract dates for {} chapters", chapters.len());
+		extract_chapter_dates_from_html(&html, &mut chapters);
+
+		// Count how many chapters have dates
+		let chapters_with_dates = chapters.iter().filter(|ch| ch.date_uploaded.is_some()).count();
+		println!("[PARSE_CHAPTERS] After extraction: {}/{} chapters have dates", chapters_with_dates, chapters.len());
+	}
+
 	// Sort chapters by number in descending order (latest first)
 	chapters.sort_by(|a, b| {
 		match (a.chapter_number, b.chapter_number) {
@@ -705,6 +713,11 @@ fn extract_chapter_dates_from_html(html: &Document, chapters: &mut Vec<Chapter>)
 // Extract dates directly from chapter link containers (PoseidonScans structure)
 // This is the most reliable method for PoseidonScans where dates are inside <a> tags
 fn extract_dates_by_link_container(html: &Document, chapters: &mut Vec<Chapter>) {
+	use aidoku::println;
+
+	println!("[DATE_EXTRACT] Starting link container extraction");
+	println!("[DATE_EXTRACT] Total chapters to process: {}", chapters.len());
+
 	// Create HashMap for O(1) chapter lookup by number
 	let mut chapter_map: HashMap<i32, usize> = HashMap::new();
 	for (index, chapter) in chapters.iter().enumerate() {
@@ -715,37 +728,63 @@ fn extract_dates_by_link_container(html: &Document, chapters: &mut Vec<Chapter>)
 
 	// Find all chapter links: <a href="/serie/{manga}/chapter/{num}">
 	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
-		for link in chapter_links {
+		let links_vec: Vec<_> = chapter_links.collect();
+		println!("[DATE_EXTRACT] Found {} chapter links", links_vec.len());
+
+		for link in links_vec {
 			// Extract chapter number from URL
 			if let Some(href) = link.attr("href") {
+				println!("[DATE_EXTRACT] Processing link: {}", href);
+
 				if let Some(chapter_num) = extract_chapter_number_from_url(&href) {
+					println!("[DATE_EXTRACT] Extracted chapter number: {}", chapter_num);
+
 					// Search for date spans inside this link
 					// Structure: <a> → <div> → <div class="flex items-center gap-1"> → <span>1 jour</span>
 					if let Some(date_spans) = link.select("span") {
-						for span in date_spans {
+						let spans_vec: Vec<_> = date_spans.collect();
+						println!("[DATE_EXTRACT] Found {} spans in link", spans_vec.len());
+
+						for span in spans_vec {
 							if let Some(text) = span.text() {
 								let text_trimmed = text.trim();
+								println!("[DATE_EXTRACT] Testing span text: '{}'", text_trimmed);
 
 								// Check if this is a relative date
 								if !text_trimmed.is_empty() && is_relative_date(text_trimmed) {
+									println!("[DATE_EXTRACT] ✓ Detected relative date: '{}'", text_trimmed);
 									let timestamp = parse_relative_date(text_trimmed);
+									println!("[DATE_EXTRACT] Parsed timestamp: {}", timestamp);
 
 									// Associate date with chapter using O(1) lookup
 									if let Some(&chapter_index) = chapter_map.get(&(chapter_num as i32)) {
 										// Only set if not already set (preserve more specific dates)
 										if chapters[chapter_index].date_uploaded.is_none() {
 											chapters[chapter_index].date_uploaded = Some(timestamp);
+											println!("[DATE_EXTRACT] ✓ Set date for chapter {} at index {}", chapter_num, chapter_index);
+										} else {
+											println!("[DATE_EXTRACT] Date already set for chapter {}", chapter_num);
 										}
+									} else {
+										println!("[DATE_EXTRACT] ✗ Chapter {} not found in map", chapter_num);
 									}
 									break; // Found date for this chapter, move to next link
+								} else {
+									println!("[DATE_EXTRACT] ✗ Not a relative date: '{}'", text_trimmed);
 								}
 							}
 						}
+					} else {
+						println!("[DATE_EXTRACT] No spans found in link");
 					}
 				}
 			}
 		}
+	} else {
+		println!("[DATE_EXTRACT] No chapter links found!");
 	}
+
+	println!("[DATE_EXTRACT] Extraction completed");
 }
 
 // Extract dates by searching for relative date text patterns in targeted elements
