@@ -5,7 +5,7 @@ use aidoku::{
     imports::html::Document,
 };
 
-use crate::helper::{extract_chapter_number, make_absolute_url, parse_status};
+use crate::helper::{extract_and_clean_title, extract_chapter_number, make_absolute_url, parse_status};
 
 extern crate alloc;
 
@@ -283,7 +283,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim_end_matches('/')
                             .to_string();
 
-                        let title_text = link
+                        let raw_title = link
                             .text()
                             .unwrap_or_else(|| {
                                 item.select(".chapternum, .chapter-title")
@@ -294,17 +294,18 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                             .trim()
                             .to_string();
 
-                        let chapter_num = extract_chapter_number(&title_text);
+                        let (cleaned_title, date_uploaded) = extract_and_clean_title(&raw_title);
+                        let chapter_num = extract_chapter_number(&cleaned_title);
 
                         if !key.is_empty() {
                             chapters.push(Chapter {
                                 key: key.clone(),
-                                title: if !title_text.is_empty() {
-                                    Some(title_text)
+                                title: if !cleaned_title.is_empty() {
+                                    Some(cleaned_title)
                                 } else {
                                     None
                                 },
-                                date_uploaded: None,
+                                date_uploaded,
                                 url: Some(key),
                                 chapter_number: if chapter_num > 0.0 {
                                     Some(chapter_num)
@@ -325,7 +326,6 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
         }
     }
 
-    chapters.reverse();
     chapters
 }
 
