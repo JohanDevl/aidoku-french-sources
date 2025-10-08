@@ -19,24 +19,20 @@ pub const AJAX_URL: &str = "https://epsilonscan.to/wp-admin/admin-ajax.php";
 struct EpsilonScan;
 
 impl EpsilonScan {
-    fn get_ajax_manga_list(&self, page: i32, meta_key: &str) -> Result<MangaPageResult> {
-        let body = format!(
-            "action=madara_load_more&page={}&template=madara-core%2Fcontent%2Fcontent-archive&vars%5Bpaged%5D=1&vars%5Borderby%5D=meta_value_num&vars%5Btemplate%5D=archive&vars%5Bsidebar%5D=full&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Bmeta_key%5D={}&vars%5Border%5D=desc&vars%5Bmeta_query%5D%5Brelation%5D=OR&vars%5Bmanga_archives_item_layout%5D=big_thumbnail",
-            page - 1,
-            meta_key
-        );
+    fn get_catalogue_page(&self, page: i32, order: &str) -> Result<MangaPageResult> {
+        let url = if page > 1 {
+            format!("{}/manga/page/{}/?m_orderby={}", BASE_URL, page, order)
+        } else {
+            format!("{}/manga/?m_orderby={}", BASE_URL, order)
+        };
 
-        let html = Request::post(AJAX_URL)?
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        let html = Request::get(&url)?
+            .header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15")
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
             .header("DNT", "1")
             .header("Connection", "keep-alive")
             .header("Referer", BASE_URL)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("x-requested-with", "app.notMihon")
-            .body(body.as_bytes())
             .html()?;
 
         parser::parse_manga_list(html)
@@ -204,8 +200,8 @@ impl EpsilonScan {
 impl ListingProvider for EpsilonScan {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
         match listing.name.as_str() {
-            "Populaire" => self.get_ajax_manga_list(page, "_wp_manga_views"),
-            _ => self.get_ajax_manga_list(page, "_latest_update"),
+            "Populaire" => self.get_catalogue_page(page, "views"),
+            _ => self.get_catalogue_page(page, "latest"),
         }
     }
 }

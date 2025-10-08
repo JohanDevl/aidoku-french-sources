@@ -10,62 +10,78 @@ use crate::{BASE_URL, helper};
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
     let mut entries: Vec<Manga> = Vec::new();
 
-    if let Some(items) = html.select("div.page-item-detail") {
-        for item in items {
-            if let Some(_novel) = item.select(".web-novel") {
-                if !_novel.text().unwrap_or_default().is_empty() {
+    // Essayer plusieurs sélecteurs pour être compatible avec différentes pages
+    let selectors = [
+        "div.page-item-detail",           // Madara standard
+        ".post-title h3 a",                // Liens des titres
+        "h3.h5 > a",                       // Autre format
+    ];
+
+    for selector in &selectors {
+        if let Some(links) = html.select(selector) {
+            for link in links {
+                let href = link.attr("href").unwrap_or_default();
+
+                if href.is_empty() || !href.contains("/manga/") {
                     continue;
                 }
+
+                let key = href
+                    .replace(BASE_URL, "")
+                    .replace("/manga/", "")
+                    .trim_start_matches('/')
+                    .trim_end_matches('/')
+                    .to_string();
+
+                if key.is_empty() {
+                    continue;
+                }
+
+                let title = link.text()
+                    .or_else(|| link.attr("title"))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+
+                if title.is_empty() {
+                    continue;
+                }
+
+                // Trouver l'image associée (parent ou voisin)
+                let cover = if let Some(parent) = link.parent() {
+                    if let Some(parent2) = parent.parent() {
+                        parent2.select("img")
+                            .and_then(|imgs| imgs.first())
+                            .map(|img| helper::get_image_url(&img))
+                            .filter(|url| !url.is_empty())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                entries.push(Manga {
+                    key,
+                    title,
+                    cover,
+                    authors: None,
+                    artists: None,
+                    description: None,
+                    url: Some(href),
+                    tags: None,
+                    status: MangaStatus::Unknown,
+                    content_rating: ContentRating::NSFW,
+                    viewer: Viewer::LeftToRight,
+                    chapters: None,
+                    next_update_time: None,
+                    update_strategy: UpdateStrategy::Always,
+                });
             }
 
-            let href = item.select("h3.h5 > a")
-                .and_then(|nodes| nodes.first())
-                .and_then(|node| node.attr("href"))
-                .unwrap_or_default();
-
-            let key = href
-                .replace(BASE_URL, "")
-                .replace("/manga/", "")
-                .replace('/', "")
-                .trim()
-                .to_string();
-
-            let title_badges = item.select("span.manga-title-badges")
-                .and_then(|nodes| nodes.first())
-                .map(|node| node.text().unwrap_or_default())
-                .unwrap_or_default();
-
-            let mut title = item.select("h3.h5 > a")
-                .and_then(|nodes| nodes.first())
-                .map(|node| node.text().unwrap_or_default())
-                .unwrap_or_default();
-
-            if title.contains(&title_badges) {
-                title = title.replace(&title_badges, "");
-                title = String::from(title.trim());
+            if !entries.is_empty() {
+                break; // Arrêter si on a trouvé des résultats
             }
-
-            let cover = item.select("img")
-                .and_then(|nodes| nodes.first())
-                .map(|node| helper::get_image_url(&node))
-                .filter(|url| !url.is_empty());
-
-            entries.push(Manga {
-                key,
-                title,
-                cover,
-                authors: None,
-                artists: None,
-                description: None,
-                url: None,
-                tags: None,
-                status: MangaStatus::Unknown,
-                content_rating: ContentRating::Safe,
-                viewer: Viewer::LeftToRight,
-                chapters: None,
-                next_update_time: None,
-                update_strategy: UpdateStrategy::Always,
-            });
         }
     }
 
