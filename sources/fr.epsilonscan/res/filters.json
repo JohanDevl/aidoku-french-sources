@@ -1,0 +1,53 @@
+[
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": ["Tout", "Manga", "Manhwa", "Manhua"]
+  },
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": ["Tout", "En cours", "Terminé", "En pause", "Annulé"]
+  },
+  {
+    "type": "genre",
+    "id": "genre",
+    "title": "Genres",
+    "options": [
+      "Action",
+      "Adult",
+      "Adventure",
+      "Boys Love",
+      "Comedy",
+      "Doujinshi",
+      "Drama",
+      "Ecchi",
+      "Fantasy",
+      "Girls Love",
+      "Harem",
+      "Historical",
+      "Horror",
+      "Isekai",
+      "Josei",
+      "Martial Arts",
+      "Mature",
+      "Mystery",
+      "Pornhwa",
+      "Psychological",
+      "Romance",
+      "School Life",
+      "Sci-fi",
+      "Seinen",
+      "Shoujo",
+      "Shounen",
+      "Slice of Life",
+      "Smut",
+      "Sports",
+      "Supernatural",
+      "Tragedy",
+      "Webtoon"
+    ]
+  }
+]

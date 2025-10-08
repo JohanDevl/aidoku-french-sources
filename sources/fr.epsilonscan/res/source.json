@@ -1,0 +1,20 @@
+{
+  "info": {
+    "id": "fr.epsilonscan",
+    "name": "Epsilon Scan",
+    "version": 1,
+    "url": "https://epsilonscan.to/",
+    "contentRating": 2,
+    "languages": ["fr"]
+  },
+  "listings": [
+    {
+      "name": "Dernières Sorties",
+      "id": "latest"
+    },
+    {
+      "name": "Populaire",
+      "id": "popular"
+    }
+  ]
+}
