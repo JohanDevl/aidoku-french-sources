@@ -1,4 +1,5 @@
 use aidoku::alloc::{String, Vec, format};
+use aidoku::FilterValue;
 
 pub fn urlencode(string: String) -> String {
     let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
@@ -180,4 +181,79 @@ pub fn parse_chapter_date(text: &str) -> Option<i64> {
 
 fn is_leap_year(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+pub fn build_filter_params(filters: Vec<FilterValue>) -> String {
+    let mut params = Vec::new();
+
+    for filter in filters {
+        match filter {
+            FilterValue::Select { id, value } => {
+                let filter_id = id.as_str();
+
+                match filter_id {
+                    "status" => {
+                        let status = match value.as_str() {
+                            "En cours" => "ongoing",
+                            "Complété" => "completed",
+                            "En pause" => "hiatus",
+                            "Partenaire" => "partenaire",
+                            _ => "",
+                        };
+                        if !status.is_empty() {
+                            params.push(format!("status={}", status));
+                        }
+                    }
+                    "type" => {
+                        let typ = match value.as_str() {
+                            "Manga" => "manga",
+                            "Manhwa" => "manhwa",
+                            "Manhua" => "manhua",
+                            "Comic" => "comic",
+                            "LN" => "novel",
+                            _ => "",
+                        };
+                        if !typ.is_empty() {
+                            params.push(format!("type={}", typ));
+                        }
+                    }
+                    "order" => {
+                        let order = match value.as_str() {
+                            "A-Z" => "title",
+                            "Z-A" => "titlereverse",
+                            "Mise à jour" => "update",
+                            "Ajout" => "latest",
+                            "Popularité" => "popular",
+                            _ => "",
+                        };
+                        if !order.is_empty() {
+                            params.push(format!("order={}", order));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            FilterValue::MultiSelect { id, included, excluded } => {
+                if id.as_str() == "genre" {
+                    for genre_id in included {
+                        if !genre_id.is_empty() {
+                            params.push(format!("genre%5B%5D={}", genre_id));
+                        }
+                    }
+                    for genre_id in excluded {
+                        if !genre_id.is_empty() {
+                            params.push(format!("genre%5B%5D=-{}", genre_id));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if params.is_empty() {
+        String::new()
+    } else {
+        format!("&{}", params.join("&"))
+    }
 }

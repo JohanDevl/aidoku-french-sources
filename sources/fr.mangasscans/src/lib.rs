@@ -13,7 +13,7 @@ extern crate alloc;
 mod helper;
 mod parser;
 
-use helper::urlencode;
+use helper::{build_filter_params, urlencode};
 use parser::{has_next_page, parse_chapter_list, parse_manga_details, parse_manga_list, parse_page_list};
 
 pub static BASE_URL: &str = "https://mangas-scans.com";
@@ -30,15 +30,16 @@ impl Source for MangasScans {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         let search_query = query.unwrap_or_default();
+        let filter_params = build_filter_params(filters);
 
         let url = if !search_query.is_empty() {
             let encoded = urlencode(search_query);
-            format!("{}/manga/?title={}&page={}", BASE_URL, encoded, page)
+            format!("{}/manga/?title={}&page={}{}", BASE_URL, encoded, page, filter_params)
         } else {
-            format!("{}/manga/?page={}", BASE_URL, page)
+            format!("{}/manga/?page={}{}", BASE_URL, page, filter_params)
         };
 
         let html = Request::get(&url)?
