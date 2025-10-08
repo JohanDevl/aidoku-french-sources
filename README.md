@@ -51,9 +51,9 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |   **AnimeSama**    |      [anime-sama.fr](https://anime-sama.fr/)      | ✅ **Active**  |    Custom     | Anime/Manga hybrid platform   |
 |     **FMTeam**     |        [fmteam.fr](https://fmteam.fr/)        | ✅ **Active**  |    Custom     | French scanlation team        |
 |    **LelManga**    |     [lelmanga.com](https://www.lelmanga.com/)     | ✅ **Active**  | MangaThemesia | French manga catalog          |
+|  **MangasScans**   |   [mangas-scans.com](https://mangas-scans.com/)   | ✅ **Active**  | MangaThemesia | French manga and manhwa       |
 |   **SushiScans**   |       [sushiscan.fr](https://sushiscan.fr/)       | ✅ **Active**  |  MangaStream  | Various French scanlations    |
 | **Starbound Scans** | [starboundscans.com](https://starboundscans.com/) | ✅ **Active**  |    Custom     | French manhwa scanlations     |
-|  **Harmony Scan**   |    [harmony-scan.fr](https://harmony-scan.fr/)    | ✅ **Active**  |    Madara     | French manga and manhwa       |
 |     **JapScan**     |       [japscan.si](https://www.japscan.si/)       | ❌ **Offline** |    Custom     | Dynamic JS/Shadow DOM incompatible |
 |   **CrunchyScan**   |     [crunchyscan.fr](https://crunchyscan.fr/)     | ❌ **Offline** |    Custom     | Cloudflare interactive challenge |
 |   **SushiScan**    |      [sushiscan.net](https://sushiscan.net/)      | ❌ **Offline** |  MangaStream  | Chapter loading issues        |
@@ -74,7 +74,7 @@ This project uses **Rust** and different templates to support various website te
 
 |     Template      |           Description           |                       Compatible Sites                        |
 | :---------------: | :-----------------------------: | :-----------------------------------------------------------: |
-|    **Madara**     | Popular WordPress CMS for manga |            MangasOrigines, MangaScantrad, Harmony Scan            |
+|    **Madara**     | Popular WordPress CMS for manga |            MangasOrigines, MangaScantrad            |
 | **MangaThemesia** | WordPress theme for manga sites |                           LelManga                            |
 |  **MangaStream**  |    Manga streaming framework    |                     SushiScans, SushiScan                     |
 |    **MMRCMS**     |     Manga management system     |                          Manga Scan                           |
@@ -87,11 +87,11 @@ aidoku-french-sources/
 ├── sources/              # Active sources (13 sources)
 │   ├── fr.animesama/
 │   ├── fr.fmteam/
-│   ├── fr.harmony/
 │   ├── fr.lelmanga/
 │   ├── fr.lelscanfr/
 │   ├── fr.mangascantrad/
 │   ├── fr.mangasorigines/
+│   ├── fr.mangasscans/
 │   ├── fr.phenixscans/
 │   ├── fr.poseidonscans/
 │   ├── fr.raijinscans/

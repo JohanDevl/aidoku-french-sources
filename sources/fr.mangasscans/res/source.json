@@ -1,0 +1,20 @@
+{
+  "info": {
+    "id": "fr.mangasscans",
+    "name": "Mangas Scans",
+    "version": 1,
+    "url": "https://mangas-scans.com/",
+    "contentRating": 1,
+    "languages": ["fr"]
+  },
+  "listings": [
+    {
+      "name": "Populaire",
+      "id": "populaire"
+    },
+    {
+      "name": "Dernières",
+      "id": "dernieres"
+    }
+  ]
+}
