@@ -189,48 +189,9 @@ pub fn build_filter_params(filters: Vec<FilterValue>) -> String {
     for filter in filters {
         match filter {
             FilterValue::Select { id, value } => {
-                let filter_id = id.as_str();
-
-                match filter_id {
-                    "status" => {
-                        let status = match value.as_str() {
-                            "En cours" => "ongoing",
-                            "Complété" => "completed",
-                            "En pause" => "hiatus",
-                            "Partenaire" => "partenaire",
-                            _ => "",
-                        };
-                        if !status.is_empty() {
-                            params.push(format!("status={}", status));
-                        }
-                    }
-                    "type" => {
-                        let typ = match value.as_str() {
-                            "Manga" => "manga",
-                            "Manhwa" => "manhwa",
-                            "Manhua" => "manhua",
-                            "Comic" => "comic",
-                            "LN" => "novel",
-                            _ => "",
-                        };
-                        if !typ.is_empty() {
-                            params.push(format!("type={}", typ));
-                        }
-                    }
-                    "order" => {
-                        let order = match value.as_str() {
-                            "A-Z" => "title",
-                            "Z-A" => "titlereverse",
-                            "Mise à jour" => "update",
-                            "Ajout" => "latest",
-                            "Popularité" => "popular",
-                            _ => "",
-                        };
-                        if !order.is_empty() {
-                            params.push(format!("order={}", order));
-                        }
-                    }
-                    _ => {}
+                if !value.is_empty() {
+                    let filter_id = id.as_str();
+                    params.push(format!("{}={}", filter_id, value));
                 }
             }
             FilterValue::MultiSelect { id, included, excluded } => {

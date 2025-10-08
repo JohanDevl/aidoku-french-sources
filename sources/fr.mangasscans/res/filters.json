@@ -27,7 +27,6 @@
     "isGenre": true,
     "canExclude": true,
     "options": [
-      "Tout",
       "Académie",
       "Action",
       "Adult",
@@ -123,7 +122,6 @@
       "Wuxia"
     ],
     "ids": [
-      "",
       "1124",
       "2",
       "732",
