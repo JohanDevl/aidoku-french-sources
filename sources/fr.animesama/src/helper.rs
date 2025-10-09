@@ -49,28 +49,6 @@ pub fn urlencode_path(text: &str) -> String {
 	result
 }
 
-// Version alternative d'URL encoding spécialement pour les recherches
-// Utilise %20 au lieu de + pour les espaces (au cas où + ne marche pas)
-pub fn urlencode_search_fallback(text: &str) -> String {
-	let mut result = String::new();
-	
-	for byte in text.bytes() {
-		match byte {
-			b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-				result.push(byte as char);
-			}
-			b' ' => {
-				result.push_str("%20"); // Utiliser %20 au lieu de +
-			}
-			_ => {
-				result.push_str(&format!("%{:02X}", byte));
-			}
-		}
-	}
-	
-	result
-}
-
 pub fn i32_to_string(num: i32) -> String {
 	let mut result = String::new();
 	let mut n = num;
