@@ -446,6 +446,93 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
+// Detect premium chapter IDs from __NEXT_DATA__ or HTML
+// Returns a set of chapter IDs that are premium
+fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
+	let mut premium_ids = BTreeSet::new();
+
+	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					// Try to navigate to chapters data
+					// Possible paths: props.pageProps.chapters, props.pageProps.initialData.chapters, etc.
+					let possible_paths = [
+						&json_data["props"]["pageProps"]["chapters"],
+						&json_data["props"]["pageProps"]["initialData"]["chapters"],
+						&json_data["props"]["pageProps"]["manga"]["chapters"],
+						&json_data["pageProps"]["chapters"],
+					];
+
+					for chapters_data in &possible_paths {
+						if let Some(chapters_array) = chapters_data.as_array() {
+							for chapter in chapters_array.iter() {
+								// Look for premium indicators in chapter data
+								let is_premium = chapter.get("isPremium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("premium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("locked")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false);
+
+								if is_premium {
+									// Try to get chapter number or ID
+									let chapter_id = chapter.get("number")
+										.and_then(|v| v.as_i64())
+										.map(|n| format!("{}", n))
+										.or_else(|| chapter.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+										.or_else(|| chapter.get("chapterNumber").and_then(|v| v.as_i64()).map(|n| format!("{}", n)));
+
+									if let Some(id) = chapter_id {
+										premium_ids.insert(id);
+									}
+								}
+							}
+
+							if !premium_ids.is_empty() {
+								return premium_ids;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Method 2: Fallback to HTML parsing (won't work for client-rendered content)
+	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
+		for link in chapter_links {
+			let chapter_id = if let Some(href) = link.attr("href") {
+				extract_chapter_id_from_url(&href)
+			} else {
+				None
+			};
+
+			let class_attr_str = link.attr("class").unwrap_or_default();
+			let has_amber_class = class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
+
+			let html_content_str = link.html().unwrap_or_default();
+			let html_lower = html_content_str.to_lowercase();
+			let has_premium_text = html_lower.contains("premium") || html_lower.contains("accès anticipé");
+
+			let text_content_str = link.text().unwrap_or_default();
+			let has_premium_in_text = text_content_str.to_uppercase().contains("PREMIUM");
+
+			if has_amber_class || has_premium_text || has_premium_in_text {
+				if let Some(chapter_id) = chapter_id {
+					premium_ids.insert(chapter_id);
+				}
+			}
+		}
+	}
+
+	premium_ids
+}
+
 pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
 	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
 	let manga_data = extract_jsonld_manga_details(html)?;
