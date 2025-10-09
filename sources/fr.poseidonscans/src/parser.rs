@@ -2,8 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
-	imports::html::{Document, Element},
-	imports::net::Request,
+	imports::html::Document,
 	serde::Deserialize,
 };
 use core::cmp::Ordering;
@@ -443,23 +442,113 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 			}
 		}
 	}
-	
+
 	Ok(serde_json::json!({}))
+}
+
+// Detect premium chapter IDs from __NEXT_DATA__ or HTML
+// Returns a set of chapter IDs that are premium
+fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
+	let mut premium_ids = BTreeSet::new();
+
+	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					// Try to navigate to chapters data
+					// Possible paths: props.pageProps.chapters, props.pageProps.initialData.chapters, etc.
+					let possible_paths = [
+						&json_data["props"]["pageProps"]["chapters"],
+						&json_data["props"]["pageProps"]["initialData"]["chapters"],
+						&json_data["props"]["pageProps"]["manga"]["chapters"],
+						&json_data["pageProps"]["chapters"],
+					];
+
+					for chapters_data in &possible_paths {
+						if let Some(chapters_array) = chapters_data.as_array() {
+							for chapter in chapters_array.iter() {
+								// Look for premium indicators in chapter data
+								let is_premium = chapter.get("isPremium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("premium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("locked")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false);
+
+								if is_premium {
+									// Try to get chapter number or ID
+									let chapter_id = chapter.get("number")
+										.and_then(|v| v.as_i64())
+										.map(|n| format!("{}", n))
+										.or_else(|| chapter.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+										.or_else(|| chapter.get("chapterNumber").and_then(|v| v.as_i64()).map(|n| format!("{}", n)));
+
+									if let Some(id) = chapter_id {
+										premium_ids.insert(id);
+									}
+								}
+							}
+
+							if !premium_ids.is_empty() {
+								return premium_ids;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Method 2: Fallback to HTML parsing (won't work for client-rendered content)
+	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
+		for link in chapter_links {
+			let chapter_id = if let Some(href) = link.attr("href") {
+				extract_chapter_id_from_url(&href)
+			} else {
+				None
+			};
+
+			let class_attr_str = link.attr("class").unwrap_or_default();
+			let has_amber_class = class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
+
+			let html_content_str = link.html().unwrap_or_default();
+			let html_lower = html_content_str.to_lowercase();
+			let has_premium_text = html_lower.contains("premium") || html_lower.contains("accès anticipé");
+
+			let text_content_str = link.text().unwrap_or_default();
+			let has_premium_in_text = text_content_str.to_uppercase().contains("PREMIUM");
+
+			if has_amber_class || has_premium_text || has_premium_in_text {
+				if let Some(chapter_id) = chapter_id {
+					premium_ids.insert(chapter_id);
+				}
+			}
+		}
+	}
+
+	premium_ids
 }
 
 pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
 	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
 	let manga_data = extract_jsonld_manga_details(html)?;
-	
+
 	// Extract chapters from JSON-LD "hasPart" array
 	let chapters_array = if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
 		has_part
 	} else {
 		return Ok(parse_chapter_list_from_html(html)?);
 	};
-	
+
+	// Get premium chapter IDs from HTML (O(1) parse, no HTTP requests)
+	let premium_chapter_ids = detect_premium_chapters_from_html(html);
+
 	let mut chapters: Vec<Chapter> = Vec::new();
-	
+
 	// Parse each ComicIssue from JSON-LD
 	for chapter_value in chapters_array {
 		if let Some(chapter_obj) = chapter_value.as_object() {
@@ -471,7 +560,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 					}
 				}
 			}
-			
+
 			// Extract chapter number from issueNumber
 			let chapter_number = if let Some(num) = chapter_obj.get("issueNumber") {
 				if let Some(n) = num.as_f64() {
@@ -484,42 +573,44 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			} else {
 				continue;
 			};
-			
+
 			// Extract chapter title - clean format: "Chapitre X"
 			let chapter_title = format!("Chapitre {}", chapter_number);
-			
+
 			// Extract chapter URL directly from JSON-LD (already complete)
 			let url = chapter_obj.get("url")
 				.and_then(|u| u.as_str())
 				.unwrap_or_default()
 				.to_string();
-			
+
 			// Extract chapter ID from URL
 			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
 				format!("{}", chapter_number as i32)
 			} else {
 				format!("{}", chapter_number)
 			};
-			
+
+			// Skip if this chapter is premium (using the pre-computed set)
+			if premium_chapter_ids.contains(&chapter_id) {
+				continue;
+			}
+
 			chapters.push(Chapter {
 				key: chapter_id,
 				title: Some(chapter_title),
 				volume_number: None,
 				chapter_number: Some(chapter_number),
-				date_uploaded: None, // Will be extracted from HTML
+				date_uploaded: None,
 				scanlators: None,
 				url: Some(url),
 				language: Some("fr".to_string()),
 				thumbnail: None,
-				locked: false, // Only non-premium chapters are included
+				locked: false,
 			});
 		}
 	}
 
-	// Date extraction disabled - lazy loading prevents reliable date extraction for all chapters
-	// extract_chapter_dates_from_html(&html, &mut chapters);
-
-	// Sort chapters by number in descending order (latest first)
+	// Sort chapters by number in descending order (newest first)
 	chapters.sort_by(|a, b| {
 		match (a.chapter_number, b.chapter_number) {
 			(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
@@ -529,45 +620,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	});
 
-	// Premium chapter filtering
-	// Check if the first chapter (most recent) is premium by fetching its page
-	let filtered_chapters: Vec<Chapter> = if let Some(first_chapter) = chapters.first() {
-		if let Some(chapter_url) = &first_chapter.url {
-			// Try to fetch the chapter page to check for premium indicators
-			let is_first_premium = if let Ok(req) = Request::get(chapter_url) {
-				if let Ok(chapter_html) = req
-					.header("User-Agent", "Mozilla/5.0")
-					.header("Accept", "text/html")
-					.header("Referer", BASE_URL)
-					.string()
-				{
-					let html_lower = chapter_html.to_lowercase();
-					html_lower.contains("premium")
-						|| html_lower.contains("verrouillé")
-						|| html_lower.contains("accès limité")
-						|| html_lower.contains("chapitre verrouillé")
-						|| html_lower.contains("disponible gratuitement dans")
-				} else {
-					false
-				}
-			} else {
-				false
-			};
-
-			if is_first_premium {
-				// Skip the first chapter
-				chapters.into_iter().skip(1).collect()
-			} else {
-				chapters
-			}
-		} else {
-			chapters
-		}
-	} else {
-		chapters
-	};
-
-	Ok(filtered_chapters)
+	Ok(chapters)
 }
 
 fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
@@ -586,13 +639,6 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 					// Skip duplicates - O(1) lookup with HashSet
 					if !seen_chapter_ids.insert(chapter_id.clone()) {
 						continue; // insert() returns false if element was already present
-					}
-
-					// Check if this chapter is premium by looking for indicators in the HTML
-					let is_premium = is_chapter_premium(&chapter_element, html, &href_str);
-					
-					if is_premium {
-						continue; // Skip premium chapters entirely
 					}
 
 					// Extract chapter number from URL or ID first
@@ -643,51 +689,6 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	});
 
 	Ok(chapters)
-}
-
-// Detect if a chapter is premium based on HTML indicators
-fn is_chapter_premium(chapter_element: &Element, _html: &Document, _href: &str) -> bool {
-	// Method 1: Check the class attribute of the chapter element (main indicator)
-	// Premium chapters have "border-amber-500/30" while normal chapters have "border-zinc-700/30"
-	if let Some(class_attr) = chapter_element.attr("class") {
-		if class_attr.contains("border-amber-500") || class_attr.contains("amber-") {
-			return true;
-		}
-	}
-
-	// Method 2: Check if the element's HTML contains premium indicators
-	if let Some(element_html) = chapter_element.html() {
-		// Check for PREMIUM badge (case-insensitive)
-		let html_lower = element_html.to_lowercase();
-		if html_lower.contains("premium") {
-			return true;
-		}
-
-		// Check for amber-500 CSS classes in child elements (premium color)
-		if html_lower.contains("amber-500") || html_lower.contains("amber-") {
-			return true;
-		}
-
-		// Check for early access text (French)
-		if html_lower.contains("accès anticipé") || html_lower.contains("acces anticipe") {
-			return true;
-		}
-
-		// Check for lock icon or premium icon indicators
-		if html_lower.contains("lock") || html_lower.contains("verrouillé") {
-			return true;
-		}
-	}
-
-	// Method 3: Check text content for premium indicators
-	if let Some(text_content) = chapter_element.text() {
-		let text_lower = text_content.to_lowercase();
-		if text_lower.contains("premium") || text_lower.contains("accès anticipé") {
-			return true;
-		}
-	}
-
-	false
 }
 
 pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page>> {
