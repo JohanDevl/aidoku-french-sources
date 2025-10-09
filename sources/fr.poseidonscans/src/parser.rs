@@ -449,44 +449,67 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 // Detect premium chapter IDs from HTML (on the listing page)
 // Returns a set of chapter IDs that are premium
 fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
+	use aidoku::println;
+
 	let mut premium_ids = BTreeSet::new();
+
+	println!("[PREMIUM DETECTION] Starting premium chapter detection...");
 
 	// Look for chapter links with premium indicators
 	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
+		let mut link_count = 0;
 		for link in chapter_links {
-			// Method 1: Check for amber border classes (premium indicator)
-			let has_amber_class = if let Some(class_attr) = link.attr("class") {
-				class_attr.contains("amber") || class_attr.contains("border-amber-500")
+			link_count += 1;
+
+			// Get chapter ID first for logging
+			let chapter_id = if let Some(href) = link.attr("href") {
+				extract_chapter_id_from_url(&href)
 			} else {
-				false
+				None
 			};
+
+			// Method 1: Check for amber border classes (premium indicator)
+			let class_attr_str = link.attr("class").unwrap_or_default();
+			let has_amber_class = class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
 
 			// Method 2: Check for PREMIUM text/badge in the element
-			let has_premium_text = if let Some(html_content) = link.html() {
-				let html_lower = html_content.to_lowercase();
-				html_lower.contains("premium") || html_lower.contains("accès anticipé")
-			} else {
-				false
-			};
+			let html_content_str = link.html().unwrap_or_default();
+			let html_lower = html_content_str.to_lowercase();
+			let has_premium_text = html_lower.contains("premium") || html_lower.contains("accès anticipé");
 
 			// Method 3: Check visible text for PREMIUM
-			let has_premium_in_text = if let Some(text_content) = link.text() {
-				text_content.to_uppercase().contains("PREMIUM")
-			} else {
-				false
-			};
+			let text_content_str = link.text().unwrap_or_default();
+			let has_premium_in_text = text_content_str.to_uppercase().contains("PREMIUM");
+
+			// Log details for chapters around 146
+			if let Some(ref id) = chapter_id {
+				let id_num = id.parse::<i32>().unwrap_or(0);
+				if id_num >= 144 && id_num <= 146 {
+					println!("[PREMIUM] Chapter {}: amber={}, text={}, visible={}",
+						id, has_amber_class, has_premium_text, has_premium_in_text);
+					println!("[PREMIUM]   Classes: '{}'", class_attr_str);
+					println!("[PREMIUM]   HTML preview: '{}'",
+						if html_content_str.len() > 200 {
+							&html_content_str[..200]
+						} else {
+							&html_content_str
+						});
+					println!("[PREMIUM]   Text: '{}'", text_content_str);
+				}
+			}
 
 			// If any premium indicator is found, extract the chapter ID
 			if has_amber_class || has_premium_text || has_premium_in_text {
-				if let Some(href) = link.attr("href") {
-					if let Some(chapter_id) = extract_chapter_id_from_url(&href) {
-						premium_ids.insert(chapter_id);
-					}
+				if let Some(chapter_id) = chapter_id {
+					println!("[PREMIUM] ✓ Detected premium chapter: {}", chapter_id);
+					premium_ids.insert(chapter_id);
 				}
 			}
 		}
+		println!("[PREMIUM DETECTION] Scanned {} chapter links", link_count);
 	}
 
+	println!("[PREMIUM DETECTION] Found {} premium chapters: {:?}", premium_ids.len(), premium_ids);
 	premium_ids
 }
 
