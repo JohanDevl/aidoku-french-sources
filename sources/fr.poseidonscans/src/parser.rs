@@ -3,6 +3,7 @@ use aidoku::{
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
 	imports::html::{Document, Element},
+	imports::net::Request,
 	serde::Deserialize,
 };
 use core::cmp::Ordering;
@@ -527,32 +528,44 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			(None, None) => Ordering::Equal,
 		}
 	});
-	
-	// Premium chapter filtering with enhanced detection
-	// Build a set of premium chapter IDs from HTML
-	let mut premium_chapter_ids: BTreeSet<String> = BTreeSet::new();
 
-	// Look for chapter cards in the visible chapter list section
-	// Premium chapters have specific styling and badges
-	if let Some(chapter_containers) = html.select("a[href*='/chapter/']") {
-		for container in chapter_containers {
-			// Check if this is a premium chapter by looking for premium indicators
-			if let Some(href_str) = container.attr("href") {
-				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-					// Check for premium indicators
-					if is_chapter_premium(&container, html, &href_str) {
-						premium_chapter_ids.insert(chapter_id);
-					}
+	// Premium chapter filtering
+	// Check if the first chapter (most recent) is premium by fetching its page
+	let filtered_chapters: Vec<Chapter> = if let Some(first_chapter) = chapters.first() {
+		if let Some(chapter_url) = &first_chapter.url {
+			// Try to fetch the chapter page to check for premium indicators
+			let is_first_premium = if let Ok(req) = Request::get(chapter_url) {
+				if let Ok(chapter_html) = req
+					.header("User-Agent", "Mozilla/5.0")
+					.header("Accept", "text/html")
+					.header("Referer", BASE_URL)
+					.string()
+				{
+					let html_lower = chapter_html.to_lowercase();
+					html_lower.contains("premium")
+						|| html_lower.contains("verrouillé")
+						|| html_lower.contains("accès limité")
+						|| html_lower.contains("chapitre verrouillé")
+						|| html_lower.contains("disponible gratuitement dans")
+				} else {
+					false
 				}
-			}
-		}
-	}
+			} else {
+				false
+			};
 
-	// Filter out premium chapters
-	let filtered_chapters: Vec<Chapter> = chapters
-		.into_iter()
-		.filter(|chapter| !premium_chapter_ids.contains(&chapter.key))
-		.collect();
+			if is_first_premium {
+				// Skip the first chapter
+				chapters.into_iter().skip(1).collect()
+			} else {
+				chapters
+			}
+		} else {
+			chapters
+		}
+	} else {
+		chapters
+	};
 
 	Ok(filtered_chapters)
 }
