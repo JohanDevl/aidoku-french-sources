@@ -469,26 +469,10 @@ fn check_if_chapter_is_premium_via_request(manga_key: &str, chapter_id: &str) ->
 		Err(_) => return false,
 	};
 
-	// Method 1: Check if there are no images (strongest indicator of premium/locked content)
-	// Free chapters should have images with /api/chapters/ URLs
-	let has_images = html.select("img[src*='/api/chapters']")
-		.map(|mut els| els.next().is_some())
-		.unwrap_or(false);
+	// Strategy: Look for POSITIVE indicators of premium content
+	// Default to false (free) unless we find explicit premium indicators
 
-	if !has_images {
-		// No images found with /api/chapters/ pattern - likely premium
-		// But also check if there are ANY images at all (to avoid false positives on error pages)
-		let has_any_images = html.select("img")
-			.map(|mut els| els.next().is_some())
-			.unwrap_or(false);
-
-		if has_any_images {
-			// Has some images but not chapter images - likely premium page with UI only
-			return true;
-		}
-	}
-
-	// Method 2: Look for premium/subscription text in the page
+	// Method 1: Look for premium/subscription text in the page (most reliable)
 	if let Some(body_text) = html.select("body").and_then(|mut els| els.next()).and_then(|el| el.text()) {
 		let text_lower = body_text.to_lowercase();
 
@@ -499,12 +483,14 @@ fn check_if_chapter_is_premium_via_request(manga_key: &str, chapter_id: &str) ->
 			|| text_lower.contains("chapitre verrouillé")
 			|| text_lower.contains("chapitre premium")
 			|| text_lower.contains("abonnez-vous")
-			|| text_lower.contains("s'abonner") {
+			|| text_lower.contains("s'abonner")
+			|| text_lower.contains("débloquer ce chapitre")
+			|| text_lower.contains("devenir premium") {
 			return true;
 		}
 	}
 
-	// Method 3: Check HTML for premium-specific elements (amber styling, lock icons)
+	// Method 2: Check HTML for premium-specific elements (amber styling, lock icons)
 	if let Some(html_str) = html.select("html").and_then(|mut els| els.next()).and_then(|el| el.html()) {
 		let html_lower = html_str.to_lowercase();
 
@@ -513,9 +499,8 @@ fn check_if_chapter_is_premium_via_request(manga_key: &str, chapter_id: &str) ->
 			return true;
 		}
 
-		// Check for lock icons or premium badges in SVG/icons
-		if (html_lower.contains("lock") || html_lower.contains("verrouillé"))
-			&& (html_lower.contains("svg") || html_lower.contains("icon")) {
+		// Check for premium badge or lock icon combined with premium-related text
+		if html_lower.contains("premium") && (html_lower.contains("badge") || html_lower.contains("lock")) {
 			return true;
 		}
 	}
