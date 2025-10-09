@@ -2,6 +2,11 @@ use aidoku::{
 	alloc::{String, Vec, format, string::ToString},
 };
 
+pub const SCAN_VF_PATH: &str = "/scan/vf/";
+pub const SCAN_BW_PATH: &str = "/scan_noir-et-blanc/vf/";
+
+/// Encodes a string for use in URL query parameters
+/// Uses `+` for spaces (standard URL encoding for form data)
 pub fn urlencode(text: &str) -> String {
 	let mut result = String::new();
 	
@@ -22,6 +27,8 @@ pub fn urlencode(text: &str) -> String {
 	result
 }
 
+/// Encodes a string for use in URL paths (e.g., CDN URLs)
+/// Uses `%20` for spaces (standard for path components)
 pub fn urlencode_path(text: &str) -> String {
 	let mut result = String::new();
 	
@@ -144,16 +151,20 @@ pub fn _urldecode(text: &str) -> String {
 	result
 }
 
+/// Removes scan path suffixes from URLs
+/// Returns the cleaned URL without `/scan/vf/` or `/scan_noir-et-blanc/vf/`
 pub fn clean_url(url: &str) -> String {
-	if url.contains("/scan/vf/") {
-		url.replace("/scan/vf/", "")
-	} else if url.contains("/scan_noir-et-blanc/vf/") {
-		url.replace("/scan_noir-et-blanc/vf/", "")
+	if url.contains(SCAN_VF_PATH) {
+		url.replace(SCAN_VF_PATH, "")
+	} else if url.contains(SCAN_BW_PATH) {
+		url.replace(SCAN_BW_PATH, "")
 	} else {
 		url.to_string()
 	}
 }
 
+/// Detects if a manga is One Piece based on its key
+/// One Piece requires special handling for scan paths
 pub fn is_one_piece_manga(manga_key: &str) -> bool {
 	manga_key.contains("one-piece") || manga_key.contains("one_piece")
 }

@@ -1067,7 +1067,7 @@ fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
 
 fn build_chapter_url(manga_key: &str) -> String {
 	let is_one_piece = helper::is_one_piece_manga(manga_key);
-	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	let scan_path = if is_one_piece { helper::SCAN_BW_PATH } else { helper::SCAN_VF_PATH };
 	
 	if manga_key.starts_with("http") {
 		// Remove trailing slash from manga_key if it exists to avoid double slash
