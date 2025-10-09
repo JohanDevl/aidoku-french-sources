@@ -1,5 +1,5 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
+	AidokuError, Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	Viewer,
 	alloc::{String, Vec, format, vec, string::ToString},
 	imports::html::Document,
@@ -7,6 +7,24 @@ use aidoku::{
 };
 
 use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
+
+fn extract_title_from_html(html: &Document, manga_key: &str) -> String {
+	html.select("#titreOeuvre")
+		.and_then(|els| els.text())
+		.or_else(|| {
+			html.select("title").and_then(|els| els.text()).and_then(|title_text| {
+				if title_text.contains(" - ") {
+					Some(title_text.split(" - ").next()?.trim().to_string())
+				} else {
+					Some(title_text.trim().to_string())
+				}
+			})
+		})
+		.or_else(|| {
+			html.select("h1").and_then(|els| els.text())
+		})
+		.unwrap_or_else(|| manga_key_to_title(manga_key))
+}
 
 // Fonction pour déterminer quel CDN utiliser selon le manga
 fn select_cdn_url(manga_title: &str) -> &'static str {
@@ -221,16 +239,8 @@ pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 				
 				let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 				let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
-				
-				// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
-				// Exactement comme dans l'ancienne version
-				let clean_url = if relative_url.contains("/scan/vf/") {
-					relative_url.replace("/scan/vf/", "")
-				} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
-					relative_url.replace("/scan_noir-et-blanc/vf/", "")
-				} else {
-					relative_url.clone()
-				};
+
+				let clean_url = helper::clean_url(&relative_url);
 				
 				mangas.push(Manga {
 					key: clean_url.clone(),
@@ -277,16 +287,8 @@ pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPa
 					
 					let relative_url = element.select("a").and_then(|els| els.first()).and_then(|el| el.attr("href")).unwrap_or_default();
 					let cover_url = element.select("img").and_then(|els| els.first()).and_then(|el| el.attr("src")).unwrap_or_default();
-					
-					// Nettoyer l'URL pour supprimer /scan/vf/ et obtenir l'URL de base du manga
-					// Exactement comme dans l'ancienne version
-					let clean_url = if relative_url.contains("/scan/vf/") {
-						relative_url.replace("/scan/vf/", "")
-					} else if relative_url.contains("/scan_noir-et-blanc/vf/") {
-						relative_url.replace("/scan_noir-et-blanc/vf/", "")
-					} else {
-						relative_url.clone()
-					};
+
+					let clean_url = helper::clean_url(&relative_url);
 					
 					mangas.push(Manga {
 						key: clean_url.clone(),
@@ -321,24 +323,7 @@ pub fn parse_manga_listing(html: Document, listing_type: &str) -> Result<MangaPa
 }
 
 pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
-	// Parser le titre avec plusieurs méthodes
-	let title = html.select("#titreOeuvre")
-		.and_then(|els| els.text())
-		.or_else(|| {
-			// Fallback 1: titre de la page
-			html.select("title").and_then(|els| els.text()).and_then(|title_text| {
-				if title_text.contains(" - ") {
-					Some(title_text.split(" - ").next()?.trim().to_string())
-				} else {
-					Some(title_text.trim().to_string())
-				}
-			})
-		})
-		.or_else(|| {
-			// Fallback 2: h1 sur la page
-			html.select("h1").and_then(|els| els.text())
-		})
-		.unwrap_or_else(|| manga_key_to_title(&manga_key));
+	let title = extract_title_from_html(&html, &manga_key);
 	
 	// Extraire la description - utiliser le sélecteur exact de l'ancienne version
 	let description = {
@@ -501,20 +486,8 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 
 pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapter>> {
 	let mut chapters: Vec<Chapter> = Vec::new();
-	
-	// Extract manga title from HTML for API call
-	let manga_name = html.select("#titreOeuvre")
-		.and_then(|els| els.text())
-		.or_else(|| {
-			html.select("title").and_then(|els| els.text()).and_then(|title_text| {
-				if title_text.contains(" - ") {
-					Some(title_text.split(" - ").next()?.trim().to_string())
-				} else {
-					Some(title_text.trim().to_string())
-				}
-			})
-		})
-		.unwrap_or_else(|| manga_key_to_title(&manga_key));
+
+	let manga_name = extract_title_from_html(&html, &manga_key);
 		
 	// Parse JavaScript content for chapter mappings
 	// IMPORTANT: Récupérer TOUT le contenu de la page, y compris les scripts inline
@@ -565,7 +538,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 	// Si aucun mapping JavaScript trouvé, essayer une détection basique de chapitres spéciaux
 	if chapter_mappings.is_empty() && finir_liste_info.is_none() {
 		// Cas spécial : One Piece sans JavaScript détecté - ajouter le One Shot manuellement
-		if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+		if helper::is_one_piece_manga(&manga_key) {
 			// Vérifier si on a des chapitres > 1045 avant d'ajouter le One Shot
 			let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
 			
@@ -656,7 +629,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			if line.contains(pattern) && (line.contains("Chapitre") || line.contains("Chapter")) {
 				// Déterminer la position correcte selon le manga et le type de chapitre spécial
 				let (title, index, chapter_number) = if pattern.contains("One Shot") || pattern.contains("OneShot") {
-					if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
+					if helper::is_one_piece_manga(&manga_key) {
 						// One Piece: One Shot entre chapitres 1045 et 1046
 						("Chapitre One Shot".to_string(), 1046, 1045.5)
 					} else {
@@ -684,29 +657,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			}
 		}
 	}
-	
-	// Calculate total chapters needed: use the highest index from all sources
-	// This ensures we create enough chapters to include all special chapters
-	let _total_chapters = if manga_name.to_lowercase().contains("one piece") || manga_key.contains("one-piece") {
-		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
-		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
-		
-		// Si le CDN a moins de chapitres que l'API, utiliser le CDN (plus fiable)
-		// Ajouter 1 pour le One Shot uniquement s'il existe des chapitres > 1045
-		if max_cdn_chapter > 1045 {
-			max_cdn_chapter + 1 // +1 pour le One Shot à l'index 1046
-		} else {
-			max_cdn_chapter // Pas de One Shot si on n'a que 1045 chapitres ou moins
-		}
-	} else if !chapter_mappings.is_empty() {
-		// Prendre le maximum entre le nombre de l'API et l'index le plus élevé des mappings
-		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
-		api_max_chapter.max(max_mapped_index)
-	} else {
-		// Sans mappings spéciaux, utiliser exactement le nombre de l'API
-		api_max_chapter
-	};
-	
+
 	// Create chapters: first all normal chapters, then insert special chapters at correct positions
 	
 	// Step 1: Create all normal chapters (1, 2, 3, ..., api_max_chapter)
@@ -1035,12 +986,7 @@ fn get_page_count_from_api(manga_name: &str, chapter_num: i32) -> Result<i32> {
 		}
 	}
 	
-	// Si le chapitre n'est pas trouvé dans l'API, créer une erreur UTF-8
-	// Créer dynamiquement un byte array invalide pour éviter le warning sur les littéraux
-	let mut invalid_bytes = Vec::new();
-	invalid_bytes.push(0xFF); // Byte invalide en UTF-8
-	let utf8_err = core::str::from_utf8(&invalid_bytes).unwrap_err();
-	Err(utf8_err.into())
+	Err(AidokuError::message("Chapter not found in API"))
 }
 
 // Parser le JavaScript pour trouver eps{number}.length ou eps{number} = [...]
@@ -1097,11 +1043,9 @@ fn parse_episodes_js_from_html(html_content: &str, chapter_num: i32) -> i32 {
 	0 // Aucun pattern trouvé
 }
 
-// Construire l'URL d'un chapitre avec gestion du cas spécial One Piece (sans paramètre id)
 fn build_chapter_url(manga_key: &str) -> String {
-	let is_one_piece = manga_key.contains("one-piece") || manga_key.contains("one_piece");
-	// For One Piece, default to noir-et-blanc path (this function doesn't have access to chapter number)
-	let scan_path = if is_one_piece { "/scan_noir-et-blanc/vf/" } else { "/scan/vf/" };
+	let is_one_piece = helper::is_one_piece_manga(manga_key);
+	let scan_path = if is_one_piece { helper::SCAN_BW_PATH } else { helper::SCAN_VF_PATH };
 	
 	if manga_key.starts_with("http") {
 		// Remove trailing slash from manga_key if it exists to avoid double slash
