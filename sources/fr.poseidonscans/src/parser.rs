@@ -446,7 +446,7 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
-// Detect premium chapter IDs from HTML (on the listing page)
+// Detect premium chapter IDs from __NEXT_DATA__ or HTML
 // Returns a set of chapter IDs that are premium
 fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 	use aidoku::println;
@@ -455,29 +455,90 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 
 	println!("[PREMIUM DETECTION] Starting premium chapter detection...");
 
-	// Look for chapter links with premium indicators
+	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				println!("[PREMIUM] Found __NEXT_DATA__, parsing...");
+
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					// Try to navigate to chapters data
+					// Possible paths: props.pageProps.chapters, props.pageProps.initialData.chapters, etc.
+					let possible_paths = [
+						&json_data["props"]["pageProps"]["chapters"],
+						&json_data["props"]["pageProps"]["initialData"]["chapters"],
+						&json_data["props"]["pageProps"]["manga"]["chapters"],
+						&json_data["pageProps"]["chapters"],
+					];
+
+					for chapters_data in &possible_paths {
+						if let Some(chapters_array) = chapters_data.as_array() {
+							println!("[PREMIUM] Found chapters array with {} items", chapters_array.len());
+
+							for (idx, chapter) in chapters_array.iter().enumerate() {
+								// Look for premium indicators in chapter data
+								let is_premium = chapter.get("isPremium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("premium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false)
+									|| chapter.get("locked")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false);
+
+								if is_premium {
+									// Try to get chapter number or ID
+									let chapter_id = chapter.get("number")
+										.and_then(|v| v.as_i64())
+										.map(|n| format!("{}", n))
+										.or_else(|| chapter.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+										.or_else(|| chapter.get("chapterNumber").and_then(|v| v.as_i64()).map(|n| format!("{}", n)));
+
+									if let Some(id) = chapter_id {
+										println!("[PREMIUM] ✓ Found premium chapter in __NEXT_DATA__: {}", id);
+										premium_ids.insert(id);
+									}
+								}
+
+								// Log first few chapters for debugging
+								if idx < 3 {
+									println!("[PREMIUM] Sample chapter {}: {:?}", idx, chapter);
+								}
+							}
+
+							if !premium_ids.is_empty() {
+								println!("[PREMIUM] Successfully extracted {} premium chapters from __NEXT_DATA__", premium_ids.len());
+								return premium_ids;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	println!("[PREMIUM] __NEXT_DATA__ method failed, trying HTML parsing...");
+
+	// Method 2: Fallback to HTML parsing (won't work for client-rendered content)
 	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
 		let mut link_count = 0;
 		for link in chapter_links {
 			link_count += 1;
 
-			// Get chapter ID first for logging
 			let chapter_id = if let Some(href) = link.attr("href") {
 				extract_chapter_id_from_url(&href)
 			} else {
 				None
 			};
 
-			// Method 1: Check for amber border classes (premium indicator)
 			let class_attr_str = link.attr("class").unwrap_or_default();
 			let has_amber_class = class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
 
-			// Method 2: Check for PREMIUM text/badge in the element
 			let html_content_str = link.html().unwrap_or_default();
 			let html_lower = html_content_str.to_lowercase();
 			let has_premium_text = html_lower.contains("premium") || html_lower.contains("accès anticipé");
 
-			// Method 3: Check visible text for PREMIUM
 			let text_content_str = link.text().unwrap_or_default();
 			let has_premium_in_text = text_content_str.to_uppercase().contains("PREMIUM");
 
@@ -488,28 +549,26 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 					println!("[PREMIUM] Chapter {}: amber={}, text={}, visible={}",
 						id, has_amber_class, has_premium_text, has_premium_in_text);
 					println!("[PREMIUM]   Classes: '{}'", class_attr_str);
-					println!("[PREMIUM]   HTML preview: '{}'",
-						if html_content_str.len() > 200 {
-							&html_content_str[..200]
+					println!("[PREMIUM]   HTML: '{}'",
+						if html_content_str.len() > 100 {
+							&html_content_str[..100]
 						} else {
 							&html_content_str
 						});
-					println!("[PREMIUM]   Text: '{}'", text_content_str);
 				}
 			}
 
-			// If any premium indicator is found, extract the chapter ID
 			if has_amber_class || has_premium_text || has_premium_in_text {
 				if let Some(chapter_id) = chapter_id {
-					println!("[PREMIUM] ✓ Detected premium chapter: {}", chapter_id);
+					println!("[PREMIUM] ✓ Detected premium chapter from HTML: {}", chapter_id);
 					premium_ids.insert(chapter_id);
 				}
 			}
 		}
-		println!("[PREMIUM DETECTION] Scanned {} chapter links", link_count);
+		println!("[PREMIUM DETECTION] Scanned {} chapter links in HTML", link_count);
 	}
 
-	println!("[PREMIUM DETECTION] Found {} premium chapters: {:?}", premium_ids.len(), premium_ids);
+	println!("[PREMIUM DETECTION] Total found: {} premium chapters: {:?}", premium_ids.len(), premium_ids);
 	premium_ids
 }
 
