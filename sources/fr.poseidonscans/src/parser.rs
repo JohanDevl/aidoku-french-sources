@@ -1,6 +1,6 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, 
-	Viewer, UpdateStrategy, HashMap,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
 	imports::html::{Document, Element},
 	serde::Deserialize,
@@ -528,55 +528,31 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	});
 	
-	// TRUE EARLY EXIT: Stop checking as soon as we find the first non-premium chapter
-	// Since premium chapters are the most recent, once we find a free chapter, all following are free
-	let mut filtered_chapters: Vec<Chapter> = Vec::new();
-	
-	if let Some(chapter_elements) = html.select("a[href*='/chapter/']") {
-		// Collect elements into Vec to avoid lifetime issues  
-		let chapter_elements_vec: Vec<_> = chapter_elements.collect();
-		// Create HashMap to index chapter elements by chapter_id for O(1) lookup
-		let mut chapter_element_map: HashMap<String, usize> = HashMap::new();
-		
-		for (index, chapter_element) in chapter_elements_vec.iter().enumerate() {
-			if let Some(href_str) = chapter_element.attr("href") {
-				if let Some(chapter_id_from_href) = extract_chapter_id_from_url(&href_str) {
-					chapter_element_map.insert(chapter_id_from_href, index);
-				}
-			}
-		}
-		
-		let mut found_first_non_premium = false;
-		
-		for chapter in chapters.iter() {
-			let mut is_premium = false;
-			
-			// Only check premium status if we haven't found the "premium boundary" yet
-			if !found_first_non_premium {
-				// O(1) lookup instead of O(n) search
-				if let Some(&element_index) = chapter_element_map.get(&chapter.key) {
-					if let Some(chapter_element) = chapter_elements_vec.get(element_index) {
-						if let Some(href_str) = chapter_element.attr("href") {
-							is_premium = is_chapter_premium(chapter_element, html, &href_str);
-							
-							if !is_premium {
-								found_first_non_premium = true;
-							}
-						}
+	// Premium chapter filtering with enhanced detection
+	// Build a set of premium chapter IDs from HTML
+	let mut premium_chapter_ids: BTreeSet<String> = BTreeSet::new();
+
+	// Look for chapter cards in the visible chapter list section
+	// Premium chapters have specific styling and badges
+	if let Some(chapter_containers) = html.select("a[href*='/chapter/']") {
+		for container in chapter_containers {
+			// Check if this is a premium chapter by looking for premium indicators
+			if let Some(href_str) = container.attr("href") {
+				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
+					// Check for premium indicators
+					if is_chapter_premium(&container, html, &href_str) {
+						premium_chapter_ids.insert(chapter_id);
 					}
 				}
-			} else {
-				// All remaining chapters are automatically non-premium (early exit optimization)
-				is_premium = false;
-			}
-			
-			if !is_premium {
-				filtered_chapters.push(chapter.clone());
 			}
 		}
-	} else {
-		filtered_chapters = chapters;
 	}
+
+	// Filter out premium chapters
+	let filtered_chapters: Vec<Chapter> = chapters
+		.into_iter()
+		.filter(|chapter| !premium_chapter_ids.contains(&chapter.key))
+		.collect();
 
 	Ok(filtered_chapters)
 }
@@ -661,29 +637,43 @@ fn is_chapter_premium(chapter_element: &Element, _html: &Document, _href: &str) 
 	// Method 1: Check the class attribute of the chapter element (main indicator)
 	// Premium chapters have "border-amber-500/30" while normal chapters have "border-zinc-700/30"
 	if let Some(class_attr) = chapter_element.attr("class") {
-		if class_attr.contains("border-amber-500") {
+		if class_attr.contains("border-amber-500") || class_attr.contains("amber-") {
 			return true;
 		}
 	}
-	
+
 	// Method 2: Check if the element's HTML contains premium indicators
 	if let Some(element_html) = chapter_element.html() {
-		// Check for PREMIUM badge
-		if element_html.contains("PREMIUM") {
+		// Check for PREMIUM badge (case-insensitive)
+		let html_lower = element_html.to_lowercase();
+		if html_lower.contains("premium") {
 			return true;
 		}
-		
-		// Check for amber-500 CSS classes in child elements
-		if element_html.contains("amber-500") {
+
+		// Check for amber-500 CSS classes in child elements (premium color)
+		if html_lower.contains("amber-500") || html_lower.contains("amber-") {
 			return true;
 		}
-		
-		// Check for early access text
-		if element_html.contains("Accès anticipé") {
+
+		// Check for early access text (French)
+		if html_lower.contains("accès anticipé") || html_lower.contains("acces anticipe") {
+			return true;
+		}
+
+		// Check for lock icon or premium icon indicators
+		if html_lower.contains("lock") || html_lower.contains("verrouillé") {
 			return true;
 		}
 	}
-	
+
+	// Method 3: Check text content for premium indicators
+	if let Some(text_content) = chapter_element.text() {
+		let text_lower = text_content.to_lowercase();
+		if text_lower.contains("premium") || text_lower.contains("accès anticipé") {
+			return true;
+		}
+	}
+
 	false
 }
 
