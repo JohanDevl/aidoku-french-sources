@@ -3,7 +3,6 @@ use aidoku::{
 	Viewer, UpdateStrategy,
 	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
 	imports::html::{Document, Element},
-	imports::net::Request,
 	serde::Deserialize,
 };
 use core::cmp::Ordering;
@@ -519,8 +518,22 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 	// Date extraction disabled - lazy loading prevents reliable date extraction for all chapters
 	// extract_chapter_dates_from_html(&html, &mut chapters);
 
+	// Filter premium chapters by cross-referencing with HTML
+	// JSON-LD contains ALL chapters including premium ones, so we need to check HTML indicators
+	let premium_chapters = detect_premium_chapters_from_html(html);
+	let filtered_chapters: Vec<Chapter> = chapters.into_iter()
+		.filter(|chapter| {
+			if let Some(ch_num) = chapter.chapter_number {
+				!premium_chapters.contains(&(ch_num as i32))
+			} else {
+				true // Keep chapters without a number
+			}
+		})
+		.collect();
+
 	// Sort chapters by number in descending order (latest first)
-	chapters.sort_by(|a, b| {
+	let mut sorted_chapters = filtered_chapters;
+	sorted_chapters.sort_by(|a, b| {
 		match (a.chapter_number, b.chapter_number) {
 			(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
 			(Some(_), None) => Ordering::Less,
@@ -529,45 +542,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	});
 
-	// Premium chapter filtering
-	// Check if the first chapter (most recent) is premium by fetching its page
-	let filtered_chapters: Vec<Chapter> = if let Some(first_chapter) = chapters.first() {
-		if let Some(chapter_url) = &first_chapter.url {
-			// Try to fetch the chapter page to check for premium indicators
-			let is_first_premium = if let Ok(req) = Request::get(chapter_url) {
-				if let Ok(chapter_html) = req
-					.header("User-Agent", "Mozilla/5.0")
-					.header("Accept", "text/html")
-					.header("Referer", BASE_URL)
-					.string()
-				{
-					let html_lower = chapter_html.to_lowercase();
-					html_lower.contains("premium")
-						|| html_lower.contains("verrouillé")
-						|| html_lower.contains("accès limité")
-						|| html_lower.contains("chapitre verrouillé")
-						|| html_lower.contains("disponible gratuitement dans")
-				} else {
-					false
-				}
-			} else {
-				false
-			};
-
-			if is_first_premium {
-				// Skip the first chapter
-				chapters.into_iter().skip(1).collect()
-			} else {
-				chapters
-			}
-		} else {
-			chapters
-		}
-	} else {
-		chapters
-	};
-
-	Ok(filtered_chapters)
+	Ok(sorted_chapters)
 }
 
 fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
@@ -643,6 +618,44 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	});
 
 	Ok(chapters)
+}
+
+// Detect premium chapters from HTML and return a set of chapter numbers
+fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<i32> {
+	let mut premium_set = BTreeSet::new();
+
+	// Look for chapter links with premium indicators
+	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
+		for link in chapter_links {
+			// Check for premium indicators
+			let is_premium = if let Some(class_attr) = link.attr("class") {
+				class_attr.contains("amber")
+			} else {
+				false
+			} || if let Some(html_content) = link.html() {
+				html_content.to_lowercase().contains("premium")
+			} else {
+				false
+			} || if let Some(text_content) = link.text() {
+				text_content.to_uppercase().contains("PREMIUM")
+			} else {
+				false
+			};
+
+			if is_premium {
+				// Extract chapter number from href
+				if let Some(href) = link.attr("href") {
+					if let Some(chapter_id) = extract_chapter_id_from_url(&href) {
+						if let Ok(chapter_num) = chapter_id.parse::<i32>() {
+							premium_set.insert(chapter_num);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	premium_set
 }
 
 // Detect if a chapter is premium based on HTML indicators
