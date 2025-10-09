@@ -657,29 +657,7 @@ pub fn parse_chapter_list(manga_key: String, html: Document) -> Result<Vec<Chapt
 			}
 		}
 	}
-	
-	// Calculate total chapters needed: use the highest index from all sources
-	// This ensures we create enough chapters to include all special chapters
-	let _total_chapters = if helper::is_one_piece_manga(&manga_key) {
-		// Pour One Piece, utiliser la détection dynamique du CDN au lieu du hardcode
-		let max_cdn_chapter = get_max_available_chapter_on_cdn(&manga_name);
-		
-		// Si le CDN a moins de chapitres que l'API, utiliser le CDN (plus fiable)
-		// Ajouter 1 pour le One Shot uniquement s'il existe des chapitres > 1045
-		if max_cdn_chapter > 1045 {
-			max_cdn_chapter + 1 // +1 pour le One Shot à l'index 1046
-		} else {
-			max_cdn_chapter // Pas de One Shot si on n'a que 1045 chapitres ou moins
-		}
-	} else if !chapter_mappings.is_empty() {
-		// Prendre le maximum entre le nombre de l'API et l'index le plus élevé des mappings
-		let max_mapped_index = chapter_mappings.iter().map(|m| m.index).max().unwrap_or(0);
-		api_max_chapter.max(max_mapped_index)
-	} else {
-		// Sans mappings spéciaux, utiliser exactement le nombre de l'API
-		api_max_chapter
-	};
-	
+
 	// Create chapters: first all normal chapters, then insert special chapters at correct positions
 	
 	// Step 1: Create all normal chapters (1, 2, 3, ..., api_max_chapter)

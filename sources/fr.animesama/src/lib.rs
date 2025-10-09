@@ -203,11 +203,7 @@ impl Source for AnimeSama {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_url = chapter.url.unwrap_or_else(|| {
-			let clean_manga_key = if manga.key.starts_with("http") {
-				helper::clean_url(&manga.key)
-			} else {
-				helper::clean_url(&manga.key)
-			};
+			let clean_manga_key = helper::clean_url(&manga.key);
 
 			let is_one_piece = helper::is_one_piece_manga(&clean_manga_key);
 			let scan_path = if is_one_piece {
