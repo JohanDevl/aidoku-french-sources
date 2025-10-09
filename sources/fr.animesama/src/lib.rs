@@ -21,123 +21,6 @@ pub const BASE_URL: &str = "https://anime-sama.org";
 pub const CDN_URL: &str = "https://anime-sama.org/s2/scans";
 pub const CDN_URL_LEGACY: &str = "https://s22.anime-sama.me/s1/scans";
 
-// Note: filters.json est inclus pour référence mais on utilise la liste hardcodée pour la performance
-
-// Parser les IDs de genres depuis le JSON inclus
-fn get_genre_ids() -> Vec<&'static str> {
-	// Liste complète basée sur le site AnimeSama
-	// Utilise les valeurs exactes des checkbox du formulaire de filtrage
-	vec![
-		"", // Pour "Tout"
-		"Action",
-		"Adolescence",
-		"Aliens / Extra-terrestres",
-		"Amitié",
-		"Amour",
-		"Apocalypse",
-		"Art",
-		"Arts martiaux",
-		"Assassinat",
-		"Autre monde",
-		"Aventure",
-		"Combats",
-		"Comédie",
-		"Crime",
-		"Cyberpunk",
-		"Danse",
-		"Démons",
-		"Détective",
-		"Donghua",
-		"Dragon",
-		"Drame",
-		"Ecchi",
-		"Ecole",
-		"Elfe",
-		"Enquête",
-		"Famille",
-		"Fantastique",
-		"Fantasy",
-		"Fantômes",
-		"Futur",
-		"Gastronomie",
-		"Ghibli",
-		"Guerre",
-		"Harcèlement",
-		"Harem",
-		"Harem inversé",
-		"Histoire",
-		"Historique",
-		"Horreur",
-		"Isekai",
-		"Jeunesse",
-		"Jeux",
-		"Jeux vidéo",
-		"Josei",
-		"Journalisme",
-		"Mafia",
-		"Magical girl",
-		"Magie",
-		"Maladie",
-		"Mariage",
-		"Mature",
-		"Mechas",
-		"Médiéval",
-		"Militaire",
-		"Monde virtuel",
-		"Monstres",
-		"Musique",
-		"Mystère",
-		"Nekketsu",
-		"Ninjas",
-		"Nostalgie",
-		"Paranormal",
-		"Philosophie",
-		"Pirates",
-		"Police",
-		"Politique",
-		"Post-apocalyptique",
-		"Pouvoirs psychiques",
-		"Préhistoire",
-		"Prison",
-		"Psychologique",
-		"Quotidien",
-		"Religion",
-		"Réincarnation / Transmigration",
-		"Romance",
-		"Samouraïs",
-		"School Life",
-		"Science-Fantasy",
-		"Science-fiction",
-		"Scientifique",
-		"Seinen",
-		"Shôjo",
-		"Shôjo-Ai",
-		"Shônen",
-		"Shônen-Ai",
-		"Slice of Life",
-		"Société",
-		"Sport",
-		"Super pouvoirs",
-		"Super-héros",
-		"Surnaturel",
-		"Survie",
-		"Survival game",
-		"Technologies",
-		"Thriller",
-		"Tournois",
-		"Travail",
-		"Vampires",
-		"Vengeance",
-		"Voyage",
-		"Voyage temporel",
-		"Webcomic",
-		"Yakuza",
-		"Yaoi",
-		"Yokai",
-		"Yuri"
-	]
-}
-
 // Helper function for robust HTTP requests with Cloudflare bypass and error handling
 fn make_request_with_cloudflare_retry(url: &str) -> Result<Response> {
 	let mut attempt = 0;
@@ -224,30 +107,15 @@ impl Source for AnimeSama {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		// Construire les paramètres de filtre
 		let mut filter_params = String::new();
-		
-		// Traiter chaque filtre - utiliser le pattern matching sur FilterValue
+
 		for filter in &filters {
 			match filter {
 				FilterValue::MultiSelect { id, included, excluded: _ } => {
-					// Vérifier que c'est le filtre de genre et qu'il y a des genres sélectionnés
 					if id == "genre" && !included.is_empty() {
-						let genre_ids = get_genre_ids();
-						
-						// Traiter chaque genre inclus
-						for selected_value in included {
-							if !selected_value.is_empty() {
-								if let Ok(selected_index) = selected_value.parse::<i32>() {
-									if selected_index >= 0 && (selected_index as usize) < genre_ids.len() {
-										let genre_id = genre_ids[selected_index as usize];
-										if !genre_id.is_empty() {
-											filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_id)));
-										}
-									}
-								} else if !selected_value.is_empty() {
-									filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(selected_value)));
-								}
+						for genre_value in included {
+							if !genre_value.is_empty() {
+								filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(genre_value)));
 							}
 						}
 					}
@@ -257,9 +125,7 @@ impl Source for AnimeSama {
 						filter_params.push_str(&format!("&genre%5B%5D={}", helper::urlencode(value)));
 					}
 				}
-				_ => {
-					// Autres types de filtres ignorés pour l'instant
-				}
+				_ => {}
 			}
 		}
 		
