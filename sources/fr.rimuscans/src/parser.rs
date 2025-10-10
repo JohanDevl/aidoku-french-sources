@@ -8,6 +8,55 @@ use crate::helper::{make_absolute_url, parse_relative_date};
 
 extern crate alloc;
 
+fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
+    let title_lower = title.to_lowercase();
+
+    if let Some(pos) = title_lower.find("chapitre ") {
+        let after = &title_lower[pos + 9..];
+        let num_str: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+            .collect();
+
+        let cleaned = num_str.replace(',', ".");
+        if let Ok(num) = cleaned.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    if title_lower.starts_with("ch.") || title_lower.starts_with("ch ") {
+        let start_pos = if title_lower.starts_with("ch.") { 3 } else { 3 };
+        let num_str: String = title_lower.chars()
+            .skip(start_pos)
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+            .collect();
+
+        let cleaned = num_str.replace(',', ".");
+        if let Ok(num) = cleaned.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    None
+}
+
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+    if let Some(last_part) = url.split('/').last() {
+        if let Ok(num) = last_part.parse::<f32>() {
+            return Some(num);
+        }
+
+        if last_part.contains('-') {
+            if let Some(num_str) = last_part.split('-').last() {
+                if let Ok(num) = num_str.parse::<f32>() {
+                    return Some(num);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
     let mut mangas = Vec::new();
 
@@ -170,6 +219,9 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
 
     if let Some(items) = html.select("div.eplister ul li") {
+        let mut temp_chapters = Vec::new();
+        let mut max_chapter_number: Option<f32> = None;
+
         for item in items {
             let link = if let Some(links) = item.select("div.eph-num a") {
                 if let Some(l) = links.first() {
@@ -208,12 +260,35 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                 None
             };
 
+            let chapter_number = extract_chapter_number_from_title(&title)
+                .or_else(|| extract_chapter_number_from_url(&url));
+
+            if let Some(num) = chapter_number {
+                if max_chapter_number.map_or(true, |max| num > max) {
+                    max_chapter_number = Some(num);
+                }
+            }
+
+            temp_chapters.push((url, title, date_uploaded, chapter_number));
+        }
+
+        let mut unnumbered_offset = 1.0;
+        for (url, title, date_uploaded, chapter_number) in temp_chapters {
+            let final_chapter_number = match chapter_number {
+                Some(num) => Some(num),
+                None => max_chapter_number.map(|n| {
+                    let result = n + unnumbered_offset;
+                    unnumbered_offset += 1.0;
+                    result
+                })
+            };
+
             chapters.push(Chapter {
                 key: url.clone(),
                 title: if !title.is_empty() { Some(title) } else { None },
                 date_uploaded,
                 url: Some(url),
-                chapter_number: None,
+                chapter_number: final_chapter_number,
                 volume_number: None,
                 scanlators: None,
                 language: None,
