@@ -234,8 +234,8 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				None
 			};
 
-			let chapter_number = extract_chapter_number_from_url(&url)
-				.or_else(|| extract_chapter_number_from_title(&title));
+			let chapter_number = extract_chapter_number_from_title(&title)
+				.or_else(|| extract_chapter_number_from_url(&url));
 
 			let formatted_title = if let Some(num) = chapter_number {
 				if title.is_empty() || !title.contains("Chapitre") {
