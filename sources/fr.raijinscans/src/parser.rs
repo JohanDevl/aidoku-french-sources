@@ -239,9 +239,9 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 
 			let formatted_title = if let Some(num) = chapter_number {
 				if title.is_empty() || !title.contains("Chapitre") {
-					Some(format!("Chapitre {}", num))
+					Some(format!("Ch.{} - Chapitre {}", num, num))
 				} else {
-					Some(format!("{}", title))
+					Some(format!("Ch.{} - {}", num, title))
 				}
 			} else {
 				if !title.is_empty() {
