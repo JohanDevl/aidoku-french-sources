@@ -210,9 +210,11 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
-    let mut last_valid_number: Option<f32> = None;
 
     if let Some(items) = html.select("div.eplister ul li") {
+        let mut temp_chapters = Vec::new();
+        let mut max_chapter_number: Option<f32> = None;
+
         for item in items {
             let link = if let Some(links) = item.select("div.eph-num a") {
                 if let Some(l) = links.first() {
@@ -252,22 +254,26 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
             };
 
             let chapter_number = extract_chapter_number_from_title(&title)
-                .or_else(|| extract_chapter_number_from_url(&url))
-                .or_else(|| last_valid_number.map(|n| n + 1.0));
+                .or_else(|| extract_chapter_number_from_url(&url));
 
             if let Some(num) = chapter_number {
-                if extract_chapter_number_from_title(&title).is_some()
-                    || extract_chapter_number_from_url(&url).is_some() {
-                    last_valid_number = Some(num);
+                if max_chapter_number.is_none() || num > max_chapter_number.unwrap() {
+                    max_chapter_number = Some(num);
                 }
             }
+
+            temp_chapters.push((url, title, date_uploaded, chapter_number));
+        }
+
+        for (url, title, date_uploaded, chapter_number) in temp_chapters {
+            let final_chapter_number = chapter_number.or_else(|| max_chapter_number.map(|n| n + 1.0));
 
             chapters.push(Chapter {
                 key: url.clone(),
                 title: if !title.is_empty() { Some(title) } else { None },
                 date_uploaded,
                 url: Some(url),
-                chapter_number,
+                chapter_number: final_chapter_number,
                 volume_number: None,
                 scanlators: None,
                 language: None,
