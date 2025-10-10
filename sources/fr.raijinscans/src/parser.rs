@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, MangaStatus, Chapter, Page, PageContent,
     ContentRating, Viewer, UpdateStrategy,
-    alloc::{String, Vec, vec, string::ToString},
+    alloc::{String, Vec, vec, string::ToString, format},
     imports::html::Document,
 };
 use crate::helper::{decode_base64, make_absolute_url, parse_relative_date};
@@ -132,6 +132,50 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
     })
 }
 
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+    if let Some(last_part) = url.split('/').last() {
+        if let Ok(num) = last_part.parse::<f32>() {
+            return Some(num);
+        }
+
+        if last_part.contains('-') {
+            if let Some(num_str) = last_part.split('-').last() {
+                if let Ok(num) = num_str.parse::<f32>() {
+                    return Some(num);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
+    if let Some(pos) = title.find("Chapitre ") {
+        let after_chapitre = &title[pos + 9..];
+        let num_str: String = after_chapitre
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+
+        if let Ok(num) = num_str.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    if title.starts_with("Ch.") || title.starts_with("Ch ") {
+        let num_str: String = title[3..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+
+        if let Ok(num) = num_str.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    None
+}
+
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
 
@@ -172,15 +216,28 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                 None
             };
 
+            let chapter_number = extract_chapter_number_from_url(&url)
+                .or_else(|| extract_chapter_number_from_title(&title));
+
+            let formatted_title = if let Some(num) = chapter_number {
+                if title.is_empty() || !title.contains("Chapitre") {
+                    Some(format!("Ch.{} - Chapitre {}", num, num))
+                } else {
+                    Some(format!("Ch.{} - {}", num, title))
+                }
+            } else {
+                if !title.is_empty() { Some(title.clone()) } else { None }
+            };
+
             chapters.push(Chapter {
                 key: url.clone(),
-                title: if !title.is_empty() { Some(title) } else { None },
+                title: formatted_title,
                 date_uploaded,
                 url: Some(url),
-                chapter_number: None,
+                chapter_number,
                 volume_number: None,
                 scanlators: None,
-                language: None,
+                language: Some(String::from("fr")),
                 thumbnail: None,
                 locked: false,
             });
