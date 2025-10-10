@@ -253,10 +253,13 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 
             let chapter_number = extract_chapter_number_from_title(&title)
                 .or_else(|| extract_chapter_number_from_url(&url))
-                .or(last_valid_number);
+                .or_else(|| last_valid_number.map(|n| n + 1.0));
 
-            if chapter_number.is_some() {
-                last_valid_number = chapter_number;
+            if let Some(num) = chapter_number {
+                if extract_chapter_number_from_title(&title).is_some()
+                    || extract_chapter_number_from_url(&url).is_some() {
+                    last_valid_number = Some(num);
+                }
             }
 
             chapters.push(Chapter {
