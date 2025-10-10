@@ -210,6 +210,7 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
+    let mut last_valid_number: Option<f32> = None;
 
     if let Some(items) = html.select("div.eplister ul li") {
         for item in items {
@@ -251,7 +252,12 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
             };
 
             let chapter_number = extract_chapter_number_from_title(&title)
-                .or_else(|| extract_chapter_number_from_url(&url));
+                .or_else(|| extract_chapter_number_from_url(&url))
+                .or(last_valid_number);
+
+            if chapter_number.is_some() {
+                last_valid_number = chapter_number;
+            }
 
             chapters.push(Chapter {
                 key: url.clone(),
