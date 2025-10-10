@@ -8,6 +8,48 @@ use crate::helper::{make_absolute_url, parse_relative_date};
 
 extern crate alloc;
 
+fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
+    if let Some(pos) = title.find("Chapitre ") {
+        let after_chapitre = &title[pos + 9..];
+        let num_str: String = after_chapitre
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if let Ok(num) = num_str.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    if title.starts_with("Ch.") || title.starts_with("Ch ") {
+        let num_str: String = title[3..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if let Ok(num) = num_str.parse::<f32>() {
+            return Some(num);
+        }
+    }
+
+    None
+}
+
+fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
+    if let Some(last_part) = url.split('/').last() {
+        if let Ok(num) = last_part.parse::<f32>() {
+            return Some(num);
+        }
+
+        if last_part.contains('-') {
+            if let Some(num_str) = last_part.split('-').last() {
+                if let Ok(num) = num_str.parse::<f32>() {
+                    return Some(num);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
     let mut mangas = Vec::new();
 
@@ -168,6 +210,7 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 
 pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
     let mut chapters = Vec::new();
+    let mut last_chapter_num = 0.0;
 
     if let Some(items) = html.select("div.eplister ul li") {
         for item in items {
@@ -208,12 +251,20 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                 None
             };
 
+            let chapter_number = extract_chapter_number_from_title(&title)
+                .or_else(|| extract_chapter_number_from_url(&url))
+                .or_else(|| Some(last_chapter_num + 1.0));
+
+            if let Some(num) = chapter_number {
+                last_chapter_num = num;
+            }
+
             chapters.push(Chapter {
                 key: url.clone(),
                 title: if !title.is_empty() { Some(title) } else { None },
                 date_uploaded,
                 url: Some(url),
-                chapter_number: None,
+                chapter_number,
                 volume_number: None,
                 scanlators: None,
                 language: None,
