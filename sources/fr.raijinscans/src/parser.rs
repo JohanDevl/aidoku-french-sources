@@ -241,7 +241,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				if title.is_empty() || !title.contains("Chapitre") {
 					Some(format!("Chapitre {}", num))
 				} else {
-					Some(format!("Chapitre {} - {}", num, title))
+					Some(format!("{}", title))
 				}
 			} else {
 				if !title.is_empty() {
