@@ -1,13 +1,18 @@
+use crate::BASE_URL;
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
-	Viewer, UpdateStrategy,
-	alloc::{String, Vec, format, string::ToString, vec, collections::{BTreeMap, BTreeSet}},
+	alloc::{
+		collections::{BTreeMap, BTreeSet},
+		format,
+		string::ToString,
+		vec, String, Vec,
+	},
 	imports::html::Document,
 	serde::Deserialize,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	UpdateStrategy, Viewer,
 };
 use core::cmp::Ordering;
 use serde_json;
-use crate::BASE_URL;
 
 const PAGE_SIZE: i32 = 20;
 const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
@@ -26,7 +31,7 @@ pub struct MangaItem {
 	pub title: String,
 	#[serde(default)]
 	pub author: Option<String>,
-	#[serde(default)]  
+	#[serde(default)]
 	pub artist: Option<String>,
 	#[serde(default)]
 	pub status: Option<String>,
@@ -73,24 +78,34 @@ impl MangaItem {
 		let key = self.slug.clone();
 		let title = self.title.clone();
 		let cover = format!("{}/api/covers/{}.webp", BASE_URL, self.slug);
-		
-		let authors = self.author.as_ref()
+
+		let authors = self
+			.author
+			.as_ref()
 			.map(|a| vec![a.clone()])
 			.filter(|a| !a.is_empty());
-			
-		let artists = self.artist.as_ref()
+
+		let artists = self
+			.artist
+			.as_ref()
 			.map(|a| vec![a.clone()])
 			.filter(|a| !a.is_empty());
-		
-		let tags = self.categories.as_ref()
+
+		let tags = self
+			.categories
+			.as_ref()
 			.map(|cats| cats.iter().map(|c| c.name.clone()).collect::<Vec<_>>())
 			.filter(|t| !t.is_empty());
-		
-		let status = self.status.as_ref()
+
+		let status = self
+			.status
+			.as_ref()
 			.map(|s| parse_manga_status(s))
 			.unwrap_or(MangaStatus::Unknown);
-		
-		let description = self.description.clone()
+
+		let description = self
+			.description
+			.clone()
 			.filter(|d| !d.is_empty() && d != "Aucune description.");
 
 		Manga {
@@ -140,28 +155,28 @@ impl LatestChapterItem {
 // Parse functions for different API endpoints
 
 pub fn parse_manga_list(
-	response: String, 
-	search_query: String, 
-	status_filter: Option<String>, 
-	type_filter: Option<String>, 
-	genre_filter: Option<String>, 
-	sort_filter: Option<String>, 
-	page: i32
+	response: String,
+	search_query: String,
+	status_filter: Option<String>,
+	type_filter: Option<String>,
+	genre_filter: Option<String>,
+	sort_filter: Option<String>,
+	page: i32,
 ) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: ApiResponse<MangaItem> =
+		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
 
 	let mut all_mangas: Vec<Manga> = Vec::new();
 	let query_lower = search_query.to_lowercase();
 
 	for item in &api_response.data {
 		let manga = item.to_manga();
-		
+
 		// Apply search filter
 		if !search_query.is_empty() && !manga.title.to_lowercase().contains(&query_lower) {
 			continue;
 		}
-		
+
 		// Apply status filter
 		if let Some(ref status_str) = status_filter {
 			let filter_status = parse_manga_status(status_str);
@@ -169,8 +184,9 @@ pub fn parse_manga_list(
 				continue;
 			}
 		}
-		
-		// Apply type filter (check if manga contains the type in description or if it's a different type)
+
+		// Apply type filter (check if manga contains the type in description or if it's
+		// a different type)
 		if let Some(ref type_str) = type_filter {
 			// Extract type from the original API data if available
 			let manga_type = extract_manga_type(&item);
@@ -178,17 +194,17 @@ pub fn parse_manga_list(
 				continue;
 			}
 		}
-		
+
 		// Apply genre filter
 		if let Some(ref genre_str) = genre_filter {
 			if !manga_has_genre(&manga, genre_str) {
 				continue;
 			}
 		}
-		
+
 		all_mangas.push(manga);
 	}
-	
+
 	// Apply sorting
 	if let Some(ref sort_str) = sort_filter {
 		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
@@ -197,13 +213,13 @@ pub fn parse_manga_list(
 	// Client-side pagination
 	let start_index = ((page - 1) * PAGE_SIZE) as usize;
 	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
-	
+
 	let paginated_mangas = if start_index < all_mangas.len() {
 		all_mangas[start_index..end_index].to_vec()
 	} else {
 		Vec::new()
 	};
-	
+
 	let has_next_page = end_index < all_mangas.len();
 
 	Ok(MangaPageResult {
@@ -213,17 +229,18 @@ pub fn parse_manga_list(
 }
 
 pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: LatestChapterResponse = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: LatestChapterResponse =
+		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
 
 	let mut mangas: Vec<Manga> = Vec::new();
-	
+
 	for item in api_response.data {
 		let manga = item.to_manga();
 		mangas.push(manga);
 	}
-	
-	let has_next_page = api_response.pagination
+
+	let has_next_page = api_response
+		.pagination
 		.and_then(|p| p.has_more)
 		.unwrap_or(false);
 
@@ -234,16 +251,16 @@ pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)
-		.map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: ApiResponse<MangaItem> =
+		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
 
 	let mut mangas: Vec<Manga> = Vec::new();
-	
+
 	for item in api_response.data {
 		let manga = item.to_manga();
 		mangas.push(manga);
 	}
-	
+
 	// Popular manga is always a fixed list with no pagination
 	Ok(MangaPageResult {
 		entries: mangas,
@@ -264,24 +281,29 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	// Extract title from page - try multiple selectors for robustness
 	// Order matters: most specific selectors first to avoid sr-only elements
 	let title_selectors = [
-		"h1.text-2xl.font-bold.text-white",  // Visible h1 with specific classes from PoseidonScans
-		"h1.font-bold.text-white",            // Alternative visible h1 pattern
-		"h1:not(.sr-only):not([class*=\"sr-only\"])",  // Any h1 that's not screen-reader-only
+		"h1.text-2xl.font-bold.text-white", // Visible h1 with specific classes from PoseidonScans
+		"h1.font-bold.text-white",          // Alternative visible h1 pattern
+		"h1:not(.sr-only):not([class*=\"sr-only\"])", // Any h1 that's not screen-reader-only
 		"[data-testid=\"manga-title\"]",
 		".manga-title",
 		"h1.entry-title",
 		"meta[property=\"og:title\"]",
-		"title"
+		"title",
 	];
 
 	let mut title_found = false;
 	for selector in &title_selectors {
 		if let Some(title_element) = html.select(selector).and_then(|els| els.first()) {
 			let mut title_text = if selector.contains("meta") {
-				title_element.attr("content").map(|s| s.to_string()).unwrap_or_default()
+				title_element
+					.attr("content")
+					.map(|s| s.to_string())
+					.unwrap_or_default()
 			} else if *selector == "title" {
 				// Extract from title tag, removing site name suffix
-				title_element.text().unwrap_or_default()
+				title_element
+					.text()
+					.unwrap_or_default()
 					.replace(" | Poseidon Scans", "")
 					.replace("Lire ", "")
 					.replace(" scan VF / FR gratuit en ligne", "")
@@ -304,7 +326,8 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 				&& title_text != manga_key
 				&& !title_text.starts_with("[Image")
 				&& !title_text.contains("#")
-				&& title_text.len() > 2 {
+				&& title_text.len() > 2
+			{
 				title = title_text;
 				title_found = true;
 				break;
@@ -324,7 +347,11 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 
 	// Extract description
-	if let Some(desc_text) = html.select("p.text-gray-300.leading-relaxed.whitespace-pre-line").and_then(|els| els.first()).and_then(|el| el.text()) {
+	if let Some(desc_text) = html
+		.select("p.text-gray-300.leading-relaxed.whitespace-pre-line")
+		.and_then(|els| els.first())
+		.and_then(|el| el.text())
+	{
 		let desc = desc_text.trim().to_string();
 		if !desc.is_empty() && desc != "Aucune description." {
 			description = desc;
@@ -333,7 +360,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 	// Extract tags from JSON-LD and status from HTML
 	let mut tag_list: Vec<String> = Vec::new();
-	
+
 	// Extract genres from JSON-LD (most reliable source)
 	if let Ok(manga_data) = extract_jsonld_manga_details(html) {
 		if let Some(genres) = manga_data.get("genre").and_then(|g| g.as_array()) {
@@ -347,7 +374,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 			}
 		}
 	}
-	
+
 	// Extract status from HTML and add as tag
 	let mut status_found = false;
 
@@ -368,14 +395,20 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 			}
 		}
 	}
-	
-	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en pause)
+
+	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en
+	// pause)
 	if !status_found {
-		if let Some(status_spans) = html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20") {
+		if let Some(status_spans) =
+			html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20")
+		{
 			for status_span in status_spans {
 				if let Some(status_text) = status_span.text() {
 					let status_str = status_text.trim().to_string();
-					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
+					if status_str == "en cours"
+						|| status_str == "terminé"
+						|| status_str == "en pause"
+					{
 						status = parse_manga_status(&status_str);
 						status_found = true;
 						break;
@@ -384,14 +417,17 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 			}
 		}
 	}
-	
+
 	// Fallback: look for any span with status-like content
 	if !status_found {
 		if let Some(status_spans) = html.select("span") {
 			for status_span in status_spans {
 				if let Some(status_text) = status_span.text() {
 					let status_str = status_text.trim().to_string();
-					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
+					if status_str == "en cours"
+						|| status_str == "terminé"
+						|| status_str == "en pause"
+					{
 						status = parse_manga_status(&status_str);
 						break;
 					}
@@ -399,7 +435,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 			}
 		}
 	}
-	
+
 	if !tag_list.is_empty() {
 		tags = Some(tag_list);
 	}
@@ -412,7 +448,11 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		cover: Some(cover),
 		authors,
 		artists,
-		description: if description.is_empty() { None } else { Some(description) },
+		description: if description.is_empty() {
+			None
+		} else {
+			Some(description)
+		},
 		url: Some(format!("{}/serie/{}", BASE_URL, manga_key)),
 		tags,
 		status,
@@ -460,7 +500,8 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 			if let Some(content) = script.data() {
 				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
 					// Try to navigate to chapters data
-					// Possible paths: props.pageProps.chapters, props.pageProps.initialData.chapters, etc.
+					// Possible paths: props.pageProps.chapters,
+					// props.pageProps.initialData.chapters, etc.
 					let possible_paths = [
 						&json_data["props"]["pageProps"]["chapters"],
 						&json_data["props"]["pageProps"]["initialData"]["chapters"],
@@ -472,23 +513,35 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 						if let Some(chapters_array) = chapters_data.as_array() {
 							for chapter in chapters_array.iter() {
 								// Look for premium indicators in chapter data
-								let is_premium = chapter.get("isPremium")
+								let is_premium = chapter
+									.get("isPremium")
 									.and_then(|v| v.as_bool())
-									.unwrap_or(false)
-									|| chapter.get("premium")
+									.unwrap_or(false) || chapter
+									.get("premium")
 									.and_then(|v| v.as_bool())
-									.unwrap_or(false)
-									|| chapter.get("locked")
+									.unwrap_or(false) || chapter
+									.get("locked")
 									.and_then(|v| v.as_bool())
 									.unwrap_or(false);
 
 								if is_premium {
 									// Try to get chapter number or ID
-									let chapter_id = chapter.get("number")
+									let chapter_id = chapter
+										.get("number")
 										.and_then(|v| v.as_i64())
 										.map(|n| format!("{}", n))
-										.or_else(|| chapter.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
-										.or_else(|| chapter.get("chapterNumber").and_then(|v| v.as_i64()).map(|n| format!("{}", n)));
+										.or_else(|| {
+											chapter
+												.get("id")
+												.and_then(|v| v.as_str())
+												.map(|s| s.to_string())
+										})
+										.or_else(|| {
+											chapter
+												.get("chapterNumber")
+												.and_then(|v| v.as_i64())
+												.map(|n| format!("{}", n))
+										});
 
 									if let Some(id) = chapter_id {
 										premium_ids.insert(id);
@@ -516,11 +569,13 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 			};
 
 			let class_attr_str = link.attr("class").unwrap_or_default();
-			let has_amber_class = class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
+			let has_amber_class =
+				class_attr_str.contains("amber") || class_attr_str.contains("border-amber-500");
 
 			let html_content_str = link.html().unwrap_or_default();
 			let html_lower = html_content_str.to_lowercase();
-			let has_premium_text = html_lower.contains("premium") || html_lower.contains("accès anticipé");
+			let has_premium_text =
+				html_lower.contains("premium") || html_lower.contains("accès anticipé");
 
 			let text_content_str = link.text().unwrap_or_default();
 			let has_premium_in_text = text_content_str.to_uppercase().contains("PREMIUM");
@@ -541,11 +596,12 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 	let manga_data = extract_jsonld_manga_details(html)?;
 
 	// Extract chapters from JSON-LD "hasPart" array
-	let chapters_array = if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
-		has_part
-	} else {
-		return Ok(parse_chapter_list_from_html(html)?);
-	};
+	let chapters_array =
+		if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
+			has_part
+		} else {
+			return Ok(parse_chapter_list_from_html(html)?);
+		};
 
 	// Get premium chapter IDs from HTML (O(1) parse, no HTTP requests)
 	let premium_chapter_ids = detect_premium_chapters_from_html(html);
@@ -581,7 +637,8 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			let chapter_title = format!("Chapitre {}", chapter_number);
 
 			// Extract chapter URL directly from JSON-LD (already complete)
-			let url = chapter_obj.get("url")
+			let url = chapter_obj
+				.get("url")
 				.and_then(|u| u.as_str())
 				.unwrap_or_default()
 				.to_string();
@@ -611,14 +668,31 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	}
 
-	// Sort chapters by number in descending order (newest first)
-	chapters.sort_by(|a, b| {
-		match (a.chapter_number, b.chapter_number) {
-			(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
-			(Some(_), None) => Ordering::Less,
-			(None, Some(_)) => Ordering::Greater,
-			(None, None) => Ordering::Equal,
+	// Post-processing: If premium chapters exist, mark all higher chapters as
+	// locked This ensures consistency - if chapter 13 is premium, chapters 21 and
+	// 22 must be too
+	let min_premium_chapter = chapters
+		.iter()
+		.filter(|ch| ch.locked)
+		.filter_map(|ch| ch.chapter_number)
+		.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+	if let Some(min_num) = min_premium_chapter {
+		for chapter in &mut chapters {
+			if let Some(ch_num) = chapter.chapter_number {
+				if ch_num >= min_num {
+					chapter.locked = true;
+				}
+			}
 		}
+	}
+
+	// Sort chapters by number in descending order (newest first)
+	chapters.sort_by(|a, b| match (a.chapter_number, b.chapter_number) {
+		(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+		(Some(_), None) => Ordering::Less,
+		(None, Some(_)) => Ordering::Greater,
+		(None, None) => Ordering::Equal,
 	});
 
 	Ok(chapters)
@@ -631,7 +705,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	// Use the specific PoseidonScans chapter list structure
 	// Chapters are in <a> elements with href containing /chapter/
 	let chapter_selector = "a[href*='/chapter/']";
-	
+
 	if let Some(chapter_elements) = html.select(chapter_selector) {
 		for chapter_element in chapter_elements {
 			if let Some(href_str) = chapter_element.attr("href") {
@@ -639,7 +713,8 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
 					// Skip duplicates - O(1) lookup with HashSet
 					if !seen_chapter_ids.insert(chapter_id.clone()) {
-						continue; // insert() returns false if element was already present
+						continue; // insert() returns false if element was already
+						 // present
 					}
 
 					// Extract chapter number from URL or ID first
@@ -680,13 +755,11 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	chapters.dedup_by(|a, b| a.key == b.key);
 
 	// Sort chapters by chapter number (descending - newest first)
-	chapters.sort_by(|a, b| {
-		match (a.chapter_number, b.chapter_number) {
-			(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
-			(Some(_), None) => Ordering::Less,
-			(None, Some(_)) => Ordering::Greater,
-			(None, None) => Ordering::Equal,
-		}
+	chapters.sort_by(|a, b| match (a.chapter_number, b.chapter_number) {
+		(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+		(Some(_), None) => Ordering::Less,
+		(None, Some(_)) => Ordering::Greater,
+		(None, None) => Ordering::Equal,
 	});
 
 	Ok(chapters)
@@ -699,14 +772,14 @@ pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page
 			return Ok(pages);
 		}
 	}
-	
+
 	// Try __NEXT_DATA__ extraction as backup
 	if let Ok(pages) = extract_pages_from_nextdata(html) {
 		if !pages.is_empty() {
 			return Ok(pages);
 		}
 	}
-	
+
 	// Fallback to HTML extraction
 	extract_pages_from_html(html)
 }
@@ -721,7 +794,9 @@ fn extract_pages_from_jsonld(html: &Document) -> Result<Vec<Page>> {
 					if let Some(type_value) = json_data.get("@type") {
 						if let Some(type_str) = type_value.as_str() {
 							if type_str == "ComicIssue" || type_str == "Chapter" {
-								if let Some(images) = json_data.get("images").and_then(|i| i.as_array()) {
+								if let Some(images) =
+									json_data.get("images").and_then(|i| i.as_array())
+								{
 									return parse_images_from_json_array(images);
 								}
 							}
@@ -731,7 +806,7 @@ fn extract_pages_from_jsonld(html: &Document) -> Result<Vec<Page>> {
 			}
 		}
 	}
-	
+
 	Ok(Vec::new())
 }
 
@@ -745,21 +820,27 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 					if let Some(props) = json_data.get("props") {
 						if let Some(page_props) = props.get("pageProps") {
 							if let Some(initial_data) = page_props.get("initialData") {
-								if let Some(images) = initial_data.get("images").and_then(|i| i.as_array()) {
+								if let Some(images) =
+									initial_data.get("images").and_then(|i| i.as_array())
+								{
 									let pages = parse_images_from_json_array(images)?;
 									if !pages.is_empty() {
 										return Ok(pages);
 									}
 								}
 							}
-							if let Some(images) = page_props.get("images").and_then(|i| i.as_array()) {
+							if let Some(images) =
+								page_props.get("images").and_then(|i| i.as_array())
+							{
 								let pages = parse_images_from_json_array(images)?;
 								if !pages.is_empty() {
 									return Ok(pages);
 								}
 							}
 							if let Some(chapter) = page_props.get("chapter") {
-								if let Some(images) = chapter.get("images").and_then(|i| i.as_array()) {
+								if let Some(images) =
+									chapter.get("images").and_then(|i| i.as_array())
+								{
 									let pages = parse_images_from_json_array(images)?;
 									if !pages.is_empty() {
 										return Ok(pages);
@@ -787,7 +868,7 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 			}
 		}
 	}
-	
+
 	Ok(Vec::new())
 }
 
@@ -820,12 +901,15 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 						}
 					}
 
-					pages.push((order, Page {
-						content: PageContent::url(absolute_url),
-						thumbnail: None,
-						has_description: false,
-						description: None,
-					}));
+					pages.push((
+						order,
+						Page {
+							content: PageContent::url(absolute_url),
+							thumbnail: None,
+							has_description: false,
+							description: None,
+						},
+					));
 				}
 			}
 		}
@@ -842,7 +926,7 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	let mut fallback_pages: Vec<Page> = Vec::new();
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
-		"img[src*='/chapter/']", 
+		"img[src*='/chapter/']",
 		"img[src*='/images/']",
 		"img[data-src]",
 		"main img",
@@ -855,7 +939,8 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 		if let Some(img_elements) = html.select(selector) {
 			for img_element in img_elements {
 				// Get image URL from various attributes
-				let image_url = img_element.attr("src")
+				let image_url = img_element
+					.attr("src")
 					.or_else(|| img_element.attr("data-src"))
 					.or_else(|| img_element.attr("data-original"))
 					.or_else(|| img_element.attr("data-lazy"));
@@ -893,16 +978,17 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 // Parse images from JSON array (common for both JSON-LD and __NEXT_DATA__)
 fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
-	
+
 	for image_value in images_array.iter() {
 		if let Some(image_obj) = image_value.as_object() {
 			// Try different possible image URL fields
-			let image_url = image_obj.get("url")
+			let image_url = image_obj
+				.get("url")
 				.or_else(|| image_obj.get("src"))
 				.or_else(|| image_obj.get("original"))
 				.or_else(|| image_obj.get("originalUrl"))
 				.and_then(|u| u.as_str());
-			
+
 			if let Some(url) = image_url {
 				let absolute_url = if url.starts_with("http") {
 					url.to_string()
@@ -911,7 +997,7 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 				} else {
 					format!("{}/{}", BASE_URL, url)
 				};
-				
+
 				pages.push(Page {
 					content: PageContent::url(absolute_url),
 					thumbnail: None,
@@ -928,7 +1014,7 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 			} else {
 				format!("{}/{}", BASE_URL, url_str)
 			};
-			
+
 			pages.push(Page {
 				content: PageContent::url(absolute_url),
 				thumbnail: None,
@@ -937,7 +1023,7 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 			});
 		}
 	}
-	
+
 	Ok(pages)
 }
 
@@ -971,7 +1057,10 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 		for tag in tags {
 			let tag_lower = tag.to_lowercase();
 			// Exact match or contains match
-			if tag_lower == genre_lower || tag_lower.contains(&genre_lower) || genre_lower.contains(&tag_lower) {
+			if tag_lower == genre_lower
+				|| tag_lower.contains(&genre_lower)
+				|| genre_lower.contains(&tag_lower)
+			{
 				return true;
 			}
 		}
@@ -997,9 +1086,13 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[Mang
 		"Date d'ajout" => {
 			// Sort by createdAt date (newest first)
 			mangas.sort_by(|a, b| {
-				let a_date = item_map.get(a.key.as_str()).and_then(|item| item.created_at.as_ref());
-				let b_date = item_map.get(b.key.as_str()).and_then(|item| item.created_at.as_ref());
-				
+				let a_date = item_map
+					.get(a.key.as_str())
+					.and_then(|item| item.created_at.as_ref());
+				let b_date = item_map
+					.get(b.key.as_str())
+					.and_then(|item| item.created_at.as_ref());
+
 				match (a_date, b_date) {
 					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
 					(Some(_), None) => Ordering::Less,
@@ -1011,9 +1104,13 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[Mang
 		"Dernière mise à jour" | _ => {
 			// Sort by latestChapterCreatedAt date (newest first) or keep API order
 			mangas.sort_by(|a, b| {
-				let a_date = item_map.get(a.key.as_str()).and_then(|item| item.latest_chapter_created_at.as_ref());
-				let b_date = item_map.get(b.key.as_str()).and_then(|item| item.latest_chapter_created_at.as_ref());
-				
+				let a_date = item_map
+					.get(a.key.as_str())
+					.and_then(|item| item.latest_chapter_created_at.as_ref());
+				let b_date = item_map
+					.get(b.key.as_str())
+					.and_then(|item| item.latest_chapter_created_at.as_ref());
+
 				match (a_date, b_date) {
 					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
 					(Some(_), None) => Ordering::Less,
@@ -1027,7 +1124,7 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[Mang
 
 fn parse_manga_status(status: &str) -> MangaStatus {
 	let status_lower = status.to_lowercase();
-	
+
 	if status_lower.contains("en cours") || status_lower.contains("ongoing") {
 		MangaStatus::Ongoing
 	} else if status_lower.contains("terminé") || status_lower.contains("completed") {
