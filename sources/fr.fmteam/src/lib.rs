@@ -18,6 +18,17 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWe
 
 pub struct FMTeam;
 
+fn add_api_headers(request: Request) -> Request {
+    request
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("Connection", "keep-alive")
+        .header("Origin", BASE_URL)
+        .header("Referer", BASE_URL)
+}
+
 impl Source for FMTeam {
     fn new() -> Self {
         Self
@@ -35,18 +46,11 @@ impl Source for FMTeam {
         // Process filters if needed
         let _ = filters;
         let _ = page; // API doesn't seem to support pagination yet
-        
-        let response = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Connection", "keep-alive")
-            .header("Origin", BASE_URL)
-            .header("Referer", BASE_URL)
+
+        let response = add_api_headers(Request::get(&url)?)
             .string()?;
-        
-        parser::parse_manga_list_json(response, query)
+
+        parser::parse_manga_list_json(&response, query)
     }
 
     fn get_manga_update(
@@ -56,22 +60,15 @@ impl Source for FMTeam {
         needs_chapters: bool,
     ) -> Result<Manga> {
         let url = format!("{}/api/comics/{}", BASE_URL, manga.key);
-        let response = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Connection", "keep-alive")
-            .header("Origin", BASE_URL)
-            .header("Referer", BASE_URL)
+        let response = add_api_headers(Request::get(&url)?)
             .string()?;
-        
+
         if needs_details {
-            manga = parser::parse_manga_details_json(manga, response.clone())?;
+            manga = parser::parse_manga_details_json(manga, &response)?;
         }
-        
+
         if needs_chapters {
-            let chapters = parser::parse_chapter_list_json(&manga.key, response)?;
+            let chapters = parser::parse_chapter_list_json(&manga.key, &response)?;
             manga.chapters = Some(chapters);
         }
         
@@ -81,15 +78,11 @@ impl Source for FMTeam {
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         // Use API approach like PizzaReader: /api + chapter.url
         let api_url = format!("{}/api{}", BASE_URL, chapter.key);
-        
-        let response = Request::get(&api_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
+
+        let response = add_api_headers(Request::get(&api_url)?)
             .string()?;
-        
-        parser::parse_page_list_json(response)
+
+        parser::parse_page_list_json(&response)
     }
 }
 

@@ -8,50 +8,68 @@ use serde_json::Value;
 
 extern crate alloc;
 
+fn parse_manga_status(status: &str) -> MangaStatus {
+    let status_lower = status.to_lowercase();
+    if status_lower.contains("ongoing") || status_lower.contains("en cours") {
+        MangaStatus::Ongoing
+    } else if status_lower.contains("completed") || status_lower.contains("terminé") || status_lower.contains("complet") {
+        MangaStatus::Completed
+    } else if status_lower.contains("cancelled") || status_lower.contains("annulé") {
+        MangaStatus::Cancelled
+    } else if status_lower.contains("hiatus") || status_lower.contains("pause") {
+        MangaStatus::Hiatus
+    } else {
+        MangaStatus::Unknown
+    }
+}
+
 // JSON parsing functions for the API
-pub fn parse_manga_list_json(response: String, search_query: Option<String>) -> Result<MangaPageResult> {
+pub fn parse_manga_list_json(response: &str, search_query: Option<String>) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
-    
-    if let Ok(json) = serde_json::from_str::<Value>(&response) {
-        // L'API retourne {"comics": [...]} donc accéder à la clé comics
-        if let Some(comics_array) = json.get("comics").and_then(|v| v.as_array()) {
-            for comic in comics_array {
-                if let Ok(manga) = parse_single_manga_json(comic) {
-                    mangas.push(manga);
-                } else {
-                    // Si le parsing échoue, créer un manga simple pour tester
-                    if let Some(title) = comic.get("title").and_then(|v| v.as_str()) {
-                        let simple_manga = Manga {
-                            key: comic.get("slug")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or(&title.to_lowercase().replace(" ", "-"))
-                                .to_string(),
-                            cover: comic.get("thumbnail").and_then(|v| v.as_str()).map(|s| {
-                                if s.starts_with("http") {
-                                    s.to_string()
-                                } else {
-                                    format!("{}/{}", super::BASE_URL, s.trim_start_matches('/'))
-                                }
-                            }),
-                            title: title.to_string(),
-                            authors: comic.get("author").and_then(|v| v.as_str()).map(|s| vec![s.to_string()]),
-                            artists: None,
-                            description: comic.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                            tags: None,
-                            status: MangaStatus::Unknown,
-                            content_rating: ContentRating::Safe,
-                            viewer: Viewer::LeftToRight,
-                            chapters: None,
-                            url: Some(format!("{}/comics/{}", super::BASE_URL, 
-                                comic.get("slug").and_then(|v| v.as_str()).unwrap_or("unknown"))),
-                            next_update_time: None,
-                            update_strategy: UpdateStrategy::Always,
-                        };
-                        mangas.push(simple_manga);
+
+    match serde_json::from_str::<Value>(response) {
+        Ok(json) => {
+            // L'API retourne {"comics": [...]} donc accéder à la clé comics
+            if let Some(comics_array) = json.get("comics").and_then(|v| v.as_array()) {
+                for comic in comics_array {
+                    if let Ok(manga) = parse_single_manga_json(comic) {
+                        mangas.push(manga);
+                    } else {
+                        // Si le parsing échoue, créer un manga simple pour tester
+                        if let Some(title) = comic.get("title").and_then(|v| v.as_str()) {
+                            let simple_manga = Manga {
+                                key: comic.get("slug")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(&title.to_lowercase().replace(" ", "-"))
+                                    .to_string(),
+                                cover: comic.get("thumbnail").and_then(|v| v.as_str()).map(|s| {
+                                    if s.starts_with("http") {
+                                        s.to_string()
+                                    } else {
+                                        format!("{}/{}", super::BASE_URL, s.trim_start_matches('/'))
+                                    }
+                                }),
+                                title: title.to_string(),
+                                authors: comic.get("author").and_then(|v| v.as_str()).map(|s| vec![s.to_string()]),
+                                artists: None,
+                                description: comic.get("description").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                tags: None,
+                                status: MangaStatus::Unknown,
+                                content_rating: ContentRating::Safe,
+                                viewer: Viewer::LeftToRight,
+                                chapters: None,
+                                url: Some(format!("{}/comics/{}", super::BASE_URL,
+                                    comic.get("slug").and_then(|v| v.as_str()).unwrap_or("unknown"))),
+                                next_update_time: None,
+                                update_strategy: UpdateStrategy::Always,
+                            };
+                            mangas.push(simple_manga);
+                        }
                     }
                 }
             }
         }
+        Err(_) => {}
     }
     
     // Filter results client-side if search query provided
@@ -99,28 +117,27 @@ pub fn parse_manga_list_json(response: String, search_query: Option<String>) -> 
 }
 
 
-pub fn parse_manga_details_json(mut manga: Manga, response: String) -> Result<Manga> {
-    if let Ok(json) = serde_json::from_str::<Value>(&response) {
+pub fn parse_manga_details_json(mut manga: Manga, response: &str) -> Result<Manga> {
+    if let Ok(json) = serde_json::from_str::<Value>(response) {
         if let Some(comic) = json.get("comic") {
             manga = update_manga_from_json(manga, comic)?;
         } else {
-            // If no nested "comic", try direct access
             manga = update_manga_from_json(manga, &json)?;
         }
     }
     Ok(manga)
 }
 
-pub fn parse_chapter_list_json(manga_key: &str, response: String) -> Result<Vec<Chapter>> {
+pub fn parse_chapter_list_json(manga_key: &str, response: &str) -> Result<Vec<Chapter>> {
     let mut chapters: Vec<Chapter> = Vec::new();
-    
-    if let Ok(json) = serde_json::from_str::<Value>(&response) {
+
+    if let Ok(json) = serde_json::from_str::<Value>(response) {
         let comic = if let Some(comic) = json.get("comic") {
             comic
         } else {
             &json
         };
-        
+
         if let Some(chapters_array) = comic.get("chapters").and_then(|c| c.as_array()) {
             for chapter in chapters_array {
                 if let Ok(ch) = parse_single_chapter_json(manga_key, chapter) {
@@ -128,34 +145,31 @@ pub fn parse_chapter_list_json(manga_key: &str, response: String) -> Result<Vec<
                 }
             }
         }
+
+        chapters.sort_by(|a, b| {
+            let a_num = a.chapter_number.unwrap_or(0.0);
+            let b_num = b.chapter_number.unwrap_or(0.0);
+            b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+        });
     }
-    
-    // Sort chapters by number (descending - newest first)
-    chapters.sort_by(|a, b| {
-        let a_num = a.chapter_number.unwrap_or(0.0);
-        let b_num = b.chapter_number.unwrap_or(0.0);
-        b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
-    });
-    
+
     Ok(chapters)
 }
 
-pub fn parse_page_list_json(response: String) -> Result<Vec<Page>> {
+pub fn parse_page_list_json(response: &str) -> Result<Vec<Page>> {
     let mut pages: Vec<Page> = Vec::new();
-    
-    if let Ok(json) = serde_json::from_str::<Value>(&response) {
-        // Follow PizzaReader structure: result.chapter.pages
+
+    if let Ok(json) = serde_json::from_str::<Value>(response) {
         if let Some(chapter) = json.get("chapter") {
             if let Some(pages_array) = chapter.get("pages").and_then(|p| p.as_array()) {
                 for (_i, page) in pages_array.iter().enumerate() {
                     if let Some(url_str) = page.as_str() {
-                        // URLs should be complete from API like PizzaReader
                         let full_url = if url_str.starts_with("http") {
                             url_str.to_string()
                         } else {
                             format!("{}{}", super::BASE_URL, url_str)
                         };
-                        
+
                         pages.push(Page {
                             content: PageContent::url(full_url),
                             thumbnail: None,
@@ -167,7 +181,7 @@ pub fn parse_page_list_json(response: String) -> Result<Vec<Page>> {
             }
         }
     }
-    
+
     Ok(pages)
 }
 
@@ -197,20 +211,7 @@ fn parse_single_manga_json(comic: &Value) -> Result<Manga> {
     
     let status = comic.get("status")
         .and_then(|v| v.as_str())
-        .map(|s| {
-            let s_lower = s.to_lowercase();
-            if s_lower.contains("ongoing") || s_lower.contains("en cours") {
-                MangaStatus::Ongoing
-            } else if s_lower.contains("completed") || s_lower.contains("terminé") || s_lower.contains("complet") {
-                MangaStatus::Completed
-            } else if s_lower.contains("cancelled") || s_lower.contains("annulé") {
-                MangaStatus::Cancelled
-            } else if s_lower.contains("hiatus") || s_lower.contains("pause") {
-                MangaStatus::Hiatus
-            } else {
-                MangaStatus::Unknown
-            }
-        })
+        .map(parse_manga_status)
         .unwrap_or(MangaStatus::Unknown);
     
     let description = comic.get("description")
