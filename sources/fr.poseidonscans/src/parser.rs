@@ -9,6 +9,10 @@ use core::cmp::Ordering;
 use serde_json;
 use crate::BASE_URL;
 
+const PAGE_SIZE: i32 = 20;
+const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
+const CHAPTER_PREFIX_LEN: usize = 9;
+
 // Serde structures for Poseidon Scans API responses
 
 #[derive(Deserialize, Debug)]
@@ -190,10 +194,9 @@ pub fn parse_manga_list(
 		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
 	}
 
-	// Client-side pagination (20 items per page)
-	let page_size = 20;
-	let start_index = ((page - 1) * page_size) as usize;
-	let end_index = (start_index + page_size as usize).min(all_mangas.len());
+	// Client-side pagination
+	let start_index = ((page - 1) * PAGE_SIZE) as usize;
+	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
 	
 	let paginated_mangas = if start_index < all_mangas.len() {
 		all_mangas[start_index..end_index].to_vec()
@@ -346,8 +349,8 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 	
 	// Extract status from HTML and add as tag
-	let mut _status_found = false;
-	
+	let mut status_found = false;
+
 	// Method 1: Look for status paragraph with "Status:" text
 	if let Some(status_elements) = html.select("p") {
 		for status_element in status_elements {
@@ -357,7 +360,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 						let status_str = status_text.replace("Status:", "").trim().to_string();
 						if !status_str.is_empty() {
 							status = parse_manga_status(&status_str);
-							_status_found = true;
+							status_found = true;
 							break;
 						}
 					}
@@ -367,14 +370,14 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 	
 	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en pause)
-	if !_status_found {
+	if !status_found {
 		if let Some(status_spans) = html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20") {
 			for status_span in status_spans {
 				if let Some(status_text) = status_span.text() {
 					let status_str = status_text.trim().to_string();
 					if status_str == "en cours" || status_str == "terminé" || status_str == "en pause" {
 						status = parse_manga_status(&status_str);
-						_status_found = true;
+						status_found = true;
 						break;
 					}
 				}
@@ -383,7 +386,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 	
 	// Fallback: look for any span with status-like content
-	if !_status_found {
+	if !status_found {
 		if let Some(status_spans) = html.select("span") {
 			for status_span in status_spans {
 				if let Some(status_text) = status_span.text() {
@@ -1043,7 +1046,7 @@ fn parse_manga_status(status: &str) -> MangaStatus {
 fn extract_chapter_id_from_url(url: &str) -> Option<String> {
 	// Extract chapter ID from URL pattern like "/serie/manga-slug/chapter/123"
 	if let Some(chapter_pos) = url.find("/chapter/") {
-		let after_chapter = &url[chapter_pos + 9..]; // 9 = len("/chapter/")
+		let after_chapter = &url[chapter_pos + CHAPTER_PREFIX_LEN..];
 		if let Some(end_pos) = after_chapter.find('?').or_else(|| after_chapter.find('#')) {
 			Some(after_chapter[..end_pos].to_string())
 		} else {
