@@ -66,27 +66,16 @@ impl Source for PoseidonScans {
         
         // Fetch all manga and apply client-side filtering
         let url = format!("{}/manga/all", API_URL);
-        let response = Request::get(&url)?
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Referer", BASE_URL)
-            .header("Origin", BASE_URL)
-            .string()?;
+        let response = helper::build_api_request(&url)?.string()?;
         let search_query = query.unwrap_or_else(|| String::new());
         // Parse with new serde-based parser including all filters
         parser::parse_manga_list(response, search_query, status_filter, type_filter, genre_filter, sort_filter, page)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        let url = format!("{}/serie/{}", BASE_URL, manga.key);
-        let html = Request::get(&url)?
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let encoded_key = helper::urlencode(manga.key.clone());
+        let url = format!("{}/serie/{}", BASE_URL, encoded_key);
+        let html = helper::build_html_request(&url)?.html()?;
             
         if needs_chapters {
             // Parse both details and chapters from the same HTML
@@ -101,13 +90,10 @@ impl Source for PoseidonScans {
 
 
     fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        let url = format!("{}/serie/{}/chapter/{}", BASE_URL, manga.key, chapter.key);
-        let html = Request::get(&url)?
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let encoded_manga_key = helper::urlencode(manga.key);
+        let encoded_chapter_key = helper::urlencode(chapter.key);
+        let url = format!("{}/serie/{}/chapter/{}", BASE_URL, encoded_manga_key, encoded_chapter_key);
+        let html = helper::build_html_request(&url)?.html()?;
         parser::parse_page_list(&html, url)
     }
 
@@ -118,15 +104,7 @@ impl ListingProvider for PoseidonScans {
         match listing.name.as_str() {
             "Dernières Sorties" => {
                 let url = format!("{}/manga/lastchapters?page={}&limit=20", API_URL, page);
-                let response = Request::get(&url)?
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .header("Accept", "application/json, text/plain, */*")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Accept-Encoding", "gzip, deflate, br")
-                    .header("Referer", BASE_URL)
-                    .header("Origin", BASE_URL)
-                    .string()?;
-
+                let response = helper::build_api_request(&url)?.string()?;
                 parser::parse_latest_manga(response)
             },
             "Populaire" => {
@@ -139,15 +117,7 @@ impl ListingProvider for PoseidonScans {
                 }
 
                 let url = format!("{}/manga/popular", API_URL);
-                let response = Request::get(&url)?
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .header("Accept", "application/json, text/plain, */*")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Accept-Encoding", "gzip, deflate, br")
-                    .header("Referer", BASE_URL)
-                    .header("Origin", BASE_URL)
-                    .string()?;
-
+                let response = helper::build_api_request(&url)?.string()?;
                 parser::parse_popular_manga(response)
             },
             _ => {
