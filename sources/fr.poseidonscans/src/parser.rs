@@ -593,10 +593,8 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 				format!("{}", chapter_number)
 			};
 
-			// Skip if this chapter is premium (using the pre-computed set)
-			if premium_chapter_ids.contains(&chapter_id) {
-				continue;
-			}
+			// Check if this chapter is premium (using the pre-computed set)
+			let is_locked = premium_chapter_ids.contains(&chapter_id);
 
 			chapters.push(Chapter {
 				key: chapter_id,
@@ -608,7 +606,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 				url: Some(url),
 				language: Some("fr".to_string()),
 				thumbnail: None,
-				locked: false,
+				locked: is_locked,
 			});
 		}
 	}

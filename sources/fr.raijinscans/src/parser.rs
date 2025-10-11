@@ -199,12 +199,12 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 
 	if let Some(items) = html.select("ul.scroll-sm li.item") {
 		for item in items {
-			// Skip premium chapters
-			if let Some(class) = item.attr("class") {
-				if class.contains("premium-chapter") {
-					continue;
-				}
-			}
+			// Check if premium chapter
+			let is_locked = if let Some(class) = item.attr("class") {
+				class.contains("premium-chapter")
+			} else {
+				false
+			};
 
 			let link = if let Some(links) = item.select("a") {
 				if let Some(l) = links.first() {
@@ -261,7 +261,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				scanlators: None,
 				language: Some(String::from("fr")),
 				thumbnail: None,
-				locked: false,
+				locked: is_locked,
 			});
 		}
 	}
