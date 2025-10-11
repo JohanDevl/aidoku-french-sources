@@ -523,7 +523,9 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 										// Second element is the JSON string
 										if let Some(json_str) = arr[1].as_str() {
 											println!("[PoseidonScans] Extracted JSON string from push, length: {} chars", json_str.len());
-											println!("[PoseidonScans] JSON preview: {}", &json_str[..json_str.len().min(300)]);
+											// Safe preview handling UTF-8 boundaries
+											let preview_len = json_str.char_indices().take(200).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(0);
+											println!("[PoseidonScans] JSON preview: {}", &json_str[..preview_len]);
 
 											// Now look for chapters array with isPremium in this JSON string
 											// The string contains escaped JSON, so we need to parse it
