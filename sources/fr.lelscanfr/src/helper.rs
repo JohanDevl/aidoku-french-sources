@@ -1,4 +1,13 @@
 use aidoku::alloc::{String, Vec, format};
+use aidoku::imports::html::Document;
+
+const MAX_PAGINATION_PAGES: i32 = 150;
+const MIN_PAGINATION_VALUE: i32 = 2;
+const MAX_PAGINATION_VALUE: i32 = 200;
+const MAX_VISIBLE_PAGES: i32 = 20;
+const MAX_ESTIMATED_PAGES: i32 = 100;
+const PAGE_MULTIPLIER: i32 = 3;
+const DEFAULT_ELLIPSIS_ESTIMATE: i32 = 25;
 
 pub fn urlencode(string: String) -> String {
 	let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
@@ -40,7 +49,11 @@ pub fn extract_id_from_url(url: &str) -> String {
 
 pub fn make_absolute_url(base_url: &str, url: &str) -> String {
     if url.starts_with("http") {
-        String::from(url)
+        if url.starts_with("https://lelscanfr.com") || url.starts_with("http://lelscanfr.com") {
+            String::from(url)
+        } else {
+            String::new()
+        }
     } else if url.starts_with("/") {
         format!("{}{}", base_url, url)
     } else {
@@ -53,14 +66,13 @@ pub fn extract_pagination_total(text: &str) -> Option<i32> {
     if let Some(of_pos) = text.find(" of ") {
         let after_of = &text[of_pos + 4..];
         if let Some(first_number) = after_of.split_whitespace().next() {
-            // Remove any non-digit characters at the end (like punctuation)
             let clean_number: String = first_number
                 .chars()
                 .take_while(|c| c.is_ascii_digit())
                 .collect();
-            
+
             if let Ok(pages) = clean_number.parse::<i32>() {
-                if pages > 1 && pages <= 200 {
+                if pages >= MIN_PAGINATION_VALUE && pages <= MAX_PAGINATION_VALUE {
                     return Some(pages);
                 }
             }
@@ -77,53 +89,134 @@ pub fn extract_pagination_total(text: &str) -> Option<i32> {
                 .collect();
             
             if let Ok(pages) = clean_number.parse::<i32>() {
-                if pages > 1 && pages <= 200 {
+                if pages >= MIN_PAGINATION_VALUE && pages <= MAX_PAGINATION_VALUE {
                     return Some(pages);
                 }
             }
         }
     }
-    
+
     // Method 3: Find highest reasonable number (likely max page)
     let numbers: Vec<i32> = text
         .split_whitespace()
         .filter_map(|word| {
-            // Clean word of common punctuation
             let clean_word: String = word
                 .chars()
                 .filter(|c| c.is_ascii_digit())
                 .collect();
             clean_word.parse::<i32>().ok()
         })
-        .filter(|&n| n > 1 && n <= 200) // Expanded page range for large manga
+        .filter(|&n| n >= MIN_PAGINATION_VALUE && n <= MAX_PAGINATION_VALUE)
         .collect();
-    
+
     if !numbers.is_empty() {
         if let Some(&max_num) = numbers.iter().max() {
-            // Accept higher pagination numbers for manga with many chapters
-            if max_num >= 2 && max_num <= 150 {
+            if max_num >= MIN_PAGINATION_VALUE && max_num <= MAX_PAGINATION_PAGES {
                 return Some(max_num);
             }
         }
     }
     
-    // Method 4: Check for ellipsis indicating more pages - be more aggressive
+    // Method 4: Check for ellipsis indicating more pages
     if text.contains("…") || text.contains("...") {
-        // When ellipsis is present, assume there are many more pages
-        // Look for any existing numbers and multiply, or use conservative estimate
         let existing_numbers: Vec<i32> = text
             .split_whitespace()
             .filter_map(|s| s.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse().ok())
-            .filter(|&n| n > 1 && n <= 20)
+            .filter(|&n| n >= MIN_PAGINATION_VALUE && n <= MAX_VISIBLE_PAGES)
             .collect();
-        
+
         if let Some(&max_visible) = existing_numbers.iter().max() {
-            return Some((max_visible * 3).min(100)); // Estimate there could be 3x more pages
+            return Some((max_visible * PAGE_MULTIPLIER).min(MAX_ESTIMATED_PAGES));
         } else {
-            return Some(25); // More aggressive estimate when ellipsis is present
+            return Some(DEFAULT_ELLIPSIS_ESTIMATE);
         }
     }
     
     None
+}
+
+pub fn detect_pagination(html: &Document) -> i32 {
+    let mut total_pages = 1;
+
+    let pagination_containers = [".pagination", ".page-numbers", ".pages", "nav"];
+    for selector in pagination_containers {
+        if let Some(pagination_element) = html.select(selector) {
+            if let Some(text) = pagination_element.text() {
+                if let Some(total) = extract_pagination_total(&text) {
+                    total_pages = total;
+                    break;
+                }
+            }
+        }
+    }
+
+    if total_pages == 1 {
+        let limited_selectors = [".pagination-info", ".page-info", ".pagination-text"];
+        for selector in limited_selectors {
+            if let Some(element) = html.select(selector) {
+                if let Some(text) = element.text() {
+                    if let Some(total) = extract_pagination_total(&text) {
+                        total_pages = total;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if total_pages == 1 {
+        if let Some(body) = html.select("body") {
+            let body_text = body.text().unwrap_or_default();
+            if let Some(total) = extract_pagination_total(&body_text) {
+                total_pages = total;
+            }
+        }
+    }
+
+    if total_pages > MAX_PAGINATION_PAGES {
+        total_pages = MAX_PAGINATION_PAGES;
+    }
+
+    total_pages
+}
+
+pub fn has_next_page(html: &Document) -> bool {
+    if let Some(pagination_elements) = html.select("div, span, p") {
+        for elem in pagination_elements {
+            if let Some(text) = elem.text() {
+                if text.contains("Page ") && text.contains(" of ") {
+                    if let Some(of_pos) = text.find(" of ") {
+                        let after_of = &text[of_pos + 4..].trim();
+                        if let Some(total_pages_str) = after_of.split_whitespace().next() {
+                            if let Ok(total_pages) = total_pages_str.parse::<i32>() {
+                                if let Some(page_start) = text.find("Page ") {
+                                    let after_page = &text[page_start + 5..of_pos];
+                                    if let Ok(current_page) = after_page.trim().parse::<i32>() {
+                                        return current_page < total_pages;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let pagination_selectors = [".pagination", ".page-numbers", ".pages"];
+    for selector in pagination_selectors {
+        if let Some(pagination) = html.select(selector) {
+            if let Some(first_pagination) = pagination.first() {
+                if let Some(pagination_text) = first_pagination.text() {
+                    if pagination_text.contains("…") || pagination_text.contains("...") {
+                        return true;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    false
 }
 

@@ -17,6 +17,8 @@ mod helper;
 pub static BASE_URL: &str = "https://lelscanfr.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
+const MAX_PAGINATION_PAGES: i32 = 150;
+
 pub struct LelscanFr;
 
 impl Source for LelscanFr {
@@ -30,6 +32,8 @@ impl Source for LelscanFr {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
+        let page = page.max(1).min(MAX_PAGINATION_PAGES);
+
         let mut query_params = String::new();
         
         // Add search query if provided
@@ -90,37 +94,7 @@ impl Source for LelscanFr {
         
         for genre in &selected_genres {
             if !genre.is_empty() {
-                // Encode the genre name properly for URL
-                let encoded_genre = genre.replace(" ", "+")
-                    .replace("é", "%C3%A9")
-                    .replace("è", "%C3%A8")
-                    .replace("à", "%C3%A0")
-                    .replace("ç", "%C3%A7")
-                    .replace("ô", "%C3%B4")
-                    .replace("â", "%C3%A2")
-                    .replace("ê", "%C3%AA")
-                    .replace("î", "%C3%AE")
-                    .replace("ù", "%C3%B9")
-                    .replace("û", "%C3%BB")
-                    .replace("ï", "%C3%AF")
-                    .replace("ë", "%C3%AB")
-                    .replace("ü", "%C3%BC")
-                    .replace("ö", "%C3%B6")
-                    .replace("É", "%C3%89")
-                    .replace("È", "%C3%88")
-                    .replace("À", "%C3%80")
-                    .replace("Ç", "%C3%87")
-                    .replace("Ô", "%C3%94")
-                    .replace("Â", "%C3%82")
-                    .replace("Ê", "%C3%8A")
-                    .replace("Î", "%C3%8E")
-                    .replace("Ù", "%C3%99")
-                    .replace("Û", "%C3%9B")
-                    .replace("Ï", "%C3%8F")
-                    .replace("Ë", "%C3%8B")
-                    .replace("Ü", "%C3%9C")
-                    .replace("Ö", "%C3%96")
-                    .replace("-", "%2D");
+                let encoded_genre = helper::urlencode(genre.clone());
                 query_params.push_str(&format!("&genre%5B%5D={}", encoded_genre));
             }
         }
@@ -154,109 +128,7 @@ impl Source for LelscanFr {
         }
         
         if needs_chapters {
-            let mut total_pages = 1;
-            
-            // Optimized pagination detection - target specific elements first
-            // Method 1: Look for pagination containers
-            let pagination_containers = [".pagination", ".page-numbers", ".pages", "nav"];
-            for selector in pagination_containers {
-                if let Some(pagination_element) = html.select(selector) {
-                    if let Some(text) = pagination_element.text() {
-                        // Look for "Page X of Y" pattern with regex-like logic
-                        if let Some(total) = helper::extract_pagination_total(&text) {
-                            total_pages = total;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Method 2: If no pagination container found, check common patterns
-            if total_pages == 1 {
-                // Look for "Page X of Y" in more limited scope
-                let limited_selectors = [".pagination-info", ".page-info", ".pagination-text"];
-                for selector in limited_selectors {
-                    if let Some(element) = html.select(selector) {
-                        if let Some(text) = element.text() {
-                            if let Some(total) = helper::extract_pagination_total(&text) {
-                                total_pages = total;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Method 3: Fallback - scan body text for pagination patterns
-            if total_pages == 1 {
-                if let Some(body) = html.select("body") {
-                    let body_text = body.text().unwrap_or_default();
-                    if let Some(total) = helper::extract_pagination_total(&body_text) {
-                        total_pages = total;
-                    }
-                }
-            }
-            
-            // Method 3.5: RESTORE original aggressive pagination detection that found hidden pages!
-            if total_pages <= 6 { // Even if we found 6, look for more!
-                // Use the EXACT original logic that worked
-                let pagination_selectors = ["div", "span", "p", ".pagination", ".page-numbers", ".pages", "nav"];
-                for selector in pagination_selectors {
-                    if let Some(elements) = html.select(selector) {
-                        for elem in elements {
-                            if let Some(text) = elem.text() {
-                                // Look for numbered page links - ORIGINAL LOGIC
-                                let numbers: Vec<i32> = text
-                                    .split_whitespace()
-                                    .filter_map(|s| s.parse().ok())
-                                    .filter(|&n| n > 1 && n < 150) // Expanded range
-                                    .collect();
-                                
-                                if !numbers.is_empty() {
-                                    let max_num = *numbers.iter().max().unwrap_or(&1);
-                                    if max_num > total_pages {
-                                        total_pages = max_num; // THIS IS KEY - could find page 25, 50, etc!
-                                    }
-                                }
-                                
-                                // Also check for ellipsis - ORIGINAL LOGIC
-                                if text.contains("…") || text.contains("...") {
-                                    // If there's ellipsis, there are definitely more pages
-                                    let estimated_pages = if !numbers.is_empty() {
-                                        let max_visible = *numbers.iter().max().unwrap_or(&6);
-                                        (max_visible * 3).min(100) // Estimate 3x more pages beyond visible
-                                    } else {
-                                        25 // Conservative estimate with ellipsis
-                                    };
-                                    if estimated_pages > total_pages {
-                                        total_pages = estimated_pages;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Method 4: Heuristic fallback based on chapter count
-            if total_pages == 1 {
-                // Make a quick check for many chapters without parsing all
-                if let Some(chapter_links) = html.select("a[href*=\"/manga/\"]") {
-                    let mut chapter_count = 0;
-                    for _link in chapter_links {
-                        chapter_count += 1;
-                        if chapter_count >= 20 {
-                            total_pages = 5; // Conservative estimate for manga with many chapters
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Safety limit to prevent infinite loops - increased for manga with many chapters
-            if total_pages > 150 {
-                total_pages = 150;
-            }
+            let total_pages = helper::detect_pagination(&html);
             
             // Fetch all chapter pages with optimized batching approach
             let mut all_chapters: Vec<Chapter> = Vec::new();
@@ -306,6 +178,8 @@ impl Source for LelscanFr {
 
 impl ListingProvider for LelscanFr {
     fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
+        let page = page.max(1).min(MAX_PAGINATION_PAGES);
+
         let url = format!("{}/manga?page={}", BASE_URL, page);
         
         let html = Request::get(&url)?
