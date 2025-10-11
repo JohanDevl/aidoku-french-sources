@@ -17,6 +17,8 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac 
 pub struct MangaScantrad;
 
 impl MangaScantrad {
+    const POSTS_PER_PAGE: i32 = 20;
+    const MIN_ENTRIES_FOR_PAGINATION: usize = 8;
 }
 
 impl Source for MangaScantrad {
@@ -132,7 +134,7 @@ impl MangaScantrad {
             match c {
                 'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
                 ' ' => "%20".to_string(),
-                _ => format!("%{:02X}", c as u8)
+                _ => c.to_string().bytes().map(|b| format!("%{:02X}", b)).collect()
             }
         }).collect()
     }
@@ -258,17 +260,8 @@ impl MangaScantrad {
             .body(body.as_bytes())
             .html()?;
         
-        
-        let result = self.parse_ajax_response(html_doc);
-        
-        match &result {
-            Ok(_manga_result) => {
-            }
-            Err(_e) => {
-            }
-        }
-        
-        result
+
+        self.parse_ajax_response(html_doc)
     }
     
     
@@ -301,27 +294,14 @@ impl MangaScantrad {
             .body(body_content.as_bytes())
             .html()?;
         
-        
-        // Parse the response (should contain the chapter HTML fragment)
-        match self.parse_ajax_chapters_response(ajax_doc) {
-            Ok(chapters) => {
-                if !chapters.is_empty() {
-                    return Ok(chapters);
-                } else {
-                }
-            }
-            Err(_e) => {
-            }
-        }
-        
-        // Fallback: try to parse from main page
-        if let Ok(chapters) = self.parse_chapter_list(&manga_page_doc) {
+
+        if let Ok(chapters) = self.parse_ajax_chapters_response(ajax_doc) {
             if !chapters.is_empty() {
                 return Ok(chapters);
             }
         }
-        
-        Ok(vec![])
+
+        self.parse_chapter_list(&manga_page_doc)
     }
     
     fn extract_manga_int_id(&self, html: &Document) -> Result<String> {
@@ -404,10 +384,10 @@ impl MangaScantrad {
         
         // Years since epoch
         let years_since_epoch = year - 1970;
-        
-        // Count leap years between 1970 and year (not including current year)
-        let leap_days = ((1970..year).filter(|&y| (y % 4 == 0 && y % 100 != 0) || y % 400 == 0).count()) as i32;
-        
+
+        // Count leap years between 1970 and year using O(1) formula
+        let leap_days = (year - 1) / 4 - (year - 1) / 100 + (year - 1) / 400 - 477;
+
         // Days for complete years
         let mut days = years_since_epoch * 365 + leap_days;
         
@@ -429,30 +409,6 @@ impl MangaScantrad {
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
         let mut chapters: Vec<Chapter> = Vec::new();
 
-        // Debug: Print the raw HTML response to see what we're actually getting
-        if let Some(body) = html.select("body") {
-            if let Some(first) = body.first() {
-                let html_text = first.text().unwrap_or_default();
-                
-                // Check if response contains expected chapter content
-                if html_text.contains("Chapitre") {
-                } else {
-                }
-            }
-        }
-
-        // Debug: Try finding any li elements first
-        if let Some(all_li) = html.select("li") {
-            let li_vec: Vec<_> = all_li.collect();
-            
-            // Show first few li elements
-            for (_idx, li) in li_vec.iter().enumerate().take(5) {
-                let _class = li.attr("class").unwrap_or_default();
-                let _text = li.text().unwrap_or_default();
-            }
-        }
-
-        // Use the exact structure from the AJAX response we analyzed
         if let Some(chapter_items) = html.select("li.wp-manga-chapter") {
             let items_vec: Vec<_> = chapter_items.collect();
             
@@ -508,12 +464,6 @@ impl MangaScantrad {
                         format!("{}/{}", BASE_URL, href)
                     };
 
-                    let _date_debug = if let Some(ts) = date_uploaded {
-                        format!("timestamp={}", ts)
-                    } else {
-                        "no_date".to_string()
-                    };
-
                     chapters.push(Chapter {
                         key: chapter_key,
                         title: Some(title),
@@ -528,7 +478,6 @@ impl MangaScantrad {
                     });
                 }
             }
-        } else {
         }
 
         Ok(chapters)
@@ -664,7 +613,7 @@ impl MangaScantrad {
         
         // Pagination logic: if we got any results, assume there might be more
         // Madara typically returns 10-12 items per page, so we check if we got a reasonable amount
-        let has_next_page = entries.len() >= 8; // Conservative threshold
+        let has_next_page = entries.len() >= Self::MIN_ENTRIES_FOR_PAGINATION;
         
         Ok(MangaPageResult {
             entries,
