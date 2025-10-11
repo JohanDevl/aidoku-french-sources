@@ -42,6 +42,7 @@ src/rust/
 # Temporary files
 response.html
 data.json
+data_*.json
 *.tmp
 *.log
 

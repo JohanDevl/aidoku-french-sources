@@ -491,22 +491,29 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 }
 
 // Parse ISO 8601 date string to Unix timestamp
-// Format: "2025-10-11T13:49:51.543Z"
+// Format: "2025-10-11T13:49:51.543Z" or "$D2025-10-11T13:49:51.543Z"
 fn parse_iso_date(date_str: &str) -> Option<i64> {
 	// Parse the date string manually to avoid dependencies
-	// Format: YYYY-MM-DDTHH:MM:SS.sssZ
+	// Format: YYYY-MM-DDTHH:MM:SS.sssZ (may have $D prefix)
 
-	if date_str.len() < 19 {
+	// Remove $D prefix if present
+	let clean_date_str = if date_str.starts_with("$D") {
+		&date_str[2..]
+	} else {
+		date_str
+	};
+
+	if clean_date_str.len() < 19 {
 		return None;
 	}
 
 	// Extract components
-	let year: i32 = date_str.get(0..4)?.parse().ok()?;
-	let month: i32 = date_str.get(5..7)?.parse().ok()?;
-	let day: i32 = date_str.get(8..10)?.parse().ok()?;
-	let hour: i32 = date_str.get(11..13)?.parse().ok()?;
-	let minute: i32 = date_str.get(14..16)?.parse().ok()?;
-	let second: i32 = date_str.get(17..19)?.parse().ok()?;
+	let year: i32 = clean_date_str.get(0..4)?.parse().ok()?;
+	let month: i32 = clean_date_str.get(5..7)?.parse().ok()?;
+	let day: i32 = clean_date_str.get(8..10)?.parse().ok()?;
+	let hour: i32 = clean_date_str.get(11..13)?.parse().ok()?;
+	let minute: i32 = clean_date_str.get(14..16)?.parse().ok()?;
+	let second: i32 = clean_date_str.get(17..19)?.parse().ok()?;
 
 	// Calculate Unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
 	// Using simplified algorithm for dates after 1970
@@ -673,9 +680,16 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 																let chapter_title = format!("Chapitre {}", ch_num);
 
+																// Use chapter number for URL instead of internal ID
+																let url_chapter_part = if ch_num == (ch_num as i32) as f32 {
+																	format!("{}", ch_num as i32)
+																} else {
+																	format!("{}", ch_num)
+																};
+
 																let url = format!(
 																	"{}/serie/{}/chapter/{}",
-																	BASE_URL, manga_key, chapter_id
+																	BASE_URL, manga_key, url_chapter_part
 																);
 
 																println!("[PoseidonScans] Generated URL for chapter {}: {}", ch_num, url);
