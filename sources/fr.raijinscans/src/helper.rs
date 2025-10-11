@@ -92,6 +92,21 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
     None
 }
 
+pub fn validate_image_url(url: &str) -> bool {
+    if url.is_empty() {
+        return false;
+    }
+
+    if url.starts_with("javascript:")
+        || url.starts_with("data:")
+        || url.starts_with("file:")
+        || url.starts_with("vbscript:") {
+        return false;
+    }
+
+    url.starts_with("http://") || url.starts_with("https://") || url.starts_with("//") || url.starts_with('/')
+}
+
 pub fn make_absolute_url(base: &str, url: &str) -> String {
     if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()

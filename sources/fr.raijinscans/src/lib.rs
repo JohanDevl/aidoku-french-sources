@@ -95,29 +95,12 @@ impl Source for RaijinScans {
             format!("{}/page/{}/?post_type=wp-manga&s={}&sort={}", BASE_URL, page, encoded_query, sort_filter)
         };
 
-        for genre in genre_filters {
-            url.push_str(&format!("&genre%5B%5D={}", genre));
-        }
-        for status in status_filters {
-            url.push_str(&format!("&status%5B%5D={}", status));
-        }
-        for type_val in type_filters {
-            url.push_str(&format!("&type%5B%5D={}", type_val));
-        }
-        for release in release_filters {
-            url.push_str(&format!("&release%5B%5D={}", release));
-        }
+        Self::append_filter_params(&mut url, &genre_filters, "genre");
+        Self::append_filter_params(&mut url, &status_filters, "status");
+        Self::append_filter_params(&mut url, &type_filters, "type");
+        Self::append_filter_params(&mut url, &release_filters, "release");
 
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = Self::create_html_request(&url)?;
 
         let mangas = self.parse_search_results(&html);
         let has_more = has_next_page(&html);
@@ -138,16 +121,7 @@ impl Source for RaijinScans {
                 manga.key.clone()
             };
 
-            let html = Request::get(&manga_url)?
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
-                .header("Upgrade-Insecure-Requests", "1")
-                .header("Referer", BASE_URL)
-                .html()?;
+            let html = Self::create_html_request(&manga_url)?;
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
@@ -168,16 +142,7 @@ impl Source for RaijinScans {
             chapter.key.clone()
         };
 
-        let html = Request::get(&chapter_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = Self::create_html_request(&chapter_url)?;
 
         Ok(parse_page_list(&html))
     }
@@ -203,73 +168,8 @@ impl ImageRequestProvider for RaijinScans {
 }
 
 impl RaijinScans {
-    fn parse_search_results(&self, html: &Document) -> Vec<Manga> {
-        let mut mangas = Vec::new();
-
-        if let Some(items) = html.select("div.unit") {
-            for item in items {
-                let link = if let Some(links) = item.select("div.info a") {
-                    if let Some(l) = links.first() {
-                        l
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                };
-
-                let url = link.attr("href").unwrap_or_default();
-                let title = link.text().unwrap_or_default();
-
-                if url.is_empty() || title.is_empty() {
-                    continue;
-                }
-
-                let key = url.clone();
-
-                let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img") {
-                    if let Some(img) = imgs.first() {
-                        let cover_url = img.attr("src")
-                            .or_else(|| img.attr("data-src"))
-                            .or_else(|| img.attr("data-lazy-src"))
-                            .unwrap_or_default();
-
-                        if !cover_url.is_empty() {
-                            Some(helper::make_absolute_url(BASE_URL, &cover_url))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-                mangas.push(Manga {
-                    key: key.clone(),
-                    cover,
-                    title,
-                    authors: None,
-                    artists: None,
-                    description: None,
-                    tags: None,
-                    status: aidoku::MangaStatus::Unknown,
-                    content_rating: aidoku::ContentRating::Safe,
-                    viewer: aidoku::Viewer::LeftToRight,
-                    chapters: None,
-                    url: Some(helper::make_absolute_url(BASE_URL, &url)),
-                    next_update_time: None,
-                    update_strategy: aidoku::UpdateStrategy::Always,
-                });
-            }
-        }
-
-        mangas
-    }
-
-    fn get_popular_manga(&self, _page: i32) -> Result<MangaPageResult> {
-        let html = Request::get(BASE_URL)?
+    fn create_html_request(url: &str) -> Result<Document> {
+        Ok(Request::get(url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
@@ -278,66 +178,86 @@ impl RaijinScans {
             .header("Connection", "keep-alive")
             .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
-            .html()?;
+            .html()?)
+    }
+
+    fn append_filter_params(url: &mut String, filters: &[String], param_name: &str) {
+        for filter in filters {
+            url.push_str(&format!("&{}%5B%5D={}", param_name, filter));
+        }
+    }
+
+    fn parse_manga_item(item: &aidoku::imports::html::Element, link_selector: &str, img_selector: &str) -> Option<Manga> {
+        let link = item.select(link_selector)?.first()?;
+
+        let url = link.attr("href").unwrap_or_default();
+        let title = link.text().unwrap_or_default();
+
+        if url.is_empty() || title.is_empty() {
+            return None;
+        }
+
+        let cover = if let Some(imgs) = item.select(img_selector) {
+            if let Some(img) = imgs.first() {
+                let cover_url = img.attr("src")
+                    .or_else(|| img.attr("data-src"))
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .unwrap_or_default();
+
+                if !cover_url.is_empty() {
+                    Some(helper::make_absolute_url(BASE_URL, &cover_url))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Some(Manga {
+            key: url.clone(),
+            cover,
+            title,
+            authors: None,
+            artists: None,
+            description: None,
+            tags: None,
+            status: aidoku::MangaStatus::Unknown,
+            content_rating: aidoku::ContentRating::Safe,
+            viewer: aidoku::Viewer::LeftToRight,
+            chapters: None,
+            url: Some(helper::make_absolute_url(BASE_URL, &url)),
+            next_update_time: None,
+            update_strategy: aidoku::UpdateStrategy::Always,
+        })
+    }
+
+    fn parse_search_results(&self, html: &Document) -> Vec<Manga> {
+        let mut mangas = Vec::new();
+
+        if let Some(items) = html.select("div.unit") {
+            for item in items {
+                if let Some(manga) = Self::parse_manga_item(&item, "div.info a", "div.poster-image-wrapper > img") {
+                    mangas.push(manga);
+                }
+            }
+        }
+
+        mangas
+    }
+
+    fn get_popular_manga(&self, _page: i32) -> Result<MangaPageResult> {
+        let html = Self::create_html_request(BASE_URL)?;
 
         let mut mangas = Vec::new();
 
         if let Some(items) = html.select("section#most-viewed div.swiper-slide.unit") {
             for item in items {
-                let link = if let Some(links) = item.select("a.c-title") {
-                    if let Some(l) = links.first() {
-                        l
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                };
-
-                let url = link.attr("href").unwrap_or_default();
-                let title = link.text().unwrap_or_default();
-
-                if url.is_empty() || title.is_empty() {
-                    continue;
+                if let Some(manga) = Self::parse_manga_item(&item, "a.c-title", "a.poster div.poster-image-wrapper > img") {
+                    mangas.push(manga);
                 }
-
-                let key = url.clone();
-
-                let cover = if let Some(imgs) = item.select("a.poster div.poster-image-wrapper > img") {
-                    if let Some(img) = imgs.first() {
-                        let cover_url = img.attr("src")
-                            .or_else(|| img.attr("data-src"))
-                            .or_else(|| img.attr("data-lazy-src"))
-                            .unwrap_or_default();
-
-                        if !cover_url.is_empty() {
-                            Some(helper::make_absolute_url(BASE_URL, &cover_url))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-
-                mangas.push(Manga {
-                    key: key.clone(),
-                    cover,
-                    title,
-                    authors: None,
-                    artists: None,
-                    description: None,
-                    tags: None,
-                    status: aidoku::MangaStatus::Unknown,
-                    content_rating: aidoku::ContentRating::Safe,
-                    viewer: aidoku::Viewer::LeftToRight,
-                    chapters: None,
-                    url: Some(helper::make_absolute_url(BASE_URL, &url)),
-                    next_update_time: None,
-                    update_strategy: aidoku::UpdateStrategy::Always,
-                });
             }
         }
 
@@ -349,83 +269,21 @@ impl RaijinScans {
 
     fn get_latest_manga(&self, page: i32) -> Result<MangaPageResult> {
         if page == 1 {
-            let html = Request::get(BASE_URL)?
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
-                .header("Upgrade-Insecure-Requests", "1")
-                .header("Referer", BASE_URL)
-                .html()?;
+            let html = Self::create_html_request(BASE_URL)?;
 
             let mut mangas = Vec::new();
 
             if let Some(items) = html.select("section.recently-updated div.unit") {
                 for item in items {
-                    let link = if let Some(links) = item.select("div.info a") {
-                        if let Some(l) = links.first() {
-                            l
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    };
-
-                    let url = link.attr("href").unwrap_or_default();
-                    let title = link.text().unwrap_or_default();
-
-                    if url.is_empty() || title.is_empty() {
-                        continue;
+                    if let Some(manga) = Self::parse_manga_item(&item, "div.info a", "div.poster-image-wrapper > img") {
+                        mangas.push(manga);
                     }
-
-                    let key = url.clone();
-
-                    let cover = if let Some(imgs) = item.select("div.poster-image-wrapper > img") {
-                        if let Some(img) = imgs.first() {
-                            let cover_url = img.attr("src")
-                                .or_else(|| img.attr("data-src"))
-                                .or_else(|| img.attr("data-lazy-src"))
-                                .unwrap_or_default();
-
-                            if !cover_url.is_empty() {
-                                Some(helper::make_absolute_url(BASE_URL, &cover_url))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-
-                    mangas.push(Manga {
-                        key: key.clone(),
-                        cover,
-                        title,
-                        authors: None,
-                        artists: None,
-                        description: None,
-                        tags: None,
-                        status: aidoku::MangaStatus::Unknown,
-                        content_rating: aidoku::ContentRating::Safe,
-                        viewer: aidoku::Viewer::LeftToRight,
-                        chapters: None,
-                        url: Some(helper::make_absolute_url(BASE_URL, &url)),
-                        next_update_time: None,
-                        update_strategy: aidoku::UpdateStrategy::Always,
-                    });
                 }
             }
 
-            let has_more = false;
-
             return Ok(MangaPageResult {
                 entries: mangas,
-                has_next_page: has_more,
+                has_next_page: false,
             });
         }
 
