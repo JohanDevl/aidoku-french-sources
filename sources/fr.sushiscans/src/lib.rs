@@ -14,6 +14,59 @@ use alloc::{string::ToString};
 pub static BASE_URL: &str = "https://sushiscan.fr";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
 
+fn urlencode(string: &str) -> String {
+    let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
+    let hex = "0123456789abcdef".as_bytes();
+    let bytes = string.as_bytes();
+
+    for byte in bytes {
+        let curr = *byte;
+        if (b'a'..=b'z').contains(&curr)
+            || (b'A'..=b'Z').contains(&curr)
+            || (b'0'..=b'9').contains(&curr)
+            || curr == b'-'
+            || curr == b'_'
+            || curr == b'.'
+            || curr == b'~'
+        {
+            result.push(curr);
+        } else if curr == b' ' {
+            result.push(b'+');
+        } else {
+            result.push(b'%');
+            result.push(hex[curr as usize >> 4]);
+            result.push(hex[curr as usize & 15]);
+        }
+    }
+
+    String::from_utf8(result).unwrap_or_default()
+}
+
+fn create_html_request(url: &str) -> Result<Document> {
+    Ok(Request::get(url)?
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("DNT", "1")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Referer", BASE_URL)
+        .html()?)
+}
+
+fn make_absolute_url(base: &str, url: &str) -> String {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        url.to_string()
+    } else if url.starts_with("//") {
+        format!("https:{}", url)
+    } else if url.starts_with('/') {
+        format!("{}{}", base.trim_end_matches('/'), url)
+    } else {
+        format!("{}/{}", base.trim_end_matches('/'), url)
+    }
+}
+
 pub struct SushiScans;
 
 impl Source for SushiScans {
@@ -33,40 +86,21 @@ impl Source for SushiScans {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        // Use catalogue path like in old config (traverse_pathname: "catalogue")
         let url = if manga.key.starts_with("catalogue/") {
             format!("{}/{}/", BASE_URL, manga.key)
         } else {
             format!("{}/catalogue/{}/", BASE_URL, manga.key)
         };
-        
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+
+        let html = create_html_request(&url)?;
 
         self.parse_manga_details(html, manga.key, _needs_details, needs_chapters)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         let url = format!("{}/{}/", BASE_URL, chapter.key);
-        
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+
+        let html = create_html_request(&url)?;
 
         self.parse_page_list(html)
     }
@@ -219,11 +253,9 @@ impl SushiScans {
             url_params.push(format!("type={}", manga_type.replace(' ', "%20")));
         }
         
-        // Build final URL based on search context
         let url = if let Some(search_query) = query {
             if !search_query.is_empty() {
-                // Search mode - add search query first
-                let mut search_params = vec![format!("s={}", search_query.replace(' ', "+"))];
+                let mut search_params = vec![format!("s={}", urlencode(&search_query))];
                 search_params.extend(url_params);
                 format!("{}/?{}", BASE_URL, search_params.join("&"))
             } else {
@@ -247,16 +279,7 @@ impl SushiScans {
     }
     
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
-        let html = Request::get(url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = create_html_request(url)?;
 
         let mut entries: Vec<Manga> = Vec::new();
 
@@ -304,7 +327,6 @@ impl SushiScans {
                     continue;
                 }
 
-                // Get cover image
                 let cover = if let Some(img_elements) = item.select("img") {
                     if let Some(img) = img_elements.first() {
                         img.attr("data-src")
@@ -612,13 +634,7 @@ impl SushiScans {
                             }
                         }
 
-                        let url = if href.starts_with("http") {
-                            href
-                        } else if href.starts_with("/") {
-                            format!("{}{}", BASE_URL, href)
-                        } else {
-                            format!("{}/{}", BASE_URL, href)
-                        };
+                        let url = make_absolute_url(BASE_URL, &href);
 
                         chapters.push(Chapter {
                             key: chapter_key,
@@ -681,25 +697,23 @@ impl SushiScans {
 
     fn extract_chapter_number(&self, title: &str) -> f32 {
         let title_lower = title.to_lowercase();
-        
-        // Look for "chapitre" or "ch"
+
         if let Some(pos) = title_lower.find("chapitre") {
-            let after_ch = &title[pos + 8..].trim(); // "chapitre" has 8 chars
+            let after_ch = &title[pos + "chapitre".len()..].trim();
             if let Some(num_str) = after_ch.split_whitespace().next() {
                 if let Ok(num) = num_str.replace(',', ".").parse::<f32>() {
                     return num;
                 }
             }
         }
-        
-        // Look for numbers in the title
+
         for word in title.split_whitespace() {
             if let Ok(num) = word.parse::<f32>() {
                 return num;
             }
         }
-        
-        1.0 // Default
+
+        1.0
     }
 
     fn parse_chapter_date(&self, date_str: &str) -> Option<i64> {
