@@ -631,6 +631,11 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 															let mut chapters: Vec<Chapter> = Vec::new();
 
 															for chapter in chapters_array.iter() {
+																// Debug: print chapter keys
+																if let Some(obj) = chapter.as_object() {
+																	println!("[PoseidonScans] Chapter keys: {:?}", obj.keys().collect::<Vec<_>>());
+																}
+
 																let chapter_number = chapter.get("number").and_then(|v| {
 																	if let Some(n) = v.as_f64() {
 																		Some(n as f32)
@@ -673,11 +678,18 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																	BASE_URL, manga_key, chapter_id
 																);
 
+																println!("[PoseidonScans] Generated URL for chapter {}: {}", ch_num, url);
+
 																// Parse createdAt date
 																let date_uploaded = chapter
 																	.get("createdAt")
 																	.and_then(|v| v.as_str())
-																	.and_then(|date_str| parse_iso_date(date_str));
+																	.and_then(|date_str| {
+																		println!("[PoseidonScans] Parsing date for chapter {}: {}", ch_num, date_str);
+																		let timestamp = parse_iso_date(date_str);
+																		println!("[PoseidonScans] Parsed timestamp: {:?}", timestamp);
+																		timestamp
+																	});
 
 																chapters.push(Chapter {
 																	key: chapter_id,
