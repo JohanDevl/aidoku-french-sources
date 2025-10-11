@@ -1,5 +1,6 @@
 use aidoku::alloc::{String, Vec, format};
 use aidoku::FilterValue;
+use aidoku::imports::html::Document;
 
 pub fn urlencode(string: String) -> String {
     let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
@@ -162,15 +163,9 @@ pub fn parse_chapter_date(text: &str) -> Option<i64> {
     let day = parts[day_index].trim_end_matches(',').parse::<i64>().ok()?;
     let year = parts[year_index].trim_end_matches(',').parse::<i64>().ok()?;
 
-    let mut total_days: i64 = 0;
-
-    for y in 1970..year {
-        if is_leap_year(y) {
-            total_days += 366;
-        } else {
-            total_days += 365;
-        }
-    }
+    let years_since_epoch = year - 1970;
+    let leap_years = count_leap_years_since_1970(year);
+    let mut total_days: i64 = years_since_epoch * 365 + leap_years;
 
     let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -185,6 +180,14 @@ pub fn parse_chapter_date(text: &str) -> Option<i64> {
 
 fn is_leap_year(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+fn count_leap_years_since_1970(year: i64) -> i64 {
+    let leap_years_by_4 = (year - 1) / 4 - (1970 - 1) / 4;
+    let leap_years_by_100 = (year - 1) / 100 - (1970 - 1) / 100;
+    let leap_years_by_400 = (year - 1) / 400 - (1970 - 1) / 400;
+
+    leap_years_by_4 - leap_years_by_100 + leap_years_by_400
 }
 
 pub fn build_filter_params(filters: Vec<FilterValue>) -> String {
@@ -221,4 +224,88 @@ pub fn build_filter_params(filters: Vec<FilterValue>) -> String {
     } else {
         format!("&{}", params.join("&"))
     }
+}
+
+pub fn detect_pagination(html: &Document) -> i32 {
+    const MAX_PAGINATION_PAGES: i32 = 150;
+
+    let mut total_pages = 1;
+
+    let pagination_selectors = [".pagination", ".page-numbers", ".hpage", "nav.pagination"];
+    for selector in &pagination_selectors {
+        if let Some(pagination) = html.select(selector) {
+            if let Some(text) = pagination.text() {
+                if let Some(total) = extract_pagination_total(&text) {
+                    total_pages = total;
+                    break;
+                }
+            }
+        }
+    }
+
+    if total_pages > MAX_PAGINATION_PAGES {
+        total_pages = MAX_PAGINATION_PAGES;
+    }
+
+    total_pages
+}
+
+fn extract_pagination_total(text: &str) -> Option<i32> {
+    const MIN_PAGINATION_VALUE: i32 = 2;
+    const MAX_PAGINATION_VALUE: i32 = 150;
+    const OF_KEYWORD_LENGTH: usize = 4;
+    const SUR_KEYWORD_LENGTH: usize = 5;
+
+    if let Some(of_pos) = text.find(" of ") {
+        let after_of = &text[of_pos + OF_KEYWORD_LENGTH..];
+        if let Some(first_number) = after_of.split_whitespace().next() {
+            let clean_number: String = first_number
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+
+            if let Ok(pages) = clean_number.parse::<i32>() {
+                if pages >= MIN_PAGINATION_VALUE && pages <= MAX_PAGINATION_VALUE {
+                    return Some(pages);
+                }
+            }
+        }
+    }
+
+    if let Some(sur_pos) = text.find(" sur ") {
+        let after_sur = sur_pos + SUR_KEYWORD_LENGTH;
+        if after_sur < text.len() {
+            let after = &text[after_sur..];
+            if let Some(first_number) = after.split_whitespace().next() {
+                let clean_number: String = first_number
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+
+                if let Ok(pages) = clean_number.parse::<i32>() {
+                    if pages >= MIN_PAGINATION_VALUE && pages <= MAX_PAGINATION_VALUE {
+                        return Some(pages);
+                    }
+                }
+            }
+        }
+    }
+
+    let numbers: Vec<i32> = text
+        .split_whitespace()
+        .filter_map(|word| {
+            let clean_word: String = word
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect();
+            clean_word.parse::<i32>().ok()
+        })
+        .filter(|&n| n >= MIN_PAGINATION_VALUE && n <= MAX_PAGINATION_VALUE)
+        .collect();
+
+    if let Some(&max_num) = numbers.iter().max() {
+        return Some(max_num);
+    }
+
+    None
 }

@@ -13,11 +13,23 @@ extern crate alloc;
 mod helper;
 mod parser;
 
-use helper::{build_filter_params, urlencode};
+use helper::{build_filter_params, detect_pagination, urlencode};
 use parser::{has_next_page, parse_chapter_list, parse_manga_details, parse_manga_list, parse_page_list};
 
 pub static BASE_URL: &str = "https://mangas-scans.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
+
+fn build_request(url: &str) -> Result<Request> {
+    Ok(Request::get(url)?
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("DNT", "1")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Referer", BASE_URL))
+}
 
 pub struct MangasScans;
 
@@ -42,16 +54,7 @@ impl Source for MangasScans {
             format!("{}/manga/?page={}{}", BASE_URL, page, filter_params)
         };
 
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = build_request(&url)?.html()?;
 
         let entries = parse_manga_list(&html, BASE_URL);
         let has_next = has_next_page(&html);
@@ -77,23 +80,28 @@ impl Source for MangasScans {
                 format!("{}/manga/{}/", BASE_URL, manga.key)
             };
 
-            let html = Request::get(&manga_url)?
-                .header("User-Agent", USER_AGENT)
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                .header("Accept-Encoding", "gzip, deflate, br")
-                .header("DNT", "1")
-                .header("Connection", "keep-alive")
-                .header("Upgrade-Insecure-Requests", "1")
-                .header("Referer", BASE_URL)
-                .html()?;
+            let html = build_request(&manga_url)?.html()?;
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, BASE_URL, manga.key.clone())?;
             }
 
             if needs_chapters {
-                updated_manga.chapters = Some(parse_chapter_list(&html));
+                let total_pages = detect_pagination(&html);
+                let mut all_chapters = Vec::new();
+
+                let first_page_chapters = parse_chapter_list(&html, BASE_URL);
+                all_chapters.extend(first_page_chapters);
+
+                for page in 2..=total_pages {
+                    let page_url = format!("{}?page={}", manga_url, page);
+                    let page_html = build_request(&page_url)?.html()?;
+
+                    let page_chapters = parse_chapter_list(&page_html, BASE_URL);
+                    all_chapters.extend(page_chapters);
+                }
+
+                updated_manga.chapters = Some(all_chapters);
             }
         }
 
@@ -107,16 +115,7 @@ impl Source for MangasScans {
             format!("{}/{}/", BASE_URL, chapter.key)
         };
 
-        let html = Request::get(&chapter_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = build_request(&chapter_url)?.html()?;
 
         Ok(parse_page_list(&html, BASE_URL))
     }
@@ -130,16 +129,7 @@ impl ListingProvider for MangasScans {
             _ => format!("{}/manga/?page={}", BASE_URL, page),
         };
 
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = build_request(&url)?.html()?;
 
         let entries = parse_manga_list(&html, BASE_URL);
         let has_next = has_next_page(&html);

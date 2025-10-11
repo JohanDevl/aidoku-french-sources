@@ -345,7 +345,7 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
     })
 }
 
-pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
+pub fn parse_chapter_list(html: &Document, base_url: &str) -> Vec<Chapter> {
     let mut chapters: Vec<Chapter> = Vec::new();
 
     let chapter_selectors = [
@@ -419,7 +419,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
                         let chapter_num = extract_chapter_number(&title_text);
 
                         if !key.is_empty() {
-                            let chapter_url = make_absolute_url("https://mangas-scans.com", &format!("/{}/", key));
+                            let chapter_url = make_absolute_url(base_url, &format!("/{}/", key));
 
                             chapters.push(Chapter {
                                 key: key.clone(),
