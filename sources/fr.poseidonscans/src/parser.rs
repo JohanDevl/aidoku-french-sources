@@ -489,6 +489,119 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
+// Parse chapters directly from __NEXT_DATA__ (Next.js hydration data)
+// This is the primary method as it contains isPremium field
+fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+					let possible_paths = [
+						&json_data["props"]["pageProps"]["chapters"],
+						&json_data["props"]["pageProps"]["initialData"]["chapters"],
+						&json_data["props"]["pageProps"]["manga"]["chapters"],
+						&json_data["pageProps"]["chapters"],
+					];
+
+					for chapters_data in &possible_paths {
+						if let Some(chapters_array) = chapters_data.as_array() {
+							let mut chapters: Vec<Chapter> = Vec::new();
+
+							for chapter in chapters_array.iter() {
+								let chapter_number = chapter.get("number").and_then(|v| {
+									if let Some(n) = v.as_f64() {
+										Some(n as f32)
+									} else if let Some(n) = v.as_i64() {
+										Some(n as f32)
+									} else {
+										None
+									}
+								});
+
+								if chapter_number.is_none() {
+									continue;
+								}
+
+								let ch_num = chapter_number.unwrap();
+
+								let is_premium = chapter
+									.get("isPremium")
+									.and_then(|v| v.as_bool())
+									.unwrap_or(false);
+
+								let chapter_id = chapter
+									.get("id")
+									.and_then(|v| v.as_str())
+									.map(|s| s.to_string())
+									.unwrap_or_else(|| {
+										if ch_num == (ch_num as i32) as f32 {
+											format!("{}", ch_num as i32)
+										} else {
+											format!("{}", ch_num)
+										}
+									});
+
+								let chapter_title = format!("Chapitre {}", ch_num);
+
+								let url = format!(
+									"{}/serie/{}/chapter/{}",
+									BASE_URL, manga_key, chapter_id
+								);
+
+								chapters.push(Chapter {
+									key: chapter_id,
+									title: Some(chapter_title),
+									volume_number: None,
+									chapter_number: Some(ch_num),
+									date_uploaded: None,
+									scanlators: None,
+									url: Some(url),
+									language: Some("fr".to_string()),
+									thumbnail: None,
+									locked: is_premium,
+								});
+							}
+
+							if !chapters.is_empty() {
+								let min_premium_chapter = chapters
+									.iter()
+									.filter(|ch| ch.locked)
+									.filter_map(|ch| ch.chapter_number)
+									.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+								if let Some(min_num) = min_premium_chapter {
+									for chapter in &mut chapters {
+										if let Some(ch_num) = chapter.chapter_number {
+											if ch_num >= min_num {
+												chapter.locked = true;
+											}
+										}
+									}
+								}
+
+								chapters.sort_by(|a, b| {
+									match (a.chapter_number, b.chapter_number) {
+										(Some(a_num), Some(b_num)) => {
+											b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+										}
+										(Some(_), None) => Ordering::Less,
+										(None, Some(_)) => Ordering::Greater,
+										(None, None) => Ordering::Equal,
+									}
+								});
+
+								return Ok(chapters);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	Ok(Vec::new())
+}
+
 // Detect premium chapter IDs from __NEXT_DATA__ or HTML
 // Returns a set of chapter IDs that are premium
 fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
@@ -591,8 +704,15 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 	premium_ids
 }
 
-pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
+pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
+	// Try __NEXT_DATA__ first (contains isPremium field)
+	if let Ok(chapters) = parse_chapters_from_nextdata(html, &manga_key) {
+		if !chapters.is_empty() {
+			return Ok(chapters);
+		}
+	}
+
+	// Fallback to JSON-LD approach
 	let manga_data = extract_jsonld_manga_details(html)?;
 
 	// Extract chapters from JSON-LD "hasPart" array
@@ -615,7 +735,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			if let Some(type_value) = chapter_obj.get("@type") {
 				if let Some(type_str) = type_value.as_str() {
 					if type_str != "ComicIssue" {
-						continue; // Skip non-ComicIssue entries
+						continue;
 					}
 				}
 			}
@@ -633,10 +753,10 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 				continue;
 			};
 
-			// Extract chapter title - clean format: "Chapitre X"
+			// Extract chapter title
 			let chapter_title = format!("Chapitre {}", chapter_number);
 
-			// Extract chapter URL directly from JSON-LD (already complete)
+			// Extract chapter URL directly from JSON-LD
 			let url = chapter_obj
 				.get("url")
 				.and_then(|u| u.as_str())
@@ -650,7 +770,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 				format!("{}", chapter_number)
 			};
 
-			// Check if this chapter is premium (using the pre-computed set)
+			// Check if this chapter is premium
 			let is_locked = premium_chapter_ids.contains(&chapter_id);
 
 			chapters.push(Chapter {
@@ -668,9 +788,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	}
 
-	// Post-processing: If premium chapters exist, mark all higher chapters as
-	// locked This ensures consistency - if chapter 13 is premium, chapters 21 and
-	// 22 must be too
+	// Post-processing: mark all chapters >= min premium as locked
 	let min_premium_chapter = chapters
 		.iter()
 		.filter(|ch| ch.locked)
