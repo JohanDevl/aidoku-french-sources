@@ -490,6 +490,37 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
+// Recursively search for "chapters" array in parsed JSON
+fn find_chapters_in_json(value: &serde_json::Value) -> Option<&Vec<serde_json::Value>> {
+	match value {
+		serde_json::Value::Object(obj) => {
+			// First check if this object contains a "chapters" key
+			if let Some(chapters) = obj.get("chapters") {
+				if let Some(arr) = chapters.as_array() {
+					return Some(arr);
+				}
+			}
+			// If not found, recursively search all values in the object
+			for (_key, val) in obj.iter() {
+				if let Some(chapters) = find_chapters_in_json(val) {
+					return Some(chapters);
+				}
+			}
+			None
+		}
+		serde_json::Value::Array(arr) => {
+			// Search recursively in array elements
+			for item in arr {
+				if let Some(chapters) = find_chapters_in_json(item) {
+					return Some(chapters);
+				}
+			}
+			None
+		}
+		_ => None,
+	}
+}
+
 // Parse chapters from Next.js RSC streaming data (self.__next_f.push)
 // This is the primary method as it contains isPremium field
 fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
@@ -527,149 +558,127 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 											let preview_len = json_str.char_indices().take(200).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(0);
 											println!("[PoseidonScans] JSON preview: {}", &json_str[..preview_len]);
 
-											// Now look for chapters array with isPremium in this JSON string
-											// The string contains escaped JSON, so we need to parse it
-											if json_str.contains("\"chapters\":[") && json_str.contains("isPremium") {
-												println!("[PoseidonScans] Found chapters with isPremium in JSON string");
+											// The format is "X:{...json_data...}" where X is a number
+											// Parse the content after "X:" as JSON directly
+											if let Some(colon_pos) = json_str.find(':') {
+												let json_content = &json_str[colon_pos + 1..]; // Skip "X:", keep the JSON part
+												println!("[PoseidonScans] JSON content after prefix, length: {} chars", json_content.len());
 
-												// Try to extract the chapters array directly
-												if let Some(chapters_start) = json_str.find("\"chapters\":[") {
-													let after_chapters = &json_str[chapters_start + 12..]; // Skip "\"chapters\":["
+												// Parse this content as JSON directly
+												match serde_json::from_str::<serde_json::Value>(json_content) {
+													Ok(parsed_data) => {
+														println!("[PoseidonScans] Successfully parsed RSC JSON data");
 
-													// Find the matching closing bracket
-													let mut bracket_count = 1;
-													let mut chapters_end = 0;
-													let chars: Vec<char> = after_chapters.chars().collect();
+														// Recursively search for "chapters" array in the parsed JSON
+														if let Some(chapters_array) = find_chapters_in_json(&parsed_data) {
+															println!("[PoseidonScans] Found chapters array, count: {}", chapters_array.len());
 
-													for (i, ch) in chars.iter().enumerate() {
-														if *ch == '[' {
-															bracket_count += 1;
-														} else if *ch == ']' {
-															bracket_count -= 1;
-															if bracket_count == 0 {
-																chapters_end = i;
-																break;
+															let mut chapters: Vec<Chapter> = Vec::new();
+
+															for chapter in chapters_array.iter() {
+																let chapter_number = chapter.get("number").and_then(|v| {
+																	if let Some(n) = v.as_f64() {
+																		Some(n as f32)
+																	} else if let Some(n) = v.as_i64() {
+																		Some(n as f32)
+																	} else {
+																		None
+																	}
+																});
+
+																if chapter_number.is_none() {
+																	continue;
+																}
+
+																let ch_num = chapter_number.unwrap();
+
+																let is_premium = chapter
+																	.get("isPremium")
+																	.and_then(|v| v.as_bool())
+																	.unwrap_or(false);
+
+																println!("[PoseidonScans] Chapter {} - isPremium: {}", ch_num, is_premium);
+
+																let chapter_id = chapter
+																	.get("id")
+																	.and_then(|v| v.as_str())
+																	.map(|s| s.to_string())
+																	.unwrap_or_else(|| {
+																		if ch_num == (ch_num as i32) as f32 {
+																			format!("{}", ch_num as i32)
+																		} else {
+																			format!("{}", ch_num)
+																		}
+																	});
+
+																let chapter_title = format!("Chapitre {}", ch_num);
+
+																let url = format!(
+																	"{}/serie/{}/chapter/{}",
+																	BASE_URL, manga_key, chapter_id
+																);
+
+																chapters.push(Chapter {
+																	key: chapter_id,
+																	title: Some(chapter_title),
+																	volume_number: None,
+																	chapter_number: Some(ch_num),
+																	date_uploaded: None,
+																	scanlators: None,
+																	url: Some(url),
+																	language: Some("fr".to_string()),
+																	thumbnail: None,
+																	locked: is_premium,
+																});
 															}
+
+															if !chapters.is_empty() {
+																println!("[PoseidonScans] Total chapters parsed: {}", chapters.len());
+
+																let premium_count = chapters.iter().filter(|ch| ch.locked).count();
+																println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
+
+																let min_premium_chapter = chapters
+																	.iter()
+																	.filter(|ch| ch.locked)
+																	.filter_map(|ch| ch.chapter_number)
+																	.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+																if let Some(min_num) = min_premium_chapter {
+																	println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
+																	for chapter in &mut chapters {
+																		if let Some(ch_num) = chapter.chapter_number {
+																			if ch_num >= min_num {
+																				chapter.locked = true;
+																			}
+																		}
+																	}
+																	let final_premium_count = chapters.iter().filter(|ch| ch.locked).count();
+																	println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
+																} else {
+																	println!("[PoseidonScans] No premium chapters detected");
+																}
+
+																chapters.sort_by(|a, b| {
+																	match (a.chapter_number, b.chapter_number) {
+																		(Some(a_num), Some(b_num)) => {
+																			b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+																		}
+																		(Some(_), None) => Ordering::Less,
+																		(None, Some(_)) => Ordering::Greater,
+																		(None, None) => Ordering::Equal,
+																	}
+																});
+
+																println!("[PoseidonScans] Returning {} chapters from RSC data", chapters.len());
+																return Ok(chapters);
+															}
+														} else {
+															println!("[PoseidonScans] No chapters array found in parsed JSON");
 														}
 													}
-
-													if chapters_end > 0 {
-														let chapters_json_str = &after_chapters[..chapters_end];
-														println!("[PoseidonScans] Extracted chapters JSON, length: {} chars", chapters_json_str.len());
-
-														// Parse the chapters array
-														let chapters_json = format!("[{}]", chapters_json_str);
-														match serde_json::from_str::<serde_json::Value>(&chapters_json) {
-															Ok(chapters_data) => {
-																if let Some(chapters_array) = chapters_data.as_array() {
-																	println!("[PoseidonScans] Successfully parsed chapters array, count: {}", chapters_array.len());
-
-																	let mut chapters: Vec<Chapter> = Vec::new();
-
-																	for chapter in chapters_array.iter() {
-																		let chapter_number = chapter.get("number").and_then(|v| {
-																			if let Some(n) = v.as_f64() {
-																				Some(n as f32)
-																			} else if let Some(n) = v.as_i64() {
-																				Some(n as f32)
-																			} else {
-																				None
-																			}
-																		});
-
-																		if chapter_number.is_none() {
-																			continue;
-																		}
-
-																		let ch_num = chapter_number.unwrap();
-
-																		let is_premium = chapter
-																			.get("isPremium")
-																			.and_then(|v| v.as_bool())
-																			.unwrap_or(false);
-
-																		println!("[PoseidonScans] Chapter {} - isPremium: {}", ch_num, is_premium);
-
-																		let chapter_id = chapter
-																			.get("id")
-																			.and_then(|v| v.as_str())
-																			.map(|s| s.to_string())
-																			.unwrap_or_else(|| {
-																				if ch_num == (ch_num as i32) as f32 {
-																					format!("{}", ch_num as i32)
-																				} else {
-																					format!("{}", ch_num)
-																				}
-																			});
-
-																		let chapter_title = format!("Chapitre {}", ch_num);
-
-																		let url = format!(
-																			"{}/serie/{}/chapter/{}",
-																			BASE_URL, manga_key, chapter_id
-																		);
-
-																		chapters.push(Chapter {
-																			key: chapter_id,
-																			title: Some(chapter_title),
-																			volume_number: None,
-																			chapter_number: Some(ch_num),
-																			date_uploaded: None,
-																			scanlators: None,
-																			url: Some(url),
-																			language: Some("fr".to_string()),
-																			thumbnail: None,
-																			locked: is_premium,
-																		});
-																	}
-
-																	if !chapters.is_empty() {
-																		println!("[PoseidonScans] Total chapters parsed: {}", chapters.len());
-
-																		let premium_count = chapters.iter().filter(|ch| ch.locked).count();
-																		println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
-
-																		let min_premium_chapter = chapters
-																			.iter()
-																			.filter(|ch| ch.locked)
-																			.filter_map(|ch| ch.chapter_number)
-																			.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-
-																		if let Some(min_num) = min_premium_chapter {
-																			println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
-																			for chapter in &mut chapters {
-																				if let Some(ch_num) = chapter.chapter_number {
-																					if ch_num >= min_num {
-																						chapter.locked = true;
-																					}
-																				}
-																			}
-																			let final_premium_count = chapters.iter().filter(|ch| ch.locked).count();
-																			println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
-																		} else {
-																			println!("[PoseidonScans] No premium chapters detected");
-																		}
-
-																		chapters.sort_by(|a, b| {
-																			match (a.chapter_number, b.chapter_number) {
-																				(Some(a_num), Some(b_num)) => {
-																					b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
-																				}
-																				(Some(_), None) => Ordering::Less,
-																				(None, Some(_)) => Ordering::Greater,
-																				(None, None) => Ordering::Equal,
-																			}
-																		});
-
-																		println!("[PoseidonScans] Returning {} chapters from RSC data", chapters.len());
-																		return Ok(chapters);
-																	}
-																}
-															}
-															Err(e) => {
-																println!("[PoseidonScans] Failed to parse chapters JSON: {:?}", e);
-															}
-														}
+													Err(e) => {
+														println!("[PoseidonScans] Failed to parse RSC JSON: {:?}", e);
 													}
 												}
 											}
