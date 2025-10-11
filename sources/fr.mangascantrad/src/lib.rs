@@ -17,7 +17,6 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac 
 pub struct MangaScantrad;
 
 impl MangaScantrad {
-    const POSTS_PER_PAGE: i32 = 20;
     const MIN_ENTRIES_FOR_PAGINATION: usize = 8;
 }
 
