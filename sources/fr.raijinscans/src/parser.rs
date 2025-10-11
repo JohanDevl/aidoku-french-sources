@@ -199,13 +199,6 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 
 	if let Some(items) = html.select("ul.scroll-sm li.item") {
 		for item in items {
-			// Skip premium chapters
-			if let Some(class) = item.attr("class") {
-				if class.contains("premium-chapter") {
-					continue;
-				}
-			}
-
 			let link = if let Some(links) = item.select("a") {
 				if let Some(l) = links.first() {
 					l
@@ -219,9 +212,16 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 			let url = link.attr("href").unwrap_or_default();
 			let title = link.attr("title").unwrap_or_default();
 
-			if url.is_empty() || url.contains("/connexion") {
+			if url.is_empty() {
 				continue;
 			}
+
+			// Check if premium chapter (class or requires login)
+			let is_locked = if let Some(class) = item.attr("class") {
+				class.contains("premium-chapter")
+			} else {
+				false
+			} || url.contains("/connexion");
 
 			let date_uploaded = if let Some(spans) = item.select("a span:nth-of-type(2)") {
 				if let Some(span) = spans.first() {
@@ -261,7 +261,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				scanlators: None,
 				language: Some(String::from("fr")),
 				thumbnail: None,
-				locked: false,
+				locked: is_locked,
 			});
 		}
 	}
