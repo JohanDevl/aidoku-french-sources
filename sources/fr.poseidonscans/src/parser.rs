@@ -498,19 +498,24 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
 		println!("[PoseidonScans] Found __NEXT_DATA__ script element");
 
+		let mut script_count = 0;
 		for script in script_elements {
-			if let Some(content) = script.data() {
-				println!("[PoseidonScans] __NEXT_DATA__ content length: {} chars", content.len());
+			script_count += 1;
+			println!("[PoseidonScans] Processing __NEXT_DATA__ script #{}", script_count);
 
-				// Log first 200 chars of content for debugging
-				let preview = if content.len() > 200 {
-					&content[..200]
-				} else {
-					&content
-				};
-				println!("[PoseidonScans] __NEXT_DATA__ preview: {}", preview);
+			match script.data() {
+				Some(content) => {
+					println!("[PoseidonScans] __NEXT_DATA__ content length: {} chars", content.len());
 
-				match serde_json::from_str::<serde_json::Value>(&content) {
+					// Log first 200 chars of content for debugging
+					let preview = if content.len() > 200 {
+						&content[..200]
+					} else {
+						&content
+					};
+					println!("[PoseidonScans] __NEXT_DATA__ preview: {}", preview);
+
+					match serde_json::from_str::<serde_json::Value>(&content) {
 					Ok(json_data) => {
 						println!("[PoseidonScans] Successfully parsed __NEXT_DATA__ JSON");
 
@@ -632,8 +637,16 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 					Err(e) => {
 						println!("[PoseidonScans] Failed to parse __NEXT_DATA__ JSON: {:?}", e);
 					}
+					}
+				}
+				None => {
+					println!("[PoseidonScans] script.data() returned None for __NEXT_DATA__");
 				}
 			}
+		}
+
+		if script_count == 0 {
+			println!("[PoseidonScans] __NEXT_DATA__ selector found but no scripts iterated");
 		}
 	} else {
 		println!("[PoseidonScans] No __NEXT_DATA__ script element found");
@@ -652,10 +665,17 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
 		println!("[PoseidonScans] Trying __NEXT_DATA__ for premium detection");
+		let mut script_count = 0;
 		for script in script_elements {
-			if let Some(content) = script.data() {
-				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
-					println!("[PoseidonScans] Parsed __NEXT_DATA__ for premium detection");
+			script_count += 1;
+			println!("[PoseidonScans] Premium detection: processing script #{}", script_count);
+
+			match script.data() {
+				Some(content) => {
+					println!("[PoseidonScans] Premium detection: got content, length {} chars", content.len());
+					match serde_json::from_str::<serde_json::Value>(&content) {
+						Ok(json_data) => {
+							println!("[PoseidonScans] Parsed __NEXT_DATA__ for premium detection");
 					// Try to navigate to chapters data
 					// Possible paths: props.pageProps.chapters,
 					// props.pageProps.initialData.chapters, etc.
@@ -715,8 +735,20 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 							}
 						}
 					}
+						}
+						Err(e) => {
+							println!("[PoseidonScans] Premium detection: JSON parse error: {:?}", e);
+						}
+					}
+				}
+				None => {
+					println!("[PoseidonScans] Premium detection: script.data() returned None");
 				}
 			}
+		}
+
+		if script_count == 0 {
+			println!("[PoseidonScans] Premium detection: __NEXT_DATA__ found but no scripts iterated");
 		}
 	}
 
