@@ -2,8 +2,8 @@
   "info": {
     "id": "fr.phenixscans",
     "name": "Phenix Scans",
-    "version": 11,
-    "url": "https://phenix-scans.com/",
+    "version": 12,
+    "url": "https://phenix-scans.com",
     "contentRating": 1,
     "languages": ["fr"]
   },
