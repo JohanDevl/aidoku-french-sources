@@ -253,9 +253,11 @@ pub fn detect_pagination(html: &Document) -> i32 {
 fn extract_pagination_total(text: &str) -> Option<i32> {
     const MIN_PAGINATION_VALUE: i32 = 2;
     const MAX_PAGINATION_VALUE: i32 = 150;
+    const OF_KEYWORD_LENGTH: usize = 4;
+    const SUR_KEYWORD_LENGTH: usize = 5;
 
     if let Some(of_pos) = text.find(" of ") {
-        let after_of = &text[of_pos + 4..];
+        let after_of = &text[of_pos + OF_KEYWORD_LENGTH..];
         if let Some(first_number) = after_of.split_whitespace().next() {
             let clean_number: String = first_number
                 .chars()
@@ -271,7 +273,7 @@ fn extract_pagination_total(text: &str) -> Option<i32> {
     }
 
     if let Some(sur_pos) = text.find(" sur ") {
-        let after_sur = &sur_pos + 5;
+        let after_sur = sur_pos + SUR_KEYWORD_LENGTH;
         if after_sur < text.len() {
             let after = &text[after_sur..];
             if let Some(first_number) = after.split_whitespace().next() {
