@@ -1,5 +1,5 @@
 use aidoku::{
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec},
 	imports::net::Request,
 	Result,
 };
@@ -12,9 +12,11 @@ pub fn urlencode(string: String) -> String {
 
 	for byte in bytes {
 		let curr = *byte;
+		// RFC 3986 unreserved characters: A-Z a-z 0-9 - _ . ~
 		if (b'a'..=b'z').contains(&curr)
 			|| (b'A'..=b'Z').contains(&curr)
 			|| (b'0'..=b'9').contains(&curr)
+			|| curr == b'-' || curr == b'_' || curr == b'.' || curr == b'~'
 		{
 			result.push(curr);
 		} else {
@@ -45,15 +47,5 @@ pub fn build_html_request(url: &str) -> Result<Request> {
 		.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
 		.header("Referer", BASE_URL)
 	)
-}
-
-pub fn make_absolute_url(url: &str) -> String {
-	if url.starts_with("http") {
-		url.to_string()
-	} else if url.starts_with("/") {
-		format!("{}{}", BASE_URL, url)
-	} else {
-		format!("{}/{}", BASE_URL, url)
-	}
 }
 

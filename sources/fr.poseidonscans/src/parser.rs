@@ -10,6 +10,7 @@ use serde_json;
 use crate::BASE_URL;
 
 const PAGE_SIZE: i32 = 20;
+const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
 const CHAPTER_PREFIX_LEN: usize = 9;
 
 // Serde structures for Poseidon Scans API responses
@@ -195,7 +196,7 @@ pub fn parse_manga_list(
 
 	// Client-side pagination
 	let start_index = ((page - 1) * PAGE_SIZE) as usize;
-	let end_index = (start_index + PAGE_SIZE as usize).min(all_mangas.len());
+	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
 	
 	let paginated_mangas = if start_index < all_mangas.len() {
 		all_mangas[start_index..end_index].to_vec()
