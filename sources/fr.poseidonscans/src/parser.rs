@@ -490,6 +490,61 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
+// Parse ISO 8601 date string to Unix timestamp
+// Format: "2025-10-11T13:49:51.543Z"
+fn parse_iso_date(date_str: &str) -> Option<i64> {
+	// Parse the date string manually to avoid dependencies
+	// Format: YYYY-MM-DDTHH:MM:SS.sssZ
+
+	if date_str.len() < 19 {
+		return None;
+	}
+
+	// Extract components
+	let year: i32 = date_str.get(0..4)?.parse().ok()?;
+	let month: i32 = date_str.get(5..7)?.parse().ok()?;
+	let day: i32 = date_str.get(8..10)?.parse().ok()?;
+	let hour: i32 = date_str.get(11..13)?.parse().ok()?;
+	let minute: i32 = date_str.get(14..16)?.parse().ok()?;
+	let second: i32 = date_str.get(17..19)?.parse().ok()?;
+
+	// Calculate Unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
+	// Using simplified algorithm for dates after 1970
+
+	// Days in each month (non-leap year)
+	let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+	// Calculate days since epoch (1970-01-01)
+	let mut days = 0i64;
+
+	// Add days for complete years
+	for y in 1970..year {
+		if (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) {
+			days += 366; // Leap year
+		} else {
+			days += 365;
+		}
+	}
+
+	// Add days for complete months in current year
+	for m in 0..(month - 1) {
+		days += days_in_month[m as usize] as i64;
+	}
+
+	// Add extra day for February in leap year
+	if month > 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+		days += 1;
+	}
+
+	// Add days in current month
+	days += (day - 1) as i64;
+
+	// Convert to timestamp
+	let timestamp = days * 86400 + (hour as i64) * 3600 + (minute as i64) * 60 + (second as i64);
+
+	Some(timestamp)
+}
+
 // Recursively search for "chapters" array in parsed JSON
 fn find_chapters_in_json(value: &serde_json::Value) -> Option<&Vec<serde_json::Value>> {
 	match value {
@@ -618,12 +673,18 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																	BASE_URL, manga_key, chapter_id
 																);
 
+																// Parse createdAt date
+																let date_uploaded = chapter
+																	.get("createdAt")
+																	.and_then(|v| v.as_str())
+																	.and_then(|date_str| parse_iso_date(date_str));
+
 																chapters.push(Chapter {
 																	key: chapter_id,
 																	title: Some(chapter_title),
 																	volume_number: None,
 																	chapter_number: Some(ch_num),
-																	date_uploaded: None,
+																	date_uploaded,
 																	scanlators: None,
 																	url: Some(url),
 																	language: Some("fr".to_string()),
@@ -775,12 +836,18 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 										BASE_URL, manga_key, chapter_id
 									);
 
+									// Parse createdAt date
+									let date_uploaded = chapter
+										.get("createdAt")
+										.and_then(|v| v.as_str())
+										.and_then(|date_str| parse_iso_date(date_str));
+
 									chapters.push(Chapter {
 										key: chapter_id,
 										title: Some(chapter_title),
 										volume_number: None,
 										chapter_number: Some(ch_num),
-										date_uploaded: None,
+										date_uploaded,
 										scanlators: None,
 										url: Some(url),
 										language: Some("fr".to_string()),
