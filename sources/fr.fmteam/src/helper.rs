@@ -27,7 +27,7 @@ pub fn i32_to_string(mut integer: i32) -> String {
         if pos == 1 {
             digit *= -1;
         }
-        string.insert(pos, char::from_u32((digit as u32) + ('0' as u32)).unwrap());
+        string.insert(pos, char::from_u32((digit as u32) + ('0' as u32)).unwrap_or('?'));
         integer /= 10;
     }
     string
