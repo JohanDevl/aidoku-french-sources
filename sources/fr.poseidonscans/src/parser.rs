@@ -611,6 +611,23 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	}
 
+	// Post-processing: If premium chapters exist, mark all higher chapters as locked
+	// This ensures consistency - if chapter 13 is premium, chapters 21 and 22 must be too
+	let min_premium_chapter = chapters.iter()
+		.filter(|ch| ch.locked)
+		.filter_map(|ch| ch.chapter_number)
+		.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+	if let Some(min_num) = min_premium_chapter {
+		for chapter in &mut chapters {
+			if let Some(ch_num) = chapter.chapter_number {
+				if ch_num > min_num {
+					chapter.locked = true;
+				}
+			}
+		}
+	}
+
 	// Sort chapters by number in descending order (newest first)
 	chapters.sort_by(|a, b| {
 		match (a.chapter_number, b.chapter_number) {
