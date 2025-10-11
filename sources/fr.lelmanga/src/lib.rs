@@ -203,21 +203,25 @@ impl ImageRequestProvider for LelManga {
 impl LelManga {
     fn urlencode(s: &str) -> String {
         let mut result = String::new();
-        for byte in s.bytes() {
-            match byte {
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                    result.push(byte as char);
+        for c in s.chars() {
+            match c {
+                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => {
+                    result.push(c);
                 }
-                b' ' => result.push('+'),
+                ' ' => result.push('+'),
                 _ => {
-                    result.push_str(&format!("%{:02X}", byte));
+                    for byte in c.to_string().bytes() {
+                        result.push_str(&format!("%{:02X}", byte));
+                    }
                 }
             }
         }
         result
     }
 
-
+    fn is_valid_url(url: &str) -> bool {
+        url.starts_with("http://") || url.starts_with("https://")
+    }
 
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
         let html = Request::get(url)?
@@ -268,7 +272,7 @@ impl LelManga {
                 };
 
                 let href = link.attr("href").unwrap_or_default();
-                if href.is_empty() {
+                if href.is_empty() || !Self::is_valid_url(&href) {
                     continue;
                 }
 
@@ -406,7 +410,7 @@ impl LelManga {
 
 
         if title.is_empty() {
-            return Err(aidoku::AidokuError::Unimplemented);
+            return Err(aidoku::AidokuError::message("Failed to parse manga title"));
         }
 
         // Extract cover image with multiple selectors
@@ -551,7 +555,7 @@ impl LelManga {
                 };
 
                 let href = link.attr("href").unwrap_or_default();
-                if href.is_empty() {
+                if href.is_empty() || !Self::is_valid_url(&href) {
                     continue;
                 }
 
@@ -906,6 +910,10 @@ impl LelManga {
                     }
                 }
             }
+        }
+
+        if pages.is_empty() {
+            return Err(aidoku::AidokuError::message("No pages found in chapter"));
         }
 
         Ok(pages)
