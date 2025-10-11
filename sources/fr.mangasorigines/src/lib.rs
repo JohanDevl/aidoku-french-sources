@@ -74,48 +74,13 @@ impl Source for MangasOrigines {
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-        // Use the stored chapter URL instead of reconstructing from key
-        let base_url = chapter.url.unwrap_or_else(|| format!("{}/{}/", BASE_URL, chapter.key));
-        
-        // Try different URL formats with the correct base URL
-        let url_formats = [
-            format!("{}?style=list", base_url),     // Madara with style parameter
-            base_url.clone(),                       // Standard format (stored URL)
-            format!("{}?readType=1", base_url),     // Alternative read type
-        ];
-        
-        for url in &url_formats {
-            if let Ok(html) = Request::get(url)
-                .and_then(|req| req
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .header("Accept-Encoding", "gzip, deflate, br")
-                    .header("DNT", "1")
-                    .header("Connection", "keep-alive")
-                    .header("Upgrade-Insecure-Requests", "1")
-                    .header("Cache-Control", "max-age=0")
-                    .header("Referer", &base_url)
-                    .html()) {
-                
-                let pages = self.parse_page_list(&html)?;
-                if !pages.is_empty() {
-                    return Ok(pages);
-                }
-            }
-        }
-        
-        // If all URL formats fail, try the first one and parse regardless
-        let html = Request::get(&url_formats[0])?
+        let url = format!("{}?style=list", chapter.url.unwrap_or_else(|| format!("{}/{}/", BASE_URL, chapter.key)));
+
+        let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
             .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Cache-Control", "max-age=0")
-            .header("Referer", &base_url)
+            .header("Referer", BASE_URL)
             .html()?;
 
         self.parse_page_list(&html)
@@ -365,16 +330,16 @@ impl MangasOrigines {
         Ok(manga)
     }
 
-    fn parse_chapter_list(&self, _manga_key: &str, html: &Document) -> Result<Vec<Chapter>> {
+    fn parse_chapter_elements_from_html(&self, html: &Document) -> Vec<Chapter> {
         let mut chapters = Vec::new();
-        
+
         if let Some(chapter_elements) = html.select("li.wp-manga-chapter, .wp-manga-chapter, .chapter-item") {
             for chapter_element in chapter_elements {
                 if let Some(link_elements) = chapter_element.select("a") {
                     if let Some(link) = link_elements.first() {
                         let chapter_url = link.attr("href").unwrap_or_default();
                         let chapter_title = link.text().unwrap_or_default().trim().to_string();
-                        
+
                         if !chapter_url.is_empty() && !chapter_title.is_empty() {
                             let chapter_key = self.extract_chapter_key(&chapter_url);
                             if !chapter_key.is_empty() {
@@ -393,7 +358,7 @@ impl MangasOrigines {
                                         ".release-date",
                                         ".uploaded-on",
                                     ];
-                                    
+
                                     let mut found_date = None;
                                     for selector in &date_selectors {
                                         if let Some(date_elem) = chapter_element.select(selector).and_then(|elems| elems.first()) {
@@ -406,7 +371,7 @@ impl MangasOrigines {
                                                     }
                                                 }
                                             }
-                                            
+
                                             if let Some(title_attr) = date_elem.attr("title") {
                                                 let title_str = title_attr.trim();
                                                 if !title_str.is_empty() {
@@ -440,7 +405,11 @@ impl MangasOrigines {
             }
         }
 
-        Ok(chapters)
+        chapters
+    }
+
+    fn parse_chapter_list(&self, _manga_key: &str, html: &Document) -> Result<Vec<Chapter>> {
+        Ok(self.parse_chapter_elements_from_html(html))
     }
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
@@ -501,7 +470,6 @@ impl MangasOrigines {
             }
         }
         
-        // Fallback - look in other script tags
         if let Some(script_elements) = html.select("script") {
             for script in script_elements {
                 if let Some(script_content) = script.html() {
@@ -517,87 +485,12 @@ impl MangasOrigines {
                 }
             }
         }
-        
-        Ok("0".to_string()) // Fallback ID if not found
+
+        Ok("0".to_string())
     }
     
     fn parse_ajax_chapters_response(&self, html: Document) -> Result<Vec<Chapter>> {
-        let mut chapters: Vec<Chapter> = Vec::new();
-        
-        // Parse AJAX response that should contain chapter HTML fragments
-        if let Some(chapter_elements) = html.select("li.wp-manga-chapter, .wp-manga-chapter, .chapter-item") {
-            for chapter_element in chapter_elements {
-                if let Some(link_elements) = chapter_element.select("a") {
-                    if let Some(link) = link_elements.first() {
-                        let chapter_url = link.attr("href").unwrap_or_default();
-                        let chapter_title = link.text().unwrap_or_default().trim().to_string();
-                        
-                        if !chapter_url.is_empty() && !chapter_title.is_empty() {
-                            let chapter_key = self.extract_chapter_key(&chapter_url);
-                            if !chapter_key.is_empty() {
-                                let chapter_number = self.extract_chapter_number(&chapter_title);
-                                let date_published = {
-                                    let date_selectors = [
-                                        "span.chapter-release-date i",
-                                        ".chapter-release-date",
-                                        ".chapterdate",
-                                        ".chapter-date",
-                                        ".dt",
-                                        "span.date",
-                                        "time",
-                                        "i",
-                                        ".post-on",
-                                        ".release-date",
-                                        ".uploaded-on",
-                                    ];
-                                    
-                                    let mut found_date = None;
-                                    for selector in &date_selectors {
-                                        if let Some(date_elem) = chapter_element.select(selector).and_then(|elems| elems.first()) {
-                                            if let Some(date_text) = date_elem.text() {
-                                                let date_str = date_text.trim();
-                                                if !date_str.is_empty() {
-                                                    if let Some(parsed_date) = self.parse_chapter_date(date_str) {
-                                                        found_date = Some(parsed_date);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            
-                                            if let Some(title_attr) = date_elem.attr("title") {
-                                                let title_str = title_attr.trim();
-                                                if !title_str.is_empty() {
-                                                    if let Some(parsed_date) = self.parse_chapter_date(title_str) {
-                                                        found_date = Some(parsed_date);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    found_date
-                                };
-
-                                chapters.push(Chapter {
-                                    key: chapter_key,
-                                    title: Some(chapter_title),
-                                    url: Some(chapter_url),
-                                    language: Some("fr".to_string()),
-                                    volume_number: None,
-                                    chapter_number: Some(chapter_number),
-                                    date_uploaded: date_published,
-                                    scanlators: None,
-                                    thumbnail: None,
-                                    locked: false,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(chapters)
+        Ok(self.parse_chapter_elements_from_html(&html))
     }
 
     fn parse_page_list(&self, html: &Document) -> Result<Vec<Page>> {
@@ -948,13 +841,17 @@ impl MangasOrigines {
     }
 
     fn days_in_months(&self, month: i32, year: i32) -> i32 {
+        if month < 0 || month >= 12 {
+            return 0;
+        }
+
         let days = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
         let mut total_days = days[month as usize];
-        
+
         if month > 1 && self.is_leap_year(year) {
             total_days += 1;
         }
-        
+
         total_days
     }
 
@@ -967,7 +864,7 @@ impl MangasOrigines {
             .map(|c| match c {
                 'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
                 ' ' => "+".to_string(),
-                _ => format!("%{:02X}", c as u8),
+                _ => c.to_string().bytes().map(|b| format!("%{:02X}", b)).collect(),
             })
             .collect()
     }
