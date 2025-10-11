@@ -1,4 +1,4 @@
-use crate::helper::{decode_base64, make_absolute_url, parse_relative_date};
+use crate::helper::{decode_base64, make_absolute_url, parse_relative_date, validate_image_url};
 use aidoku::{
 	alloc::{format, string::ToString, vec, String, Vec},
 	imports::html::Document,
@@ -283,12 +283,14 @@ pub fn parse_page_list(html: &Document) -> Vec<Page> {
 					encoded
 				};
 
-				pages.push(Page {
-					content: PageContent::Url(url, None),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
+				if validate_image_url(&url) {
+					pages.push(Page {
+						content: PageContent::Url(url, None),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
+				}
 			}
 		}
 	}
