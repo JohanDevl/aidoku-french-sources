@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "type": "select",
+    "id": "order",
+    "title": "Trier par",
+    "options": ["Par Défaut", "Mise à jour", "Populaire", "Titre"],
+    "ids": ["", "update", "popular", "title"]
+  }
+]
