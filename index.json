@@ -1,0 +1,149 @@
+{
+  "name": "JohanDevl's French Sources",
+  "sources": [
+    {
+      "id": "fr.animesama",
+      "name": "AnimeSama",
+      "version": 7,
+      "iconURL": "icons/fr.animesama-v7.png",
+      "downloadURL": "sources/fr.animesama-v7.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://anime-sama.org/"
+    },
+    {
+      "id": "fr.fmteam",
+      "name": "FMTeam",
+      "version": 2,
+      "iconURL": "icons/fr.fmteam-v2.png",
+      "downloadURL": "sources/fr.fmteam-v2.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://fmteam.fr/"
+    },
+    {
+      "id": "fr.lelmanga",
+      "name": "LelManga",
+      "version": 8,
+      "iconURL": "icons/fr.lelmanga-v8.png",
+      "downloadURL": "sources/fr.lelmanga-v8.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.lelmanga.com"
+    },
+    {
+      "id": "fr.lelscanfr",
+      "name": "LelscanFR",
+      "version": 7,
+      "iconURL": "icons/fr.lelscanfr-v7.png",
+      "downloadURL": "sources/fr.lelscanfr-v7.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://lelscanfr.com"
+    },
+    {
+      "id": "fr.mangascantrad",
+      "name": "Manga Scantrad",
+      "version": 17,
+      "iconURL": "icons/fr.mangascantrad-v17.png",
+      "downloadURL": "sources/fr.mangascantrad-v17.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manga-scantrad.io"
+    },
+    {
+      "id": "fr.mangasorigines",
+      "name": "Mangas Origines",
+      "version": 10,
+      "iconURL": "icons/fr.mangasorigines-v10.png",
+      "downloadURL": "sources/fr.mangasorigines-v10.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangas-origines.fr"
+    },
+    {
+      "id": "fr.mangasscans",
+      "name": "Mangas Scans",
+      "version": 2,
+      "iconURL": "icons/fr.mangasscans-v2.png",
+      "downloadURL": "sources/fr.mangasscans-v2.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangas-scans.com/"
+    },
+    {
+      "id": "fr.phenixscans",
+      "name": "Phenix Scans",
+      "version": 12,
+      "iconURL": "icons/fr.phenixscans-v12.png",
+      "downloadURL": "sources/fr.phenixscans-v12.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://phenix-scans.com"
+    },
+    {
+      "id": "fr.poseidonscans",
+      "name": "Poseidon Scans",
+      "version": 11,
+      "iconURL": "icons/fr.poseidonscans-v11.png",
+      "downloadURL": "sources/fr.poseidonscans-v11.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://poseidonscans.com/"
+    },
+    {
+      "id": "fr.raijinscans",
+      "name": "Raijin Scans",
+      "version": 3,
+      "iconURL": "icons/fr.raijinscans-v3.png",
+      "downloadURL": "sources/fr.raijinscans-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://raijinscan.co"
+    },
+    {
+      "id": "fr.rimuscans",
+      "name": "Rimu Scans",
+      "version": 3,
+      "iconURL": "icons/fr.rimuscans-v3.png",
+      "downloadURL": "sources/fr.rimuscans-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rimuscans.com"
+    },
+    {
+      "id": "fr.sushiscans",
+      "name": "Sushi Scans",
+      "version": 8,
+      "iconURL": "icons/fr.sushiscans-v8.png",
+      "downloadURL": "sources/fr.sushiscans-v8.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://sushiscan.fr/"
+    }
+  ]
+}
