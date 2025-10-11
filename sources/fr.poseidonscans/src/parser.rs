@@ -666,22 +666,10 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 																println!("[PoseidonScans] Chapter {} - isPremium: {}", ch_num, is_premium);
 
-																let chapter_id = chapter
-																	.get("id")
-																	.and_then(|v| v.as_str())
-																	.map(|s| s.to_string())
-																	.unwrap_or_else(|| {
-																		if ch_num == (ch_num as i32) as f32 {
-																			format!("{}", ch_num as i32)
-																		} else {
-																			format!("{}", ch_num)
-																		}
-																	});
-
 																let chapter_title = format!("Chapitre {}", ch_num);
 
-																// Use chapter number for URL instead of internal ID
-																let url_chapter_part = if ch_num == (ch_num as i32) as f32 {
+																// Use chapter number as key (for URL construction)
+																let chapter_key = if ch_num == (ch_num as i32) as f32 {
 																	format!("{}", ch_num as i32)
 																} else {
 																	format!("{}", ch_num)
@@ -689,7 +677,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 																let url = format!(
 																	"{}/serie/{}/chapter/{}",
-																	BASE_URL, manga_key, url_chapter_part
+																	BASE_URL, manga_key, chapter_key
 																);
 
 																println!("[PoseidonScans] Generated URL for chapter {}: {}", ch_num, url);
@@ -706,7 +694,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																	});
 
 																chapters.push(Chapter {
-																	key: chapter_id,
+																	key: chapter_key,
 																	title: Some(chapter_title),
 																	volume_number: None,
 																	chapter_number: Some(ch_num),
@@ -843,23 +831,18 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 									println!("[PoseidonScans] Chapter {} - isPremium: {}", ch_num, is_premium);
 
-									let chapter_id = chapter
-										.get("id")
-										.and_then(|v| v.as_str())
-										.map(|s| s.to_string())
-										.unwrap_or_else(|| {
-											if ch_num == (ch_num as i32) as f32 {
-												format!("{}", ch_num as i32)
-											} else {
-												format!("{}", ch_num)
-											}
-										});
+									// Use chapter number as key (for URL construction)
+									let chapter_key = if ch_num == (ch_num as i32) as f32 {
+										format!("{}", ch_num as i32)
+									} else {
+										format!("{}", ch_num)
+									};
 
 									let chapter_title = format!("Chapitre {}", ch_num);
 
 									let url = format!(
 										"{}/serie/{}/chapter/{}",
-										BASE_URL, manga_key, chapter_id
+										BASE_URL, manga_key, chapter_key
 									);
 
 									// Parse createdAt date
@@ -869,7 +852,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 										.and_then(|date_str| parse_iso_date(date_str));
 
 									chapters.push(Chapter {
-										key: chapter_id,
+										key: chapter_key,
 										title: Some(chapter_title),
 										volume_number: None,
 										chapter_number: Some(ch_num),
@@ -1151,18 +1134,18 @@ pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chap
 				.unwrap_or_default()
 				.to_string();
 
-			// Extract chapter ID from URL
-			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
+			// Use chapter number as key (for URL construction)
+			let chapter_key = if chapter_number == (chapter_number as i32) as f32 {
 				format!("{}", chapter_number as i32)
 			} else {
 				format!("{}", chapter_number)
 			};
 
-			// Check if this chapter is premium
-			let is_locked = premium_chapter_ids.contains(&chapter_id);
+			// Check if this chapter is premium (for fallback detection)
+			let is_locked = premium_chapter_ids.contains(&chapter_key);
 
 			chapters.push(Chapter {
-				key: chapter_id,
+				key: chapter_key,
 				title: Some(chapter_title),
 				volume_number: None,
 				chapter_number: Some(chapter_number),
@@ -1215,7 +1198,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	if let Some(chapter_elements) = html.select(chapter_selector) {
 		for chapter_element in chapter_elements {
 			if let Some(href_str) = chapter_element.attr("href") {
-				// Extract chapter ID from URL
+				// Extract chapter number from URL
 				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
 					// Skip duplicates - O(1) lookup with HashSet
 					if !seen_chapter_ids.insert(chapter_id.clone()) {
@@ -1239,7 +1222,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 						format!("{}{}", BASE_URL, href_str)
 					};
 
-					// Use None for date_uploaded - will be filled by HTML date extraction later
+					// Use chapter_id directly as key (it's already the chapter number from URL)
 					chapters.push(Chapter {
 						key: chapter_id,
 						title: Some(title),
