@@ -198,7 +198,16 @@ impl RaijinScans {
         }
 
         let cover = if let Some(imgs) = item.select(img_selector) {
-            if let Some(img) = imgs.first() {
+            let mut cover_img = None;
+            for img in imgs {
+                let is_flag = img.attr("class").map(|c| c.contains("flag-icon")).unwrap_or(false);
+                if !is_flag {
+                    cover_img = Some(img);
+                    break;
+                }
+            }
+
+            if let Some(img) = cover_img {
                 let cover_url = img.attr("src")
                     .or_else(|| img.attr("data-src"))
                     .or_else(|| img.attr("data-lazy-src"))
@@ -252,11 +261,15 @@ impl RaijinScans {
         let html = Self::create_html_request(BASE_URL)?;
 
         let mut mangas = Vec::new();
+        let mut seen_urls = Vec::new();
 
         if let Some(items) = html.select("section#most-viewed div.swiper-slide.unit") {
             for item in items {
                 if let Some(manga) = Self::parse_manga_item(&item, "a.c-title", "a.poster div.poster-image-wrapper > img") {
-                    mangas.push(manga);
+                    if !seen_urls.contains(&manga.key) {
+                        seen_urls.push(manga.key.clone());
+                        mangas.push(manga);
+                    }
                 }
             }
         }

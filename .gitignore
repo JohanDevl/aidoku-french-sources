@@ -40,7 +40,10 @@ src/rust/
 .playwright-mcp
 
 # Temporary files
-response.html
+data.html
+data_*.html
+data.js
+data_*.js
 data.json
 data_*.json
 *.tmp
