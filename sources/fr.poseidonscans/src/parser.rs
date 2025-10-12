@@ -11,6 +11,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	UpdateStrategy, Viewer,
 };
+use chrono::{DateTime, NaiveDateTime};
 use core::cmp::Ordering;
 use serde_json;
 
@@ -173,12 +174,10 @@ pub fn parse_manga_list(
 	for item in &api_response.data {
 		let manga = item.to_manga();
 
-		// Apply search filter
 		if !search_query.is_empty() && !manga.title.to_lowercase().contains(&query_lower) {
 			continue;
 		}
 
-		// Apply status filter
 		if let Some(ref status_str) = status_filter {
 			let filter_status = parse_manga_status(status_str);
 			if manga.status != filter_status {
@@ -187,7 +186,6 @@ pub fn parse_manga_list(
 		}
 
 		// Apply type filter (check if manga contains the type in description or if it's
-		// a different type)
 		if let Some(ref type_str) = type_filter {
 			// Extract type from the original API data if available
 			let manga_type = extract_manga_type(&item);
@@ -196,7 +194,6 @@ pub fn parse_manga_list(
 			}
 		}
 
-		// Apply genre filter
 		if let Some(ref genre_str) = genre_filter {
 			if !manga_has_genre(&manga, genre_str) {
 				continue;
@@ -206,12 +203,10 @@ pub fn parse_manga_list(
 		all_mangas.push(manga);
 	}
 
-	// Apply sorting
 	if let Some(ref sort_str) = sort_filter {
 		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
 	}
 
-	// Client-side pagination
 	let start_index = ((page - 1) * PAGE_SIZE) as usize;
 	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
 
@@ -418,7 +413,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 
 	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en
-	// pause)
 	if !status_found {
 		if let Some(status_spans) =
 			html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20")
@@ -513,9 +507,6 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 // Parse ISO 8601 date string to Unix timestamp
 // Format: "2025-10-11T13:49:51.543Z" or "$D2025-10-11T13:49:51.543Z"
 fn parse_iso_date(date_str: &str) -> Option<i64> {
-	// Parse the date string manually to avoid dependencies
-	// Format: YYYY-MM-DDTHH:MM:SS.sssZ (may have $D prefix)
-
 	// Remove $D prefix if present
 	let clean_date_str = if date_str.starts_with("$D") {
 		&date_str[2..]
@@ -523,116 +514,56 @@ fn parse_iso_date(date_str: &str) -> Option<i64> {
 		date_str
 	};
 
-	if clean_date_str.len() < 19 {
-		return None;
+	// Try parsing as RFC3339 first (standard ISO 8601 with timezone)
+	if let Ok(dt) = DateTime::parse_from_rfc3339(clean_date_str) {
+		return Some(dt.timestamp());
 	}
 
-	// Extract components
-	let year: i32 = clean_date_str.get(0..4)?.parse().ok()?;
-	let month: i32 = clean_date_str.get(5..7)?.parse().ok()?;
-	let day: i32 = clean_date_str.get(8..10)?.parse().ok()?;
-	let hour: i32 = clean_date_str.get(11..13)?.parse().ok()?;
-	let minute: i32 = clean_date_str.get(14..16)?.parse().ok()?;
-	let second: i32 = clean_date_str.get(17..19)?.parse().ok()?;
-
-	// Validate date components
-	if month < 1 || month > 12 {
-		return None;
-	}
-	if hour < 0 || hour > 23 {
-		return None;
-	}
-	if minute < 0 || minute > 59 {
-		return None;
-	}
-	if second < 0 || second > 59 {
-		return None;
+	// Try parsing without timezone (assume UTC)
+	if let Ok(dt) = NaiveDateTime::parse_from_str(clean_date_str, "%Y-%m-%dT%H:%M:%S%.fZ") {
+		return Some(dt.and_utc().timestamp());
 	}
 
-	// Calculate Unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
-	// Using simplified algorithm for dates after 1970
-
-	// Days in each month (non-leap year)
-	let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-	// Validate day is valid for the given month
-	let is_leap_year = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-	let max_days = if month == 2 && is_leap_year {
-		29
-	} else {
-		days_in_month[(month - 1) as usize]
-	};
-
-	if day < 1 || day > max_days {
-		return None;
+	// Try without milliseconds
+	if let Ok(dt) = NaiveDateTime::parse_from_str(clean_date_str, "%Y-%m-%dT%H:%M:%SZ") {
+		return Some(dt.and_utc().timestamp());
 	}
 
-	// Calculate days since epoch (1970-01-01)
-	let mut days = 0i64;
-
-	// Add days for complete years
-	for y in 1970..year {
-		if (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) {
-			days += 366; // Leap year
-		} else {
-			days += 365;
-		}
-	}
-
-	// Add days for complete months in current year
-	for m in 0..(month - 1) {
-		days += days_in_month[m as usize] as i64;
-	}
-
-	// Add extra day for February in leap year
-	if month > 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
-		days += 1;
-	}
-
-	// Add days in current month
-	days += (day - 1) as i64;
-
-	// Convert to timestamp
-	let timestamp = days * 86400 + (hour as i64) * 3600 + (minute as i64) * 60 + (second as i64);
-
-	Some(timestamp)
+	None
 }
 
 // Parse chapters from Next.js RSC streaming data (self.__next_f.push)
 // This is the primary method as it contains isPremium field
 fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
-	// println!(
-	// 	"[PoseidonScans] Parsing chapters from Next.js RSC data for manga: {}",
-	// 	manga_key
 	// );
 
 	// First try to find scripts with self.__next_f.push (RSC streaming format)
 	if let Some(script_elements) = html.select("script") {
-		// println!("[PoseidonScans] Searching through script elements for __next_f");
 
 		for script in script_elements {
 			if let Some(content) = script.data() {
 				// Check if this script contains __next_f.push calls
 				if content.contains("self.__next_f.push") {
-					// println!(
-					// 	"[PoseidonScans] Found script with __next_f.push, length: {} chars",
-					// 	content.len()
 					// );
 
 					// Debug: check if contains "chapters" word
 					let has_chapters_word = content.contains("chapters");
 					let has_ispremium_word = content.contains("isPremium");
-					// println!("[PoseidonScans] Script contains 'chapters': {}, contains 'isPremium': {}", has_chapters_word, has_ispremium_word);
 
 					// If this script contains both keywords, try parsing push() calls as JSON
 					if has_chapters_word && has_ispremium_word {
-						// println!("[PoseidonScans] Entering JSON parsing block for script with {} chars", content.len());
 
 						// RSC format: self.__next_f.push([id, "json_string"])
 						// Strategy: Parse each push() call as JSON, extract the string, parse it, search for chapters
 
 						// Helper function to recursively search for "chapters" array in JSON
-						fn find_chapters(val: &serde_json::Value) -> Option<&serde_json::Value> {
+						// Depth limiting prevents excessive recursion with malicious or deeply nested JSON
+						fn find_chapters(val: &serde_json::Value, depth: usize) -> Option<&serde_json::Value> {
+							// Limit recursion depth to prevent stack overflow
+							if depth > 10 {
+								return None;
+							}
+
 							if let Some(obj) = val.as_object() {
 								if let Some(chapters) = obj.get("chapters") {
 									if chapters.is_array() {
@@ -640,13 +571,13 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 									}
 								}
 								for (_key, nested) in obj.iter() {
-									if let Some(found) = find_chapters(nested) {
+									if let Some(found) = find_chapters(nested, depth + 1) {
 										return Some(found);
 									}
 								}
 							} else if let Some(arr) = val.as_array() {
 								for item in arr {
-									if let Some(found) = find_chapters(item) {
+									if let Some(found) = find_chapters(item, depth + 1) {
 										return Some(found);
 									}
 								}
@@ -656,9 +587,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 						// Find all self.__next_f.push( calls
 						let mut search_start = 0;
-						// println!("[PoseidonScans] Starting while loop to find push() calls");
 						while let Some(push_start) = content[search_start..].find("self.__next_f.push(") {
-							// println!("[PoseidonScans] Found push() call at position {}", search_start + push_start);
 							let absolute_push_start = search_start + push_start;
 							let after_push = &content[absolute_push_start + 19..]; // Skip "self.__next_f.push("
 
@@ -691,15 +620,12 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 							if let Some(end) = push_end {
 								let push_content = &after_push[..end];
-								// println!("[PoseidonScans] Extracted push() content, length: {} chars", push_content.len());
 
 								// Parse the push() arguments as JSON array: [id, "json_string"]
 								match serde_json::from_str::<serde_json::Value>(push_content) {
 									Ok(push_array) => {
-										// println!("[PoseidonScans] Successfully parsed push() as JSON");
 										// Extract the second element (index 1) which is the JSON string
 										if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
-											// println!("[PoseidonScans] Extracted JSON string from push array, length: {} chars", json_string.len());
 
 											// RSC format: The string starts with "id:" prefix (e.g., "5:[...]")
 											// We need to skip this prefix to get the actual JSON
@@ -709,20 +635,16 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 												json_string
 											};
 
-											// println!("[PoseidonScans] After removing RSC prefix, JSON length: {} chars", actual_json.len());
 
 											// Parse the JSON string
 											match serde_json::from_str::<serde_json::Value>(actual_json) {
 												Ok(parsed_data) => {
-													// println!("[PoseidonScans] Successfully parsed inner JSON string");
 													// Try to find chapters array in parsed data
-													if let Some(chapters_value) = find_chapters(&parsed_data) {
-														// println!("[PoseidonScans] Found chapters array via JSON parsing");
+													if let Some(chapters_value) = find_chapters(&parsed_data, 0) {
 
 														// Parse the chapters array
 														match serde_json::from_value::<Vec<serde_json::Value>>(chapters_value.clone()) {
 															Ok(chapters_array) => {
-														// println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
 														let mut chapters: Vec<Chapter> = Vec::new();
 
 														for chapter in chapters_array.iter() {
@@ -744,7 +666,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																	.and_then(|v| v.as_bool())
 																	.unwrap_or(false);
 
-																// println!("[PoseidonScans] Found chapter {} - isPremium: {}", ch_num, is_premium);
 
 																let chapter_title = format!("Chapitre {}", ch_num);
 
@@ -784,8 +705,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 														}
 
 														if !chapters.is_empty() {
-															// println!("[PoseidonScans] Total chapters parsed from RSC: {}", chapters.len());
-															// println!("[PoseidonScans] Chapters initially marked as premium: {}", chapters.iter().filter(|ch| ch.locked).count());
 
 															let min_premium_chapter = chapters
 																.iter()
@@ -794,7 +713,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
 
 															if let Some(min_num) = min_premium_chapter {
-																// println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
 																for chapter in &mut chapters {
 																	if let Some(ch_num) = chapter.chapter_number {
 																		if ch_num >= min_num {
@@ -802,9 +720,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																		}
 																	}
 																}
-																// println!("[PoseidonScans] Final premium chapters after post-processing: {}", chapters.iter().filter(|ch| ch.locked).count());
 															} else {
-																// println!("[PoseidonScans] No premium chapters detected");
 															}
 
 															chapters.sort_by(|a, b| {
@@ -816,78 +732,54 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																}
 															});
 
-															// println!("[PoseidonScans] Returning {} chapters from RSC data", chapters.len());
 															return Ok(chapters);
 														}
 													}
 													Err(_e) => {
-														// println!("[PoseidonScans] Failed to parse chapters array as JSON: {:?}", e);
 													}
 												}
 											} else {
-												// println!("[PoseidonScans] No chapters array found in parsed JSON");
 											}
 										}
 										Err(_e) => {
-											// println!("[PoseidonScans] Failed to parse inner JSON string: {:?}", e);
 										}
 									}
 								} else {
-									// println!("[PoseidonScans] Could not extract JSON string from push array (index 1)");
 								}
 							}
 							Err(_e) => {
-								// println!("[PoseidonScans] Failed to parse push() content as JSON: {:?}", e);
 							}
 						}
 
-								// Move to next push() call
 								search_start = absolute_push_start + 19 + end + 1;
 							} else {
-								// println!("[PoseidonScans] Could not find closing parenthesis for push() call");
 								break;
 							}
 						}
 
-						// println!("[PoseidonScans] Finished parsing {} push() calls in this script", push_count);
 					}
 				}
 			}
 		}
 	}
 
-	// println!("[PoseidonScans] No RSC data found, trying __NEXT_DATA__ fallback");
 
-	// Fallback to __NEXT_DATA__ (old method)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
-		// println!("[PoseidonScans] Found __NEXT_DATA__ script element");
 
 		let mut script_count = 0;
 		for script in script_elements {
 			script_count += 1;
-			// println!(
-			// 	"[PoseidonScans] Processing __NEXT_DATA__ script #{}",
-			// 	script_count
 			// );
 
 			match script.data() {
 				Some(content) => {
-					// println!(
-					// 	"[PoseidonScans] __NEXT_DATA__ content length: {} chars",
-					// 	content.len()
 					// );
 
 					// Log first 200 chars of content for debugging
-					// let preview = if content.len() > 200 {
-					// 	&content[..200]
-					// } else {
-					// 	&content
 					// };
-					// println!("[PoseidonScans] __NEXT_DATA__ preview: {}", preview);
 
 					match serde_json::from_str::<serde_json::Value>(&content) {
 						Ok(json_data) => {
-							// println!("[PoseidonScans] Successfully parsed __NEXT_DATA__ JSON");
 
 							let possible_paths = [
 								&json_data["props"]["pageProps"]["chapters"],
@@ -898,7 +790,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 							for (_idx, chapters_data) in possible_paths.iter().enumerate() {
 								if let Some(chapters_array) = chapters_data.as_array() {
-									// println!("[PoseidonScans] Found chapters array at path index {}, length: {}", idx, chapters_array.len());
 									let mut chapters: Vec<Chapter> = Vec::new();
 
 									for chapter in chapters_array.iter() {
@@ -923,9 +814,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 											.and_then(|v| v.as_bool())
 											.unwrap_or(false);
 
-										// println!(
-										// 	"[PoseidonScans] Chapter {} - isPremium: {}",
-										// 	ch_num, is_premium
 										// );
 
 										// Use chapter number as key (for URL construction)
@@ -963,11 +851,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 									}
 
 									if !chapters.is_empty() {
-										// println!(
-										// 	"[PoseidonScans] Total chapters parsed: {}",
-										// 	chapters.len()
 										// );
-										// println!("[PoseidonScans] Chapters initially marked as premium: {}", chapters.iter().filter(|ch| ch.locked).count());
 
 										let min_premium_chapter = chapters
 											.iter()
@@ -978,7 +862,6 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 											});
 
 										if let Some(min_num) = min_premium_chapter {
-											// println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
 											for chapter in &mut chapters {
 												if let Some(ch_num) = chapter.chapter_number {
 													if ch_num >= min_num {
@@ -986,9 +869,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 													}
 												}
 											}
-											// println!("[PoseidonScans] Final premium chapters after post-processing: {}", chapters.iter().filter(|ch| ch.locked).count());
 										} else {
-											// println!(
 											// 	"[PoseidonScans] No premium chapters detected"
 											// );
 										}
@@ -1004,68 +885,47 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 											}
 										});
 
-										// println!("[PoseidonScans] Returning {} chapters from __NEXT_DATA__", chapters.len());
 										return Ok(chapters);
 									}
 								} else {
-									// println!("[PoseidonScans] Path index {} is not an array", idx);
 								}
 							}
 						}
 						Err(_e) => {
-							// println!(
-							// 	"[PoseidonScans] Failed to parse __NEXT_DATA__ JSON: {:?}",
-							// 	_e
 							// );
 						}
 					}
 				}
 				None => {
-					// println!("[PoseidonScans] script.data() returned None for __NEXT_DATA__");
 				}
 			}
 		}
 
 		if script_count == 0 {
-			// println!("[PoseidonScans] __NEXT_DATA__ selector found but no scripts iterated");
 		}
 	} else {
-		// println!("[PoseidonScans] No __NEXT_DATA__ script element found");
 	}
 
-	// println!("[PoseidonScans] __NEXT_DATA__ parsing failed, returning empty");
 	Ok(Vec::new())
 }
 
 // Detect premium chapter IDs from __NEXT_DATA__ or HTML
-// Returns a set of chapter IDs that are premium
 fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
-	// println!("[PoseidonScans] detect_premium_chapters_from_html called");
 	let mut premium_ids = BTreeSet::new();
 
 	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
-		// println!("[PoseidonScans] Trying __NEXT_DATA__ for premium detection");
 		let mut script_count = 0;
 		for script in script_elements {
 			script_count += 1;
-			// println!(
-			// 	"[PoseidonScans] Premium detection: processing script #{}",
-			// 	script_count
 			// );
 
 			match script.data() {
 				Some(content) => {
-					// println!(
-					// 	"[PoseidonScans] Premium detection: got content, length {} chars",
-					// 	content.len()
 					// );
 					match serde_json::from_str::<serde_json::Value>(&content) {
 						Ok(json_data) => {
-							// println!("[PoseidonScans] Parsed __NEXT_DATA__ for premium detection");
 							// Try to navigate to chapters data
-							// Possible paths: props.pageProps.chapters,
-							// props.pageProps.initialData.chapters, etc.
 							let possible_paths = [
 								&json_data["props"]["pageProps"]["chapters"],
 								&json_data["props"]["pageProps"]["initialData"]["chapters"],
@@ -1075,7 +935,6 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 
 							for (_idx, chapters_data) in possible_paths.iter().enumerate() {
 								if let Some(chapters_array) = chapters_data.as_array() {
-									// println!("[PoseidonScans] Found chapters at path {} for premium detection, count: {}", idx, chapters_array.len());
 									for chapter in chapters_array.iter() {
 										// Look for premium indicators in chapter data
 										let is_premium = chapter
@@ -1090,7 +949,6 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 											.unwrap_or(false);
 
 										if is_premium {
-											// println!("[PoseidonScans] Found premium chapter in detection");
 											// Try to get chapter number or ID
 											let chapter_id = chapter
 												.get("number")
@@ -1110,9 +968,6 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 												});
 
 											if let Some(id) = chapter_id {
-												// println!(
-												// 	"[PoseidonScans] Added premium chapter ID: {}",
-												// 	id
 												// );
 												premium_ids.insert(id);
 											}
@@ -1120,37 +975,29 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 									}
 
 									if !premium_ids.is_empty() {
-										// println!("[PoseidonScans] Returning {} premium IDs from __NEXT_DATA__", premium_ids.len());
 										return premium_ids;
 									}
 								}
 							}
 						}
 						Err(_e) => {
-							// println!(
-							// 	"[PoseidonScans] Premium detection: JSON parse error: {:?}",
-							// 	_e
 							// );
 						}
 					}
 				}
 				None => {
-					// println!("[PoseidonScans] Premium detection: script.data() returned None");
 				}
 			}
 		}
 
 		if script_count == 0 {
-			// println!(
 			// 	"[PoseidonScans] Premium detection: __NEXT_DATA__ found but no scripts iterated"
 			// );
 		}
 	}
 
 	// Method 2: Fallback to HTML parsing (won't work for client-rendered content)
-	// println!("[PoseidonScans] Trying HTML parsing for premium detection");
 	if let Some(chapter_links) = html.select("a[href*='/chapter/']") {
-		// println!("[PoseidonScans] Found chapter links in HTML");
 		for link in chapter_links {
 			let chapter_id = if let Some(href) = link.attr("href") {
 				extract_chapter_id_from_url(&href)
@@ -1172,9 +1019,6 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 
 			if has_amber_class || has_premium_text || has_premium_in_text {
 				if let Some(chapter_id) = chapter_id {
-					// println!(
-					// 	"[PoseidonScans] Found premium chapter in HTML: {}",
-					// 	chapter_id
 					// );
 					premium_ids.insert(chapter_id);
 				}
@@ -1182,55 +1026,35 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 		}
 	}
 
-	// println!(
-	// 	"[PoseidonScans] Returning {} premium IDs total",
-	// 	premium_ids.len()
 	// );
 	premium_ids
 }
 
 pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// println!(
-	// 	"[PoseidonScans] parse_chapter_list called for manga: {}",
-	// 	manga_key
 	// );
 
 	// Try __NEXT_DATA__ first (contains isPremium field)
 	if let Ok(chapters) = parse_chapters_from_nextdata(html, &manga_key) {
 		if !chapters.is_empty() {
-			// println!(
-			// 	"[PoseidonScans] Using chapters from __NEXT_DATA__ (count: {})",
-			// 	chapters.len()
 			// );
 			return Ok(chapters);
 		} else {
-			// println!("[PoseidonScans] __NEXT_DATA__ returned empty, trying JSON-LD fallback");
 		}
 	}
 
-	// Fallback to JSON-LD approach
-	// println!("[PoseidonScans] Falling back to JSON-LD parsing");
 	let manga_data = extract_jsonld_manga_details(html)?;
 
 	// Extract chapters from JSON-LD "hasPart" array
 	let chapters_array =
 		if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
-			// println!(
-			// 	"[PoseidonScans] Found {} chapters in JSON-LD",
-			// 	has_part.len()
 			// );
 			has_part
 		} else {
-			// println!("[PoseidonScans] No chapters in JSON-LD, trying HTML fallback");
 			return Ok(parse_chapter_list_from_html(html)?);
 		};
 
 	// Get premium chapter IDs from HTML (O(1) parse, no HTTP requests)
-	// println!("[PoseidonScans] Detecting premium chapters from HTML/NEXT_DATA");
 	let premium_chapter_ids = detect_premium_chapters_from_html(html);
-	// println!(
-	// 	"[PoseidonScans] Found {} premium chapter IDs",
-	// 	premium_chapter_ids.len()
 	// );
 
 	let mut chapters: Vec<Chapter> = Vec::new();
@@ -1336,16 +1160,13 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 			if let Some(href_str) = chapter_element.attr("href") {
 				// Extract chapter number from URL
 				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-					// Skip duplicates - O(1) lookup with HashSet
 					if !seen_chapter_ids.insert(chapter_id.clone()) {
 						continue; // insert() returns false if element was already
-						 // present
 					}
 
 					// Extract chapter number from URL or ID first
 					let chapter_number = extract_chapter_number_from_id(&chapter_id);
 
-					// Generate clean title: "Chapitre X"
 					let title = if let Some(ch_num) = chapter_number {
 						format!("Chapitre {}", ch_num)
 					} else {
@@ -1405,7 +1226,6 @@ pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page
 		}
 	}
 
-	// Fallback to HTML extraction
 	extract_pages_from_html(html)
 }
 
@@ -1474,7 +1294,6 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 							}
 						}
 					}
-					// Direct paths
 					if let Some(images) = json_data.get("images").and_then(|i| i.as_array()) {
 						let pages = parse_images_from_json_array(images)?;
 						if !pages.is_empty() {
@@ -1539,7 +1358,6 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 			}
 		}
 
-		// Sort by order and return
 		if !pages.is_empty() {
 			pages.sort_by(|a, b| a.0.cmp(&b.0));
 			let ordered_pages: Vec<Page> = pages.into_iter().map(|(_, page)| page).collect();
@@ -1631,7 +1449,6 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 				});
 			}
 		} else if let Some(url_str) = image_value.as_str() {
-			// Sometimes images are just strings
 			let absolute_url = if url_str.starts_with("http") {
 				url_str.to_string()
 			} else if url_str.starts_with("/") {
@@ -1652,7 +1469,6 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 	Ok(pages)
 }
 
-// Helper functions for filtering
 
 // Extract manga type from API data (Manga, Manhwa, Manhua)
 fn extract_manga_type(item: &MangaItem) -> String {
@@ -1665,7 +1481,6 @@ fn extract_manga_type(item: &MangaItem) -> String {
 			_ => "Manga".to_string(),
 		}
 	} else {
-		// Fallback to default
 		"Manga".to_string()
 	}
 }
@@ -1681,7 +1496,6 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 		let genre_lower = genre_filter.to_lowercase();
 		for tag in tags {
 			let tag_lower = tag.to_lowercase();
-			// Exact match or contains match
 			if tag_lower == genre_lower
 				|| tag_lower.contains(&genre_lower)
 				|| genre_lower.contains(&tag_lower)
@@ -1693,7 +1507,6 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 	false
 }
 
-// Apply sorting to manga list
 fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[MangaItem]) {
 	// Create a map for quick lookup of API data by manga key (slug)
 	let item_map: BTreeMap<&str, &MangaItem> = manga_items
@@ -1709,7 +1522,6 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[Mang
 			mangas.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
 		}
 		"Date d'ajout" => {
-			// Sort by createdAt date (newest first)
 			mangas.sort_by(|a, b| {
 				let a_date = item_map
 					.get(a.key.as_str())
