@@ -656,8 +656,19 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 										// Extract the second element (index 1) which is the JSON string
 										if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
 											println!("[PoseidonScans] Extracted JSON string from push array, length: {} chars", json_string.len());
+
+											// RSC format: The string starts with "id:" prefix (e.g., "5:[...]")
+											// We need to skip this prefix to get the actual JSON
+											let actual_json = if let Some(colon_pos) = json_string.find(':') {
+												&json_string[colon_pos + 1..]
+											} else {
+												json_string
+											};
+
+											println!("[PoseidonScans] After removing RSC prefix, JSON length: {} chars", actual_json.len());
+
 											// Parse the JSON string
-											match serde_json::from_str::<serde_json::Value>(json_string) {
+											match serde_json::from_str::<serde_json::Value>(actual_json) {
 												Ok(parsed_data) => {
 													println!("[PoseidonScans] Successfully parsed inner JSON string");
 													// Try to find chapters array in parsed data
