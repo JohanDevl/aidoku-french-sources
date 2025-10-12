@@ -646,9 +646,14 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 												let json_content = &json_str[colon_pos + 1..]; // Skip "X:", keep the JSON part
 												println!("[PoseidonScans] JSON content after prefix, length: {} chars", json_content.len());
 
+												// The RSC format may contain literal \n characters in the string
+												// which need to be replaced with spaces for JSON parsing
+												let json_content_clean = json_content.replace("\\n", " ");
+												println!("[PoseidonScans] Cleaned JSON content length: {} chars", json_content_clean.len());
+
 												// Parse this content as JSON directly
 												match serde_json::from_str::<serde_json::Value>(
-													json_content,
+													&json_content_clean,
 												) {
 													Ok(parsed_data) => {
 														println!("[PoseidonScans] Successfully parsed RSC JSON data");
