@@ -578,65 +578,65 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 					let has_ispremium_word = content.contains("isPremium");
 					println!("[PoseidonScans] Script contains 'chapters': {}, contains 'isPremium': {}", has_chapters_word, has_ispremium_word);
 
-					// If this is the big script, show a preview
-					if content.len() > 100000 {
-						let preview = if content.len() > 500 {
-							&content[..500]
-						} else {
-							&content
-						};
-						println!("[PoseidonScans] Large script preview: {}", preview);
-					}
+					// If this script contains both keywords, unescape and process it
+					if has_chapters_word && has_ispremium_word {
+						// First, unescape the entire script content
+						// RSC format: self.__next_f.push([1,"5:[\"$\",\"div\"..."])
+						// We need to convert \" to " throughout the content
+						let unescaped_content = content.replace(r#"\""#, "\"");
+						println!("[PoseidonScans] Unescaped script, original length: {}, new length: {}", content.len(), unescaped_content.len());
 
-					// Look for the chapters array pattern in the RSC data
-					// Note: In RSC data, JSON is escaped so we need to look for \"chapters\":[
-					// The data contains: \"chapters\":[{\"id\":\"cm...\",\"number\":X,\"isPremium\":true/false,...},...]
-					if let Some(chapters_start) = content.find(r#"\"chapters\":["#) {
-						println!("[PoseidonScans] Found chapters array in RSC data");
-
-						// Extract the chapters array by finding the matching closing bracket
-						let array_start = chapters_start + 13; // Skip '\"chapters\":['
-						let remaining = &content[array_start..];
-
-						// Find the closing ] for the chapters array
-						let mut bracket_count = 0;
-						let mut in_string = false;
-						let mut escape_next = false;
-						let mut array_end = None;
-
-						for (i, ch) in remaining.char_indices() {
-							if escape_next {
-								escape_next = false;
-								continue;
-							}
-
-							match ch {
-								'\\' if in_string => escape_next = true,
-								'"' => in_string = !in_string,
-								'[' if !in_string => bracket_count += 1,
-								']' if !in_string => {
-									bracket_count -= 1;
-									if bracket_count < 0 {
-										array_end = Some(i);
-										break;
-									}
-								},
-								_ => {}
-							}
+						// Show preview of unescaped content
+						if content.len() > 100000 {
+							let preview = if unescaped_content.len() > 500 {
+								&unescaped_content[..500]
+							} else {
+								&unescaped_content
+							};
+							println!("[PoseidonScans] Unescaped script preview: {}", preview);
 						}
 
-						if let Some(end) = array_end {
-							let chapters_json_escaped = &remaining[..end + 1]; // Include the closing ]
-							println!("[PoseidonScans] Extracted chapters array, length: {} chars", chapters_json_escaped.len());
+						// Now search for the chapters array in the unescaped content
+						if let Some(chapters_start) = unescaped_content.find(r#""chapters":["#) {
+							println!("[PoseidonScans] Found chapters array in unescaped RSC data");
 
-							// Unescape the JSON string (remove backslashes before quotes)
-							// In RSC data, JSON is escaped like: [{\"id\":\"cm...\"}]
-							// We need to convert it to: [{"id":"cm..."}]
-							let chapters_json = chapters_json_escaped.replace(r#"\""#, "\"");
-							println!("[PoseidonScans] Unescaped JSON, new length: {} chars", chapters_json.len());
+							// Extract the chapters array by finding the matching closing bracket
+							let array_start = chapters_start + 11; // Skip '"chapters":'
+							let remaining = &unescaped_content[array_start..];
 
-							// Parse the chapters array as JSON
-							match serde_json::from_str::<Vec<serde_json::Value>>(&chapters_json) {
+							// Find the closing ] for the chapters array
+							let mut bracket_count = 0;
+							let mut in_string = false;
+							let mut escape_next = false;
+							let mut array_end = None;
+
+							for (i, ch) in remaining.char_indices() {
+								if escape_next {
+									escape_next = false;
+									continue;
+								}
+
+								match ch {
+									'\\' if in_string => escape_next = true,
+									'"' => in_string = !in_string,
+									'[' if !in_string => bracket_count += 1,
+									']' if !in_string => {
+										bracket_count -= 1;
+										if bracket_count < 0 {
+											array_end = Some(i);
+											break;
+										}
+									},
+									_ => {}
+								}
+							}
+
+							if let Some(end) = array_end {
+								let chapters_json = &remaining[..end + 1]; // Include the closing ]
+								println!("[PoseidonScans] Extracted chapters array, length: {} chars", chapters_json.len());
+
+								// Parse the chapters array as JSON (already unescaped)
+								match serde_json::from_str::<Vec<serde_json::Value>>(chapters_json) {
 								Ok(chapters_array) => {
 									println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
 									let mut chapters: Vec<Chapter> = Vec::new();
@@ -742,10 +742,13 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 								Err(e) => {
 									println!("[PoseidonScans] Failed to parse chapters array as JSON: {:?}", e);
 								}
+								}
 							}
 						} else {
 							println!("[PoseidonScans] Could not find closing bracket for chapters array");
 						}
+					} else {
+						println!("[PoseidonScans] Pattern \"chapters\":[ not found in unescaped content");
 					}
 				}
 			}
