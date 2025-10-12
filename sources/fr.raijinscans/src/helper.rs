@@ -126,11 +126,7 @@ pub fn clean_description(text: String) -> String {
         .replace("<br>", "\n")
         .replace("<br/>", "\n")
         .replace("<br />", "\n")
-        .replace("</p>", "\n")
-        .replace("&amp;", "&")
-        .replace("&#039;", "'")
-        .replace("&quot;", "\"")
-        .replace("&nbsp;", " ");
+        .replace("</p>", "\n");
 
     let mut cleaned = String::new();
     let mut in_tag = false;
@@ -157,5 +153,13 @@ pub fn clean_description(text: String) -> String {
         i += 1;
     }
 
-    cleaned.trim().to_string()
+    cleaned
+        .replace("&lt;", "")
+        .replace("&gt;", "")
+        .replace("&amp;", "&")
+        .replace("&#039;", "'")
+        .replace("&quot;", "\"")
+        .replace("&nbsp;", " ")
+        .trim()
+        .to_string()
 }
