@@ -421,10 +421,16 @@ fn parse_chapter_date(date_str: &str) -> Option<i64> {
 }
 
 pub fn parse_page_list(html_content: String, base_url: &str) -> Result<Vec<Page>> {
-	let urls = crate::helper::extract_images_from_script(&html_content)
-        .ok_or_else(|| AidokuError::message(
-            "Cannot extract images. JapScan uses dynamic JavaScript loading which is not supported. The site may also be blocked by Cloudflare."
-        ))?;
+	// Try new data-atad extraction method first
+	let urls = if let Some(urls) = crate::helper::extract_images_from_data_atad(&html_content) {
+		urls
+	} else {
+		// Fallback to old JavaScript extraction method
+		crate::helper::extract_images_from_script(&html_content)
+			.ok_or_else(|| AidokuError::message(
+				"Cannot extract images. JapScan uses dynamic JavaScript loading which is not supported. The site may also be blocked by Cloudflare."
+			))?
+	};
 
 	let base_host = if let Some(domain_start) = base_url.find("://") {
 		let after_protocol = &base_url[domain_start + 3..];
