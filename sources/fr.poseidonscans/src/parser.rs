@@ -11,12 +11,14 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	UpdateStrategy, Viewer,
 };
+use chrono::{DateTime, NaiveDateTime};
 use core::cmp::Ordering;
 use serde_json;
 
 const PAGE_SIZE: i32 = 20;
 const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
-const CHAPTER_PREFIX_LEN: usize = 9;
+const CHAPTER_PREFIX: &str = "/chapter/";
+const CHAPTER_PREFIX_LEN: usize = CHAPTER_PREFIX.len();
 
 // Serde structures for Poseidon Scans API responses
 
@@ -172,12 +174,10 @@ pub fn parse_manga_list(
 	for item in &api_response.data {
 		let manga = item.to_manga();
 
-		// Apply search filter
 		if !search_query.is_empty() && !manga.title.to_lowercase().contains(&query_lower) {
 			continue;
 		}
 
-		// Apply status filter
 		if let Some(ref status_str) = status_filter {
 			let filter_status = parse_manga_status(status_str);
 			if manga.status != filter_status {
@@ -186,7 +186,6 @@ pub fn parse_manga_list(
 		}
 
 		// Apply type filter (check if manga contains the type in description or if it's
-		// a different type)
 		if let Some(ref type_str) = type_filter {
 			// Extract type from the original API data if available
 			let manga_type = extract_manga_type(&item);
@@ -195,7 +194,6 @@ pub fn parse_manga_list(
 			}
 		}
 
-		// Apply genre filter
 		if let Some(ref genre_str) = genre_filter {
 			if !manga_has_genre(&manga, genre_str) {
 				continue;
@@ -205,12 +203,10 @@ pub fn parse_manga_list(
 		all_mangas.push(manga);
 	}
 
-	// Apply sorting
 	if let Some(ref sort_str) = sort_filter {
 		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
 	}
 
-	// Client-side pagination
 	let start_index = ((page - 1) * PAGE_SIZE) as usize;
 	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
 
@@ -273,7 +269,7 @@ pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
 pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> {
 	let mut title = manga_key.clone();
 	let mut description = String::new();
-	let authors: Option<Vec<String>> = None;
+	let mut authors: Option<Vec<String>> = None;
 	let artists: Option<Vec<String>> = None;
 	let mut tags: Option<Vec<String>> = None;
 	let mut status = MangaStatus::Unknown;
@@ -358,6 +354,26 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		}
 	}
 
+	// Extract author from HTML
+	if let Some(span_elements) = html.select("span") {
+		for span_element in span_elements {
+			if let Some(span_html) = span_element.html() {
+				if span_html.contains("Auteur:") {
+					// Find the nested bold span with the author name
+					if let Some(author_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
+						if let Some(author_text) = author_span.text() {
+							let author = author_text.trim().to_string();
+							if !author.is_empty() {
+								authors = Some(vec![author]);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Extract tags from JSON-LD and status from HTML
 	let mut tag_list: Vec<String> = Vec::new();
 
@@ -397,7 +413,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 
 	// Method 2: Look for status badge/span (green=en cours, red=terminé, yellow=en
-	// pause)
 	if !status_found {
 		if let Some(status_spans) =
 			html.select("span.bg-green-500\\/20, span.bg-red-500\\/20, span.bg-yellow-500\\/20")
@@ -489,73 +504,495 @@ fn extract_jsonld_manga_details(html: &Document) -> Result<serde_json::Value> {
 	Ok(serde_json::json!({}))
 }
 
+// Parse ISO 8601 date string to Unix timestamp
+// Format: "2025-10-11T13:49:51.543Z" or "$D2025-10-11T13:49:51.543Z"
+fn parse_iso_date(date_str: &str) -> Option<i64> {
+	// Remove $D prefix if present
+	let clean_date_str = if date_str.starts_with("$D") {
+		&date_str[2..]
+	} else {
+		date_str
+	};
+
+	// Try parsing as RFC3339 first (standard ISO 8601 with timezone)
+	if let Ok(dt) = DateTime::parse_from_rfc3339(clean_date_str) {
+		return Some(dt.timestamp());
+	}
+
+	// Try parsing without timezone (assume UTC)
+	if let Ok(dt) = NaiveDateTime::parse_from_str(clean_date_str, "%Y-%m-%dT%H:%M:%S%.fZ") {
+		return Some(dt.and_utc().timestamp());
+	}
+
+	// Try without milliseconds
+	if let Ok(dt) = NaiveDateTime::parse_from_str(clean_date_str, "%Y-%m-%dT%H:%M:%SZ") {
+		return Some(dt.and_utc().timestamp());
+	}
+
+	None
+}
+
+// Parse chapters from Next.js RSC streaming data (self.__next_f.push)
+// This is the primary method as it contains isPremium field
+fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<Chapter>> {
+	// );
+
+	// First try to find scripts with self.__next_f.push (RSC streaming format)
+	if let Some(script_elements) = html.select("script") {
+
+		for script in script_elements {
+			if let Some(content) = script.data() {
+				// Check if this script contains __next_f.push calls
+				if content.contains("self.__next_f.push") {
+					// );
+
+					// Debug: check if contains "chapters" word
+					let has_chapters_word = content.contains("chapters");
+					let has_ispremium_word = content.contains("isPremium");
+
+					// If this script contains both keywords, try parsing push() calls as JSON
+					if has_chapters_word && has_ispremium_word {
+
+						// RSC format: self.__next_f.push([id, "json_string"])
+						// Strategy: Parse each push() call as JSON, extract the string, parse it, search for chapters
+
+						// Helper function to recursively search for "chapters" array in JSON
+						// Depth limiting prevents excessive recursion with malicious or deeply nested JSON
+						fn find_chapters(val: &serde_json::Value, depth: usize) -> Option<&serde_json::Value> {
+							// Limit recursion depth to prevent stack overflow
+							if depth > 10 {
+								return None;
+							}
+
+							if let Some(obj) = val.as_object() {
+								if let Some(chapters) = obj.get("chapters") {
+									if chapters.is_array() {
+										return Some(chapters);
+									}
+								}
+								for (_key, nested) in obj.iter() {
+									if let Some(found) = find_chapters(nested, depth + 1) {
+										return Some(found);
+									}
+								}
+							} else if let Some(arr) = val.as_array() {
+								for item in arr {
+									if let Some(found) = find_chapters(item, depth + 1) {
+										return Some(found);
+									}
+								}
+							}
+							None
+						}
+
+						// Find all self.__next_f.push( calls
+						let mut search_start = 0;
+						while let Some(push_start) = content[search_start..].find("self.__next_f.push(") {
+							let absolute_push_start = search_start + push_start;
+							let after_push = &content[absolute_push_start + 19..]; // Skip "self.__next_f.push("
+
+							// Find the matching closing parenthesis
+							let mut paren_count = 1;
+							let mut in_string = false;
+							let mut escape_next = false;
+							let mut push_end = None;
+
+							for (i, ch) in after_push.char_indices() {
+								if escape_next {
+									escape_next = false;
+									continue;
+								}
+
+								match ch {
+									'\\' => escape_next = true,
+									'"' => in_string = !in_string,
+									'(' if !in_string => paren_count += 1,
+									')' if !in_string => {
+										paren_count -= 1;
+										if paren_count == 0 {
+											push_end = Some(i);
+											break;
+										}
+									},
+									_ => {}
+								}
+							}
+
+							if let Some(end) = push_end {
+								let push_content = &after_push[..end];
+
+								// Parse the push() arguments as JSON array: [id, "json_string"]
+								match serde_json::from_str::<serde_json::Value>(push_content) {
+									Ok(push_array) => {
+										// Extract the second element (index 1) which is the JSON string
+										if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
+
+											// RSC format: The string starts with "id:" prefix (e.g., "5:[...]")
+											// We need to skip this prefix to get the actual JSON
+											let actual_json = if let Some(colon_pos) = json_string.find(':') {
+												&json_string[colon_pos + 1..]
+											} else {
+												json_string
+											};
+
+
+											// Parse the JSON string
+											match serde_json::from_str::<serde_json::Value>(actual_json) {
+												Ok(parsed_data) => {
+													// Try to find chapters array in parsed data
+													if let Some(chapters_value) = find_chapters(&parsed_data, 0) {
+
+														// Parse the chapters array
+														match serde_json::from_value::<Vec<serde_json::Value>>(chapters_value.clone()) {
+															Ok(chapters_array) => {
+														let mut chapters: Vec<Chapter> = Vec::new();
+
+														for chapter in chapters_array.iter() {
+															let chapter_number = chapter
+																.get("number")
+																.and_then(|v| {
+																	if let Some(n) = v.as_f64() {
+																		Some(n as f32)
+																	} else if let Some(n) = v.as_i64() {
+																		Some(n as f32)
+																	} else {
+																		None
+																	}
+																});
+
+															if let Some(ch_num) = chapter_number {
+																let is_premium = chapter
+																	.get("isPremium")
+																	.and_then(|v| v.as_bool())
+																	.unwrap_or(false);
+
+
+																let chapter_title = format!("Chapitre {}", ch_num);
+
+																// Use chapter number as key (for URL construction)
+																let chapter_key = if ch_num == (ch_num as i32) as f32 {
+																	format!("{}", ch_num as i32)
+																} else {
+																	format!("{}", ch_num)
+																};
+
+																let url = format!(
+																	"{}/serie/{}/chapter/{}",
+																	BASE_URL,
+																	manga_key,
+																	chapter_key
+																);
+
+																// Parse createdAt date
+																let date_uploaded = chapter
+																	.get("createdAt")
+																	.and_then(|v| v.as_str())
+																	.and_then(|date_str| parse_iso_date(date_str));
+
+																chapters.push(Chapter {
+																	key: chapter_key,
+																	title: Some(chapter_title),
+																	volume_number: None,
+																	chapter_number: Some(ch_num),
+																	date_uploaded,
+																	scanlators: None,
+																	url: Some(url),
+																	language: Some("fr".to_string()),
+																	thumbnail: None,
+																	locked: is_premium,
+																});
+															}
+														}
+
+														if !chapters.is_empty() {
+
+															let min_premium_chapter = chapters
+																.iter()
+																.filter(|ch| ch.locked)
+																.filter_map(|ch| ch.chapter_number)
+																.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+															if let Some(min_num) = min_premium_chapter {
+																for chapter in &mut chapters {
+																	if let Some(ch_num) = chapter.chapter_number {
+																		if ch_num >= min_num {
+																			chapter.locked = true;
+																		}
+																	}
+																}
+															} else {
+															}
+
+															chapters.sort_by(|a, b| {
+																match (a.chapter_number, b.chapter_number) {
+																	(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+																	(Some(_), None) => Ordering::Less,
+																	(None, Some(_)) => Ordering::Greater,
+																	(None, None) => Ordering::Equal,
+																}
+															});
+
+															return Ok(chapters);
+														}
+													}
+													Err(_e) => {
+													}
+												}
+											} else {
+											}
+										}
+										Err(_e) => {
+										}
+									}
+								} else {
+								}
+							}
+							Err(_e) => {
+							}
+						}
+
+								search_start = absolute_push_start + 19 + end + 1;
+							} else {
+								break;
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}
+
+
+	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+
+		let mut script_count = 0;
+		for script in script_elements {
+			script_count += 1;
+			// );
+
+			match script.data() {
+				Some(content) => {
+					// );
+
+					// Log first 200 chars of content for debugging
+					// };
+
+					match serde_json::from_str::<serde_json::Value>(&content) {
+						Ok(json_data) => {
+
+							let possible_paths = [
+								&json_data["props"]["pageProps"]["chapters"],
+								&json_data["props"]["pageProps"]["initialData"]["chapters"],
+								&json_data["props"]["pageProps"]["manga"]["chapters"],
+								&json_data["pageProps"]["chapters"],
+							];
+
+							for (_idx, chapters_data) in possible_paths.iter().enumerate() {
+								if let Some(chapters_array) = chapters_data.as_array() {
+									let mut chapters: Vec<Chapter> = Vec::new();
+
+									for chapter in chapters_array.iter() {
+										let chapter_number = chapter.get("number").and_then(|v| {
+											if let Some(n) = v.as_f64() {
+												Some(n as f32)
+											} else if let Some(n) = v.as_i64() {
+												Some(n as f32)
+											} else {
+												None
+											}
+										});
+
+										if chapter_number.is_none() {
+											continue;
+										}
+
+										let ch_num = chapter_number.unwrap();
+
+										let is_premium = chapter
+											.get("isPremium")
+											.and_then(|v| v.as_bool())
+											.unwrap_or(false);
+
+										// );
+
+										// Use chapter number as key (for URL construction)
+										let chapter_key = if ch_num == (ch_num as i32) as f32 {
+											format!("{}", ch_num as i32)
+										} else {
+											format!("{}", ch_num)
+										};
+
+										let chapter_title = format!("Chapitre {}", ch_num);
+
+										let url = format!(
+											"{}/serie/{}/chapter/{}",
+											BASE_URL, manga_key, chapter_key
+										);
+
+										// Parse createdAt date
+										let date_uploaded = chapter
+											.get("createdAt")
+											.and_then(|v| v.as_str())
+											.and_then(|date_str| parse_iso_date(date_str));
+
+										chapters.push(Chapter {
+											key: chapter_key,
+											title: Some(chapter_title),
+											volume_number: None,
+											chapter_number: Some(ch_num),
+											date_uploaded,
+											scanlators: None,
+											url: Some(url),
+											language: Some("fr".to_string()),
+											thumbnail: None,
+											locked: is_premium,
+										});
+									}
+
+									if !chapters.is_empty() {
+										// );
+
+										let min_premium_chapter = chapters
+											.iter()
+											.filter(|ch| ch.locked)
+											.filter_map(|ch| ch.chapter_number)
+											.min_by(|a, b| {
+												a.partial_cmp(b).unwrap_or(Ordering::Equal)
+											});
+
+										if let Some(min_num) = min_premium_chapter {
+											for chapter in &mut chapters {
+												if let Some(ch_num) = chapter.chapter_number {
+													if ch_num >= min_num {
+														chapter.locked = true;
+													}
+												}
+											}
+										} else {
+											// 	"[PoseidonScans] No premium chapters detected"
+											// );
+										}
+
+										chapters.sort_by(|a, b| {
+											match (a.chapter_number, b.chapter_number) {
+												(Some(a_num), Some(b_num)) => b_num
+													.partial_cmp(&a_num)
+													.unwrap_or(Ordering::Equal),
+												(Some(_), None) => Ordering::Less,
+												(None, Some(_)) => Ordering::Greater,
+												(None, None) => Ordering::Equal,
+											}
+										});
+
+										return Ok(chapters);
+									}
+								} else {
+								}
+							}
+						}
+						Err(_e) => {
+							// );
+						}
+					}
+				}
+				None => {
+				}
+			}
+		}
+
+		if script_count == 0 {
+		}
+	} else {
+	}
+
+	Ok(Vec::new())
+}
+
 // Detect premium chapter IDs from __NEXT_DATA__ or HTML
-// Returns a set of chapter IDs that are premium
 fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 	let mut premium_ids = BTreeSet::new();
 
 	// Method 1: Try to extract from __NEXT_DATA__ (Next.js hydration data)
 	if let Some(script_elements) = html.select("script#__NEXT_DATA__") {
+		let mut script_count = 0;
 		for script in script_elements {
-			if let Some(content) = script.data() {
-				if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
-					// Try to navigate to chapters data
-					// Possible paths: props.pageProps.chapters,
-					// props.pageProps.initialData.chapters, etc.
-					let possible_paths = [
-						&json_data["props"]["pageProps"]["chapters"],
-						&json_data["props"]["pageProps"]["initialData"]["chapters"],
-						&json_data["props"]["pageProps"]["manga"]["chapters"],
-						&json_data["pageProps"]["chapters"],
-					];
+			script_count += 1;
+			// );
 
-					for chapters_data in &possible_paths {
-						if let Some(chapters_array) = chapters_data.as_array() {
-							for chapter in chapters_array.iter() {
-								// Look for premium indicators in chapter data
-								let is_premium = chapter
-									.get("isPremium")
-									.and_then(|v| v.as_bool())
-									.unwrap_or(false) || chapter
-									.get("premium")
-									.and_then(|v| v.as_bool())
-									.unwrap_or(false) || chapter
-									.get("locked")
-									.and_then(|v| v.as_bool())
-									.unwrap_or(false);
+			match script.data() {
+				Some(content) => {
+					// );
+					match serde_json::from_str::<serde_json::Value>(&content) {
+						Ok(json_data) => {
+							// Try to navigate to chapters data
+							let possible_paths = [
+								&json_data["props"]["pageProps"]["chapters"],
+								&json_data["props"]["pageProps"]["initialData"]["chapters"],
+								&json_data["props"]["pageProps"]["manga"]["chapters"],
+								&json_data["pageProps"]["chapters"],
+							];
 
-								if is_premium {
-									// Try to get chapter number or ID
-									let chapter_id = chapter
-										.get("number")
-										.and_then(|v| v.as_i64())
-										.map(|n| format!("{}", n))
-										.or_else(|| {
-											chapter
-												.get("id")
-												.and_then(|v| v.as_str())
-												.map(|s| s.to_string())
-										})
-										.or_else(|| {
-											chapter
-												.get("chapterNumber")
+							for (_idx, chapters_data) in possible_paths.iter().enumerate() {
+								if let Some(chapters_array) = chapters_data.as_array() {
+									for chapter in chapters_array.iter() {
+										// Look for premium indicators in chapter data
+										let is_premium = chapter
+											.get("isPremium")
+											.and_then(|v| v.as_bool())
+											.unwrap_or(false) || chapter
+											.get("premium")
+											.and_then(|v| v.as_bool())
+											.unwrap_or(false) || chapter
+											.get("locked")
+											.and_then(|v| v.as_bool())
+											.unwrap_or(false);
+
+										if is_premium {
+											// Try to get chapter number or ID
+											let chapter_id = chapter
+												.get("number")
 												.and_then(|v| v.as_i64())
 												.map(|n| format!("{}", n))
-										});
+												.or_else(|| {
+													chapter
+														.get("id")
+														.and_then(|v| v.as_str())
+														.map(|s| s.to_string())
+												})
+												.or_else(|| {
+													chapter
+														.get("chapterNumber")
+														.and_then(|v| v.as_i64())
+														.map(|n| format!("{}", n))
+												});
 
-									if let Some(id) = chapter_id {
-										premium_ids.insert(id);
+											if let Some(id) = chapter_id {
+												// );
+												premium_ids.insert(id);
+											}
+										}
+									}
+
+									if !premium_ids.is_empty() {
+										return premium_ids;
 									}
 								}
 							}
-
-							if !premium_ids.is_empty() {
-								return premium_ids;
-							}
+						}
+						Err(_e) => {
+							// );
 						}
 					}
 				}
+				None => {
+				}
 			}
+		}
+
+		if script_count == 0 {
+			// 	"[PoseidonScans] Premium detection: __NEXT_DATA__ found but no scripts iterated"
+			// );
 		}
 	}
 
@@ -582,22 +1019,35 @@ fn detect_premium_chapters_from_html(html: &Document) -> BTreeSet<String> {
 
 			if has_amber_class || has_premium_text || has_premium_in_text {
 				if let Some(chapter_id) = chapter_id {
+					// );
 					premium_ids.insert(chapter_id);
 				}
 			}
 		}
 	}
 
+	// );
 	premium_ids
 }
 
-pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
-	// Extract JSON-LD data using the ACTUAL approach PoseidonScans uses
+pub fn parse_chapter_list(manga_key: String, html: &Document) -> Result<Vec<Chapter>> {
+	// );
+
+	// Try __NEXT_DATA__ first (contains isPremium field)
+	if let Ok(chapters) = parse_chapters_from_nextdata(html, &manga_key) {
+		if !chapters.is_empty() {
+			// );
+			return Ok(chapters);
+		} else {
+		}
+	}
+
 	let manga_data = extract_jsonld_manga_details(html)?;
 
 	// Extract chapters from JSON-LD "hasPart" array
 	let chapters_array =
 		if let Some(has_part) = manga_data.get("hasPart").and_then(|c| c.as_array()) {
+			// );
 			has_part
 		} else {
 			return Ok(parse_chapter_list_from_html(html)?);
@@ -605,6 +1055,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 
 	// Get premium chapter IDs from HTML (O(1) parse, no HTTP requests)
 	let premium_chapter_ids = detect_premium_chapters_from_html(html);
+	// );
 
 	let mut chapters: Vec<Chapter> = Vec::new();
 
@@ -615,7 +1066,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 			if let Some(type_value) = chapter_obj.get("@type") {
 				if let Some(type_str) = type_value.as_str() {
 					if type_str != "ComicIssue" {
-						continue; // Skip non-ComicIssue entries
+						continue;
 					}
 				}
 			}
@@ -633,28 +1084,28 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 				continue;
 			};
 
-			// Extract chapter title - clean format: "Chapitre X"
+			// Extract chapter title
 			let chapter_title = format!("Chapitre {}", chapter_number);
 
-			// Extract chapter URL directly from JSON-LD (already complete)
+			// Extract chapter URL directly from JSON-LD
 			let url = chapter_obj
 				.get("url")
 				.and_then(|u| u.as_str())
 				.unwrap_or_default()
 				.to_string();
 
-			// Extract chapter ID from URL
-			let chapter_id = if chapter_number == (chapter_number as i32) as f32 {
+			// Use chapter number as key (for URL construction)
+			let chapter_key = if chapter_number == (chapter_number as i32) as f32 {
 				format!("{}", chapter_number as i32)
 			} else {
 				format!("{}", chapter_number)
 			};
 
-			// Check if this chapter is premium (using the pre-computed set)
-			let is_locked = premium_chapter_ids.contains(&chapter_id);
+			// Check if this chapter is premium (for fallback detection)
+			let is_locked = premium_chapter_ids.contains(&chapter_key);
 
 			chapters.push(Chapter {
-				key: chapter_id,
+				key: chapter_key,
 				title: Some(chapter_title),
 				volume_number: None,
 				chapter_number: Some(chapter_number),
@@ -668,9 +1119,7 @@ pub fn parse_chapter_list(_manga_key: String, html: &Document) -> Result<Vec<Cha
 		}
 	}
 
-	// Post-processing: If premium chapters exist, mark all higher chapters as
-	// locked This ensures consistency - if chapter 13 is premium, chapters 21 and
-	// 22 must be too
+	// Post-processing: mark all chapters >= min premium as locked
 	let min_premium_chapter = chapters
 		.iter()
 		.filter(|ch| ch.locked)
@@ -709,18 +1158,15 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 	if let Some(chapter_elements) = html.select(chapter_selector) {
 		for chapter_element in chapter_elements {
 			if let Some(href_str) = chapter_element.attr("href") {
-				// Extract chapter ID from URL
+				// Extract chapter number from URL
 				if let Some(chapter_id) = extract_chapter_id_from_url(&href_str) {
-					// Skip duplicates - O(1) lookup with HashSet
 					if !seen_chapter_ids.insert(chapter_id.clone()) {
 						continue; // insert() returns false if element was already
-						 // present
 					}
 
 					// Extract chapter number from URL or ID first
 					let chapter_number = extract_chapter_number_from_id(&chapter_id);
 
-					// Generate clean title: "Chapitre X"
 					let title = if let Some(ch_num) = chapter_number {
 						format!("Chapitre {}", ch_num)
 					} else {
@@ -733,7 +1179,7 @@ fn parse_chapter_list_from_html(html: &Document) -> Result<Vec<Chapter>> {
 						format!("{}{}", BASE_URL, href_str)
 					};
 
-					// Use None for date_uploaded - will be filled by HTML date extraction later
+					// Use chapter_id directly as key (it's already the chapter number from URL)
 					chapters.push(Chapter {
 						key: chapter_id,
 						title: Some(title),
@@ -780,7 +1226,6 @@ pub fn parse_page_list(html: &Document, _chapter_url: String) -> Result<Vec<Page
 		}
 	}
 
-	// Fallback to HTML extraction
 	extract_pages_from_html(html)
 }
 
@@ -849,7 +1294,6 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 							}
 						}
 					}
-					// Direct paths
 					if let Some(images) = json_data.get("images").and_then(|i| i.as_array()) {
 						let pages = parse_images_from_json_array(images)?;
 						if !pages.is_empty() {
@@ -914,7 +1358,6 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 			}
 		}
 
-		// Sort by order and return
 		if !pages.is_empty() {
 			pages.sort_by(|a, b| a.0.cmp(&b.0));
 			let ordered_pages: Vec<Page> = pages.into_iter().map(|(_, page)| page).collect();
@@ -1006,7 +1449,6 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 				});
 			}
 		} else if let Some(url_str) = image_value.as_str() {
-			// Sometimes images are just strings
 			let absolute_url = if url_str.starts_with("http") {
 				url_str.to_string()
 			} else if url_str.starts_with("/") {
@@ -1027,7 +1469,6 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 	Ok(pages)
 }
 
-// Helper functions for filtering
 
 // Extract manga type from API data (Manga, Manhwa, Manhua)
 fn extract_manga_type(item: &MangaItem) -> String {
@@ -1040,7 +1481,6 @@ fn extract_manga_type(item: &MangaItem) -> String {
 			_ => "Manga".to_string(),
 		}
 	} else {
-		// Fallback to default
 		"Manga".to_string()
 	}
 }
@@ -1056,7 +1496,6 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 		let genre_lower = genre_filter.to_lowercase();
 		for tag in tags {
 			let tag_lower = tag.to_lowercase();
-			// Exact match or contains match
 			if tag_lower == genre_lower
 				|| tag_lower.contains(&genre_lower)
 				|| genre_lower.contains(&tag_lower)
@@ -1068,7 +1507,6 @@ fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
 	false
 }
 
-// Apply sorting to manga list
 fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[MangaItem]) {
 	// Create a map for quick lookup of API data by manga key (slug)
 	let item_map: BTreeMap<&str, &MangaItem> = manga_items
@@ -1084,7 +1522,6 @@ fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[Mang
 			mangas.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
 		}
 		"Date d'ajout" => {
-			// Sort by createdAt date (newest first)
 			mangas.sort_by(|a, b| {
 				let a_date = item_map
 					.get(a.key.as_str())

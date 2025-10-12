@@ -92,6 +92,7 @@ impl Source for PoseidonScans {
     fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         let encoded_manga_key = helper::urlencode(manga.key);
         let encoded_chapter_key = helper::urlencode(chapter.key);
+
         let url = format!("{}/serie/{}/chapter/{}", BASE_URL, encoded_manga_key, encoded_chapter_key);
         let html = helper::build_html_request(&url)?.html()?;
         parser::parse_page_list(&html, url)
