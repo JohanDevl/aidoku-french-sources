@@ -1,4 +1,4 @@
-use crate::helper::{decode_base64, make_absolute_url, parse_relative_date, validate_image_url};
+use crate::helper::{clean_description, decode_base64, make_absolute_url, parse_relative_date, validate_image_url};
 use aidoku::{
 	alloc::{format, string::ToString, vec, String, Vec},
 	imports::html::Document,
@@ -60,8 +60,8 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 					if let Some(start) = html_content.find("content.innerHTML = `") {
 						let desc_start = start + 21;
 						if let Some(end) = html_content[desc_start..].find("`;") {
-							description =
-								Some(html_content[desc_start..desc_start + end].to_string());
+							let raw_desc = html_content[desc_start..desc_start + end].to_string();
+							description = Some(clean_description(raw_desc));
 							break;
 						}
 					}
@@ -75,7 +75,7 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 			if let Some(elem) = desc_elems.first() {
 				let text = elem.text().unwrap_or_default();
 				if !text.is_empty() {
-					description = Some(text);
+					description = Some(clean_description(text));
 				}
 			}
 		}
