@@ -573,6 +573,21 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 						content.len()
 					);
 
+					// Debug: check if contains "chapters" word
+					let has_chapters_word = content.contains("chapters");
+					let has_ispremium_word = content.contains("isPremium");
+					println!("[PoseidonScans] Script contains 'chapters': {}, contains 'isPremium': {}", has_chapters_word, has_ispremium_word);
+
+					// If this is the big script, show a preview
+					if content.len() > 100000 {
+						let preview = if content.len() > 500 {
+							&content[..500]
+						} else {
+							&content
+						};
+						println!("[PoseidonScans] Large script preview: {}", preview);
+					}
+
 					// Look for the chapters array pattern in the RSC data
 					// The data contains: "chapters":[{"id":"cm...","number":X,"isPremium":true/false,...},...]
 					if let Some(chapters_start) = content.find(r#""chapters":["#) {
