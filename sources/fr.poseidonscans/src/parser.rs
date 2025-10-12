@@ -589,12 +589,13 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 					}
 
 					// Look for the chapters array pattern in the RSC data
-					// The data contains: "chapters":[{"id":"cm...","number":X,"isPremium":true/false,...},...]
-					if let Some(chapters_start) = content.find(r#""chapters":["#) {
+					// Note: In RSC data, JSON is escaped so we need to look for \"chapters\":[
+					// The data contains: \"chapters\":[{\"id\":\"cm...\",\"number\":X,\"isPremium\":true/false,...},...]
+					if let Some(chapters_start) = content.find(r#"\"chapters\":["#) {
 						println!("[PoseidonScans] Found chapters array in RSC data");
 
 						// Extract the chapters array by finding the matching closing bracket
-						let array_start = chapters_start + 11; // Skip '"chapters":'
+						let array_start = chapters_start + 13; // Skip '\"chapters\":['
 						let remaining = &content[array_start..];
 
 						// Find the closing ] for the chapters array
@@ -625,11 +626,17 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 						}
 
 						if let Some(end) = array_end {
-							let chapters_json = &remaining[..end + 1]; // Include the closing ]
-							println!("[PoseidonScans] Extracted chapters array, length: {} chars", chapters_json.len());
+							let chapters_json_escaped = &remaining[..end + 1]; // Include the closing ]
+							println!("[PoseidonScans] Extracted chapters array, length: {} chars", chapters_json_escaped.len());
+
+							// Unescape the JSON string (remove backslashes before quotes)
+							// In RSC data, JSON is escaped like: [{\"id\":\"cm...\"}]
+							// We need to convert it to: [{"id":"cm..."}]
+							let chapters_json = chapters_json_escaped.replace(r#"\""#, "\"");
+							println!("[PoseidonScans] Unescaped JSON, new length: {} chars", chapters_json.len());
 
 							// Parse the chapters array as JSON
-							match serde_json::from_str::<Vec<serde_json::Value>>(chapters_json) {
+							match serde_json::from_str::<Vec<serde_json::Value>>(&chapters_json) {
 								Ok(chapters_array) => {
 									println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
 									let mut chapters: Vec<Chapter> = Vec::new();
