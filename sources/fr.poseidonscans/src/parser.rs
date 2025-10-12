@@ -274,7 +274,7 @@ pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
 pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> {
 	let mut title = manga_key.clone();
 	let mut description = String::new();
-	let authors: Option<Vec<String>> = None;
+	let mut authors: Option<Vec<String>> = None;
 	let artists: Option<Vec<String>> = None;
 	let mut tags: Option<Vec<String>> = None;
 	let mut status = MangaStatus::Unknown;
@@ -356,6 +356,26 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		let desc = desc_text.trim().to_string();
 		if !desc.is_empty() && desc != "Aucune description." {
 			description = desc;
+		}
+	}
+
+	// Extract author from HTML
+	if let Some(span_elements) = html.select("span") {
+		for span_element in span_elements {
+			if let Some(span_html) = span_element.html() {
+				if span_html.contains("Auteur:") {
+					// Find the nested bold span with the author name
+					if let Some(author_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
+						if let Some(author_text) = author_span.text() {
+							let author = author_text.trim().to_string();
+							if !author.is_empty() {
+								authors = Some(vec![author]);
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
