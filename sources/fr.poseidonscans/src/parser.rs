@@ -647,20 +647,26 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 							if let Some(end) = push_end {
 								let push_content = &after_push[..end];
+								println!("[PoseidonScans] Extracted push() content, length: {} chars", push_content.len());
 
 								// Parse the push() arguments as JSON array: [id, "json_string"]
-								if let Ok(push_array) = serde_json::from_str::<serde_json::Value>(push_content) {
-									// Extract the second element (index 1) which is the JSON string
-									if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
-										// Parse the JSON string
-										if let Ok(parsed_data) = serde_json::from_str::<serde_json::Value>(json_string) {
-											// Try to find chapters array in parsed data
-											if let Some(chapters_value) = find_chapters(&parsed_data) {
-												println!("[PoseidonScans] Found chapters array via JSON parsing");
+								match serde_json::from_str::<serde_json::Value>(push_content) {
+									Ok(push_array) => {
+										println!("[PoseidonScans] Successfully parsed push() as JSON");
+										// Extract the second element (index 1) which is the JSON string
+										if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
+											println!("[PoseidonScans] Extracted JSON string from push array, length: {} chars", json_string.len());
+											// Parse the JSON string
+											match serde_json::from_str::<serde_json::Value>(json_string) {
+												Ok(parsed_data) => {
+													println!("[PoseidonScans] Successfully parsed inner JSON string");
+													// Try to find chapters array in parsed data
+													if let Some(chapters_value) = find_chapters(&parsed_data) {
+														println!("[PoseidonScans] Found chapters array via JSON parsing");
 
-												// Parse the chapters array
-												match serde_json::from_value::<Vec<serde_json::Value>>(chapters_value.clone()) {
-													Ok(chapters_array) => {
+														// Parse the chapters array
+														match serde_json::from_value::<Vec<serde_json::Value>>(chapters_value.clone()) {
+															Ok(chapters_array) => {
 														println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
 														let mut chapters: Vec<Chapter> = Vec::new();
 
@@ -766,13 +772,28 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 														println!("[PoseidonScans] Failed to parse chapters array as JSON: {:?}", e);
 													}
 												}
+											} else {
+												println!("[PoseidonScans] No chapters array found in parsed JSON");
 											}
 										}
+										Err(e) => {
+											println!("[PoseidonScans] Failed to parse inner JSON string: {:?}", e);
+										}
 									}
+								} else {
+									println!("[PoseidonScans] Could not extract JSON string from push array (index 1)");
 								}
+							}
+							Err(e) => {
+								println!("[PoseidonScans] Failed to parse push() content as JSON: {:?}", e);
+							}
+						}
 
 								// Move to next push() call
 								search_start = absolute_push_start + 19 + end + 1;
+							} else {
+								println!("[PoseidonScans] Could not find closing parenthesis for push() call");
+								break;
 							}
 						}
 
