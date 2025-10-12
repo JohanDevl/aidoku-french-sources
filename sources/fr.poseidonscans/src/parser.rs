@@ -16,7 +16,8 @@ use serde_json;
 
 const PAGE_SIZE: i32 = 20;
 const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
-const CHAPTER_PREFIX_LEN: usize = 9;
+const CHAPTER_PREFIX: &str = "/chapter/";
+const CHAPTER_PREFIX_LEN: usize = CHAPTER_PREFIX.len();
 
 // Serde structures for Poseidon Scans API responses
 
@@ -534,11 +535,37 @@ fn parse_iso_date(date_str: &str) -> Option<i64> {
 	let minute: i32 = clean_date_str.get(14..16)?.parse().ok()?;
 	let second: i32 = clean_date_str.get(17..19)?.parse().ok()?;
 
+	// Validate date components
+	if month < 1 || month > 12 {
+		return None;
+	}
+	if hour < 0 || hour > 23 {
+		return None;
+	}
+	if minute < 0 || minute > 59 {
+		return None;
+	}
+	if second < 0 || second > 59 {
+		return None;
+	}
+
 	// Calculate Unix timestamp (seconds since 1970-01-01 00:00:00 UTC)
 	// Using simplified algorithm for dates after 1970
 
 	// Days in each month (non-leap year)
 	let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+	// Validate day is valid for the given month
+	let is_leap_year = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+	let max_days = if month == 2 && is_leap_year {
+		29
+	} else {
+		days_in_month[(month - 1) as usize]
+	};
+
+	if day < 1 || day > max_days {
+		return None;
+	}
 
 	// Calculate days since epoch (1970-01-01)
 	let mut days = 0i64;
@@ -629,11 +656,9 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 						// Find all self.__next_f.push( calls
 						let mut search_start = 0;
-						let mut _push_count = 0;
 						// println!("[PoseidonScans] Starting while loop to find push() calls");
 						while let Some(push_start) = content[search_start..].find("self.__next_f.push(") {
-							_push_count += 1;
-							// println!("[PoseidonScans] Found push() call #{} at position {}", push_count, search_start + push_start);
+							// println!("[PoseidonScans] Found push() call at position {}", search_start + push_start);
 							let absolute_push_start = search_start + push_start;
 							let after_push = &content[absolute_push_start + 19..]; // Skip "self.__next_f.push("
 
@@ -651,7 +676,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 								match ch {
 									'\\' => escape_next = true,
-									'"' if !escape_next => in_string = !in_string,
+									'"' => in_string = !in_string,
 									'(' if !in_string => paren_count += 1,
 									')' if !in_string => {
 										paren_count -= 1;
@@ -760,9 +785,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 														if !chapters.is_empty() {
 															// println!("[PoseidonScans] Total chapters parsed from RSC: {}", chapters.len());
-
-															let _premium_count = chapters.iter().filter(|ch| ch.locked).count();
-															// println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
+															// println!("[PoseidonScans] Chapters initially marked as premium: {}", chapters.iter().filter(|ch| ch.locked).count());
 
 															let min_premium_chapter = chapters
 																.iter()
@@ -779,8 +802,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 																		}
 																	}
 																}
-																let _final_premium_count = chapters.iter().filter(|ch| ch.locked).count();
-																// println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
+																// println!("[PoseidonScans] Final premium chapters after post-processing: {}", chapters.iter().filter(|ch| ch.locked).count());
 															} else {
 																// println!("[PoseidonScans] No premium chapters detected");
 															}
@@ -945,10 +967,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 										// 	"[PoseidonScans] Total chapters parsed: {}",
 										// 	chapters.len()
 										// );
-
-										let _premium_count =
-											chapters.iter().filter(|ch| ch.locked).count();
-										// println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
+										// println!("[PoseidonScans] Chapters initially marked as premium: {}", chapters.iter().filter(|ch| ch.locked).count());
 
 										let min_premium_chapter = chapters
 											.iter()
@@ -967,9 +986,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 													}
 												}
 											}
-											let _final_premium_count =
-												chapters.iter().filter(|ch| ch.locked).count();
-											// println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
+											// println!("[PoseidonScans] Final premium chapters after post-processing: {}", chapters.iter().filter(|ch| ch.locked).count());
 										} else {
 											// println!(
 											// 	"[PoseidonScans] No premium chapters detected"
