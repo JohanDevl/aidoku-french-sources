@@ -118,3 +118,48 @@ pub fn make_absolute_url(base: &str, url: &str) -> String {
         format!("{}/{}", base.trim_end_matches('/'), url)
     }
 }
+
+pub fn clean_description(text: String) -> String {
+    let mut result = text;
+
+    result = result
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
+        .replace("</p>", "\n");
+
+    let mut cleaned = String::new();
+    let mut in_tag = false;
+    let chars: Vec<char> = result.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '<' {
+            in_tag = true;
+            i += 1;
+            continue;
+        }
+
+        if chars[i] == '>' {
+            in_tag = false;
+            i += 1;
+            continue;
+        }
+
+        if !in_tag {
+            cleaned.push(chars[i]);
+        }
+
+        i += 1;
+    }
+
+    cleaned
+        .replace("&lt;", "")
+        .replace("&gt;", "")
+        .replace("&amp;", "&")
+        .replace("&#039;", "'")
+        .replace("&quot;", "\"")
+        .replace("&nbsp;", " ")
+        .trim()
+        .to_string()
+}
