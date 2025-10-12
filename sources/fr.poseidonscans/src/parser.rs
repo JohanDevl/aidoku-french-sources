@@ -580,6 +580,8 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 					// If this script contains both keywords, try parsing push() calls as JSON
 					if has_chapters_word && has_ispremium_word {
+						println!("[PoseidonScans] Entering JSON parsing block for script with {} chars", content.len());
+
 						// RSC format: self.__next_f.push([id, "json_string"])
 						// Strategy: Parse each push() call as JSON, extract the string, parse it, search for chapters
 
@@ -608,7 +610,11 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 
 						// Find all self.__next_f.push( calls
 						let mut search_start = 0;
+						let mut push_count = 0;
+						println!("[PoseidonScans] Starting while loop to find push() calls");
 						while let Some(push_start) = content[search_start..].find("self.__next_f.push(") {
+							push_count += 1;
+							println!("[PoseidonScans] Found push() call #{} at position {}", push_count, search_start + push_start);
 							let absolute_push_start = search_start + push_start;
 							let after_push = &content[absolute_push_start + 19..]; // Skip "self.__next_f.push("
 
@@ -769,6 +775,8 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 								search_start = absolute_push_start + 19 + end + 1;
 							}
 						}
+
+						println!("[PoseidonScans] Finished parsing {} push() calls in this script", push_count);
 					}
 				}
 			}
