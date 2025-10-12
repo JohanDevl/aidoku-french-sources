@@ -605,7 +605,8 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 							let remaining = &unescaped_content[array_start..];
 
 							// Find the closing ] for the chapters array
-							let mut bracket_count = 0;
+							// Start at 1 because we already found the opening [
+							let mut bracket_count = 1;
 							let mut in_string = false;
 							let mut escape_next = false;
 							let mut array_end = None;
@@ -622,7 +623,7 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 									'[' if !in_string => bracket_count += 1,
 									']' if !in_string => {
 										bracket_count -= 1;
-										if bracket_count < 0 {
+										if bracket_count == 0 {
 											array_end = Some(i);
 											break;
 										}
