@@ -578,53 +578,60 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 					let has_ispremium_word = content.contains("isPremium");
 					println!("[PoseidonScans] Script contains 'chapters': {}, contains 'isPremium': {}", has_chapters_word, has_ispremium_word);
 
-					// If this script contains both keywords, unescape and process it
+					// If this script contains both keywords, try parsing push() calls as JSON
 					if has_chapters_word && has_ispremium_word {
-						// First, unescape the entire script content
-						// RSC format: self.__next_f.push([1,"5:[\"$\",\"div\"..."])
-						// We need to convert \" to " throughout the content
-						let unescaped_content = content.replace(r#"\""#, "\"");
-						println!("[PoseidonScans] Unescaped script, original length: {}, new length: {}", content.len(), unescaped_content.len());
+						// RSC format: self.__next_f.push([id, "json_string"])
+						// Strategy: Parse each push() call as JSON, extract the string, parse it, search for chapters
 
-						// Show preview of unescaped content
-						if content.len() > 100000 {
-							let preview = if unescaped_content.len() > 500 {
-								&unescaped_content[..500]
-							} else {
-								&unescaped_content
-							};
-							println!("[PoseidonScans] Unescaped script preview: {}", preview);
+						// Helper function to recursively search for "chapters" array in JSON
+						fn find_chapters(val: &serde_json::Value) -> Option<&serde_json::Value> {
+							if let Some(obj) = val.as_object() {
+								if let Some(chapters) = obj.get("chapters") {
+									if chapters.is_array() {
+										return Some(chapters);
+									}
+								}
+								for (_key, nested) in obj.iter() {
+									if let Some(found) = find_chapters(nested) {
+										return Some(found);
+									}
+								}
+							} else if let Some(arr) = val.as_array() {
+								for item in arr {
+									if let Some(found) = find_chapters(item) {
+										return Some(found);
+									}
+								}
+							}
+							None
 						}
 
-						// Now search for the chapters array in the unescaped content
-						if let Some(chapters_start) = unescaped_content.find(r#""chapters":["#) {
-							println!("[PoseidonScans] Found chapters array in unescaped RSC data");
+						// Find all self.__next_f.push( calls
+						let mut search_start = 0;
+						while let Some(push_start) = content[search_start..].find("self.__next_f.push(") {
+							let absolute_push_start = search_start + push_start;
+							let after_push = &content[absolute_push_start + 19..]; // Skip "self.__next_f.push("
 
-							// Extract the chapters array by finding the matching closing bracket
-							let array_start = chapters_start + 11; // Skip '"chapters":'
-							let remaining = &unescaped_content[array_start..];
-
-							// Find the closing ] for the chapters array
-							// Start at 1 because we already found the opening [
-							let mut bracket_count = 1;
+							// Find the matching closing parenthesis
+							let mut paren_count = 1;
 							let mut in_string = false;
 							let mut escape_next = false;
-							let mut array_end = None;
+							let mut push_end = None;
 
-							for (i, ch) in remaining.char_indices() {
+							for (i, ch) in after_push.char_indices() {
 								if escape_next {
 									escape_next = false;
 									continue;
 								}
 
 								match ch {
-									'\\' if in_string => escape_next = true,
-									'"' => in_string = !in_string,
-									'[' if !in_string => bracket_count += 1,
-									']' if !in_string => {
-										bracket_count -= 1;
-										if bracket_count == 0 {
-											array_end = Some(i);
+									'\\' => escape_next = true,
+									'"' if !escape_next => in_string = !in_string,
+									'(' if !in_string => paren_count += 1,
+									')' if !in_string => {
+										paren_count -= 1;
+										if paren_count == 0 {
+											push_end = Some(i);
 											break;
 										}
 									},
@@ -632,124 +639,136 @@ fn parse_chapters_from_nextdata(html: &Document, manga_key: &str) -> Result<Vec<
 								}
 							}
 
-							if let Some(end) = array_end {
-								let chapters_json = &remaining[..end + 1]; // Include the closing ]
-								println!("[PoseidonScans] Extracted chapters array, length: {} chars", chapters_json.len());
+							if let Some(end) = push_end {
+								let push_content = &after_push[..end];
 
-								// Parse the chapters array as JSON (already unescaped)
-								match serde_json::from_str::<Vec<serde_json::Value>>(chapters_json) {
-								Ok(chapters_array) => {
-									println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
-									let mut chapters: Vec<Chapter> = Vec::new();
+								// Parse the push() arguments as JSON array: [id, "json_string"]
+								if let Ok(push_array) = serde_json::from_str::<serde_json::Value>(push_content) {
+									// Extract the second element (index 1) which is the JSON string
+									if let Some(json_string) = push_array.get(1).and_then(|v| v.as_str()) {
+										// Parse the JSON string
+										if let Ok(parsed_data) = serde_json::from_str::<serde_json::Value>(json_string) {
+											// Try to find chapters array in parsed data
+											if let Some(chapters_value) = find_chapters(&parsed_data) {
+												println!("[PoseidonScans] Found chapters array via JSON parsing");
 
-									for chapter in chapters_array.iter() {
-										let chapter_number = chapter
-											.get("number")
-											.and_then(|v| {
-												if let Some(n) = v.as_f64() {
-													Some(n as f32)
-												} else if let Some(n) = v.as_i64() {
-													Some(n as f32)
-												} else {
-													None
-												}
-											});
+												// Parse the chapters array
+												match serde_json::from_value::<Vec<serde_json::Value>>(chapters_value.clone()) {
+													Ok(chapters_array) => {
+														println!("[PoseidonScans] Successfully parsed {} chapters from array", chapters_array.len());
+														let mut chapters: Vec<Chapter> = Vec::new();
 
-										if let Some(ch_num) = chapter_number {
-											let is_premium = chapter
-												.get("isPremium")
-												.and_then(|v| v.as_bool())
-												.unwrap_or(false);
+														for chapter in chapters_array.iter() {
+															let chapter_number = chapter
+																.get("number")
+																.and_then(|v| {
+																	if let Some(n) = v.as_f64() {
+																		Some(n as f32)
+																	} else if let Some(n) = v.as_i64() {
+																		Some(n as f32)
+																	} else {
+																		None
+																	}
+																});
 
-											println!("[PoseidonScans] Found chapter {} - isPremium: {}", ch_num, is_premium);
+															if let Some(ch_num) = chapter_number {
+																let is_premium = chapter
+																	.get("isPremium")
+																	.and_then(|v| v.as_bool())
+																	.unwrap_or(false);
 
-											let chapter_title = format!("Chapitre {}", ch_num);
+																println!("[PoseidonScans] Found chapter {} - isPremium: {}", ch_num, is_premium);
 
-											// Use chapter number as key (for URL construction)
-											let chapter_key = if ch_num == (ch_num as i32) as f32 {
-												format!("{}", ch_num as i32)
-											} else {
-												format!("{}", ch_num)
-											};
+																let chapter_title = format!("Chapitre {}", ch_num);
 
-											let url = format!(
-												"{}/serie/{}/chapter/{}",
-												BASE_URL,
-												manga_key,
-												chapter_key
-											);
+																// Use chapter number as key (for URL construction)
+																let chapter_key = if ch_num == (ch_num as i32) as f32 {
+																	format!("{}", ch_num as i32)
+																} else {
+																	format!("{}", ch_num)
+																};
 
-											// Parse createdAt date
-											let date_uploaded = chapter
-												.get("createdAt")
-												.and_then(|v| v.as_str())
-												.and_then(|date_str| parse_iso_date(date_str));
+																let url = format!(
+																	"{}/serie/{}/chapter/{}",
+																	BASE_URL,
+																	manga_key,
+																	chapter_key
+																);
 
-											chapters.push(Chapter {
-												key: chapter_key,
-												title: Some(chapter_title),
-												volume_number: None,
-												chapter_number: Some(ch_num),
-												date_uploaded,
-												scanlators: None,
-												url: Some(url),
-												language: Some("fr".to_string()),
-												thumbnail: None,
-												locked: is_premium,
-											});
-										}
-									}
+																// Parse createdAt date
+																let date_uploaded = chapter
+																	.get("createdAt")
+																	.and_then(|v| v.as_str())
+																	.and_then(|date_str| parse_iso_date(date_str));
 
-									if !chapters.is_empty() {
-										println!("[PoseidonScans] Total chapters parsed from RSC: {}", chapters.len());
+																chapters.push(Chapter {
+																	key: chapter_key,
+																	title: Some(chapter_title),
+																	volume_number: None,
+																	chapter_number: Some(ch_num),
+																	date_uploaded,
+																	scanlators: None,
+																	url: Some(url),
+																	language: Some("fr".to_string()),
+																	thumbnail: None,
+																	locked: is_premium,
+																});
+															}
+														}
 
-										let premium_count = chapters.iter().filter(|ch| ch.locked).count();
-										println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
+														if !chapters.is_empty() {
+															println!("[PoseidonScans] Total chapters parsed from RSC: {}", chapters.len());
 
-										let min_premium_chapter = chapters
-											.iter()
-											.filter(|ch| ch.locked)
-											.filter_map(|ch| ch.chapter_number)
-											.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+															let premium_count = chapters.iter().filter(|ch| ch.locked).count();
+															println!("[PoseidonScans] Chapters initially marked as premium: {}", premium_count);
 
-										if let Some(min_num) = min_premium_chapter {
-											println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
-											for chapter in &mut chapters {
-												if let Some(ch_num) = chapter.chapter_number {
-													if ch_num >= min_num {
-														chapter.locked = true;
+															let min_premium_chapter = chapters
+																.iter()
+																.filter(|ch| ch.locked)
+																.filter_map(|ch| ch.chapter_number)
+																.min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+
+															if let Some(min_num) = min_premium_chapter {
+																println!("[PoseidonScans] Minimum premium chapter number: {}, marking all chapters >= as locked", min_num);
+																for chapter in &mut chapters {
+																	if let Some(ch_num) = chapter.chapter_number {
+																		if ch_num >= min_num {
+																			chapter.locked = true;
+																		}
+																	}
+																}
+																let final_premium_count = chapters.iter().filter(|ch| ch.locked).count();
+																println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
+															} else {
+																println!("[PoseidonScans] No premium chapters detected");
+															}
+
+															chapters.sort_by(|a, b| {
+																match (a.chapter_number, b.chapter_number) {
+																	(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
+																	(Some(_), None) => Ordering::Less,
+																	(None, Some(_)) => Ordering::Greater,
+																	(None, None) => Ordering::Equal,
+																}
+															});
+
+															println!("[PoseidonScans] Returning {} chapters from RSC data", chapters.len());
+															return Ok(chapters);
+														}
+													}
+													Err(e) => {
+														println!("[PoseidonScans] Failed to parse chapters array as JSON: {:?}", e);
 													}
 												}
 											}
-											let final_premium_count = chapters.iter().filter(|ch| ch.locked).count();
-											println!("[PoseidonScans] Final premium chapters after post-processing: {}", final_premium_count);
-										} else {
-											println!("[PoseidonScans] No premium chapters detected");
 										}
-
-										chapters.sort_by(|a, b| {
-											match (a.chapter_number, b.chapter_number) {
-												(Some(a_num), Some(b_num)) => b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal),
-												(Some(_), None) => Ordering::Less,
-												(None, Some(_)) => Ordering::Greater,
-												(None, None) => Ordering::Equal,
-											}
-										});
-
-										println!("[PoseidonScans] Returning {} chapters from RSC data", chapters.len());
-										return Ok(chapters);
 									}
 								}
-								Err(e) => {
-									println!("[PoseidonScans] Failed to parse chapters array as JSON: {:?}", e);
-								}
-								}
+
+								// Move to next push() call
+								search_start = absolute_push_start + 19 + end + 1;
 							}
-						} else {
-							println!("[PoseidonScans] Could not find closing bracket for chapters array");
 						}
-					} else {
-						println!("[PoseidonScans] Pattern \"chapters\":[ not found in unescaped content");
 					}
 				}
 			}
