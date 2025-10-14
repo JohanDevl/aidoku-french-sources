@@ -142,6 +142,8 @@ impl Source for LelManga {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[lelmanga] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, _needs_details, needs_chapters);
 
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
 
@@ -155,15 +157,19 @@ impl Source for LelManga {
         let mut updated_manga = self.parse_manga_details(manga.key.clone(), &html)?;
 
         if _needs_details {
+            println!("[lelmanga] Metadata fetched successfully - title: {}", updated_manga.title);
             send_partial_result(&updated_manga);
         }
 
         // Parse chapters if needed
         if needs_chapters {
             let chapters = self.parse_chapter_list(manga.key, &html)?;
+            let chapter_count = chapters.len();
             updated_manga.chapters = Some(chapters);
+            println!("[lelmanga] Chapters fetched successfully - count: {}", chapter_count);
         }
 
+        println!("[lelmanga] get_manga_update COMPLETE");
         Ok(updated_manga)
     }
 

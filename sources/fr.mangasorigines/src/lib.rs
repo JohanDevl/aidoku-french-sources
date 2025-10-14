@@ -97,6 +97,9 @@ impl Source for MangasOrigines {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[mangasorigines] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, _needs_details, needs_chapters);
+
         let url = format!("{}/oeuvre/{}/", BASE_URL, manga.key);
 
         let html = Request::get(&url)?
@@ -106,12 +109,18 @@ impl Source for MangasOrigines {
             .header("Referer", BASE_URL)
             .html()?;
 
-        let manga = self.parse_manga_details(html, manga.key, needs_chapters)?;
+        let manga = self.parse_manga_details(html, manga.key.clone(), needs_chapters)?;
 
         if _needs_details {
+            println!("[mangasorigines] Metadata fetched successfully - title: {}", manga.title);
             send_partial_result(&manga);
         }
 
+        if let Some(ref chapters) = manga.chapters {
+            println!("[mangasorigines] Chapters fetched successfully - count: {}", chapters.len());
+        }
+
+        println!("[mangasorigines] get_manga_update COMPLETE");
         Ok(manga)
     }
 

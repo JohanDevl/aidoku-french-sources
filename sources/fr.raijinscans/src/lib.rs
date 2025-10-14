@@ -112,6 +112,9 @@ impl Source for RaijinScans {
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[raijinscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
+
         let mut updated_manga = manga.clone();
 
         if needs_details || needs_chapters {
@@ -125,14 +128,19 @@ impl Source for RaijinScans {
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+                println!("[raijinscans] Metadata fetched successfully - title: {}", updated_manga.title);
                 send_partial_result(&updated_manga);
             }
 
             if needs_chapters {
-                updated_manga.chapters = Some(parse_chapter_list(&html));
+                let chapters = parse_chapter_list(&html);
+                let chapter_count = chapters.len();
+                updated_manga.chapters = Some(chapters);
+                println!("[raijinscans] Chapters fetched successfully - count: {}", chapter_count);
             }
         }
 
+        println!("[raijinscans] get_manga_update COMPLETE");
         Ok(updated_manga)
     }
 

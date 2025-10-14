@@ -59,20 +59,27 @@ impl Source for FMTeam {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
+        println!("[fmteam] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
+
         let url = format!("{}/api/comics/{}", BASE_URL, manga.key);
         let response = add_api_headers(Request::get(&url)?)
             .string()?;
 
         if needs_details {
             manga = parser::parse_manga_details_json(manga, &response)?;
+            println!("[fmteam] Metadata fetched successfully - title: {}", manga.title);
             send_partial_result(&manga);
         }
 
         if needs_chapters {
             let chapters = parser::parse_chapter_list_json(&manga.key, &response)?;
+            let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
+            println!("[fmteam] Chapters fetched successfully - count: {}", chapter_count);
         }
 
+        println!("[fmteam] get_manga_update COMPLETE");
         Ok(manga)
     }
 

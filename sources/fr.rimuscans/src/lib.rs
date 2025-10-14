@@ -37,16 +37,36 @@ impl Source for RimuScans {
 		let search_query = query.unwrap_or_default();
 
 		let mut order_filter = String::from("update");
+		let mut genre_filters: Vec<String> = Vec::new();
+		let mut status_filter = String::new();
 
 		for filter in filters {
-			if let FilterValue::Select { id, value } = filter {
-				if id == "order" && !value.is_empty() {
-					order_filter = value;
+			match filter {
+				FilterValue::Select { id, value } => {
+					if id == "order" && !value.is_empty() {
+						order_filter = value;
+					} else if id == "status" && !value.is_empty() {
+						status_filter = value;
+					}
 				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded: _,
+				} => {
+					if id == "genre" {
+						for genre_id in included {
+							if !genre_id.is_empty() {
+								genre_filters.push(genre_id);
+							}
+						}
+					}
+				}
+				_ => {}
 			}
 		}
 
-		let url = if !search_query.is_empty() {
+		let mut url = if !search_query.is_empty() {
 			let encoded_query = urlencode(search_query);
 			if page == 1 {
 				format!(
@@ -62,6 +82,16 @@ impl Source for RimuScans {
 		} else {
 			Self::build_listing_url(&order_filter, page)
 		};
+
+		// Add genre filters
+		for genre in &genre_filters {
+			url.push_str(&format!("&genre%5B%5D={}", genre));
+		}
+
+		// Add status filter
+		if !status_filter.is_empty() {
+			url.push_str(&format!("&status%5B%5D={}", status_filter));
+		}
 
 		let html = Self::create_html_request(&url)?;
 
@@ -80,6 +110,9 @@ impl Source for RimuScans {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		println!("[rimuscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+			manga.key, needs_details, needs_chapters);
+
 		let mut updated_manga = manga.clone();
 
 		if needs_details || needs_chapters {
@@ -105,11 +138,21 @@ impl Source for RimuScans {
 				updated_manga.viewer = new_details.viewer;
 				updated_manga.url = new_details.url.or(updated_manga.url);
 
+				println!(
+					"[rimuscans] Metadata fetched successfully - title: {}",
+					updated_manga.title
+				);
 				send_partial_result(&updated_manga);
 			}
 
 			if needs_chapters {
-				updated_manga.chapters = Some(parse_chapter_list(&html));
+				let chapters = parse_chapter_list(&html);
+				let chapter_count = chapters.len();
+				updated_manga.chapters = Some(chapters);
+				println!(
+					"[rimuscans] Chapters fetched successfully - count: {}",
+					chapter_count
+				);
 			}
 		}
 

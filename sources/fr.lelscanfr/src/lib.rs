@@ -120,11 +120,15 @@ impl Source for LelscanFr {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
+        println!("[lelscanfr] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
+
         let url = format!("{}/manga/{}", BASE_URL, manga.key);
         let html = Request::get(&url)?.html()?;
-        
+
         if needs_details {
             manga = parser::parse_manga_details(manga, &html)?;
+            println!("[lelscanfr] Metadata fetched successfully - title: {}", manga.title);
             send_partial_result(&manga);
         }
 
@@ -151,10 +155,13 @@ impl Source for LelscanFr {
                 let page_chapters = parser::parse_chapter_list(&manga.key, vec![page_html])?;
                 all_chapters.extend(page_chapters);
             }
-            
-            manga.chapters = Some(all_chapters);
+
+            manga.chapters = Some(all_chapters.clone());
+            println!("[lelscanfr] Chapters fetched successfully - count: {} (across {} pages)",
+                all_chapters.len(), total_pages);
         }
-        
+
+        println!("[lelscanfr] get_manga_update COMPLETE");
         Ok(manga)
     }
 

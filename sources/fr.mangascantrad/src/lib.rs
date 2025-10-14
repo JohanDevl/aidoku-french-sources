@@ -115,6 +115,9 @@ impl Source for MangaScantrad {
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[mangascantrad] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
+
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
 
         // Use simple HTTP request with error propagation
@@ -125,12 +128,18 @@ impl Source for MangaScantrad {
             .header("Referer", BASE_URL)
             .html()?;
 
-        let manga = self.parse_manga_details(html, manga.key, needs_details, needs_chapters)?;
+        let manga = self.parse_manga_details(html, manga.key.clone(), needs_details, needs_chapters)?;
 
         if needs_details {
+            println!("[mangascantrad] Metadata fetched successfully - title: {}", manga.title);
             send_partial_result(&manga);
         }
 
+        if let Some(ref chapters) = manga.chapters {
+            println!("[mangascantrad] Chapters fetched successfully - count: {}", chapters.len());
+        }
+
+        println!("[mangascantrad] get_manga_update COMPLETE");
         Ok(manga)
     }
 

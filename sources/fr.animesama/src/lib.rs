@@ -161,6 +161,9 @@ impl Source for AnimeSama {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		println!("[animesama] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+			manga.key, needs_details, needs_chapters);
+
 		let clean_key = if manga.key.starts_with("http") {
 			helper::clean_url(&manga.key)
 		} else {
@@ -168,7 +171,7 @@ impl Source for AnimeSama {
 			format!("{}{}", BASE_URL, cleaned)
 		};
 		let base_manga_url = clean_key;
-		
+
 		if needs_details {
 			// Faire une requête pour récupérer les détails du manga (URL de base)
 			let html = make_realistic_request(&base_manga_url)?;
@@ -186,6 +189,8 @@ impl Source for AnimeSama {
 			manga.content_rating = detailed_manga.content_rating;
 			manga.viewer = detailed_manga.viewer;
 
+			println!("[animesama] Metadata fetched successfully - title: {}", manga.title);
+
 			if needs_chapters {
 				send_partial_result(&manga);
 			}
@@ -195,9 +200,13 @@ impl Source for AnimeSama {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
 			let html = make_realistic_request(&base_manga_url)?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
+			let chapter_count = chapters.len();
 			manga.chapters = Some(chapters);
+
+			println!("[animesama] Chapters fetched successfully - count: {}", chapter_count);
 		}
 
+		println!("[animesama] get_manga_update COMPLETE");
 		Ok(manga)
 	}
 
