@@ -4,7 +4,7 @@ use aidoku::{
 	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult,
 	Page, Result, Source,
 	alloc::{String, Vec},
-	imports::net::Response,
+	imports::{net::Response, std::send_partial_result},
 	prelude::*,
 	AidokuError,
 };
@@ -178,6 +178,7 @@ impl Source for PhenixScans {
 					manga.content_rating = detailed_manga.content_rating;
 					manga.viewer = detailed_manga.viewer;
 				}
+				send_partial_result(&manga);
 			}
 
 			if needs_chapters {

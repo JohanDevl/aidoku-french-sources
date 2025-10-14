@@ -48,6 +48,7 @@ data.json
 data_*.json
 *.tmp
 *.log
+METADATA_REFRESH_DIAGNOSTIC.md
 
 # IDE
 .vscode/

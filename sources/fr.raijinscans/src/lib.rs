@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -125,6 +125,7 @@ impl Source for RaijinScans {
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+                send_partial_result(&updated_manga);
             }
 
             if needs_chapters {

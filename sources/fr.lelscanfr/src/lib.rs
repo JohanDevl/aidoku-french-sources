@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -125,8 +125,9 @@ impl Source for LelscanFr {
         
         if needs_details {
             manga = parser::parse_manga_details(manga, &html)?;
+            send_partial_result(&manga);
         }
-        
+
         if needs_chapters {
             let total_pages = helper::detect_pagination(&html);
             

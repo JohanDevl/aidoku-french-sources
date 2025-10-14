@@ -2,7 +2,7 @@
 
 use aidoku::{
 	alloc::{format, String, Vec},
-	imports::{html::Document, net::Request},
+	imports::{html::Document, net::Request, std::send_partial_result},
 	prelude::*,
 	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
 	Page, PageContext, Result, Source,
@@ -93,6 +93,7 @@ impl Source for RimuScans {
 
 			if needs_details {
 				updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+				send_partial_result(&updated_manga);
 			}
 
 			if needs_chapters {
