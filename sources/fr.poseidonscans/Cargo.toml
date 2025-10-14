@@ -1,7 +1,7 @@
 [package]
 name = "poseidonscans"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [lib]
@@ -14,7 +14,7 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs/", features = ["json"] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
 serde = { version = "1.0.219", default-features = false }
 serde_json = { version = "1.0.140", default-features = false }
 chrono = { version = "0.4.30", default-features = false, features = ["alloc"] }
