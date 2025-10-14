@@ -8,6 +8,30 @@ use serde_json::Value;
 
 extern crate alloc;
 
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::LeftToRight
+	}
+}
+
 fn parse_manga_status(status: &str) -> MangaStatus {
     let status_lower = status.to_lowercase();
     if status_lower.contains("ongoing") || status_lower.contains("en cours") {
@@ -232,7 +256,11 @@ fn parse_single_manga_json(comic: &Value) -> Result<Manga> {
             }
         }
     }
-    
+
+    // Calculate content_rating and viewer based on tags
+    let content_rating = calculate_content_rating(&tags);
+    let viewer = calculate_viewer(&tags);
+
     Ok(Manga {
         key: key.clone(),
         cover,
@@ -242,8 +270,8 @@ fn parse_single_manga_json(comic: &Value) -> Result<Manga> {
         description,
         tags: if tags.is_empty() { None } else { Some(tags) },
         status,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
+        content_rating,
+        viewer,
         chapters: None,
         url: Some(super::helper::make_absolute_url(super::BASE_URL, &format!("/comics/{}", key))),
         next_update_time: None,

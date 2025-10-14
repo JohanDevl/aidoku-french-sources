@@ -8,6 +8,30 @@ use aidoku::{
 
 use crate::{BASE_URL, CDN_URL, CDN_URL_LEGACY, helper};
 
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::RightToLeft
+	}
+}
+
 fn extract_title_from_html(html: &Document, manga_key: &str) -> String {
 	html.select("#titreOeuvre")
 		.and_then(|els| els.text())
@@ -463,7 +487,13 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 	
 	// Parser le statut - exactement comme dans l'ancienne version
 	let status = MangaStatus::Unknown;
-	
+
+	// Calculate content_rating based on tags
+	let content_rating = calculate_content_rating(&tags);
+
+	// Calculate viewer based on tags (Manhwa/Webtoon vs Manga)
+	let viewer = calculate_viewer(&tags);
+
 	Ok(Manga {
 		key: manga_key.clone(),
 		title,
@@ -478,8 +508,8 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		cover,
 		tags: Some(tags),
 		status,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::RightToLeft,
+		content_rating,
+		viewer,
 		..Default::default()
 	})
 }

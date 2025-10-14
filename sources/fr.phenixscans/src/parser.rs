@@ -14,6 +14,18 @@ use crate::BASE_URL;
 use crate::API_URL;
 use crate::helper;
 
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
 // Serde structures for PhenixScans API
 #[derive(Deserialize, Debug)]
 struct MangaItem {
@@ -350,6 +362,13 @@ pub fn parse_manga_details(manga_id: &str, response: &str) -> Result<Manga> {
 		Viewer::Vertical
 	};
 
+	// Calculate content_rating based on tags
+	let content_rating = if let Some(ref tag_list) = tags {
+		calculate_content_rating(tag_list)
+	} else {
+		ContentRating::Safe
+	};
+
 	Ok(Manga {
 		key: manga_id.to_string(),
 		title: manga_details.title,
@@ -360,7 +379,7 @@ pub fn parse_manga_details(manga_id: &str, response: &str) -> Result<Manga> {
 		url,
 		tags,
 		status,
-		content_rating: ContentRating::Safe,
+		content_rating,
 		viewer,
 		chapters: None,
 		next_update_time: None,

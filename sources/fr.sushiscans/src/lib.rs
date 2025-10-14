@@ -12,6 +12,30 @@ extern crate alloc;
 use alloc::{string::ToString};
 
 pub static BASE_URL: &str = "https://sushiscan.fr";
+
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::RightToLeft
+	}
+}
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
 
 fn urlencode(string: &str) -> String {
@@ -514,6 +538,10 @@ impl SushiScans {
             }
         }
 
+        // Calculate content_rating and viewer based on tags
+        let content_rating = calculate_content_rating(&tags);
+        let viewer = calculate_viewer(&tags);
+
         let mut manga = Manga {
             key: key.clone(),
             title,
@@ -524,8 +552,8 @@ impl SushiScans {
             url: Some(format!("{}/catalogue/{}/", BASE_URL, key)),
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::RightToLeft,
+            content_rating,
+            viewer,
             chapters: None,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,

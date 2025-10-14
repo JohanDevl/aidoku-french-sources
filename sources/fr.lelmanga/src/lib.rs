@@ -14,6 +14,18 @@ use alloc::{string::ToString, vec};
 pub static BASE_URL: &str = "https://www.lelmanga.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1";
 
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::RightToLeft
+	}
+}
+
 pub struct LelManga;
 
 impl Source for LelManga {
@@ -996,6 +1008,9 @@ impl LelManga {
             ContentRating::Safe
         };
 
+        // Calculate viewer based on tags
+        let viewer = calculate_viewer(&tags);
+
         Manga {
             key: key.clone(),
             title,
@@ -1007,7 +1022,7 @@ impl LelManga {
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
             content_rating,
-            viewer: Viewer::RightToLeft,
+            viewer,
             chapters: None,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,
