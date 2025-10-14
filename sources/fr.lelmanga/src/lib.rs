@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
-    Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
+    Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer, AidokuError,
     alloc::{String, Vec},
     imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
@@ -13,6 +13,8 @@ use alloc::{string::ToString, vec};
 
 pub static BASE_URL: &str = "https://www.lelmanga.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1";
+
+const MAX_RETRIES: u32 = 3;
 
 // Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
 fn calculate_viewer(tags: &[String]) -> Viewer {
@@ -147,11 +149,7 @@ impl Source for LelManga {
 
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
 
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = Self::request_with_retry(&url)?;
 
         // Parse manga details
         let mut updated_manga = self.parse_manga_details(manga.key.clone(), &html)?;
@@ -177,11 +175,7 @@ impl Source for LelManga {
 
         let url = format!("{}/{}/", BASE_URL, chapter.key);
 
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = Self::request_with_retry(&url)?;
 
         self.parse_page_list(&html)
     }
@@ -245,12 +239,28 @@ impl LelManga {
         url.starts_with("http://") || url.starts_with("https://")
     }
 
+    fn request_with_retry(url: &str) -> Result<Document> {
+        let mut attempt = 0;
+        loop {
+            let request = Request::get(url)?
+                .header("User-Agent", USER_AGENT)
+                .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+                .header("Referer", BASE_URL);
+
+            match request.html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
-        let html = Request::get(url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let html = Self::request_with_retry(url)?;
 
         let mut entries: Vec<Manga> = Vec::new();
 
