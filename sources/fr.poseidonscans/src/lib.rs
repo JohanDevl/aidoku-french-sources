@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     Page, PageContext, Result, Source,
     alloc::{String, Vec},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -76,16 +76,19 @@ impl Source for PoseidonScans {
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
         let html = helper::build_html_request(&url)?.html()?;
-            
+
+        let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
+
+        if _needs_details {
+            send_partial_result(&updated_manga);
+        }
+
         if needs_chapters {
-            // Parse both details and chapters from the same HTML
-            let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
             updated_manga.chapters = Some(chapters);
-            Ok(updated_manga)
-        } else {
-            parser::parse_manga_details(manga.key, &html)
         }
+
+        Ok(updated_manga)
     }
 
 

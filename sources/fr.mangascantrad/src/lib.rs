@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -80,7 +80,7 @@ impl Source for MangaScantrad {
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
-        
+
         // Use simple HTTP request with error propagation
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -89,7 +89,13 @@ impl Source for MangaScantrad {
             .header("Referer", BASE_URL)
             .html()?;
 
-        self.parse_manga_details(html, manga.key, needs_details, needs_chapters)
+        let manga = self.parse_manga_details(html, manga.key, needs_details, needs_chapters)?;
+
+        if needs_details {
+            send_partial_result(&manga);
+        }
+
+        Ok(manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {

@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, 
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
     Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -153,6 +153,10 @@ impl Source for LelManga {
 
         // Parse manga details
         let mut updated_manga = self.parse_manga_details(manga.key.clone(), &html)?;
+
+        if _needs_details {
+            send_partial_result(&updated_manga);
+        }
 
         // Parse chapters if needed
         if needs_chapters {

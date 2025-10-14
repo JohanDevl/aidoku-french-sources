@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -558,6 +558,10 @@ impl SushiScans {
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,
         };
+
+        if _needs_details {
+            send_partial_result(&manga);
+        }
 
         if needs_chapters {
             manga.chapters = Some(self.parse_chapter_list(&html)?);
