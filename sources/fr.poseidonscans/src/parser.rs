@@ -165,8 +165,7 @@ pub fn parse_manga_list(
 	sort_filter: Option<String>,
 	page: i32,
 ) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> =
-		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)?;
 
 	let mut all_mangas: Vec<Manga> = Vec::new();
 	let query_lower = search_query.to_lowercase();
@@ -225,8 +224,7 @@ pub fn parse_manga_list(
 }
 
 pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: LatestChapterResponse =
-		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: LatestChapterResponse = serde_json::from_str(&response)?;
 
 	let mut mangas: Vec<Manga> = Vec::new();
 
@@ -247,8 +245,7 @@ pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> =
-		serde_json::from_str(&response).map_err(|_| aidoku::AidokuError::JsonParseError)?;
+	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)?;
 
 	let mut mangas: Vec<Manga> = Vec::new();
 
