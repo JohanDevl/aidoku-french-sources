@@ -2,7 +2,7 @@
 
 use aidoku::{
     Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
-    MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
+    MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer, AidokuError,
     alloc::{String, Vec, vec},
     imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
@@ -50,10 +50,52 @@ fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
 pub static BASE_URL: &str = "https://manga-scantrad.io";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15";
 
+const MAX_RETRIES: u32 = 3;
+
 pub struct MangaScantrad;
 
 impl MangaScantrad {
     const MIN_ENTRIES_FOR_PAGINATION: usize = 8;
+
+    fn request_with_retry(url: &str, headers: Vec<(&str, &str)>) -> Result<Document> {
+        let mut attempt = 0;
+        loop {
+            let mut request = Request::get(url)?;
+            for (key, value) in &headers {
+                request = request.header(key, value);
+            }
+
+            match request.html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
+    fn post_request_with_retry(url: &str, headers: Vec<(&str, &str)>, body: &[u8]) -> Result<Document> {
+        let mut attempt = 0;
+        loop {
+            let mut request = Request::post(url)?;
+            for (key, value) in &headers {
+                request = request.header(key, value);
+            }
+
+            match request.body(body).html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
 }
 
 impl Source for MangaScantrad {
@@ -120,13 +162,14 @@ impl Source for MangaScantrad {
 
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
 
-        // Use simple HTTP request with error propagation
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+        ];
+
+        let html = Self::request_with_retry(&url, headers)?;
 
         let manga = self.parse_manga_details(html, manga.key.clone(), needs_details, needs_chapters)?;
 
@@ -190,33 +233,30 @@ impl MangaScantrad {
     }
     fn ajax_manga_list(&self, page: i32) -> Result<MangaPageResult> {
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        
-        // Madara AJAX payload for general listing with more results per page
+
         let body = format!(
             "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
-            page - 1, // Madara uses 0-based indexing
+            page - 1,
             page
         );
-        
-        // Use AJAX request with error propagation
-        let html_doc = Request::post(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()?;
-        
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Content-Type", "application/x-www-form-urlencoded"),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+            ("X-Requested-With", "XMLHttpRequest"),
+        ];
+
+        let html_doc = Self::post_request_with_retry(&url, headers, body.as_bytes())?;
+
         self.parse_ajax_response(html_doc)
     }
     
     fn ajax_manga_listing(&self, listing_type: &str, page: i32) -> Result<MangaPageResult> {
-        
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        
-        // Different payloads for different listing types
+
         let body = match listing_type {
             "popular" => {
                 format!(
@@ -240,110 +280,100 @@ impl MangaScantrad {
                 )
             }
         };
-        
-        
-        // Use AJAX request with error propagation
-        let html_doc = Request::post(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()?;
-        
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Content-Type", "application/x-www-form-urlencoded"),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+            ("X-Requested-With", "XMLHttpRequest"),
+        ];
+
+        let html_doc = Self::post_request_with_retry(&url, headers, body.as_bytes())?;
+
         self.parse_ajax_response(html_doc)
     }
     
     
     
     fn ajax_filtered_search(
-        &self, 
-        query: Option<String>, 
-        page: i32, 
+        &self,
+        query: Option<String>,
+        page: i32,
         genre_filters: Vec<String>,
         _genre_op: &str
     ) -> Result<MangaPageResult> {
-        
-        // Try AJAX approach with filters like the working listings but with additional params
         let url = format!("{}/wp-admin/admin-ajax.php", BASE_URL);
-        
+
         let mut body = format!(
             "action=madara_load_more&page={}&template=madara-core/content/content-archive&vars%5Borderby%5D=post_title&vars%5Bpaged%5D={}&vars%5Btemplate%5D=archive&vars%5Bpost_type%5D=wp-manga&vars%5Bpost_status%5D=publish&vars%5Border%5D=ASC&vars%5Bmanga_archives_item_layout%5D=big_thumbnail&vars%5Bposts_per_page%5D=20&vars%5Bnumberposts%5D=20",
-            page - 1, // Madara uses 0-based indexing
+            page - 1,
             page
         );
-        
-        // Add search query if present
+
         if let Some(search_query) = &query {
             if !search_query.is_empty() {
                 body.push_str(&format!("&vars%5Bs%5D={}", Self::urlencode(search_query)));
             }
         }
-        
-        // Add genre filters using tax_query format
+
         let mut tax_query_index = 0;
         for genre in &genre_filters {
-            let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}", 
+            let genre_param = format!("&vars%5Btax_query%5D%5B{}%5D%5Btaxonomy%5D=wp-manga-genre&vars%5Btax_query%5D%5B{}%5D%5Bfield%5D=slug&vars%5Btax_query%5D%5B{}%5D%5Bterms%5D={}",
                 tax_query_index, tax_query_index, tax_query_index, Self::urlencode(genre));
             body.push_str(&genre_param);
             tax_query_index += 1;
         }
-        
-        // Add operator if multiple genre filters
+
         if tax_query_index > 1 {
             let operator = if _genre_op == "1" { "AND" } else { "OR" };
             let relation_param = format!("&vars%5Btax_query%5D%5Brelation%5D={}", operator);
             body.push_str(&relation_param);
         }
-        
-        
-        // Use AJAX request with error propagation
-        let html_doc = Request::post(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body.as_bytes())
-            .html()?;
-        
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Content-Type", "application/x-www-form-urlencoded"),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+            ("X-Requested-With", "XMLHttpRequest"),
+        ];
+
+        let html_doc = Self::post_request_with_retry(&url, headers, body.as_bytes())?;
 
         self.parse_ajax_response(html_doc)
     }
     
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
-        
-        // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/manga/{}/", BASE_URL, manga_key);
-        
-        let manga_page_doc = Request::get(&manga_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
-        
-        // Step 2: Extract numeric ID from JavaScript (exactly like old Madara implementation)
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+        ];
+
+        let manga_page_doc = Self::request_with_retry(&manga_url, headers)?;
+
         let int_id = self.extract_manga_int_id(&manga_page_doc)?;
-        
-        // Step 3: Use Madara alt_ajax method - POST to /manga/{key}/ajax/chapters  
+
         let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
-        
-        let ajax_doc = Request::post(&ajax_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &manga_url)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body_content.as_bytes())
-            .html()?;
-        
+
+        let ajax_headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Content-Type", "application/x-www-form-urlencoded"),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", manga_url.as_str()),
+            ("X-Requested-With", "XMLHttpRequest"),
+        ];
+
+        let ajax_doc = Self::post_request_with_retry(&ajax_url, ajax_headers, body_content.as_bytes())?;
 
         if let Ok(chapters) = self.parse_ajax_chapters_response(ajax_doc) {
             if !chapters.is_empty() {
@@ -882,40 +912,15 @@ impl MangaScantrad {
             None
         };
         
-        // Parse chapters if requested
         let chapters = if needs_chapters {
-            
-            // First try AJAX approaches
-            let ajax_chapters = self.ajax_chapter_list(&manga_key).unwrap_or_else(|_e| {
-                vec![]
-            });
-            
+            let ajax_chapters = self.ajax_chapter_list(&manga_key).unwrap_or_else(|_| vec![]);
+
             if !ajax_chapters.is_empty() {
                 Some(ajax_chapters)
             } else {
                 match self.parse_chapter_list(&html) {
-                    Ok(chapter_list) => {
-                        if !chapter_list.is_empty() {
-                            Some(chapter_list)
-                        } else {
-                            // Try basic parsing again with different approach
-                            match self.parse_chapter_list(&html) {
-                                Ok(enhanced_chapters) => {
-                                    if !enhanced_chapters.is_empty() {
-                                        Some(enhanced_chapters)
-                                    } else {
-                                        None
-                                    }
-                                }
-                                Err(_e3) => {
-                                    None
-                                }
-                            }
-                        }
-                    }
-                    Err(_e2) => {
-                        None
-                    }
+                    Ok(chapter_list) if !chapter_list.is_empty() => Some(chapter_list),
+                    _ => None,
                 }
             }
         } else {
