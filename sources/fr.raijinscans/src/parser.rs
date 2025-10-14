@@ -163,29 +163,74 @@ fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
 				}
 			}
 		}
+
+		let num_str: String = last_part
+			.chars()
+			.skip_while(|c| !c.is_ascii_digit())
+			.take_while(|c| c.is_ascii_digit() || *c == '.')
+			.collect();
+
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
 	}
 	None
 }
 
 fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
-	if let Some(pos) = title.find("Chapitre ") {
+	let title_lower = title.to_lowercase();
+
+	if let Some(pos) = title_lower.find("chapitre ") {
 		let after_chapitre = &title[pos + 9..];
 		let num_str: String = after_chapitre
 			.chars()
 			.take_while(|c| c.is_ascii_digit() || *c == '.')
 			.collect();
 
-		if let Ok(num) = num_str.parse::<f32>() {
-			return Some(num);
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
 		}
 	}
 
-	if title.starts_with("Ch.") || title.starts_with("Ch ") {
-		let num_str: String = title[3..]
+	if let Some(pos) = title_lower.find("chapter ") {
+		let after_chapter = &title[pos + 8..];
+		let num_str: String = after_chapter
 			.chars()
 			.take_while(|c| c.is_ascii_digit() || *c == '.')
 			.collect();
 
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+
+	if title.starts_with("Ch.") || title.starts_with("Ch ") || title.starts_with("ch.") || title.starts_with("ch ") {
+		let num_str: String = title[3..]
+			.chars()
+			.skip_while(|c| c.is_whitespace())
+			.take_while(|c| c.is_ascii_digit() || *c == '.')
+			.collect();
+
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+
+	let num_str: String = title
+		.chars()
+		.skip_while(|c| !c.is_ascii_digit())
+		.take_while(|c| c.is_ascii_digit() || *c == '.')
+		.collect();
+
+	if !num_str.is_empty() {
 		if let Ok(num) = num_str.parse::<f32>() {
 			return Some(num);
 		}
@@ -210,7 +255,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 			};
 
 			let url = link.attr("href").unwrap_or_default();
-			let title = link.attr("title").unwrap_or_default();
+			let title = link.text().unwrap_or_default();
 
 			if url.is_empty() {
 				continue;

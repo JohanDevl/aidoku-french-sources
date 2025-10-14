@@ -283,17 +283,17 @@ fn update_manga_from_json(mut manga: Manga, comic: &Value) -> Result<Manga> {
     if let Some(title) = comic.get("title").and_then(|v| v.as_str()) {
         manga.title = title.to_string();
     }
-    
+
     if let Some(description) = comic.get("description").and_then(|v| v.as_str()) {
         if !description.is_empty() {
             manga.description = Some(description.to_string());
         }
     }
-    
+
     if let Some(author) = comic.get("author").and_then(|v| v.as_str()) {
         manga.authors = Some(vec![author.to_string()]);
     }
-    
+
     if let Some(cover) = comic.get("thumbnail").and_then(|v| v.as_str()) {
         manga.cover = Some(if cover.starts_with("http") {
             cover.to_string()
@@ -301,7 +301,22 @@ fn update_manga_from_json(mut manga: Manga, comic: &Value) -> Result<Manga> {
             super::helper::make_absolute_url(super::BASE_URL, cover)
         });
     }
-    
+
+    let mut tags: Vec<String> = Vec::new();
+    if let Some(genres_array) = comic.get("genres").and_then(|v| v.as_array()) {
+        for genre in genres_array {
+            if let Some(name) = genre.get("name").and_then(|n| n.as_str()) {
+                tags.push(name.to_string());
+            }
+        }
+    }
+
+    if !tags.is_empty() {
+        manga.content_rating = calculate_content_rating(&tags);
+        manga.viewer = calculate_viewer(&tags);
+        manga.tags = Some(tags);
+    }
+
     Ok(manga)
 }
 
