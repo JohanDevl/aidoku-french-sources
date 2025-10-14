@@ -65,13 +65,44 @@ impl MangaScantrad {
                 request = request.header(key, value);
             }
 
-            match request.html() {
-                Ok(doc) => return Ok(doc),
+            let response = match request.send() {
+                Ok(resp) => resp,
                 Err(e) => {
                     if attempt >= MAX_RETRIES {
                         return Err(AidokuError::RequestError(e));
                     }
                     attempt += 1;
+                    continue;
+                }
+            };
+
+            match response.status_code() {
+                200..=299 => {
+                    return response.get_html().map_err(|e| AidokuError::RequestError(e));
+                }
+                408 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Request timeout"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                502 | 503 | 504 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Server error"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                403 | 429 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Access blocked or rate limited"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                _ => {
+                    return Err(AidokuError::message("Request failed"));
                 }
             }
         }
@@ -85,13 +116,44 @@ impl MangaScantrad {
                 request = request.header(key, value);
             }
 
-            match request.body(body).html() {
-                Ok(doc) => return Ok(doc),
+            let response = match request.body(body).send() {
+                Ok(resp) => resp,
                 Err(e) => {
                     if attempt >= MAX_RETRIES {
                         return Err(AidokuError::RequestError(e));
                     }
                     attempt += 1;
+                    continue;
+                }
+            };
+
+            match response.status_code() {
+                200..=299 => {
+                    return response.get_html().map_err(|e| AidokuError::RequestError(e));
+                }
+                408 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Request timeout"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                502 | 503 | 504 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Server error"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                403 | 429 => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::message("Access blocked or rate limited"));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+                _ => {
+                    return Err(AidokuError::message("Request failed"));
                 }
             }
         }
