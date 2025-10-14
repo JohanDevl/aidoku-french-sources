@@ -9,6 +9,42 @@ use crate::helper::{extract_chapter_number, make_absolute_url, parse_status};
 
 extern crate alloc;
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+                    return ContentRating::NSFW;
+                }
+                "ecchi" | "suggestif" | "suggestive" => {
+                    return ContentRating::Suggestive;
+                }
+                _ => {}
+            }
+        }
+    }
+    ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+                    return Viewer::Vertical;
+                }
+                "manga" => {
+                    return Viewer::RightToLeft;
+                }
+                _ => {}
+            }
+        }
+    }
+    Viewer::RightToLeft
+}
+
 pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
     let mut mangas = Vec::new();
 
@@ -62,6 +98,10 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
                         .map(|url| make_absolute_url(base_url, &url));
 
                     if !key.is_empty() && !title.is_empty() {
+                        let tags: Option<Vec<String>> = None;
+                        let content_rating = calculate_content_rating(&tags);
+                        let viewer = calculate_viewer(&tags);
+
                         mangas.push(Manga {
                             key: key.clone(),
                             cover,
@@ -69,10 +109,10 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
                             authors: None,
                             artists: None,
                             description: None,
-                            tags: None,
+                            tags,
                             status: MangaStatus::Unknown,
-                            content_rating: ContentRating::Safe,
-                            viewer: Viewer::LeftToRight,
+                            content_rating,
+                            viewer,
                             chapters: None,
                             url: Some(make_absolute_url(base_url, &href)),
                             next_update_time: None,
@@ -327,6 +367,10 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
 
     let manga_url = make_absolute_url(base_url, &format!("/manga/{}/", manga_key));
 
+    let tags_opt = if !tags.is_empty() { Some(tags) } else { None };
+    let content_rating = calculate_content_rating(&tags_opt);
+    let viewer = calculate_viewer(&tags_opt);
+
     Ok(Manga {
         key: manga_key.clone(),
         cover,
@@ -334,10 +378,10 @@ pub fn parse_manga_details(html: &Document, base_url: &str, manga_key: String) -
         authors: authors.map(|a| alloc::vec![a]),
         artists: None,
         description,
-        tags: if !tags.is_empty() { Some(tags) } else { None },
+        tags: tags_opt,
         status,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
+        content_rating,
+        viewer,
         chapters: None,
         url: Some(manga_url),
         next_update_time: None,

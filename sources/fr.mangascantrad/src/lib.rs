@@ -11,6 +11,42 @@ use aidoku::{
 extern crate alloc;
 use alloc::{string::ToString};
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+                    return ContentRating::NSFW;
+                }
+                "ecchi" | "suggestif" | "suggestive" => {
+                    return ContentRating::Suggestive;
+                }
+                _ => {}
+            }
+        }
+    }
+    ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+                    return Viewer::Vertical;
+                }
+                "manga" => {
+                    return Viewer::RightToLeft;
+                }
+                _ => {}
+            }
+        }
+    }
+    Viewer::RightToLeft
+}
+
 pub static BASE_URL: &str = "https://manga-scantrad.io";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/605.1.15";
 
@@ -568,7 +604,11 @@ impl MangaScantrad {
                             })
                             .unwrap_or_default();
                         
-                        
+
+                        let tags: Option<Vec<String>> = None;
+                        let content_rating = calculate_content_rating(&tags);
+                        let viewer = calculate_viewer(&tags);
+
                         entries.push(Manga {
                             key,
                             title,
@@ -577,10 +617,10 @@ impl MangaScantrad {
                             artists: None,
                             description: None,
                             url: Some(href),
-                            tags: None,
+                            tags,
                             status: MangaStatus::Unknown,
-                            content_rating: ContentRating::Safe,
-                            viewer: Viewer::RightToLeft,
+                            content_rating,
+                            viewer,
                             chapters: None,
                             next_update_time: None,
                             update_strategy: UpdateStrategy::Never,
@@ -873,6 +913,10 @@ impl MangaScantrad {
             None
         };
 
+        let tags_opt = if tags.is_empty() { None } else { Some(tags) };
+        let content_rating = calculate_content_rating(&tags_opt);
+        let viewer = calculate_viewer(&tags_opt);
+
         Ok(Manga {
             key: manga_key.clone(),
             title,
@@ -881,10 +925,10 @@ impl MangaScantrad {
             artists: None,
             description: if description.is_empty() { None } else { Some(description) },
             url: Some(format!("{}/manga/{}/", BASE_URL, manga_key)),
-            tags: if tags.is_empty() { None } else { Some(tags) },
+            tags: tags_opt,
             status,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::RightToLeft,
+            content_rating,
+            viewer,
             chapters,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,

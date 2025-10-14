@@ -7,6 +7,42 @@ use aidoku::{
 
 extern crate alloc;
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+					return ContentRating::NSFW;
+				}
+				"ecchi" | "suggestif" | "suggestive" => {
+					return ContentRating::Suggestive;
+				}
+				_ => {}
+			}
+		}
+	}
+	ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+					return Viewer::Vertical;
+				}
+				"manga" => {
+					return Viewer::RightToLeft;
+				}
+				_ => {}
+			}
+		}
+	}
+	Viewer::RightToLeft
+}
+
 pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -> Result<Manga> {
 	let title = if let Some(title_elems) = html.select("h1.serie-title") {
 		if let Some(elem) = title_elems.first() {
@@ -132,6 +168,9 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		MangaStatus::Unknown
 	};
 
+	let content_rating = calculate_content_rating(&tags);
+	let viewer = calculate_viewer(&tags);
+
 	Ok(Manga {
 		key: manga_key.clone(),
 		cover,
@@ -141,8 +180,8 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		description,
 		tags,
 		status,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::LeftToRight,
+		content_rating,
+		viewer,
 		chapters: None,
 		url: Some(manga_key),
 		next_update_time: None,

@@ -20,6 +20,42 @@ const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
 const CHAPTER_PREFIX: &str = "/chapter/";
 const CHAPTER_PREFIX_LEN: usize = CHAPTER_PREFIX.len();
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+					return ContentRating::NSFW;
+				}
+				"ecchi" | "suggestif" | "suggestive" => {
+					return ContentRating::Suggestive;
+				}
+				_ => {}
+			}
+		}
+	}
+	ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+					return Viewer::Vertical;
+				}
+				"manga" => {
+					return Viewer::RightToLeft;
+				}
+				_ => {}
+			}
+		}
+	}
+	Viewer::RightToLeft
+}
+
 // Serde structures for Poseidon Scans API responses
 
 #[derive(Deserialize, Debug)]
@@ -110,6 +146,9 @@ impl MangaItem {
 			.clone()
 			.filter(|d| !d.is_empty() && d != "Aucune description.");
 
+		let content_rating = calculate_content_rating(&tags);
+		let viewer = calculate_viewer(&tags);
+
 		Manga {
 			key: key.clone(),
 			title,
@@ -120,8 +159,8 @@ impl MangaItem {
 			url: Some(format!("{}/serie/{}", BASE_URL, key)),
 			tags,
 			status,
-			content_rating: ContentRating::Safe,
-			viewer: Viewer::RightToLeft,
+			content_rating,
+			viewer,
 			chapters: None,
 			next_update_time: None,
 			update_strategy: UpdateStrategy::Never,
@@ -165,7 +204,13 @@ pub fn parse_manga_list(
 	sort_filter: Option<String>,
 	page: i32,
 ) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)?;
+	let api_response: ApiResponse<MangaItem> = match serde_json::from_str(&response) {
+		Ok(resp) => resp,
+		Err(_) => return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		}),
+	};
 
 	let mut all_mangas: Vec<Manga> = Vec::new();
 	let query_lower = search_query.to_lowercase();
@@ -224,7 +269,13 @@ pub fn parse_manga_list(
 }
 
 pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: LatestChapterResponse = serde_json::from_str(&response)?;
+	let api_response: LatestChapterResponse = match serde_json::from_str(&response) {
+		Ok(resp) => resp,
+		Err(_) => return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		}),
+	};
 
 	let mut mangas: Vec<Manga> = Vec::new();
 
@@ -245,7 +296,13 @@ pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
 }
 
 pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> = serde_json::from_str(&response)?;
+	let api_response: ApiResponse<MangaItem> = match serde_json::from_str(&response) {
+		Ok(resp) => resp,
+		Err(_) => return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		}),
+	};
 
 	let mut mangas: Vec<Manga> = Vec::new();
 
@@ -454,6 +511,9 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 	let cover = format!("{}/api/covers/{}.webp", BASE_URL, manga_key);
 
+	let content_rating = calculate_content_rating(&tags);
+	let viewer = calculate_viewer(&tags);
+
 	Ok(Manga {
 		key: manga_key.clone(),
 		title,
@@ -468,8 +528,8 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		url: Some(format!("{}/serie/{}", BASE_URL, manga_key)),
 		tags,
 		status,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::RightToLeft,
+		content_rating,
+		viewer,
 		chapters: None,
 		next_update_time: None,
 		update_strategy: UpdateStrategy::Never,

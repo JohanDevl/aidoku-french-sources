@@ -7,6 +7,42 @@ use aidoku::{
 
 extern crate alloc;
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+					return ContentRating::NSFW;
+				}
+				"ecchi" | "suggestif" | "suggestive" => {
+					return ContentRating::Suggestive;
+				}
+				_ => {}
+			}
+		}
+	}
+	ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+					return Viewer::Vertical;
+				}
+				"manga" => {
+					return Viewer::RightToLeft;
+				}
+				_ => {}
+			}
+		}
+	}
+	Viewer::RightToLeft
+}
+
 fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
 	let title_lower = title.to_lowercase();
 
@@ -101,6 +137,10 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 				None
 			};
 
+			let tags: Option<Vec<String>> = None;
+			let content_rating = calculate_content_rating(&tags);
+			let viewer = calculate_viewer(&tags);
+
 			mangas.push(Manga {
 				key: key.clone(),
 				cover,
@@ -108,10 +148,10 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 				authors: None,
 				artists: None,
 				description: None,
-				tags: None,
+				tags,
 				status: MangaStatus::Unknown,
-				content_rating: ContentRating::Safe,
-				viewer: Viewer::LeftToRight,
+				content_rating,
+				viewer,
 				chapters: None,
 				url: Some(make_absolute_url(base_url, &url)),
 				next_update_time: None,
@@ -202,6 +242,9 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		MangaStatus::Unknown
 	};
 
+	let content_rating = calculate_content_rating(&tags);
+	let viewer = calculate_viewer(&tags);
+
 	Ok(Manga {
 		key: manga_key.clone(),
 		cover,
@@ -211,8 +254,8 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		description,
 		tags,
 		status,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::LeftToRight,
+		content_rating,
+		viewer,
 		chapters: None,
 		url: Some(manga_key),
 		next_update_time: None,

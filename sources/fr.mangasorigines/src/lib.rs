@@ -16,6 +16,42 @@ pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac 
 
 pub struct MangasOrigines;
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+                    return ContentRating::NSFW;
+                }
+                "ecchi" | "suggestif" | "suggestive" => {
+                    return ContentRating::Suggestive;
+                }
+                _ => {}
+            }
+        }
+    }
+    ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+                    return Viewer::Vertical;
+                }
+                "manga" => {
+                    return Viewer::RightToLeft;
+                }
+                _ => {}
+            }
+        }
+    }
+    Viewer::RightToLeft
+}
+
 impl Source for MangasOrigines {
     fn new() -> Self {
         Self
@@ -304,14 +340,17 @@ impl MangasOrigines {
         let status = self.get_manga_status(&html);
         let tags = self.get_manga_tags(&html);
 
+        let content_rating = calculate_content_rating(&tags);
+        let viewer = calculate_viewer(&tags);
+
         let mut manga = Manga {
             key: key.clone(),
             title,
             cover,
             url: Some(format!("{}/oeuvre/{}/", BASE_URL, key)),
             status,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::RightToLeft,
+            content_rating,
+            viewer,
             authors: author,
             artists: None,
             description,
