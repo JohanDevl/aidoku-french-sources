@@ -71,9 +71,6 @@ impl Source for MangasScans {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
-        println!("[mangasscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-            manga.key, needs_details, needs_chapters);
-
         let mut updated_manga = manga.clone();
 
         if needs_details || needs_chapters {
@@ -87,7 +84,6 @@ impl Source for MangasScans {
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, BASE_URL, manga.key.clone())?;
-                println!("[mangasscans] Metadata fetched successfully - title: {}", updated_manga.title);
                 send_partial_result(&updated_manga);
             }
 
@@ -107,12 +103,9 @@ impl Source for MangasScans {
                 }
 
                 updated_manga.chapters = Some(all_chapters.clone());
-                println!("[mangasscans] Chapters fetched successfully - count: {} (across {} pages)",
-                    all_chapters.len(), total_pages);
             }
         }
 
-        println!("[mangasscans] get_manga_update COMPLETE");
         Ok(updated_manga)
     }
 

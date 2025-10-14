@@ -110,9 +110,6 @@ impl Source for SushiScans {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[sushiscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-            manga.key, _needs_details, needs_chapters);
-
         let url = if manga.key.starts_with("catalogue/") {
             format!("{}/{}/", BASE_URL, manga.key)
         } else {
@@ -123,7 +120,6 @@ impl Source for SushiScans {
 
         let result = self.parse_manga_details(html, manga.key, _needs_details, needs_chapters)?;
 
-        println!("[sushiscans] get_manga_update COMPLETE");
         Ok(result)
     }
 
@@ -566,7 +562,6 @@ impl SushiScans {
         };
 
         if _needs_details {
-            println!("[sushiscans] Metadata fetched successfully - title: {}", manga.title);
             send_partial_result(&manga);
         }
 
@@ -574,7 +569,6 @@ impl SushiScans {
             let chapters = self.parse_chapter_list(&html)?;
             let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
-            println!("[sushiscans] Chapters fetched successfully - count: {}", chapter_count);
         }
 
         Ok(manga)

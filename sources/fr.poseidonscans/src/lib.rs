@@ -73,9 +73,6 @@ impl Source for PoseidonScans {
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[poseidonscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-            manga.key, _needs_details, needs_chapters);
-
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
         let html = helper::build_html_request(&url)?.html()?;
@@ -83,7 +80,6 @@ impl Source for PoseidonScans {
         let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
 
         if _needs_details {
-            println!("[poseidonscans] Metadata fetched successfully - title: {}", updated_manga.title);
             send_partial_result(&updated_manga);
         }
 
@@ -91,10 +87,8 @@ impl Source for PoseidonScans {
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
             let chapter_count = chapters.len();
             updated_manga.chapters = Some(chapters);
-            println!("[poseidonscans] Chapters fetched successfully - count: {}", chapter_count);
         }
 
-        println!("[poseidonscans] get_manga_update COMPLETE");
         Ok(updated_manga)
     }
 

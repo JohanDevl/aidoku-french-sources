@@ -110,9 +110,6 @@ impl Source for RimuScans {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		println!("[rimuscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-			manga.key, needs_details, needs_chapters);
-
 		let mut updated_manga = manga.clone();
 
 		if needs_details || needs_chapters {
@@ -138,10 +135,6 @@ impl Source for RimuScans {
 				updated_manga.viewer = new_details.viewer;
 				updated_manga.url = new_details.url.or(updated_manga.url);
 
-				println!(
-					"[rimuscans] Metadata fetched successfully - title: {}",
-					updated_manga.title
-				);
 				send_partial_result(&updated_manga);
 			}
 
@@ -149,10 +142,6 @@ impl Source for RimuScans {
 				let chapters = parse_chapter_list(&html);
 				let chapter_count = chapters.len();
 				updated_manga.chapters = Some(chapters);
-				println!(
-					"[rimuscans] Chapters fetched successfully - count: {}",
-					chapter_count
-				);
 			}
 		}
 
