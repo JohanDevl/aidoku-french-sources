@@ -171,19 +171,32 @@ impl Source for MangaScantrad {
 
         let html = Self::request_with_retry(&url, headers)?;
 
-        let manga = self.parse_manga_details(html, manga.key.clone(), needs_details, needs_chapters)?;
+        let mut result_manga = self.parse_manga_details(&html, manga.key.clone(), needs_details, false)?;
 
         if needs_details {
-            println!("[mangascantrad] Metadata fetched successfully - title: {}", manga.title);
-            send_partial_result(&manga);
+            println!("[mangascantrad] Metadata fetched successfully - title: {}", result_manga.title);
+            send_partial_result(&result_manga);
         }
 
-        if let Some(ref chapters) = manga.chapters {
-            println!("[mangascantrad] Chapters fetched successfully - count: {}", chapters.len());
+        if needs_chapters {
+            let ajax_chapters = self.ajax_chapter_list(&manga.key).unwrap_or_else(|_| vec![]);
+
+            if !ajax_chapters.is_empty() {
+                result_manga.chapters = Some(ajax_chapters);
+            } else {
+                result_manga.chapters = match self.parse_chapter_list(&html) {
+                    Ok(chapter_list) if !chapter_list.is_empty() => Some(chapter_list),
+                    _ => None,
+                };
+            }
+
+            if let Some(ref chapters) = result_manga.chapters {
+                println!("[mangascantrad] Chapters fetched successfully - count: {}", chapters.len());
+            }
         }
 
         println!("[mangascantrad] get_manga_update COMPLETE");
-        Ok(manga)
+        Ok(result_manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -705,7 +718,7 @@ impl MangaScantrad {
         })
     }
     
-    fn parse_manga_details(&self, html: Document, manga_key: String, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+    fn parse_manga_details(&self, html: &Document, manga_key: String, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         
         // Extract title with multiple selectors
         let title = html.select(".post-title h1, .manga-title, h1.entry-title, .wp-manga-title, .single-title")

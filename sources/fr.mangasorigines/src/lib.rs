@@ -98,9 +98,9 @@ impl Source for MangasOrigines {
         }
     }
 
-    fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+    fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         println!("[mangasorigines] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-            manga.key, _needs_details, needs_chapters);
+            manga.key, needs_details, needs_chapters);
 
         let url = format!("{}/oeuvre/{}/", BASE_URL, manga.key);
 
@@ -113,19 +113,29 @@ impl Source for MangasOrigines {
 
         let html = Self::request_with_retry(&url, headers)?;
 
-        let manga = self.parse_manga_details(html, manga.key.clone(), needs_chapters)?;
+        let mut result_manga = self.parse_manga_details(&html, manga.key.clone(), false)?;
 
-        if _needs_details {
-            println!("[mangasorigines] Metadata fetched successfully - title: {}", manga.title);
-            send_partial_result(&manga);
+        if needs_details {
+            println!("[mangasorigines] Metadata fetched successfully - title: {}", result_manga.title);
+            send_partial_result(&result_manga);
         }
 
-        if let Some(ref chapters) = manga.chapters {
-            println!("[mangasorigines] Chapters fetched successfully - count: {}", chapters.len());
+        if needs_chapters {
+            let ajax_chapters = self.ajax_chapter_list(&manga.key).unwrap_or_else(|_| vec![]);
+
+            if !ajax_chapters.is_empty() {
+                result_manga.chapters = Some(ajax_chapters);
+            } else {
+                result_manga.chapters = Some(self.parse_chapter_list(&manga.key, &html).unwrap_or_else(|_| vec![]));
+            }
+
+            if let Some(ref chapters) = result_manga.chapters {
+                println!("[mangasorigines] Chapters fetched successfully - count: {}", chapters.len());
+            }
         }
 
         println!("[mangasorigines] get_manga_update COMPLETE");
-        Ok(manga)
+        Ok(result_manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -380,7 +390,7 @@ impl MangasOrigines {
         })
     }
 
-    fn parse_manga_details(&self, html: Document, key: String, needs_chapters: bool) -> Result<Manga> {
+    fn parse_manga_details(&self, html: &Document, key: String, needs_chapters: bool) -> Result<Manga> {
         let title = if let Some(title_elements) = html.select("div.post-title h1, .wp-manga-title, .manga-title") {
             title_elements.text().unwrap_or_default().trim().to_string()
         } else {
