@@ -485,8 +485,8 @@ pub fn parse_manga_details(manga_key: String, html: Document) -> Result<Manga> {
 		tags.push("Manga".to_string());
 	}
 	
-	// Parser le statut - exactement comme dans l'ancienne version
-	let status = MangaStatus::Unknown;
+	// Status: always Ongoing as site doesn't provide status info
+	let status = MangaStatus::Ongoing;
 
 	// Calculate content_rating based on tags
 	let content_rating = calculate_content_rating(&tags);
