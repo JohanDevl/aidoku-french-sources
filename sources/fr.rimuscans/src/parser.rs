@@ -174,8 +174,24 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		String::new()
 	};
 
-	let author = None; // Site doesn't show author info
-	let artist = None; // Site doesn't show artist info
+	let author = if let Some(author_elems) = html.select("div.wd-full span.author a, div.tsinfo .imptdt:contains(Auteur) a, div.fmed:contains(Auteur) span") {
+		let mut authors_vec = Vec::new();
+		for elem in author_elems {
+			let author_name = elem.text().unwrap_or_default().trim().to_string();
+			if !author_name.is_empty() && !author_name.to_lowercase().contains("auteur") {
+				authors_vec.push(author_name);
+			}
+		}
+		if !authors_vec.is_empty() {
+			Some(authors_vec)
+		} else {
+			None
+		}
+	} else {
+		None
+	};
+
+	let artist = None;
 
 	let description = if let Some(desc_elems) = html.select("div.entry-content-single") {
 		if let Some(elem) = desc_elems.first() {

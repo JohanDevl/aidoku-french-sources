@@ -92,7 +92,19 @@ impl Source for RimuScans {
 			let html = Self::create_html_request(&manga_url)?;
 
 			if needs_details {
-				updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+				let new_details = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+
+				updated_manga.title = new_details.title;
+				updated_manga.cover = new_details.cover.or(updated_manga.cover);
+				updated_manga.description = new_details.description.or(updated_manga.description);
+				updated_manga.authors = new_details.authors.or(updated_manga.authors);
+				updated_manga.artists = new_details.artists.or(updated_manga.artists);
+				updated_manga.tags = new_details.tags.or(updated_manga.tags);
+				updated_manga.status = new_details.status;
+				updated_manga.content_rating = new_details.content_rating;
+				updated_manga.viewer = new_details.viewer;
+				updated_manga.url = new_details.url.or(updated_manga.url);
+
 				send_partial_result(&updated_manga);
 			}
 

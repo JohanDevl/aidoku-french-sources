@@ -209,9 +209,11 @@ impl RaijinScans {
             }
 
             if let Some(img) = cover_img {
-                let cover_url = img.attr("src")
-                    .or_else(|| img.attr("data-src"))
+                let cover_url = img.attr("data-src")
                     .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src"))
+                    .or_else(|| img.attr("srcset"))
+                    .or_else(|| img.attr("data-cfsrc"))
                     .unwrap_or_default();
 
                 if !cover_url.is_empty() {
