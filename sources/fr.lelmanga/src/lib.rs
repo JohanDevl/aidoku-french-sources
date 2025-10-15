@@ -243,10 +243,9 @@ impl LelManga {
         let mut attempt = 0;
         loop {
             println!("[lelmanga] Attempt {} of {}", attempt + 1, MAX_RETRIES + 1);
-            let request = Request::get(url)?
-                .header("User-Agent", USER_AGENT);
+            let request = Request::get(url)?;
 
-            println!("[lelmanga] Request built, calling html()...");
+            println!("[lelmanga] Request built (no headers), calling html()...");
             match request.html() {
                 Ok(doc) => {
                     println!("[lelmanga] HTML parsed successfully on attempt {}", attempt + 1);
