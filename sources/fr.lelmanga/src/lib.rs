@@ -148,11 +148,15 @@ impl Source for LelManga {
             manga.key, _needs_details, needs_chapters);
 
         let url = format!("{}/manga/{}/", BASE_URL, manga.key);
+        println!("[lelmanga] Requesting URL: {}", url);
 
         let html = Self::request_with_retry(&url)?;
+        println!("[lelmanga] HTML fetched successfully");
 
         // Parse manga details
+        println!("[lelmanga] Starting parse_manga_details...");
         let mut updated_manga = self.parse_manga_details(manga.key.clone(), &html)?;
+        println!("[lelmanga] parse_manga_details completed");
 
         if _needs_details {
             println!("[lelmanga] Metadata fetched successfully - title: {}", updated_manga.title);
@@ -240,17 +244,25 @@ impl LelManga {
     }
 
     fn request_with_retry(url: &str) -> Result<Document> {
+        println!("[lelmanga] request_with_retry called for URL: {}", url);
         let mut attempt = 0;
         loop {
+            println!("[lelmanga] Attempt {} of {}", attempt + 1, MAX_RETRIES + 1);
             let request = Request::get(url)?
                 .header("User-Agent", USER_AGENT)
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                 .header("Referer", BASE_URL);
 
+            println!("[lelmanga] Request built, calling html()...");
             match request.html() {
-                Ok(doc) => return Ok(doc),
+                Ok(doc) => {
+                    println!("[lelmanga] HTML parsed successfully on attempt {}", attempt + 1);
+                    return Ok(doc);
+                },
                 Err(e) => {
+                    println!("[lelmanga] Request failed on attempt {}: {:?}", attempt + 1, e);
                     if attempt >= MAX_RETRIES {
+                        println!("[lelmanga] Max retries reached, returning error");
                         return Err(AidokuError::RequestError(e));
                     }
                     attempt += 1;
