@@ -243,16 +243,45 @@ impl LelManga {
         let mut attempt = 0;
         loop {
             println!("[lelmanga] Attempt {} of {}", attempt + 1, MAX_RETRIES + 1);
-            let request = Request::get(url)?;
 
-            println!("[lelmanga] Request built (no headers), calling html()...");
+            println!("[lelmanga] Creating request object...");
+            let request = match Request::get(url) {
+                Ok(req) => {
+                    println!("[lelmanga] Request object created successfully");
+                    req
+                },
+                Err(e) => {
+                    println!("[lelmanga] Failed to create request: {:?}", e);
+                    return Err(AidokuError::RequestError(e));
+                }
+            };
+
+            // Test: First try to download data to see if network works
+            println!("[lelmanga] Testing data download...");
+            let test_request = Request::get(url)?;
+            match test_request.data() {
+                Ok(data) => {
+                    println!("[lelmanga] ✓ Data download works! Size: {} bytes", data.len());
+                },
+                Err(e) => {
+                    println!("[lelmanga] ✗ Data download failed: {:?}", e);
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                    continue;
+                }
+            }
+
+            // Now try the actual html() call
+            println!("[lelmanga] Now trying html() call...");
             match request.html() {
                 Ok(doc) => {
                     println!("[lelmanga] HTML parsed successfully on attempt {}", attempt + 1);
                     return Ok(doc);
                 },
                 Err(e) => {
-                    println!("[lelmanga] Request failed on attempt {}: {:?}", attempt + 1, e);
+                    println!("[lelmanga] HTML call failed on attempt {}: {:?}", attempt + 1, e);
                     if attempt >= MAX_RETRIES {
                         println!("[lelmanga] Max retries reached, returning error");
                         return Err(AidokuError::RequestError(e));
