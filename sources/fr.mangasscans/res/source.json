@@ -2,7 +2,7 @@
   "info": {
     "id": "fr.mangasscans",
     "name": "Mangas Scans",
-    "version": 8,
+    "version": 3,
     "url": "https://mangas-scans.com/",
     "contentRating": 1,
     "languages": ["fr"]

@@ -14,7 +14,7 @@ use alloc::{string::ToString, vec};
 pub static BASE_URL: &str = "https://www.lelmanga.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-const MAX_RETRIES: u32 = 1;
+const MAX_RETRIES: u32 = 3;
 
 // Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
 fn calculate_viewer(tags: &[String]) -> Viewer {
@@ -101,83 +101,82 @@ impl Source for LelManga {
 
         // Build URL parameters
         let mut url_params = Vec::new();
-        
+
         // Add page parameter first if not first page
         if page > 1 {
             url_params.push(format!("page={}", page));
         }
-        
+
         // Add genre parameters - new format: genre[]=ID (URL encoded)
         for genre_id in &selected_genres {
             if !genre_id.is_empty() && genre_id != "Tout" {
                 url_params.push(format!("genre%5B%5D={}", genre_id));
             }
         }
-        
-        // Always add status parameter (empty if not set)
-        let status_value = if selected_status.is_empty() { "" } else { &selected_status };
-        url_params.push(format!("status={}", Self::urlencode(status_value)));
-        
-        // Always add type parameter (empty if not set)
-        let type_value = if selected_type.is_empty() { "" } else { &selected_type };
-        url_params.push(format!("type={}", Self::urlencode(type_value)));
-        
-        // Always add order parameter (use selected value or empty)
-        let order_value = if selected_order.is_empty() { "" } else { &selected_order };
-        url_params.push(format!("order={}", Self::urlencode(order_value)));
-        
+
+        // Only add status parameter if not empty
+        if !selected_status.is_empty() {
+            url_params.push(format!("status={}", Self::urlencode(&selected_status)));
+        }
+
+        // Only add type parameter if not empty
+        if !selected_type.is_empty() {
+            url_params.push(format!("type={}", Self::urlencode(&selected_type)));
+        }
+
+        // Only add order parameter if not empty
+        if !selected_order.is_empty() {
+            url_params.push(format!("order={}", Self::urlencode(&selected_order)));
+        }
+
         let url = if let Some(ref search_query) = query {
             // Search mode
             if search_query.is_empty() {
-                format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
+                if url_params.is_empty() {
+                    format!("{}/manga", BASE_URL)
+                } else {
+                    format!("{}/manga?{}", BASE_URL, url_params.join("&"))
+                }
             } else {
                 let mut search_params = vec![format!("s={}", Self::urlencode(&search_query))];
                 search_params.extend(url_params);
-                format!("{}/?{}", BASE_URL, search_params.join("&"))
+                format!("{}?{}", BASE_URL, search_params.join("&"))
             }
         } else {
             // Browse/filter mode using /manga endpoint
-            format!("{}/manga/?{}", BASE_URL, url_params.join("&"))
+            if url_params.is_empty() {
+                format!("{}/manga", BASE_URL)
+            } else {
+                format!("{}/manga?{}", BASE_URL, url_params.join("&"))
+            }
         };
         
         self.get_manga_from_page(&url)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[lelmanga] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
-            manga.key, _needs_details, needs_chapters);
-
-        let url = format!("{}/manga/{}/", BASE_URL, manga.key);
-        println!("[lelmanga] Requesting URL: {}", url);
-
+        let url = format!("{}/manga/{}", BASE_URL, manga.key);
         let html = Self::request_with_retry(&url)?;
-        println!("[lelmanga] HTML fetched successfully");
 
         // Parse manga details
-        println!("[lelmanga] Starting parse_manga_details...");
         let mut updated_manga = self.parse_manga_details(manga.key.clone(), &html)?;
-        println!("[lelmanga] parse_manga_details completed");
 
         if _needs_details {
-            println!("[lelmanga] Metadata fetched successfully - title: {}", updated_manga.title);
             send_partial_result(&updated_manga);
         }
 
         // Parse chapters if needed
         if needs_chapters {
             let chapters = self.parse_chapter_list(manga.key, &html)?;
-            let chapter_count = chapters.len();
             updated_manga.chapters = Some(chapters);
-            println!("[lelmanga] Chapters fetched successfully - count: {}", chapter_count);
         }
 
-        println!("[lelmanga] get_manga_update COMPLETE");
         Ok(updated_manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 
-        let url = format!("{}/{}/", BASE_URL, chapter.key);
+        let url = format!("{}/{}", BASE_URL, chapter.key);
 
         let html = Self::request_with_retry(&url)?;
 
@@ -186,20 +185,13 @@ impl Source for LelManga {
 }
 
 impl ListingProvider for LelManga {
-    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+    fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
 
-        let mut url = format!("{}/manga/", BASE_URL);
+        let mut url = format!("{}/manga", BASE_URL);
 
-        // Add sorting parameter based on listing type
-        match listing.name.as_str() {
-            "Populaire" => url.push_str("?order=popular"),
-            "Tendance" => url.push_str("?order=update"),
-            _ => url.push_str("?order=latest"),
-        }
-
-        // Add page parameter
+        // Add page parameter using WordPress-style pagination
         if page > 1 {
-            url.push_str(&format!("&page={}", page));
+            url.push_str(&format!("/page/{}", page));
         }
 
         self.get_manga_from_page(&url)
@@ -239,51 +231,14 @@ impl LelManga {
     }
 
     fn request_with_retry(url: &str) -> Result<Document> {
-        println!("[lelmanga] request_with_retry called for URL: {}", url);
         let mut attempt = 0;
         loop {
-            println!("[lelmanga] Attempt {} of {}", attempt + 1, MAX_RETRIES + 1);
+            let request = Request::get(url)?;
 
-            println!("[lelmanga] Creating request object...");
-            let request = match Request::get(url) {
-                Ok(req) => {
-                    println!("[lelmanga] Request object created successfully");
-                    req
-                },
-                Err(e) => {
-                    println!("[lelmanga] Failed to create request: {:?}", e);
-                    return Err(AidokuError::RequestError(e));
-                }
-            };
-
-            // Test: First try to download data to see if network works
-            println!("[lelmanga] Testing data download...");
-            let test_request = Request::get(url)?;
-            match test_request.data() {
-                Ok(data) => {
-                    println!("[lelmanga] ✓ Data download works! Size: {} bytes", data.len());
-                },
-                Err(e) => {
-                    println!("[lelmanga] ✗ Data download failed: {:?}", e);
-                    if attempt >= MAX_RETRIES {
-                        return Err(AidokuError::RequestError(e));
-                    }
-                    attempt += 1;
-                    continue;
-                }
-            }
-
-            // Now try the actual html() call
-            println!("[lelmanga] Now trying html() call...");
             match request.html() {
-                Ok(doc) => {
-                    println!("[lelmanga] HTML parsed successfully on attempt {}", attempt + 1);
-                    return Ok(doc);
-                },
+                Ok(doc) => return Ok(doc),
                 Err(e) => {
-                    println!("[lelmanga] HTML call failed on attempt {}: {:?}", attempt + 1, e);
                     if attempt >= MAX_RETRIES {
-                        println!("[lelmanga] Max retries reached, returning error");
                         return Err(AidokuError::RequestError(e));
                     }
                     attempt += 1;
@@ -1071,7 +1026,7 @@ impl LelManga {
             authors,
             artists,
             description: if description.is_empty() { None } else { Some(description) },
-            url: Some(format!("{}/manga/{}/", BASE_URL, key)),
+            url: Some(format!("{}/manga/{}", BASE_URL, key)),
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
             content_rating,
