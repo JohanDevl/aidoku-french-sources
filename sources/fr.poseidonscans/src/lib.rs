@@ -25,11 +25,64 @@ impl Source for PoseidonScans {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>
+        filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
         // Build URL with query parameters for /series page
         let mut url = format!("{}/series", BASE_URL);
         let mut params = Vec::new();
+
+        // Parse filters (order: status, type, genre, sort)
+        let mut status_filter: Option<String> = None;
+        let mut type_filter: Option<String> = None;
+        let mut genre_filter: Option<String> = None;
+        let mut sort_filter: Option<String> = None;
+
+        for (index, filter) in filters.iter().enumerate() {
+            match (index, filter) {
+                (0, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                    // Status filter
+                    status_filter = Some(value.clone());
+                }
+                (1, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                    // Type filter
+                    type_filter = Some(value.clone());
+                }
+                (2, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                    // Genre filter
+                    genre_filter = Some(value.clone());
+                }
+                (3, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                    // Sort filter
+                    sort_filter = Some(value.clone());
+                }
+                _ => {}
+            }
+        }
+
+        // Build tags parameter (genres + type in UPPERCASE, comma-separated)
+        let mut tags: Vec<String> = Vec::new();
+
+        if let Some(genre) = genre_filter {
+            tags.push(genre.to_uppercase());
+        }
+
+        if let Some(type_val) = type_filter {
+            tags.push(type_val.to_uppercase());
+        }
+
+        if !tags.is_empty() {
+            params.push(format!("tags={}", helper::urlencode(tags.join(","))));
+        }
+
+        // Add status parameter
+        if let Some(status) = status_filter {
+            params.push(format!("status={}", helper::urlencode(status)));
+        }
+
+        // Add sortBy parameter (value already comes from filters.json)
+        if let Some(sort) = sort_filter {
+            params.push(format!("sortBy={}", sort));
+        }
 
         // Add search query if provided
         if let Some(ref q) = query {

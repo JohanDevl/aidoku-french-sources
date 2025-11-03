@@ -3,13 +3,13 @@
     "type": "select",
     "id": "status",
     "title": "Statut",
-    "options": ["Tous les statuts", "En cours", "Terminé", "En pause"]
+    "options": ["Tous les statuts", "En cours", "Terminé", "En pause", "Annulé"]
   },
   {
     "type": "select",
     "id": "type",
     "title": "Type",
-    "options": ["Tous les types", "Manga", "Manhwa", "Manhua"]
+    "options": ["Tous les types", "Manga", "Manhwa", "Manhua", "Webtoon"]
   },
   {
     "type": "select",
@@ -64,10 +64,16 @@
     "id": "sort",
     "title": "Trier par",
     "options": [
-      "Dernière mise à jour",
-      "Titre A-Z",
-      "Titre Z-A",
-      "Date d'ajout"
+      "Dernier Chapitre",
+      "Popularité",
+      "Ordre alphabétique",
+      "Ajout Récent"
+    ],
+    "ids": [
+      "recent",
+      "popular",
+      "alphabetical",
+      "created"
     ]
   }
 ]
