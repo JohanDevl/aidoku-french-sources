@@ -27,6 +27,10 @@ impl Source for PoseidonScans {
         page: i32,
         filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
+        // Build URL with query parameters for /series page
+        let mut url = format!("{}/series", BASE_URL);
+        let mut params = Vec::new();
+
         // Parse filters (order: status, type, genre, sort)
         let mut status_filter: Option<String> = None;
         let mut type_filter: Option<String> = None;
@@ -51,20 +55,52 @@ impl Source for PoseidonScans {
             }
         }
 
-        // Fetch complete manga list from HTML page (all pages)
-        let url = format!("{}/series", BASE_URL);
-        let html = helper::build_html_request(&url)?.html()?;
+        // Build tags parameter (genres + type, comma-separated)
+        // Values come from filters.json ids in correct format
+        let mut tags: Vec<String> = Vec::new();
 
-        // Parse HTML and filter on client side
-        parser::parse_series_and_filter(
-            html,
-            query,
-            status_filter,
-            type_filter,
-            genre_filter,
-            sort_filter,
-            page
-        )
+        if let Some(genre) = genre_filter {
+            tags.push(genre);
+        }
+
+        if let Some(type_val) = type_filter {
+            tags.push(type_val);
+        }
+
+        if !tags.is_empty() {
+            params.push(format!("tags={}", helper::urlencode(tags.join(","))));
+        }
+
+        // Add status parameter (value from filters.json ids already in lowercase)
+        if let Some(status) = status_filter {
+            params.push(format!("status={}", helper::urlencode(status)));
+        }
+
+        // Add sortBy parameter (value from filters.json ids)
+        if let Some(sort) = sort_filter {
+            params.push(format!("sortBy={}", sort));
+        }
+
+        // Add search query if provided
+        if let Some(ref q) = query {
+            if !q.is_empty() {
+                params.push(format!("search={}", helper::urlencode(q.clone())));
+            }
+        }
+
+        // Add page parameter if not first page
+        if page > 1 {
+            params.push(format!("page={}", page));
+        }
+
+        // Append parameters to URL
+        if !params.is_empty() {
+            url = format!("{}?{}", url, params.join("&"));
+        }
+
+        // Fetch and parse HTML
+        let html = helper::build_html_request(&url)?.html()?;
+        parser::parse_series_page(&html)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
