@@ -31,21 +31,21 @@ impl Source for PoseidonScans {
         let mut url = format!("{}/series", BASE_URL);
         let mut params = Vec::new();
 
-        // Parse filters (order: status, genre, sort)
+        // Parse filters by ID (not index, as Aidoku only sends modified filters)
         let mut status_filter: Option<String> = None;
         let mut genre_filter: Option<String> = None;
         let mut sort_filter: Option<String> = None;
 
-        for (index, filter) in filters.iter().enumerate() {
-            match (index, filter) {
-                (0, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les statuts" => {
-                    status_filter = Some(value.clone());
-                }
-                (1, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les genres" => {
-                    genre_filter = Some(value.clone());
-                }
-                (2, FilterValue::Select { value, .. }) if !value.is_empty() => {
-                    sort_filter = Some(value.clone());
+        for filter in &filters {
+            match filter {
+                FilterValue::Select { id, value } => {
+                    if id == "status" && !value.is_empty() {
+                        status_filter = Some(value.clone());
+                    } else if id == "genre" && !value.is_empty() && value != "Tous les genres" {
+                        genre_filter = Some(value.clone());
+                    } else if id == "sort" && !value.is_empty() {
+                        sort_filter = Some(value.clone());
+                    }
                 }
                 _ => {}
             }
