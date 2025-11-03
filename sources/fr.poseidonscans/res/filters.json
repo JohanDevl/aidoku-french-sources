@@ -3,7 +3,13 @@
     "type": "select",
     "id": "status",
     "title": "Statut",
-    "options": ["Tous les statuts", "En cours", "Terminé", "En pause", "Annulé"],
+    "options": [
+      "Tous les statuts",
+      "En cours",
+      "Terminé",
+      "En pause",
+      "Annulé"
+    ],
     "ids": ["", "en cours", "terminé", "en pause", "annulé"]
   },
   {
@@ -64,11 +70,6 @@
       "Ordre alphabétique",
       "Ajout Récent"
     ],
-    "ids": [
-      "recent",
-      "popular",
-      "alphabetical",
-      "created"
-    ]
+    "ids": ["latest_chapter", "popular", "alpha", "recent"]
   }
 ]
