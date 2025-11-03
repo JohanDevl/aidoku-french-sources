@@ -1485,8 +1485,8 @@ fn extract_chapter_number_from_id(chapter_id: &str) -> Option<f32> {
 pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 
-	// Select all manga cards - looking for <a class="block group" href="/serie/{slug}">
-	let manga_selector = "a.block.group[href^=\"/serie/\"]";
+	// Select all manga links
+	let manga_selector = "a[href^=\"/serie/\"]";
 
 	if let Some(manga_elements) = html.select(manga_selector) {
 		for manga_element in manga_elements {
@@ -1505,30 +1505,39 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 					slug.to_string()
 				};
 
-				// Extract status from badge (generic elements with text like "en cours", "terminé")
-				let status = if let Some(status_elements) = manga_element.select("div > div > div > div:nth-child(1) > div:last-child") {
-					if let Some(status_elem) = status_elements.first() {
-						let status_text = status_elem.text().unwrap_or_default().trim().to_string();
-						parse_manga_status(&status_text)
-					} else {
-						MangaStatus::Unknown
-					}
-				} else {
-					MangaStatus::Unknown
-				};
-
-				// Extract tags/categories (genres) from generic elements
-				let mut tags_vec: Vec<String> = Vec::new();
-				if let Some(tag_container) = manga_element.select("div > div > div:nth-child(2)") {
-					if let Some(container) = tag_container.first() {
-						if let Some(tag_elements) = container.select("div") {
-							for tag_elem in tag_elements {
-								if let Some(tag_text) = tag_elem.text() {
-									let tag = tag_text.trim().to_string();
-									if !tag.is_empty() {
-										tags_vec.push(tag);
-									}
+				// Extract status - it's typically right after the h2, in a sibling div
+				let mut status = MangaStatus::Unknown;
+				if let Some(h2_element) = manga_element.select("h2").and_then(|els| els.first()) {
+					// Try to find the status div that's a sibling to h2
+					if let Some(parent) = h2_element.parent() {
+						if let Some(status_elements) = parent.select("div") {
+							// The first div after h2 usually contains the status
+							for status_elem in status_elements {
+								let status_text = status_elem.text().unwrap_or_default().trim().to_string();
+								// Check if it matches a known status
+								if status_text == "en cours" || status_text == "terminé" ||
+								   status_text == "en pause" || status_text == "annulé" {
+									status = parse_manga_status(&status_text);
+									break;
 								}
+							}
+						}
+					}
+				}
+
+				// Extract tags/categories - collect all text from divs that look like genre tags
+				let mut tags_vec: Vec<String> = Vec::new();
+				if let Some(all_divs) = manga_element.select("div") {
+					for div_elem in all_divs {
+						let text = div_elem.text().unwrap_or_default().trim().to_string();
+						// Filter out non-tag elements (status, chapter count, etc)
+						if !text.is_empty() &&
+						   text != "en cours" && text != "terminé" && text != "en pause" && text != "annulé" &&
+						   !text.contains("chapitre") && text.len() < 50 {
+							// This looks like it could be a tag
+							if !tags_vec.contains(&text) &&
+							   (text.starts_with(char::is_uppercase) || text.starts_with("É") || text.starts_with("À")) {
+								tags_vec.push(text);
 							}
 						}
 					}
@@ -1539,7 +1548,7 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 					Some(tags_vec)
 				};
 
-				// Build cover URL - uses /api/covers/{slug}.webp pattern
+				// Build cover URL
 				let cover = format!("{}/api/covers/{}.webp", BASE_URL, slug);
 
 				let content_rating = calculate_content_rating(&tags);
