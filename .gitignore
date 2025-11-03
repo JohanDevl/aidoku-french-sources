@@ -11,6 +11,7 @@ sources/*/target
 offline-sources/*/target
 templates/*/target
 **/Cargo.lock
+target
 
 # Nix
 flake.lock

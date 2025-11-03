@@ -1,7 +1,7 @@
 use crate::BASE_URL;
 use aidoku::{
 	alloc::{
-		collections::{BTreeMap, BTreeSet},
+		collections::BTreeSet,
 		format,
 		string::ToString,
 		vec, String, Vec,
@@ -15,8 +15,6 @@ use chrono::{DateTime, NaiveDateTime};
 use core::cmp::Ordering;
 use serde_json;
 
-const PAGE_SIZE: i32 = 20;
-const PAGE_SIZE_USIZE: usize = PAGE_SIZE as usize;
 const CHAPTER_PREFIX: &str = "/chapter/";
 const CHAPTER_PREFIX_LEN: usize = CHAPTER_PREFIX.len();
 
@@ -77,12 +75,6 @@ pub struct MangaItem {
 	pub description: Option<String>,
 	#[serde(default)]
 	pub categories: Option<Vec<CategoryItem>>,
-	#[serde(default)]
-	pub r#type: Option<String>,
-	#[serde(default, rename = "createdAt")]
-	pub created_at: Option<String>,
-	#[serde(default, rename = "latestChapterCreatedAt")]
-	pub latest_chapter_created_at: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -194,79 +186,6 @@ impl LatestChapterItem {
 }
 
 // Parse functions for different API endpoints
-
-pub fn parse_manga_list(
-	response: String,
-	search_query: String,
-	status_filter: Option<String>,
-	type_filter: Option<String>,
-	genre_filter: Option<String>,
-	sort_filter: Option<String>,
-	page: i32,
-) -> Result<MangaPageResult> {
-	let api_response: ApiResponse<MangaItem> = match serde_json::from_str(&response) {
-		Ok(resp) => resp,
-		Err(_) => return Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
-		}),
-	};
-
-	let mut all_mangas: Vec<Manga> = Vec::new();
-	let query_lower = search_query.to_lowercase();
-
-	for item in &api_response.data {
-		let manga = item.to_manga();
-
-		if !search_query.is_empty() && !manga.title.to_lowercase().contains(&query_lower) {
-			continue;
-		}
-
-		if let Some(ref status_str) = status_filter {
-			let filter_status = parse_manga_status(status_str);
-			if manga.status != filter_status {
-				continue;
-			}
-		}
-
-		// Apply type filter (check if manga contains the type in description or if it's
-		if let Some(ref type_str) = type_filter {
-			// Extract type from the original API data if available
-			let manga_type = extract_manga_type(&item);
-			if !type_matches(&manga_type, type_str) {
-				continue;
-			}
-		}
-
-		if let Some(ref genre_str) = genre_filter {
-			if !manga_has_genre(&manga, genre_str) {
-				continue;
-			}
-		}
-
-		all_mangas.push(manga);
-	}
-
-	if let Some(ref sort_str) = sort_filter {
-		apply_sorting(&mut all_mangas, sort_str, &api_response.data);
-	}
-
-	let start_index = ((page - 1) * PAGE_SIZE) as usize;
-	let end_index = (start_index + PAGE_SIZE_USIZE).min(all_mangas.len());
-
-	let paginated_mangas = if start_index < all_mangas.len() {
-		all_mangas[start_index..end_index].to_vec()
-	} else {
-		Vec::new()
-	};
-
-	let has_next_page = end_index < all_mangas.len();
-
-	Ok(MangaPageResult {
-		entries: paginated_mangas,
-		has_next_page,
-	})
-}
 
 pub fn parse_latest_manga(response: String) -> Result<MangaPageResult> {
 	let api_response: LatestChapterResponse = match serde_json::from_str(&response) {
@@ -1527,95 +1446,6 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 }
 
 
-// Extract manga type from API data (Manga, Manhwa, Manhua)
-fn extract_manga_type(item: &MangaItem) -> String {
-	// Use the direct type field from API
-	if let Some(ref manga_type) = item.r#type {
-		match manga_type.to_uppercase().as_str() {
-			"MANHWA" => "Manhwa".to_string(),
-			"MANHUA" => "Manhua".to_string(),
-			"MANGA" => "Manga".to_string(),
-			_ => "Manga".to_string(),
-		}
-	} else {
-		"Manga".to_string()
-	}
-}
-
-// Check if manga type matches filter
-fn type_matches(manga_type: &str, filter_type: &str) -> bool {
-	manga_type.to_lowercase() == filter_type.to_lowercase()
-}
-
-// Check if manga has the specified genre
-fn manga_has_genre(manga: &Manga, genre_filter: &str) -> bool {
-	if let Some(ref tags) = manga.tags {
-		let genre_lower = genre_filter.to_lowercase();
-		for tag in tags {
-			let tag_lower = tag.to_lowercase();
-			if tag_lower == genre_lower
-				|| tag_lower.contains(&genre_lower)
-				|| genre_lower.contains(&tag_lower)
-			{
-				return true;
-			}
-		}
-	}
-	false
-}
-
-fn apply_sorting(mangas: &mut Vec<Manga>, sort_option: &str, manga_items: &[MangaItem]) {
-	// Create a map for quick lookup of API data by manga key (slug)
-	let item_map: BTreeMap<&str, &MangaItem> = manga_items
-		.iter()
-		.map(|item| (item.slug.as_str(), item))
-		.collect();
-
-	match sort_option {
-		"Titre A-Z" => {
-			mangas.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-		}
-		"Titre Z-A" => {
-			mangas.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
-		}
-		"Date d'ajout" => {
-			mangas.sort_by(|a, b| {
-				let a_date = item_map
-					.get(a.key.as_str())
-					.and_then(|item| item.created_at.as_ref());
-				let b_date = item_map
-					.get(b.key.as_str())
-					.and_then(|item| item.created_at.as_ref());
-
-				match (a_date, b_date) {
-					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
-					(Some(_), None) => Ordering::Less,
-					(None, Some(_)) => Ordering::Greater,
-					(None, None) => Ordering::Equal,
-				}
-			});
-		}
-		"Dernière mise à jour" | _ => {
-			// Sort by latestChapterCreatedAt date (newest first) or keep API order
-			mangas.sort_by(|a, b| {
-				let a_date = item_map
-					.get(a.key.as_str())
-					.and_then(|item| item.latest_chapter_created_at.as_ref());
-				let b_date = item_map
-					.get(b.key.as_str())
-					.and_then(|item| item.latest_chapter_created_at.as_ref());
-
-				match (a_date, b_date) {
-					(Some(a_str), Some(b_str)) => b_str.cmp(a_str), // Reverse for newest first
-					(Some(_), None) => Ordering::Less,
-					(None, Some(_)) => Ordering::Greater,
-					(None, None) => Ordering::Equal,
-				}
-			});
-		}
-	}
-}
-
 fn parse_manga_status(status: &str) -> MangaStatus {
 	let status_lower = status.to_lowercase();
 
@@ -1649,4 +1479,72 @@ fn extract_chapter_id_from_url(url: &str) -> Option<String> {
 fn extract_chapter_number_from_id(chapter_id: &str) -> Option<f32> {
 	// Try to parse chapter ID as number
 	chapter_id.parse::<f32>().ok()
+}
+
+// Parse the /series HTML page to extract manga list
+pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
+	let mut mangas: Vec<Manga> = Vec::new();
+
+	// Select all manga cards - looking for <a class="block group" href="/serie/{slug}">
+	let manga_selector = "a.block.group[href^=\"/serie/\"]";
+
+	if let Some(manga_elements) = html.select(manga_selector) {
+		for manga_element in manga_elements {
+			if let Some(href) = manga_element.attr("href") {
+				// Extract slug from href="/serie/{slug}"
+				let slug = if href.starts_with("/serie/") {
+					&href[7..] // Skip "/serie/"
+				} else {
+					continue;
+				};
+
+				// Extract title from h2 element
+				let title = if let Some(h2_element) = manga_element.select("h2").and_then(|els| els.first()) {
+					h2_element.text().unwrap_or_default().trim().to_string()
+				} else {
+					slug.to_string()
+				};
+
+				// Build cover URL - uses /api/covers/{slug}.webp pattern
+				let cover = format!("{}/api/covers/{}.webp", BASE_URL, slug);
+
+				mangas.push(Manga {
+					key: slug.to_string(),
+					title,
+					cover: Some(cover),
+					authors: None,
+					artists: None,
+					description: None,
+					url: Some(format!("{}/serie/{}", BASE_URL, slug)),
+					tags: None,
+					status: MangaStatus::Unknown,
+					content_rating: ContentRating::Safe,
+					viewer: Viewer::RightToLeft,
+					chapters: None,
+					next_update_time: None,
+					update_strategy: UpdateStrategy::Never,
+				});
+			}
+		}
+	}
+
+	// Detect if there's a next page by looking for "Suivant" (Next) link
+	let has_next_page = html
+		.select("a")
+		.and_then(|links| {
+			for link in links {
+				if let Some(text) = link.text() {
+					if text.trim() == "Suivant" {
+						return Some(true);
+					}
+				}
+			}
+			Some(false)
+		})
+		.unwrap_or(false);
+
+	Ok(MangaPageResult {
+		entries: mangas,
+		has_next_page,
+	})
 }

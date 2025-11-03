@@ -22,54 +22,35 @@ impl Source for PoseidonScans {
     }
 
     fn get_search_manga_list(
-        &self, 
-        query: Option<String>, 
-        page: i32, 
-        filters: Vec<FilterValue>
+        &self,
+        query: Option<String>,
+        page: i32,
+        _filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
-        // Parse filter values
-        let mut status_filter: Option<String> = None;
-        let mut type_filter: Option<String> = None;
-        let mut genre_filter: Option<String> = None;
-        let mut sort_filter: Option<String> = None;
-        
-        for filter in filters {
-            match filter {
-                FilterValue::Select { id, value } => {
-                    match id.as_str() {
-                        "status" => {
-                            if !value.is_empty() && value != "Tous les statuts" {
-                                status_filter = Some(value);
-                            }
-                        }
-                        "type" => {
-                            if !value.is_empty() && value != "Tous les types" {
-                                type_filter = Some(value);
-                            }
-                        }
-                        "genre" => {
-                            if !value.is_empty() && value != "Tous les genres" {
-                                genre_filter = Some(value);
-                            }
-                        }
-                        "sort" => {
-                            if !value.is_empty() {
-                                sort_filter = Some(value);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
+        // Build URL with query parameters for /series page
+        let mut url = format!("{}/series", BASE_URL);
+        let mut params = Vec::new();
+
+        // Add search query if provided
+        if let Some(ref q) = query {
+            if !q.is_empty() {
+                params.push(format!("search={}", helper::urlencode(q.clone())));
             }
         }
-        
-        // Fetch all manga and apply client-side filtering
-        let url = format!("{}/manga/all", API_URL);
-        let response = helper::build_api_request(&url)?.string()?;
-        let search_query = query.unwrap_or_else(|| String::new());
-        // Parse with new serde-based parser including all filters
-        parser::parse_manga_list(response, search_query, status_filter, type_filter, genre_filter, sort_filter, page)
+
+        // Add page parameter if not first page
+        if page > 1 {
+            params.push(format!("page={}", page));
+        }
+
+        // Append parameters to URL
+        if !params.is_empty() {
+            url = format!("{}?{}", url, params.join("&"));
+        }
+
+        // Fetch and parse HTML
+        let html = helper::build_html_request(&url)?.html()?;
+        parser::parse_series_page(&html)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
@@ -85,7 +66,6 @@ impl Source for PoseidonScans {
 
         if needs_chapters {
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
-            let chapter_count = chapters.len();
             updated_manga.chapters = Some(chapters);
         }
 
