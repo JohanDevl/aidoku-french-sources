@@ -65,11 +65,11 @@
     "id": "sort",
     "title": "Trier par",
     "options": [
+      "Ajout Récent",
       "Dernier Chapitre",
       "Popularité",
-      "Ordre alphabétique",
-      "Ajout Récent"
+      "Ordre alphabétique"
     ],
-    "ids": ["latest_chapter", "popular", "alpha", "recent"]
+    "ids": ["recent", "latest_chapter", "popular", "alpha"]
   }
 ]
