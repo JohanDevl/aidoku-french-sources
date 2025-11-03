@@ -3,13 +3,15 @@
     "type": "select",
     "id": "status",
     "title": "Statut",
-    "options": ["Tous les statuts", "En cours", "Terminé", "En pause", "Annulé"]
+    "options": ["Tous les statuts", "En cours", "Terminé", "En pause", "Annulé"],
+    "ids": ["", "en cours", "terminé", "en pause", "annulé"]
   },
   {
     "type": "select",
     "id": "type",
     "title": "Type",
-    "options": ["Tous les types", "Manga", "Manhwa", "Manhua", "Webtoon"]
+    "options": ["Tous les types", "Manga", "Manhwa", "Manhua", "Webtoon"],
+    "ids": ["", "MANGA", "MANHWA", "MANHUA", "WEBTOON"]
   },
   {
     "type": "select",

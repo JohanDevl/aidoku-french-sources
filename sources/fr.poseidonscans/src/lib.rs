@@ -59,27 +59,28 @@ impl Source for PoseidonScans {
             }
         }
 
-        // Build tags parameter (genres + type in UPPERCASE, comma-separated)
+        // Build tags parameter (genres + type, comma-separated)
+        // Values come from filters.json ids in correct format
         let mut tags: Vec<String> = Vec::new();
 
         if let Some(genre) = genre_filter {
-            tags.push(genre.to_uppercase());
+            tags.push(genre);
         }
 
         if let Some(type_val) = type_filter {
-            tags.push(type_val.to_uppercase());
+            tags.push(type_val);
         }
 
         if !tags.is_empty() {
             params.push(format!("tags={}", helper::urlencode(tags.join(","))));
         }
 
-        // Add status parameter
+        // Add status parameter (value from filters.json ids already in lowercase)
         if let Some(status) = status_filter {
             params.push(format!("status={}", helper::urlencode(status)));
         }
 
-        // Add sortBy parameter (value already comes from filters.json)
+        // Add sortBy parameter (value from filters.json ids)
         if let Some(sort) = sort_filter {
             params.push(format!("sortBy={}", sort));
         }
