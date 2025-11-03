@@ -1505,8 +1505,45 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 					slug.to_string()
 				};
 
+				// Extract status from badge (generic elements with text like "en cours", "terminé")
+				let status = if let Some(status_elements) = manga_element.select("div > div > div > div:nth-child(1) > div:last-child") {
+					if let Some(status_elem) = status_elements.first() {
+						let status_text = status_elem.text().unwrap_or_default().trim().to_string();
+						parse_manga_status(&status_text)
+					} else {
+						MangaStatus::Unknown
+					}
+				} else {
+					MangaStatus::Unknown
+				};
+
+				// Extract tags/categories (genres) from generic elements
+				let mut tags_vec: Vec<String> = Vec::new();
+				if let Some(tag_container) = manga_element.select("div > div > div:nth-child(2)") {
+					if let Some(container) = tag_container.first() {
+						if let Some(tag_elements) = container.select("div") {
+							for tag_elem in tag_elements {
+								if let Some(tag_text) = tag_elem.text() {
+									let tag = tag_text.trim().to_string();
+									if !tag.is_empty() {
+										tags_vec.push(tag);
+									}
+								}
+							}
+						}
+					}
+				}
+				let tags = if tags_vec.is_empty() {
+					None
+				} else {
+					Some(tags_vec)
+				};
+
 				// Build cover URL - uses /api/covers/{slug}.webp pattern
 				let cover = format!("{}/api/covers/{}.webp", BASE_URL, slug);
+
+				let content_rating = calculate_content_rating(&tags);
+				let viewer = calculate_viewer(&tags);
 
 				mangas.push(Manga {
 					key: slug.to_string(),
@@ -1516,10 +1553,10 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 					artists: None,
 					description: None,
 					url: Some(format!("{}/serie/{}", BASE_URL, slug)),
-					tags: None,
-					status: MangaStatus::Unknown,
-					content_rating: ContentRating::Safe,
-					viewer: Viewer::RightToLeft,
+					tags,
+					status,
+					content_rating,
+					viewer,
 					chapters: None,
 					next_update_time: None,
 					update_strategy: UpdateStrategy::Never,
@@ -1549,8 +1586,8 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 	})
 }
 
-pub fn parse_and_filter_manga(
-	response: String,
+pub fn parse_series_and_filter(
+	html: Document,
 	query: Option<String>,
 	status_filter: Option<String>,
 	type_filter: Option<String>,
@@ -1558,18 +1595,9 @@ pub fn parse_and_filter_manga(
 	sort_filter: Option<String>,
 	page: i32,
 ) -> Result<MangaPageResult> {
-	// Parse JSON response
-	let api_response: ApiResponse<MangaItem> = match serde_json::from_str(&response) {
-		Ok(resp) => resp,
-		Err(_) => return Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
-		}),
-	};
-
-	let mut mangas: Vec<Manga> = api_response.data.into_iter()
-		.map(|item| item.to_manga())
-		.collect();
+	// Parse HTML page to get all mangas
+	let parsed_result = parse_series_page(&html)?;
+	let mut mangas = parsed_result.entries;
 
 	// Apply query filter (case-insensitive title search)
 	if let Some(q) = query {

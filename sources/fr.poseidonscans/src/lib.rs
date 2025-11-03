@@ -51,13 +51,13 @@ impl Source for PoseidonScans {
             }
         }
 
-        // Fetch complete manga list from API
-        let url = format!("{}/manga/all", API_URL);
-        let response = helper::build_api_request(&url)?.string()?;
+        // Fetch complete manga list from HTML page (all pages)
+        let url = format!("{}/series", BASE_URL);
+        let html = helper::build_html_request(&url)?.html()?;
 
-        // Parse and filter on client side
-        parser::parse_and_filter_manga(
-            response,
+        // Parse HTML and filter on client side
+        parser::parse_series_and_filter(
+            html,
             query,
             status_filter,
             type_filter,
