@@ -31,9 +31,8 @@ impl Source for PoseidonScans {
         let mut url = format!("{}/series", BASE_URL);
         let mut params = Vec::new();
 
-        // Parse filters (order: status, type, genre, sort)
+        // Parse filters (order: status, genre, sort)
         let mut status_filter: Option<String> = None;
-        let mut type_filter: Option<String> = None;
         let mut genre_filter: Option<String> = None;
         let mut sort_filter: Option<String> = None;
 
@@ -42,33 +41,20 @@ impl Source for PoseidonScans {
                 (0, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les statuts" => {
                     status_filter = Some(value.clone());
                 }
-                (1, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les types" => {
-                    type_filter = Some(value.clone());
-                }
-                (2, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les genres" => {
+                (1, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les genres" => {
                     genre_filter = Some(value.clone());
                 }
-                (3, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                (2, FilterValue::Select { value, .. }) if !value.is_empty() => {
                     sort_filter = Some(value.clone());
                 }
                 _ => {}
             }
         }
 
-        // Build tags parameter (genres + type, comma-separated)
-        // Values come from filters.json ids in correct format
-        let mut tags: Vec<String> = Vec::new();
-
+        // Build tags parameter (genres only)
+        // Values come from filters.json options
         if let Some(genre) = genre_filter {
-            tags.push(genre);
-        }
-
-        if let Some(type_val) = type_filter {
-            tags.push(type_val);
-        }
-
-        if !tags.is_empty() {
-            params.push(format!("tags={}", helper::urlencode(tags.join(","))));
+            params.push(format!("tags={}", helper::urlencode(genre)));
         }
 
         // Add status parameter (value from filters.json ids already in lowercase)

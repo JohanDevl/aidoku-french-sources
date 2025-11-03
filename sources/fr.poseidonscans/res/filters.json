@@ -8,13 +8,6 @@
   },
   {
     "type": "select",
-    "id": "type",
-    "title": "Type",
-    "options": ["Tous les types", "Manga", "Manhwa", "Manhua", "Webtoon"],
-    "ids": ["", "MANGA", "MANHWA", "MANHUA", "WEBTOON"]
-  },
-  {
-    "type": "select",
     "id": "genre",
     "title": "Genre",
     "isGenre": true,
