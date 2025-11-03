@@ -27,10 +27,6 @@ impl Source for PoseidonScans {
         page: i32,
         filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
-        // Build URL with query parameters for /series page
-        let mut url = format!("{}/series", BASE_URL);
-        let mut params = Vec::new();
-
         // Parse filters (order: status, type, genre, sort)
         let mut status_filter: Option<String> = None;
         let mut type_filter: Option<String> = None;
@@ -40,71 +36,35 @@ impl Source for PoseidonScans {
         for (index, filter) in filters.iter().enumerate() {
             match (index, filter) {
                 (0, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les statuts" => {
-                    // Status filter
                     status_filter = Some(value.clone());
                 }
                 (1, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les types" => {
-                    // Type filter
                     type_filter = Some(value.clone());
                 }
                 (2, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les genres" => {
-                    // Genre filter
                     genre_filter = Some(value.clone());
                 }
                 (3, FilterValue::Select { value, .. }) if !value.is_empty() => {
-                    // Sort filter (no default exclusion, always send sort parameter)
                     sort_filter = Some(value.clone());
                 }
                 _ => {}
             }
         }
 
-        // Build tags parameter (genres + type, comma-separated)
-        // Values come from filters.json ids in correct format
-        let mut tags: Vec<String> = Vec::new();
+        // Fetch complete manga list from API
+        let url = format!("{}/manga/all", API_URL);
+        let response = helper::build_api_request(&url)?.string()?;
 
-        if let Some(genre) = genre_filter {
-            tags.push(genre);
-        }
-
-        if let Some(type_val) = type_filter {
-            tags.push(type_val);
-        }
-
-        if !tags.is_empty() {
-            params.push(format!("tags={}", helper::urlencode(tags.join(","))));
-        }
-
-        // Add status parameter (value from filters.json ids already in lowercase)
-        if let Some(status) = status_filter {
-            params.push(format!("status={}", helper::urlencode(status)));
-        }
-
-        // Add sortBy parameter (value from filters.json ids)
-        if let Some(sort) = sort_filter {
-            params.push(format!("sortBy={}", sort));
-        }
-
-        // Add search query if provided
-        if let Some(ref q) = query {
-            if !q.is_empty() {
-                params.push(format!("search={}", helper::urlencode(q.clone())));
-            }
-        }
-
-        // Add page parameter if not first page
-        if page > 1 {
-            params.push(format!("page={}", page));
-        }
-
-        // Append parameters to URL
-        if !params.is_empty() {
-            url = format!("{}?{}", url, params.join("&"));
-        }
-
-        // Fetch and parse HTML
-        let html = helper::build_html_request(&url)?.html()?;
-        parser::parse_series_page(&html)
+        // Parse and filter on client side
+        parser::parse_and_filter_manga(
+            response,
+            query,
+            status_filter,
+            type_filter,
+            genre_filter,
+            sort_filter,
+            page
+        )
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {

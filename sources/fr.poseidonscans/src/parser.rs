@@ -1548,3 +1548,98 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 		has_next_page,
 	})
 }
+
+pub fn parse_and_filter_manga(
+	response: String,
+	query: Option<String>,
+	status_filter: Option<String>,
+	type_filter: Option<String>,
+	genre_filter: Option<String>,
+	sort_filter: Option<String>,
+	page: i32,
+) -> Result<MangaPageResult> {
+	// Parse JSON response
+	let api_response: ApiResponse<MangaItem> = match serde_json::from_str(&response) {
+		Ok(resp) => resp,
+		Err(_) => return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		}),
+	};
+
+	let mut mangas: Vec<Manga> = api_response.data.into_iter()
+		.map(|item| item.to_manga())
+		.collect();
+
+	// Apply query filter (case-insensitive title search)
+	if let Some(q) = query {
+		if !q.is_empty() {
+			let query_lower = q.to_lowercase();
+			mangas.retain(|m| m.title.to_lowercase().contains(&query_lower));
+		}
+	}
+
+	// Apply status filter
+	if let Some(status) = status_filter {
+		let target_status = parse_manga_status(&status);
+		mangas.retain(|m| m.status == target_status);
+	}
+
+	// Apply type filter (MANGA, MANHWA, MANHUA, WEBTOON)
+	if let Some(type_val) = type_filter {
+		mangas.retain(|m| {
+			if let Some(ref tags) = m.tags {
+				tags.iter().any(|t| t == &type_val)
+			} else {
+				false
+			}
+		});
+	}
+
+	// Apply genre filter
+	if let Some(genre) = genre_filter {
+		mangas.retain(|m| {
+			if let Some(ref tags) = m.tags {
+				tags.iter().any(|t| t == &genre)
+			} else {
+				false
+			}
+		});
+	}
+
+	// Apply sorting
+	match sort_filter.as_deref() {
+		Some("alphabetical") => {
+			mangas.sort_by(|a, b| a.title.cmp(&b.title));
+		}
+		Some("popular") => {
+			// Popular sorting - would need view count data
+			// For now, keep default order which is likely already sorted by popularity
+		}
+		Some("created") => {
+			// Creation date sorting - would need creation date data
+			// Keep default order
+		}
+		Some("recent") | None => {
+			// Default: recent updates (already in API order)
+		}
+		_ => {}
+	}
+
+	// Client-side pagination (20 items per page)
+	let items_per_page = 20;
+	let start_idx = ((page - 1) * items_per_page) as usize;
+	let end_idx = (start_idx + items_per_page as usize).min(mangas.len());
+
+	let has_next_page = end_idx < mangas.len();
+	let paginated_mangas = if start_idx < mangas.len() {
+		mangas[start_idx..end_idx].to_vec()
+	} else {
+		Vec::new()
+	};
+
+	Ok(MangaPageResult {
+		entries: paginated_mangas,
+		has_next_page,
+	})
+}
