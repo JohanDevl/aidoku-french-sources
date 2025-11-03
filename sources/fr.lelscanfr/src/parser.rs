@@ -8,6 +8,30 @@ use core::cmp::Ordering;
 
 extern crate alloc;
 
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::LeftToRight
+	}
+}
+
 pub fn parse_manga_list(html: Document) -> Result<MangaPageResult> {
 	let mut mangas: Vec<Manga> = Vec::new();
 
@@ -266,7 +290,13 @@ pub fn parse_manga_details(mut manga: Manga, html: &Document) -> Result<Manga> {
 			}
 		}
 	}
-	
+
+	// Calculate content_rating and viewer based on tags
+	if let Some(ref tags) = manga.tags {
+		manga.content_rating = calculate_content_rating(tags);
+		manga.viewer = calculate_viewer(tags);
+	}
+
 	Ok(manga)
 }
 

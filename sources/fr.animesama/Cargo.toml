@@ -17,8 +17,8 @@ strip = true
 lto = true
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", rev = "7c084816" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
 
 [dev-dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"], rev = "7c084816" }
-aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git", rev = "7c084816" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }

@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, FilterValue, ImageRequestProvider, 
+    Chapter, FilterValue, ImageRequestProvider,
     Manga, MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -65,13 +65,15 @@ impl Source for FMTeam {
 
         if needs_details {
             manga = parser::parse_manga_details_json(manga, &response)?;
+            send_partial_result(&manga);
         }
 
         if needs_chapters {
             let chapters = parser::parse_chapter_list_json(&manga.key, &response)?;
+            let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
         }
-        
+
         Ok(manga)
     }
 

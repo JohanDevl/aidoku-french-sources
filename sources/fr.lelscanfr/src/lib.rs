@@ -2,9 +2,9 @@
 
 use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider,
-    Manga, MangaPageResult, Page, PageContext, Result, Source,
+    Manga, MangaPageResult, Page, PageContext, Result, Source, AidokuError,
     alloc::{String, Vec, format},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -18,6 +18,7 @@ pub static BASE_URL: &str = "https://lelscanfr.com";
 pub static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 const MAX_PAGINATION_PAGES: i32 = 150;
+const MAX_RETRIES: u32 = 3;
 
 pub struct LelscanFr;
 
@@ -120,13 +121,18 @@ impl Source for LelscanFr {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
+        println!("[lelscanfr] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
+
         let url = format!("{}/manga/{}", BASE_URL, manga.key);
-        let html = Request::get(&url)?.html()?;
-        
+        let html = Self::request_with_retry(&url)?;
+
         if needs_details {
             manga = parser::parse_manga_details(manga, &html)?;
+            println!("[lelscanfr] Metadata fetched successfully - title: {}", manga.title);
+            send_partial_result(&manga);
         }
-        
+
         if needs_chapters {
             let total_pages = helper::detect_pagination(&html);
             
@@ -137,23 +143,24 @@ impl Source for LelscanFr {
             let page_chapters = parser::parse_chapter_list(&manga.key, vec![html])?;
             all_chapters.extend(page_chapters);
             
-            // Fetch additional pages - simple sequential approach
             for page in 2..=total_pages {
                 let page_url = format!("{}/manga/{}?page={}", BASE_URL, manga.key, page);
-                let page_html = Request::get(&page_url)?
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-                    .html()?;
-                
-                // Parse immediately to save memory
+                let page_html = Self::request_with_retry_headers(&page_url, vec![
+                    ("User-Agent", USER_AGENT),
+                    ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"),
+                    ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+                ])?;
+
                 let page_chapters = parser::parse_chapter_list(&manga.key, vec![page_html])?;
                 all_chapters.extend(page_chapters);
             }
-            
-            manga.chapters = Some(all_chapters);
+
+            manga.chapters = Some(all_chapters.clone());
+            println!("[lelscanfr] Chapters fetched successfully - count: {} (across {} pages)",
+                all_chapters.len(), total_pages);
         }
-        
+
+        println!("[lelscanfr] get_manga_update COMPLETE");
         Ok(manga)
     }
 
@@ -197,6 +204,45 @@ impl ImageRequestProvider for LelscanFr {
         Ok(Request::get(url)?
             .header("User-Agent", USER_AGENT)
             .header("Referer", BASE_URL))
+    }
+}
+
+impl LelscanFr {
+    fn request_with_retry(url: &str) -> Result<aidoku::imports::html::Document> {
+        let mut attempt = 0;
+        loop {
+            let request = Request::get(url)?;
+
+            match request.html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
+    fn request_with_retry_headers(url: &str, headers: Vec<(&str, &str)>) -> Result<aidoku::imports::html::Document> {
+        let mut attempt = 0;
+        loop {
+            let mut request = Request::get(url)?;
+            for (key, value) in &headers {
+                request = request.header(key, value);
+            }
+
+            match request.html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
     }
 }
 

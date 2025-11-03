@@ -8,6 +8,30 @@ use serde_json::Value;
 
 extern crate alloc;
 
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::LeftToRight
+	}
+}
+
 fn parse_manga_status(status: &str) -> MangaStatus {
     let status_lower = status.to_lowercase();
     if status_lower.contains("ongoing") || status_lower.contains("en cours") {
@@ -232,7 +256,11 @@ fn parse_single_manga_json(comic: &Value) -> Result<Manga> {
             }
         }
     }
-    
+
+    // Calculate content_rating and viewer based on tags
+    let content_rating = calculate_content_rating(&tags);
+    let viewer = calculate_viewer(&tags);
+
     Ok(Manga {
         key: key.clone(),
         cover,
@@ -242,8 +270,8 @@ fn parse_single_manga_json(comic: &Value) -> Result<Manga> {
         description,
         tags: if tags.is_empty() { None } else { Some(tags) },
         status,
-        content_rating: ContentRating::Safe,
-        viewer: Viewer::LeftToRight,
+        content_rating,
+        viewer,
         chapters: None,
         url: Some(super::helper::make_absolute_url(super::BASE_URL, &format!("/comics/{}", key))),
         next_update_time: None,
@@ -255,17 +283,17 @@ fn update_manga_from_json(mut manga: Manga, comic: &Value) -> Result<Manga> {
     if let Some(title) = comic.get("title").and_then(|v| v.as_str()) {
         manga.title = title.to_string();
     }
-    
+
     if let Some(description) = comic.get("description").and_then(|v| v.as_str()) {
         if !description.is_empty() {
             manga.description = Some(description.to_string());
         }
     }
-    
+
     if let Some(author) = comic.get("author").and_then(|v| v.as_str()) {
         manga.authors = Some(vec![author.to_string()]);
     }
-    
+
     if let Some(cover) = comic.get("thumbnail").and_then(|v| v.as_str()) {
         manga.cover = Some(if cover.starts_with("http") {
             cover.to_string()
@@ -273,7 +301,22 @@ fn update_manga_from_json(mut manga: Manga, comic: &Value) -> Result<Manga> {
             super::helper::make_absolute_url(super::BASE_URL, cover)
         });
     }
-    
+
+    let mut tags: Vec<String> = Vec::new();
+    if let Some(genres_array) = comic.get("genres").and_then(|v| v.as_array()) {
+        for genre in genres_array {
+            if let Some(name) = genre.get("name").and_then(|n| n.as_str()) {
+                tags.push(name.to_string());
+            }
+        }
+    }
+
+    if !tags.is_empty() {
+        manga.content_rating = calculate_content_rating(&tags);
+        manga.viewer = calculate_viewer(&tags);
+        manga.tags = Some(tags);
+    }
+
     Ok(manga)
 }
 

@@ -3,13 +3,14 @@
     "type": "select",
     "id": "status",
     "title": "Statut",
-    "options": ["Tous les statuts", "En cours", "Terminé", "En pause"]
-  },
-  {
-    "type": "select",
-    "id": "type",
-    "title": "Type",
-    "options": ["Tous les types", "Manga", "Manhwa", "Manhua"]
+    "options": [
+      "Tous les statuts",
+      "En cours",
+      "Terminé",
+      "En pause",
+      "Annulé"
+    ],
+    "ids": ["", "en cours", "terminé", "en pause", "annulé"]
   },
   {
     "type": "select",
@@ -18,35 +19,45 @@
     "isGenre": true,
     "options": [
       "Tous les genres",
+      "Académie",
       "Action",
-      "Aventure",
+      "Amitié",
+      "Amour",
       "Arts Martiaux",
-      "Fantastique",
-      "Comédie",
-      "Romance",
-      "Surnaturel",
-      "Magie",
-      "Vie scolaire",
+      "Aventure",
       "Combat",
-      "Réincarnation",
+      "Comédie",
+      "Délinquant",
+      "Détective",
       "Drama",
-      "Drama",
-      "Psychologique",
+      "Ecchi",
+      "Fantaisie",
+      "Fantastique",
       "Génie",
       "Harem",
-      "Ecchi",
+      "Horreur",
+      "Isekai",
+      "Jeux vidéos",
+      "Magie",
       "Mature",
+      "Murim",
+      "Mystère",
+      "Necromancer",
+      "Portail/Donjon",
+      "Psychologique",
+      "Regression",
+      "Réincarnation",
+      "Romance",
+      "Shojo",
+      "Shonen",
+      "Sports",
+      "Super pouvoirs",
+      "Surnaturel",
+      "Systeme",
+      "Tour",
       "Tragique",
       "Vengeance",
-      "Murim",
-      "Amitié",
-      "Académie",
-      "Super pouvoirs",
-      "Isekai",
-      "Délinquant",
-      "Shonen",
-      "Shojo",
-      "Portail/Donjon"
+      "Vie scolaire"
     ]
   },
   {
@@ -54,10 +65,11 @@
     "id": "sort",
     "title": "Trier par",
     "options": [
-      "Dernière mise à jour",
-      "Titre A-Z",
-      "Titre Z-A",
-      "Date d'ajout"
-    ]
+      "Ajout Récent",
+      "Dernier Chapitre",
+      "Popularité",
+      "Ordre alphabétique"
+    ],
+    "ids": ["recent", "latest_chapter", "popular", "alpha"]
   }
 ]

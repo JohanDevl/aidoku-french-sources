@@ -4,7 +4,7 @@ use aidoku::{
 	Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult,
 	Page, Result, Source,
 	alloc::{String, Vec},
-	imports::net::Response,
+	imports::{net::Response, std::send_partial_result},
 	prelude::*,
 	AidokuError,
 };
@@ -160,6 +160,9 @@ impl Source for PhenixScans {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		println!("[phenixscans] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+			manga.key, needs_details, needs_chapters);
+
 		if needs_details || needs_chapters {
 			// Utiliser le vrai endpoint API avec headers Cloudflare
 			let url = format!("{}/front/manga/{}", API_URL, manga.key);
@@ -178,15 +181,20 @@ impl Source for PhenixScans {
 					manga.content_rating = detailed_manga.content_rating;
 					manga.viewer = detailed_manga.viewer;
 				}
+				println!("[phenixscans] Metadata fetched successfully - title: {}", manga.title);
+				send_partial_result(&manga);
 			}
 
 			if needs_chapters {
 				if let Ok(chapters) = parser::parse_chapter_list(&manga.key, &response) {
+					let chapter_count = chapters.len();
 					manga.chapters = Some(chapters);
+					println!("[phenixscans] Chapters fetched successfully - count: {}", chapter_count);
 				}
 			}
 		}
 
+		println!("[phenixscans] get_manga_update COMPLETE");
 		Ok(manga)
 	}
 

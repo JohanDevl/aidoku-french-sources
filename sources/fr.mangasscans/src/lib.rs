@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga,
     MangaPageResult, Page, PageContext, Result, Source,
     alloc::{String, Vec, format},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -84,6 +84,7 @@ impl Source for MangasScans {
 
             if needs_details {
                 updated_manga = parse_manga_details(&html, BASE_URL, manga.key.clone())?;
+                send_partial_result(&updated_manga);
             }
 
             if needs_chapters {
@@ -101,7 +102,7 @@ impl Source for MangasScans {
                     all_chapters.extend(page_chapters);
                 }
 
-                updated_manga.chapters = Some(all_chapters);
+                updated_manga.chapters = Some(all_chapters.clone());
             }
         }
 

@@ -2,7 +2,7 @@
 
 use aidoku::{
 	alloc::{format, String, Vec},
-	imports::{html::Document, net::Request},
+	imports::{html::Document, net::Request, std::send_partial_result},
 	prelude::*,
 	Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
 	Page, PageContext, Result, Source,
@@ -37,16 +37,36 @@ impl Source for RimuScans {
 		let search_query = query.unwrap_or_default();
 
 		let mut order_filter = String::from("update");
+		let mut genre_filters: Vec<String> = Vec::new();
+		let mut status_filter = String::new();
 
 		for filter in filters {
-			if let FilterValue::Select { id, value } = filter {
-				if id == "order" && !value.is_empty() {
-					order_filter = value;
+			match filter {
+				FilterValue::Select { id, value } => {
+					if id == "order" && !value.is_empty() {
+						order_filter = value;
+					} else if id == "status" && !value.is_empty() {
+						status_filter = value;
+					}
 				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded: _,
+				} => {
+					if id == "genre" {
+						for genre_id in included {
+							if !genre_id.is_empty() {
+								genre_filters.push(genre_id);
+							}
+						}
+					}
+				}
+				_ => {}
 			}
 		}
 
-		let url = if !search_query.is_empty() {
+		let mut url = if !search_query.is_empty() {
 			let encoded_query = urlencode(search_query);
 			if page == 1 {
 				format!(
@@ -62,6 +82,16 @@ impl Source for RimuScans {
 		} else {
 			Self::build_listing_url(&order_filter, page)
 		};
+
+		// Add genre filters
+		for genre in &genre_filters {
+			url.push_str(&format!("&genre%5B%5D={}", genre));
+		}
+
+		// Add status filter
+		if !status_filter.is_empty() {
+			url.push_str(&format!("&status%5B%5D={}", status_filter));
+		}
 
 		let html = Self::create_html_request(&url)?;
 
@@ -92,11 +122,26 @@ impl Source for RimuScans {
 			let html = Self::create_html_request(&manga_url)?;
 
 			if needs_details {
-				updated_manga = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+				let new_details = parse_manga_details(&html, manga.key.clone(), BASE_URL)?;
+
+				updated_manga.title = new_details.title;
+				updated_manga.cover = new_details.cover.or(updated_manga.cover);
+				updated_manga.description = new_details.description.or(updated_manga.description);
+				updated_manga.authors = new_details.authors.or(updated_manga.authors);
+				updated_manga.artists = new_details.artists.or(updated_manga.artists);
+				updated_manga.tags = new_details.tags.or(updated_manga.tags);
+				updated_manga.status = new_details.status;
+				updated_manga.content_rating = new_details.content_rating;
+				updated_manga.viewer = new_details.viewer;
+				updated_manga.url = new_details.url.or(updated_manga.url);
+
+				send_partial_result(&updated_manga);
 			}
 
 			if needs_chapters {
-				updated_manga.chapters = Some(parse_chapter_list(&html));
+				let chapters = parse_chapter_list(&html);
+				let chapter_count = chapters.len();
+				updated_manga.chapters = Some(chapters);
 			}
 		}
 

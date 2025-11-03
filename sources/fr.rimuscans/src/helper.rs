@@ -101,19 +101,31 @@ fn parse_absolute_date(text: &str) -> Option<i64> {
 		(parts[1].trim_end_matches(','), parts[0], parts[2])
 	};
 
-	let day = day.parse::<i64>().ok()?;
+	let day = day.parse::<i32>().ok()?;
 	let month = month_to_number(month)?;
-	let year = year.parse::<i64>().ok()?;
+	let year = year.parse::<i32>().ok()?;
 
-	let leap_years = (year - 1969) / 4 - (year - 1901) / 100 + (year - 1601) / 400;
+	// Calculate leap years between 1970 and year correctly
+	let mut leap_years = 0;
+	for y in 1970..year {
+		if (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) {
+			leap_years += 1;
+		}
+	}
+
+	// Check if current year is leap and we're past February
+	let is_leap_year = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+	let days_in_months = if is_leap_year && month > 2 {
+		[0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+	} else {
+		[0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+	};
+
 	let days_since_epoch = (year - 1970) * 365 + leap_years;
-
-	let days_in_months = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 	let month_days = days_in_months[(month - 1) as usize];
-
 	let total_days = days_since_epoch + month_days + day - 1;
 
-	Some(total_days * 86400)
+	Some((total_days as i64) * 86400)
 }
 
 pub fn make_absolute_url(base: &str, url: &str) -> String {

@@ -7,6 +7,42 @@ use aidoku::{
 
 extern crate alloc;
 
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+					return ContentRating::NSFW;
+				}
+				"ecchi" | "suggestif" | "suggestive" => {
+					return ContentRating::Suggestive;
+				}
+				_ => {}
+			}
+		}
+	}
+	ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+	if let Some(tags) = tags {
+		for tag in tags {
+			let tag_lower = tag.to_lowercase();
+			match tag_lower.as_str() {
+				"manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+					return Viewer::Vertical;
+				}
+				"manga" => {
+					return Viewer::RightToLeft;
+				}
+				_ => {}
+			}
+		}
+	}
+	Viewer::RightToLeft
+}
+
 pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -> Result<Manga> {
 	let title = if let Some(title_elems) = html.select("h1.serie-title") {
 		if let Some(elem) = title_elems.first() {
@@ -132,6 +168,9 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		MangaStatus::Unknown
 	};
 
+	let content_rating = calculate_content_rating(&tags);
+	let viewer = calculate_viewer(&tags);
+
 	Ok(Manga {
 		key: manga_key.clone(),
 		cover,
@@ -141,8 +180,8 @@ pub fn parse_manga_details(html: &Document, manga_key: String, base_url: &str) -
 		description,
 		tags,
 		status,
-		content_rating: ContentRating::Safe,
-		viewer: Viewer::LeftToRight,
+		content_rating,
+		viewer,
 		chapters: None,
 		url: Some(manga_key),
 		next_update_time: None,
@@ -163,29 +202,74 @@ fn extract_chapter_number_from_url(url: &str) -> Option<f32> {
 				}
 			}
 		}
+
+		let num_str: String = last_part
+			.chars()
+			.skip_while(|c| !c.is_ascii_digit())
+			.take_while(|c| c.is_ascii_digit() || *c == '.')
+			.collect();
+
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
 	}
 	None
 }
 
 fn extract_chapter_number_from_title(title: &str) -> Option<f32> {
-	if let Some(pos) = title.find("Chapitre ") {
+	let title_lower = title.to_lowercase();
+
+	if let Some(pos) = title_lower.find("chapitre ") {
 		let after_chapitre = &title[pos + 9..];
 		let num_str: String = after_chapitre
 			.chars()
 			.take_while(|c| c.is_ascii_digit() || *c == '.')
 			.collect();
 
-		if let Ok(num) = num_str.parse::<f32>() {
-			return Some(num);
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
 		}
 	}
 
-	if title.starts_with("Ch.") || title.starts_with("Ch ") {
-		let num_str: String = title[3..]
+	if let Some(pos) = title_lower.find("chapter ") {
+		let after_chapter = &title[pos + 8..];
+		let num_str: String = after_chapter
 			.chars()
 			.take_while(|c| c.is_ascii_digit() || *c == '.')
 			.collect();
 
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+
+	if title.starts_with("Ch.") || title.starts_with("Ch ") || title.starts_with("ch.") || title.starts_with("ch ") {
+		let num_str: String = title[3..]
+			.chars()
+			.skip_while(|c| c.is_whitespace())
+			.take_while(|c| c.is_ascii_digit() || *c == '.')
+			.collect();
+
+		if !num_str.is_empty() {
+			if let Ok(num) = num_str.parse::<f32>() {
+				return Some(num);
+			}
+		}
+	}
+
+	let num_str: String = title
+		.chars()
+		.skip_while(|c| !c.is_ascii_digit())
+		.take_while(|c| c.is_ascii_digit() || *c == '.')
+		.collect();
+
+	if !num_str.is_empty() {
 		if let Ok(num) = num_str.parse::<f32>() {
 			return Some(num);
 		}
@@ -210,7 +294,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 			};
 
 			let url = link.attr("href").unwrap_or_default();
-			let title = link.attr("title").unwrap_or_default();
+			let title = link.text().unwrap_or_default();
 
 			if url.is_empty() {
 				continue;

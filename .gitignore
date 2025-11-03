@@ -11,6 +11,7 @@ sources/*/target
 offline-sources/*/target
 templates/*/target
 **/Cargo.lock
+target
 
 # Nix
 flake.lock
@@ -40,11 +41,17 @@ src/rust/
 .playwright-mcp
 
 # Temporary files
-response.html
+data.html
+data_*.html
+data.js
+data_*.js
 data.json
 data_*.json
 *.tmp
 *.log
+METADATA_REFRESH_DIAGNOSTIC.md
+DIAGNOSTIC_METADATA.md
+METADATA_DIAGNOSTIC.md
 
 # IDE
 .vscode/

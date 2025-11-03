@@ -4,7 +4,7 @@ use aidoku::{
     Chapter, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     Page, PageContext, Result, Source,
     alloc::{String, Vec},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -22,70 +22,90 @@ impl Source for PoseidonScans {
     }
 
     fn get_search_manga_list(
-        &self, 
-        query: Option<String>, 
-        page: i32, 
+        &self,
+        query: Option<String>,
+        page: i32,
         filters: Vec<FilterValue>
     ) -> Result<MangaPageResult> {
-        // Parse filter values
+        // Build URL with query parameters for /series page
+        let mut url = format!("{}/series", BASE_URL);
+        let mut params = Vec::new();
+
+        // Parse filters by ID (not index, as Aidoku only sends modified filters)
         let mut status_filter: Option<String> = None;
-        let mut type_filter: Option<String> = None;
         let mut genre_filter: Option<String> = None;
         let mut sort_filter: Option<String> = None;
-        
-        for filter in filters {
+
+        for filter in &filters {
             match filter {
                 FilterValue::Select { id, value } => {
-                    match id.as_str() {
-                        "status" => {
-                            if !value.is_empty() && value != "Tous les statuts" {
-                                status_filter = Some(value);
-                            }
-                        }
-                        "type" => {
-                            if !value.is_empty() && value != "Tous les types" {
-                                type_filter = Some(value);
-                            }
-                        }
-                        "genre" => {
-                            if !value.is_empty() && value != "Tous les genres" {
-                                genre_filter = Some(value);
-                            }
-                        }
-                        "sort" => {
-                            if !value.is_empty() {
-                                sort_filter = Some(value);
-                            }
-                        }
-                        _ => {}
+                    if id == "status" && !value.is_empty() {
+                        status_filter = Some(value.clone());
+                    } else if id == "genre" && !value.is_empty() && value != "Tous les genres" {
+                        genre_filter = Some(value.clone());
+                    } else if id == "sort" && !value.is_empty() {
+                        sort_filter = Some(value.clone());
                     }
                 }
                 _ => {}
             }
         }
-        
-        // Fetch all manga and apply client-side filtering
-        let url = format!("{}/manga/all", API_URL);
-        let response = helper::build_api_request(&url)?.string()?;
-        let search_query = query.unwrap_or_else(|| String::new());
-        // Parse with new serde-based parser including all filters
-        parser::parse_manga_list(response, search_query, status_filter, type_filter, genre_filter, sort_filter, page)
+
+        // Build tags parameter (genres only)
+        // Values come from filters.json options
+        if let Some(genre) = genre_filter {
+            params.push(format!("tags={}", helper::urlencode(genre)));
+        }
+
+        // Add status parameter (value from filters.json ids already in lowercase)
+        if let Some(status) = status_filter {
+            params.push(format!("status={}", helper::urlencode(status)));
+        }
+
+        // Add sortBy parameter (value from filters.json ids)
+        if let Some(sort) = sort_filter {
+            params.push(format!("sortBy={}", sort));
+        }
+
+        // Add search query if provided
+        if let Some(ref q) = query {
+            if !q.is_empty() {
+                params.push(format!("search={}", helper::urlencode(q.clone())));
+            }
+        }
+
+        // Add page parameter if not first page
+        if page > 1 {
+            params.push(format!("page={}", page));
+        }
+
+        // Append parameters to URL
+        if !params.is_empty() {
+            url = format!("{}?{}", url, params.join("&"));
+        }
+
+        // Fetch and parse HTML
+        let html = helper::build_html_request(&url)?.html()?;
+        parser::parse_series_page(&html)
     }
 
     fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
         let html = helper::build_html_request(&url)?.html()?;
-            
+
+        let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
+
+        if _needs_details {
+            send_partial_result(&updated_manga);
+        }
+
         if needs_chapters {
-            // Parse both details and chapters from the same HTML
-            let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
             updated_manga.chapters = Some(chapters);
-            Ok(updated_manga)
-        } else {
-            parser::parse_manga_details(manga.key, &html)
         }
+
+        Ok(updated_manga)
     }
 
 

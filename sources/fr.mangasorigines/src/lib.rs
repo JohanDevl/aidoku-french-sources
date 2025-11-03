@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
-    MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
+    MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer, AidokuError,
     alloc::{String, Vec, vec},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -14,7 +14,45 @@ use alloc::{string::ToString};
 pub static BASE_URL: &str = "https://mangas-origines.fr";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 
+const MAX_RETRIES: u32 = 3;
+
 pub struct MangasOrigines;
+
+fn calculate_content_rating(tags: &Option<Vec<String>>) -> ContentRating {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "adult" | "adulte" | "mature" | "hentai" | "smut" | "érotique" => {
+                    return ContentRating::NSFW;
+                }
+                "ecchi" | "suggestif" | "suggestive" => {
+                    return ContentRating::Suggestive;
+                }
+                _ => {}
+            }
+        }
+    }
+    ContentRating::Safe
+}
+
+fn calculate_viewer(tags: &Option<Vec<String>>) -> Viewer {
+    if let Some(tags) = tags {
+        for tag in tags {
+            let tag_lower = tag.to_lowercase();
+            match tag_lower.as_str() {
+                "manhwa" | "manhua" | "webtoon" | "scroll" | "vertical" => {
+                    return Viewer::Vertical;
+                }
+                "manga" => {
+                    return Viewer::RightToLeft;
+                }
+                _ => {}
+            }
+        }
+    }
+    Viewer::RightToLeft
+}
 
 impl Source for MangasOrigines {
     fn new() -> Self {
@@ -60,17 +98,44 @@ impl Source for MangasOrigines {
         }
     }
 
-    fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        let url = format!("{}/oeuvre/{}/", BASE_URL, manga.key);
-        
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
+    fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[mangasorigines] get_manga_update START - manga_id: {}, needs_details: {}, needs_chapters: {}",
+            manga.key, needs_details, needs_chapters);
 
-        self.parse_manga_details(html, manga.key, needs_chapters)
+        let url = format!("{}/oeuvre/{}/", BASE_URL, manga.key);
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+        ];
+
+        let html = Self::request_with_retry(&url, headers)?;
+
+        let mut result_manga = self.parse_manga_details(&html, manga.key.clone(), false)?;
+
+        if needs_details {
+            println!("[mangasorigines] Metadata fetched successfully - title: {}", result_manga.title);
+            send_partial_result(&result_manga);
+        }
+
+        if needs_chapters {
+            let ajax_chapters = self.ajax_chapter_list(&manga.key).unwrap_or_else(|_| vec![]);
+
+            if !ajax_chapters.is_empty() {
+                result_manga.chapters = Some(ajax_chapters);
+            } else {
+                result_manga.chapters = Some(self.parse_chapter_list(&manga.key, &html).unwrap_or_else(|_| vec![]));
+            }
+
+            if let Some(ref chapters) = result_manga.chapters {
+                println!("[mangasorigines] Chapters fetched successfully - count: {}", chapters.len());
+            }
+        }
+
+        println!("[mangasorigines] get_manga_update COMPLETE");
+        Ok(result_manga)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -106,6 +171,46 @@ impl ImageRequestProvider for MangasOrigines {
 }
 
 impl MangasOrigines {
+
+    fn request_with_retry(url: &str, headers: Vec<(&str, &str)>) -> Result<Document> {
+        let mut attempt = 0;
+        loop {
+            let mut request = Request::get(url)?;
+            for (key, value) in &headers {
+                request = request.header(key, value);
+            }
+
+            match request.html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
+    fn post_request_with_retry(url: &str, headers: Vec<(&str, &str)>, body: &[u8]) -> Result<Document> {
+        let mut attempt = 0;
+        loop {
+            let mut request = Request::post(url)?;
+            for (key, value) in &headers {
+                request = request.header(key, value);
+            }
+
+            match request.body(body).html() {
+                Ok(doc) => return Ok(doc),
+                Err(e) => {
+                    if attempt >= MAX_RETRIES {
+                        return Err(AidokuError::RequestError(e));
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
 
     fn get_manga_listing_page(&self, page: i32) -> Result<MangaPageResult> {
         let url = format!("{}/oeuvre/?page={}", BASE_URL, page);
@@ -285,7 +390,7 @@ impl MangasOrigines {
         })
     }
 
-    fn parse_manga_details(&self, html: Document, key: String, needs_chapters: bool) -> Result<Manga> {
+    fn parse_manga_details(&self, html: &Document, key: String, needs_chapters: bool) -> Result<Manga> {
         let title = if let Some(title_elements) = html.select("div.post-title h1, .wp-manga-title, .manga-title") {
             title_elements.text().unwrap_or_default().trim().to_string()
         } else {
@@ -298,14 +403,17 @@ impl MangasOrigines {
         let status = self.get_manga_status(&html);
         let tags = self.get_manga_tags(&html);
 
+        let content_rating = calculate_content_rating(&tags);
+        let viewer = calculate_viewer(&tags);
+
         let mut manga = Manga {
             key: key.clone(),
             title,
             cover,
             url: Some(format!("{}/oeuvre/{}/", BASE_URL, key)),
             status,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::RightToLeft,
+            content_rating,
+            viewer,
             authors: author,
             artists: None,
             description,
@@ -316,14 +424,12 @@ impl MangasOrigines {
         };
 
         if needs_chapters {
-            // First try AJAX approach for all chapters
             let ajax_chapters = self.ajax_chapter_list(&key).unwrap_or_else(|_| vec![]);
-            
+
             if !ajax_chapters.is_empty() {
                 manga.chapters = Some(ajax_chapters);
             } else {
-                // Fallback to HTML parsing if AJAX fails
-                manga.chapters = Some(self.parse_chapter_list(&key, &html)?);
+                manga.chapters = Some(self.parse_chapter_list(&key, &html).unwrap_or_else(|_| vec![]));
             }
         }
 
@@ -413,34 +519,33 @@ impl MangasOrigines {
     }
     
     fn ajax_chapter_list(&self, manga_key: &str) -> Result<Vec<Chapter>> {
-        // Step 1: Get the manga page to extract the numeric ID
         let manga_url = format!("{}/oeuvre/{}/", BASE_URL, manga_key);
-        
-        let manga_page_doc = Request::get(&manga_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", BASE_URL)
-            .html()?;
-        
-        // Step 2: Extract numeric ID from JavaScript
+
+        let headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", BASE_URL),
+        ];
+
+        let manga_page_doc = Self::request_with_retry(&manga_url, headers)?;
+
         let int_id = self.extract_manga_int_id(&manga_page_doc)?;
-        
-        // Step 3: Use Madara AJAX method - POST to /oeuvre/{key}/ajax/chapters  
+
         let ajax_url = format!("{}/oeuvre/{}/ajax/chapters", BASE_URL, manga_key);
         let body_content = format!("action=manga_get_chapters&manga={}", int_id);
-        
-        let ajax_doc = Request::post(&ajax_url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "*/*")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Referer", &manga_url)
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(body_content.as_bytes())
-            .html()?;
-        
-        // Parse the AJAX response
+
+        let ajax_headers = vec![
+            ("User-Agent", USER_AGENT),
+            ("Content-Type", "application/x-www-form-urlencoded"),
+            ("Accept", "*/*"),
+            ("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+            ("Referer", manga_url.as_str()),
+            ("X-Requested-With", "XMLHttpRequest"),
+        ];
+
+        let ajax_doc = Self::post_request_with_retry(&ajax_url, ajax_headers, body_content.as_bytes())?;
+
         self.parse_ajax_chapters_response(ajax_doc)
     }
     

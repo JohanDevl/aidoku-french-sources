@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, 
+    Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
     MangaStatus, Page, PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
-    imports::{net::Request, html::Document},
+    imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
 
@@ -12,6 +12,30 @@ extern crate alloc;
 use alloc::{string::ToString};
 
 pub static BASE_URL: &str = "https://sushiscan.fr";
+
+// Calculate content rating based on tags
+fn calculate_content_rating(tags: &[String]) -> ContentRating {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "ecchi" | "mature" | "adult" | "hentai" | "smut")
+	}) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+// Calculate viewer type based on tags (Manhwa/Webtoon vs Manga)
+fn calculate_viewer(tags: &[String]) -> Viewer {
+	if tags.iter().any(|tag| {
+		let lower = tag.to_lowercase();
+		matches!(lower.as_str(), "manhwa" | "manhua" | "webtoon")
+	}) {
+		Viewer::Vertical
+	} else {
+		Viewer::RightToLeft
+	}
+}
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
 
 fn urlencode(string: &str) -> String {
@@ -94,7 +118,9 @@ impl Source for SushiScans {
 
         let html = create_html_request(&url)?;
 
-        self.parse_manga_details(html, manga.key, _needs_details, needs_chapters)
+        let result = self.parse_manga_details(html, manga.key, _needs_details, needs_chapters)?;
+
+        Ok(result)
     }
 
     fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -514,6 +540,10 @@ impl SushiScans {
             }
         }
 
+        // Calculate content_rating and viewer based on tags
+        let content_rating = calculate_content_rating(&tags);
+        let viewer = calculate_viewer(&tags);
+
         let mut manga = Manga {
             key: key.clone(),
             title,
@@ -524,15 +554,21 @@ impl SushiScans {
             url: Some(format!("{}/catalogue/{}/", BASE_URL, key)),
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
-            content_rating: ContentRating::Safe,
-            viewer: Viewer::RightToLeft,
+            content_rating,
+            viewer,
             chapters: None,
             next_update_time: None,
             update_strategy: UpdateStrategy::Never,
         };
 
+        if _needs_details {
+            send_partial_result(&manga);
+        }
+
         if needs_chapters {
-            manga.chapters = Some(self.parse_chapter_list(&html)?);
+            let chapters = self.parse_chapter_list(&html)?;
+            let chapter_count = chapters.len();
+            manga.chapters = Some(chapters);
         }
 
         Ok(manga)

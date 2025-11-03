@@ -1,7 +1,7 @@
 [package]
 name = "lelscanfr"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib"]
@@ -16,4 +16,4 @@ strip = true
 lto = true
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", rev = "7c084816" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
