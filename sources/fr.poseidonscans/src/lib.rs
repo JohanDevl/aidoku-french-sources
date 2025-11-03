@@ -84,9 +84,6 @@ impl Source for PoseidonScans {
             url = format!("{}?{}", url, params.join("&"));
         }
 
-        // Debug: print final URL with filters
-        println!("[PoseidonScans] Final URL: {}", url);
-
         // Fetch and parse HTML
         let html = helper::build_html_request(&url)?.html()?;
         parser::parse_series_page(&html)
