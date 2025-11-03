@@ -39,20 +39,20 @@ impl Source for PoseidonScans {
 
         for (index, filter) in filters.iter().enumerate() {
             match (index, filter) {
-                (0, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                (0, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les statuts" => {
                     // Status filter
                     status_filter = Some(value.clone());
                 }
-                (1, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                (1, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les types" => {
                     // Type filter
                     type_filter = Some(value.clone());
                 }
-                (2, FilterValue::Select { value, .. }) if !value.is_empty() => {
+                (2, FilterValue::Select { value, .. }) if !value.is_empty() && value != "Tous les genres" => {
                     // Genre filter
                     genre_filter = Some(value.clone());
                 }
                 (3, FilterValue::Select { value, .. }) if !value.is_empty() => {
-                    // Sort filter
+                    // Sort filter (no default exclusion, always send sort parameter)
                     sort_filter = Some(value.clone());
                 }
                 _ => {}
