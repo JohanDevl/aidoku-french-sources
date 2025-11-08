@@ -1,17 +1,10 @@
 [
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "status",
     "title": "Statut",
-    "options": [
-      "Tout",
-      "En cours",
-      "Terminé",
-      "En pause",
-      "Abandonné",
-      "À venir"
-    ],
-    "ids": ["tout", "on-going", "end", "on-hold", "canceled", "upcoming"]
+    "options": ["En cours", "Terminé", "En pause", "Abandonné", "À venir"],
+    "ids": ["on-going", "end", "on-hold", "canceled", "upcoming"]
   },
   {
     "type": "select",
