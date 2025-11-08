@@ -73,11 +73,12 @@ fn urlencode(string: &str) -> String {
 fn create_html_request(url: &str) -> Result<Document> {
     Ok(Request::get(url)?
         .header("User-Agent", USER_AGENT)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
         .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
         .header("Accept-Encoding", "gzip, deflate, br")
         .header("DNT", "1")
         .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
         .header("Referer", BASE_URL)
         .html()?)
 }
