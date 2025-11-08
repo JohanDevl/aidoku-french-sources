@@ -250,59 +250,71 @@ impl EpsilonSoft {
     fn parse_manga_list(&self, html: Document) -> Result<MangaPageResult> {
         let mut mangas: Vec<Manga> = Vec::new();
 
-        // Select all manga items
-        if let Some(items) = html.select(".page-item-detail.manga") {
-            for item in items {
-                // Get title and URL from .post-title h3 a
-                let title_elem = item.select(".post-title h3 a, .post-title a")
-                    .and_then(|elems| elems.first());
+        // Try both listing formats
+        let selectors = [
+            (".c-tabs-item__content", ".tab-thumb img"),  // Search results format
+            (".page-item-detail.manga", ".item-thumb img"), // Grid listing format
+        ];
 
-                if let Some(elem) = title_elem {
-                    let title = elem.text().unwrap_or_default().trim().to_string();
-                    let href = elem.attr("href").unwrap_or_default();
+        for (item_selector, img_selector) in &selectors {
+            if let Some(items) = html.select(item_selector) {
+                for item in items {
+                    // Get title and URL from .post-title h3 a or .post-title h4 a
+                    let title_elem = item.select(".post-title h3 a, .post-title h4 a, .post-title a")
+                        .and_then(|elems| elems.first());
 
-                    if title.is_empty() || href.is_empty() {
-                        continue;
-                    }
+                    if let Some(elem) = title_elem {
+                        let title = elem.text().unwrap_or_default().trim().to_string();
+                        let href = elem.attr("href").unwrap_or_default();
 
-                    let url_abs = make_absolute_url(BASE_URL, &href);
-
-                    // Extract manga key from URL (e.g., "manga/dechu" from "/manga/dechu/")
-                    let key = href
-                        .trim_start_matches("https://epsilonsoft.to/")
-                        .trim_start_matches("http://epsilonsoft.to/")
-                        .trim_start_matches('/')
-                        .trim_end_matches('/')
-                        .to_string();
-
-                    // Get cover image from .item-thumb img
-                    let mut cover = None;
-                    if let Some(img_elem) = item.select(".item-thumb img").and_then(|imgs| imgs.first()) {
-                        let img_url = img_elem.attr("src")
-                            .or_else(|| img_elem.attr("data-src"))
-                            .or_else(|| img_elem.attr("data-lazy-src"))
-                            .unwrap_or_default();
-                        if !img_url.is_empty() {
-                            cover = Some(make_absolute_url(BASE_URL, &img_url));
+                        if title.is_empty() || href.is_empty() {
+                            continue;
                         }
-                    }
 
-                    mangas.push(Manga {
-                        key,
-                        title,
-                        cover,
-                        authors: None,
-                        artists: None,
-                        description: None,
-                        url: Some(url_abs),
-                        tags: None,
-                        status: MangaStatus::Unknown,
-                        content_rating: ContentRating::Safe,
-                        viewer: Viewer::default(),
-                        chapters: None,
-                        next_update_time: None,
-                        update_strategy: UpdateStrategy::Never,
-                    });
+                        let url_abs = make_absolute_url(BASE_URL, &href);
+
+                        // Extract manga key from URL (e.g., "manga/dechu" from "/manga/dechu/")
+                        let key = href
+                            .trim_start_matches("https://epsilonsoft.to/")
+                            .trim_start_matches("http://epsilonsoft.to/")
+                            .trim_start_matches('/')
+                            .trim_end_matches('/')
+                            .to_string();
+
+                        // Get cover image
+                        let mut cover = None;
+                        if let Some(img_elem) = item.select(img_selector).and_then(|imgs| imgs.first()) {
+                            let img_url = img_elem.attr("src")
+                                .or_else(|| img_elem.attr("data-src"))
+                                .or_else(|| img_elem.attr("data-lazy-src"))
+                                .unwrap_or_default();
+                            if !img_url.is_empty() {
+                                cover = Some(make_absolute_url(BASE_URL, &img_url));
+                            }
+                        }
+
+                        mangas.push(Manga {
+                            key,
+                            title,
+                            cover,
+                            authors: None,
+                            artists: None,
+                            description: None,
+                            url: Some(url_abs),
+                            tags: None,
+                            status: MangaStatus::Unknown,
+                            content_rating: ContentRating::Safe,
+                            viewer: Viewer::default(),
+                            chapters: None,
+                            next_update_time: None,
+                            update_strategy: UpdateStrategy::Never,
+                        });
+                    }
+                }
+
+                // If we found mangas with this selector, stop trying other selectors
+                if !mangas.is_empty() {
+                    break;
                 }
             }
         }
