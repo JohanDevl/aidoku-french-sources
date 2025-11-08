@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    AidokuError, Chapter, ContentRating, FilterValue, ImageRequestProvider, Listing, ListingProvider,
+    AidokuError, Chapter, ContentRating, FilterValue, ImageRequestProvider,
     Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result, Source,
     UpdateStrategy, Viewer,
     alloc::{String, Vec, vec},
@@ -137,29 +137,6 @@ impl Source for EpsilonSoft {
         let url = chapter.url.unwrap_or_else(|| format!("{}/{}", BASE_URL, chapter.key));
         let html = create_html_request(&url)?;
         self.parse_page_list(html)
-    }
-}
-
-impl ListingProvider for EpsilonSoft {
-    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let mut url_params: Vec<String> = vec![
-            String::from("s="),
-            String::from("post_type=wp-manga")
-        ];
-
-        match listing.id.as_str() {
-            "popular" => url_params.push(String::from("m_orderby=views")),
-            "latest" => url_params.push(String::from("m_orderby=latest")),
-            "new" => url_params.push(String::from("m_orderby=new-manga")),
-            _ => {}
-        };
-
-        if page > 1 {
-            url_params.push(format!("paged={}", page));
-        }
-
-        let url = format!("{}/?{}", BASE_URL, url_params.join("&"));
-        self.get_manga_from_page(&url)
     }
 }
 
@@ -689,4 +666,4 @@ impl EpsilonSoft {
     }
 }
 
-register_source!(EpsilonSoft, ListingProvider, ImageRequestProvider);
+register_source!(EpsilonSoft, ImageRequestProvider);
