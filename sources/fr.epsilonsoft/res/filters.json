@@ -1,0 +1,73 @@
+[
+  {
+    "type": "select",
+    "id": "type",
+    "title": "Type",
+    "options": [
+      "Tout",
+      "Manga",
+      "Manhwa",
+      "Manhua",
+      "BD"
+    ]
+  },
+  {
+    "type": "select",
+    "id": "status",
+    "title": "Statut",
+    "options": ["Tout", "En cours", "Terminé", "En pause", "Abandonné"]
+  },
+  {
+    "type": "select",
+    "id": "orderby",
+    "title": "Trier par",
+    "options": ["Défaut", "Récent", "Populaire", "Alphabétique", "Note", "Tendance", "Nouveauté"]
+  },
+  {
+    "type": "multi-select",
+    "id": "genre",
+    "title": "Genres",
+    "isGenre": true,
+    "canExclude": true,
+    "options": [
+      "Action",
+      "Romance",
+      "BL Soft",
+      "Manhwa r",
+      "Office romance",
+      "Mythique",
+      "HOT",
+      "Bl Soft",
+      "Manhwa R",
+      "Boys Love",
+      "Manhwa",
+      "Aventure",
+      "Comédie",
+      "Drame",
+      "Ecchi",
+      "Fantaisie",
+      "Harem",
+      "Horreur",
+      "Isekai",
+      "Josei",
+      "Mature",
+      "Mecha",
+      "Mystère",
+      "Psychologique",
+      "School Life",
+      "Sci-fi",
+      "Seinen",
+      "Shoujo",
+      "Shounen",
+      "Slice of Life",
+      "Smut",
+      "Sport",
+      "Surnaturel",
+      "Thriller",
+      "Tragédie",
+      "Webtoon",
+      "Yaoi",
+      "Yuri"
+    ]
+  }
+]
