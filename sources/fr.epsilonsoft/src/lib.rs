@@ -142,12 +142,20 @@ impl Source for EpsilonSoft {
 
 impl ListingProvider for EpsilonSoft {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let url = match listing.name.as_str() {
-            "Populaire" => format!("{}/manga/?page={}&m_orderby=views", BASE_URL, page),
-            "Récent" => format!("{}/manga/?page={}&m_orderby=latest", BASE_URL, page),
-            "Nouveauté" => format!("{}/manga/?page={}&m_orderby=new-manga", BASE_URL, page),
-            _ => format!("{}/manga/?page={}", BASE_URL, page),
+        let mut url_params: Vec<String> = vec![String::from("post_type=wp-manga")];
+
+        if page > 1 {
+            url_params.push(format!("paged={}", page));
+        }
+
+        match listing.name.as_str() {
+            "Populaire" => url_params.push(String::from("m_orderby=views")),
+            "Récent" => url_params.push(String::from("m_orderby=latest")),
+            "Nouveauté" => url_params.push(String::from("m_orderby=new-manga")),
+            _ => {}
         };
+
+        let url = format!("{}/?{}", BASE_URL, url_params.join("&"));
         self.get_manga_from_page(&url)
     }
 }
@@ -163,77 +171,71 @@ impl ImageRequestProvider for EpsilonSoft {
 impl EpsilonSoft {
     fn build_search_url(&self, query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
         let mut url_params: Vec<String> = Vec::new();
-        let mut status_val = String::new();
-        let mut type_val = String::new();
+        let mut statuses: Vec<String> = Vec::new();
         let mut orderby_val = String::new();
         let mut genres: Vec<String> = Vec::new();
+        let mut condition_val = String::new();
 
         for filter in filters {
             match filter {
                 FilterValue::Select { id, value } => {
                     match id.as_str() {
-                        "status" => status_val = value,
-                        "type" => type_val = value,
                         "orderby" => orderby_val = value,
+                        "condition" => condition_val = value,
                         _ => {}
                     }
                 }
                 FilterValue::MultiSelect { id, included, excluded: _ } => {
-                    if id == "genre" {
-                        genres = included;
+                    match id.as_str() {
+                        "genre" => genres = included,
+                        "status" => statuses = included,
+                        _ => {}
                     }
                 }
                 _ => {}
             }
         }
 
+        // Add search query if present
         if let Some(search_query) = query {
             if !search_query.is_empty() {
                 url_params.push(format!("s={}", urlencode(&search_query)));
-                url_params.push(String::from("post_type=wp-manga"));
-                if page > 1 {
-                    url_params.push(format!("paged={}", page));
-                }
-            }
-        } else {
-            if page > 1 {
-                url_params.push(format!("page={}", page));
             }
         }
 
-        // orderby_val is now the ID (e.g., "latest", "views", etc.)
-        if !orderby_val.is_empty() && orderby_val != "default" {
-            url_params.push(format!("m_orderby={}", orderby_val));
-        }
+        // Always add post_type=wp-manga
+        url_params.push(String::from("post_type=wp-manga"));
 
-        // status_val is now the ID (e.g., "on-going", "completed", etc.)
-        if !status_val.is_empty() && status_val != "tout" {
-            url_params.push(format!("status[]={}", status_val));
-        }
-
-        // type_val is now the ID (e.g., "manga", "manhwa", etc.)
-        if !type_val.is_empty() && type_val != "tout" {
-            url_params.push(format!("wp-manga-type={}", type_val));
-        }
-
-        // genres now contain IDs (e.g., "action", "arts-martiaux", etc.)
+        // Add genres
         for genre in genres {
             if !genre.is_empty() {
                 url_params.push(format!("genre[]={}", genre));
             }
         }
 
-        let base_path = if url_params.iter().any(|p| p.starts_with("s=")) {
-            String::from("/")
-        } else {
-            String::from("/manga/")
-        };
-
-        if url_params.is_empty() {
-            format!("{}{}", BASE_URL, base_path)
-        } else {
-            format!("{}{}?{}", BASE_URL, base_path, url_params.join("&"))
+        // Add condition (op parameter) - empty for OR, "1" for AND
+        if !condition_val.is_empty() {
+            url_params.push(format!("op={}", condition_val));
         }
+
+        // Add statuses
+        for status in statuses {
+            if !status.is_empty() {
+                url_params.push(format!("status[]={}", status));
+            }
+        }
+
+        // Add orderby
+        if !orderby_val.is_empty() {
+            url_params.push(format!("m_orderby={}", orderby_val));
+        }
+
+        // Add pagination
+        if page > 1 {
+            url_params.push(format!("paged={}", page));
+        }
+
+        format!("{}/?{}", BASE_URL, url_params.join("&"))
     }
 
     fn get_manga_from_page(&self, url: &str) -> Result<MangaPageResult> {
