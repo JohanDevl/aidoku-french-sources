@@ -13,7 +13,6 @@
     "options": [
       "Défaut",
       "Récent",
-      "Populaire",
       "Alphabétique",
       "Note",
       "Tendance",
@@ -23,7 +22,6 @@
     "ids": [
       "",
       "latest",
-      "views",
       "alphabet",
       "rating",
       "trending",
