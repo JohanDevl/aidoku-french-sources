@@ -13,19 +13,19 @@
     "options": [
       "Défaut",
       "Récent",
+      "Populaire",
       "Alphabétique",
       "Note",
       "Tendance",
-      "Les plus vus",
       "Nouveauté"
     ],
     "ids": [
       "",
       "latest",
+      "views",
       "alphabet",
       "rating",
       "trending",
-      "views",
       "new-manga"
     ]
   },
