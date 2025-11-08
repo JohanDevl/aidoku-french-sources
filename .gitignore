@@ -52,6 +52,8 @@ data_*.json
 METADATA_REFRESH_DIAGNOSTIC.md
 DIAGNOSTIC_METADATA.md
 METADATA_DIAGNOSTIC.md
+data.xml
+data_*.xml
 
 # IDE
 .vscode/
