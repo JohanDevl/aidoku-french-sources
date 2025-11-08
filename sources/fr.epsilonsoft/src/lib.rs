@@ -142,11 +142,10 @@ impl Source for EpsilonSoft {
 
 impl ListingProvider for EpsilonSoft {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let mut url_params: Vec<String> = vec![String::from("post_type=wp-manga")];
-
-        if page > 1 {
-            url_params.push(format!("paged={}", page));
-        }
+        let mut url_params: Vec<String> = vec![
+            String::from("s="),
+            String::from("post_type=wp-manga")
+        ];
 
         match listing.name.as_str() {
             "Populaire" => url_params.push(String::from("m_orderby=views")),
@@ -154,6 +153,10 @@ impl ListingProvider for EpsilonSoft {
             "Nouveauté" => url_params.push(String::from("m_orderby=new-manga")),
             _ => {}
         };
+
+        if page > 1 {
+            url_params.push(format!("paged={}", page));
+        }
 
         let url = format!("{}/?{}", BASE_URL, url_params.join("&"));
         self.get_manga_from_page(&url)
@@ -196,11 +199,12 @@ impl EpsilonSoft {
             }
         }
 
-        // Add search query if present
-        if let Some(search_query) = query {
-            if !search_query.is_empty() {
-                url_params.push(format!("s={}", urlencode(&search_query)));
-            }
+        // Add search query (always add s= even if empty)
+        let search_query = query.unwrap_or_default();
+        if !search_query.is_empty() {
+            url_params.push(format!("s={}", urlencode(&search_query)));
+        } else {
+            url_params.push(String::from("s="));
         }
 
         // Always add post_type=wp-manga
