@@ -147,10 +147,10 @@ impl ListingProvider for EpsilonSoft {
             String::from("post_type=wp-manga")
         ];
 
-        match listing.name.as_str() {
-            "Populaire" => url_params.push(String::from("m_orderby=views")),
-            "Récent" => url_params.push(String::from("m_orderby=latest")),
-            "Nouveauté" => url_params.push(String::from("m_orderby=new-manga")),
+        match listing.id.as_str() {
+            "popular" => url_params.push(String::from("m_orderby=views")),
+            "latest" => url_params.push(String::from("m_orderby=latest")),
+            "new" => url_params.push(String::from("m_orderby=new-manga")),
             _ => {}
         };
 
