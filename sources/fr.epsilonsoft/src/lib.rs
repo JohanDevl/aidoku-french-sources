@@ -319,8 +319,8 @@ impl EpsilonSoft {
             }
         }
 
-        // Check for pagination
-        let has_more = html.select("a.next, .pagination .next, .nav-previous")
+        // Check for pagination (Load More button for AJAX pagination)
+        let has_more = html.select(".navigation-ajax, .load-ajax, a.next, .pagination .next")
             .and_then(|elems| elems.first())
             .is_some();
 
