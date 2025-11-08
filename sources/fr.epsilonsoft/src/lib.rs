@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    AidokuError, Chapter, ContentRating, FilterValue, ImageRequestProvider,
+    Chapter, ContentRating, FilterValue, ImageRequestProvider,
     Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result, Source,
     UpdateStrategy, Viewer,
     alloc::{String, Vec},
@@ -14,8 +14,6 @@ use alloc::string::ToString;
 
 pub static BASE_URL: &str = "https://epsilonsoft.to";
 pub static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
-
-const MAX_RETRIES: u32 = 3;
 
 fn calculate_content_rating(tags: &[String]) -> ContentRating {
     if tags.iter().any(|tag| {
@@ -73,29 +71,16 @@ fn urlencode(string: &str) -> String {
 }
 
 fn create_html_request(url: &str) -> Result<Document> {
-    let mut attempt = 0;
-    loop {
-        let request = Request::get(url)?
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("DNT", "1")
-            .header("Connection", "keep-alive")
-            .header("Upgrade-Insecure-Requests", "1")
-            .header("Referer", BASE_URL)
-            .html();
-
-        match request {
-            Ok(doc) => return Ok(doc),
-            Err(e) => {
-                if attempt >= MAX_RETRIES {
-                    return Err(AidokuError::RequestError(e));
-                }
-                attempt += 1;
-            }
-        }
-    }
+    Ok(Request::get(url)?
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+        .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+        .header("Accept-Encoding", "gzip, deflate, br")
+        .header("DNT", "1")
+        .header("Connection", "keep-alive")
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Referer", BASE_URL)
+        .html()?)
 }
 
 fn make_absolute_url(base: &str, url: &str) -> String {
@@ -480,10 +465,7 @@ impl EpsilonSoft {
                         let chapter_key = href.trim_start_matches('/').trim_end_matches('/').to_string();
                         let chapter_number = self.extract_chapter_number(&title);
 
-                        let mut url_with_style = make_absolute_url(BASE_URL, &href);
-                        if !url_with_style.contains("?style=") {
-                            url_with_style = format!("{}?style=list", url_with_style);
-                        }
+                        let chapter_url = make_absolute_url(BASE_URL, &href);
 
                         let date_selectors = [
                             "span.chapter-release-date",
@@ -513,7 +495,7 @@ impl EpsilonSoft {
                             volume_number: None,
                             date_uploaded,
                             scanlators: None,
-                            url: Some(url_with_style),
+                            url: Some(chapter_url),
                             language: Some(String::from("fr")),
                             thumbnail: None,
                             locked: false,
