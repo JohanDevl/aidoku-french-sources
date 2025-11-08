@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Populaire",
+    "id": "popular"
+  },
+  {
+    "name": "Récent",
+    "id": "latest"
+  },
+  {
+    "name": "Nouveauté",
+    "id": "new"
+  }
+]
