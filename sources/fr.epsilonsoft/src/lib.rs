@@ -4,7 +4,7 @@ use aidoku::{
     AidokuError, Chapter, ContentRating, FilterValue, ImageRequestProvider,
     Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result, Source,
     UpdateStrategy, Viewer,
-    alloc::{String, Vec, vec},
+    alloc::{String, Vec},
     imports::{net::Request, html::Document, std::send_partial_result},
     prelude::*,
 };
@@ -334,68 +334,69 @@ impl EpsilonSoft {
             }
         }
 
-        let author_selectors = [
-            "div.author-content a",
-            "div.manga-authors a",
-        ];
-
-        let mut authors = None;
-        for selector in &author_selectors {
-            if let Some(author_elem) = html.select(selector).and_then(|elems| elems.first()) {
-                let author_text = author_elem.text().unwrap_or_default().trim().to_string();
-                if !author_text.is_empty() {
-                    authors = Some(vec![author_text]);
-                    break;
+        // Extract authors from .author-content a
+        let mut authors_vec: Vec<String> = Vec::new();
+        if let Some(author_links) = html.select("div.author-content a") {
+            for link in author_links {
+                let author = link.text().unwrap_or_default().trim().to_string();
+                if !author.is_empty() && !authors_vec.contains(&author) {
+                    authors_vec.push(author);
                 }
             }
         }
 
-        let description_selectors = [
-            "div.description-summary div.summary__content",
-            "div.summary_content div.post-content_item > h5 + div",
-            "div.summary__content",
-        ];
+        // Extract artists from .artist-content a
+        let mut artists_vec: Vec<String> = Vec::new();
+        if let Some(artist_links) = html.select("div.artist-content a") {
+            for link in artist_links {
+                let artist = link.text().unwrap_or_default().trim().to_string();
+                if !artist.is_empty() && !artists_vec.contains(&artist) {
+                    artists_vec.push(artist);
+                }
+            }
+        }
 
+        // Extract description from .manga-excerpt p
         let mut description = None;
-        for selector in &description_selectors {
-            if let Some(desc_elem) = html.select(selector).and_then(|elems| elems.first()) {
-                let desc_text = desc_elem.text().unwrap_or_default().trim().to_string();
-                if !desc_text.is_empty() && desc_text.len() > 10 {
-                    description = Some(desc_text);
-                    break;
-                }
+        if let Some(excerpt_p) = html.select("div.manga-excerpt p").and_then(|elems| elems.first()) {
+            let desc_text = excerpt_p.text().unwrap_or_default().trim().to_string();
+            if !desc_text.is_empty() {
+                description = Some(desc_text);
             }
         }
 
-        let status_selectors = [
-            "div.summary-heading:contains(Statut) + div.summary-content",
-            "div.summary-heading:contains(Status) + div.summary-content",
-            ".post-status .summary-content",
-        ];
-
+        // Extract status from .post-status .summary-content
         let mut status = MangaStatus::Unknown;
-        for selector in &status_selectors {
-            if let Some(status_elem) = html.select(selector).and_then(|elems| elems.first()) {
-                let status_text = status_elem.text().unwrap_or_default().trim().to_lowercase();
-                status = match status_text.as_str() {
-                    s if s.contains("en cours") || s.contains("ongoing") => MangaStatus::Ongoing,
-                    s if s.contains("terminé") || s.contains("completed") || s.contains("achevé") => MangaStatus::Completed,
-                    s if s.contains("pause") || s.contains("hiatus") => MangaStatus::Hiatus,
-                    s if s.contains("abandonné") || s.contains("cancelled") => MangaStatus::Cancelled,
-                    _ => MangaStatus::Unknown,
-                };
-                if status != MangaStatus::Unknown {
-                    break;
+        if let Some(post_status) = html.select(".post-status") {
+            if let Some(items) = post_status.select(".post-content_item") {
+                for item in items {
+                    if let Some(heading) = item.select("h5").and_then(|h| h.first()) {
+                        let heading_text = heading.text().unwrap_or_default();
+                        if heading_text.contains("Status") {
+                            if let Some(content) = item.select(".summary-content").and_then(|c| c.first()) {
+                                let status_text = content.text().unwrap_or_default().to_lowercase();
+                                status = match status_text.as_str() {
+                                    s if s.contains("ongoing") || s.contains("en cours") => MangaStatus::Ongoing,
+                                    s if s.contains("completed") || s.contains("terminé") || s.contains("achevé") => MangaStatus::Completed,
+                                    s if s.contains("hiatus") || s.contains("pause") => MangaStatus::Hiatus,
+                                    s if s.contains("cancelled") || s.contains("abandonné") => MangaStatus::Cancelled,
+                                    _ => MangaStatus::Unknown,
+                                };
+                            }
+                            break;
+                        }
+                    }
                 }
             }
         }
 
+        // Extract genres/tags from .genres-content a
         let mut tags: Vec<String> = Vec::new();
-        if let Some(genre_items) = html.select("div.genres-content a, .wp-manga-genres a") {
-            for genre in genre_items {
-                let genre_text = genre.text().unwrap_or_default().trim().to_string();
-                if !genre_text.is_empty() && !tags.contains(&genre_text) {
-                    tags.push(genre_text);
+        if let Some(genre_links) = html.select("div.genres-content a") {
+            for link in genre_links {
+                let genre = link.text().unwrap_or_default().trim().to_string();
+                if !genre.is_empty() && !tags.contains(&genre) {
+                    tags.push(genre);
                 }
             }
         }
@@ -403,14 +404,17 @@ impl EpsilonSoft {
         let content_rating = calculate_content_rating(&tags);
         let viewer = calculate_viewer(&tags);
 
+        // Fix URL construction - key already contains "manga/" prefix
+        let manga_url = format!("{}/{}/", BASE_URL, key.trim_end_matches('/'));
+
         let mut manga = Manga {
             key: key.clone(),
             title,
             cover,
-            authors,
-            artists: None,
+            authors: if authors_vec.is_empty() { None } else { Some(authors_vec) },
+            artists: if artists_vec.is_empty() { None } else { Some(artists_vec) },
             description,
-            url: Some(format!("{}/manga/{}/", BASE_URL, key)),
+            url: Some(manga_url.clone()),
             tags: if tags.is_empty() { None } else { Some(tags) },
             status,
             content_rating,
@@ -425,14 +429,15 @@ impl EpsilonSoft {
         }
 
         if needs_chapters {
-            let ajax_url = format!("{}/manga/{}/ajax/chapters", BASE_URL, key);
+            // Fix AJAX URL - key already contains "manga/" so don't add it again
+            let ajax_url = format!("{}/{}/ajax/chapters", BASE_URL, key.trim_end_matches('/'));
             let chapters_html = Request::post(&ajax_url)?
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "*/*")
                 .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
                 .header("X-Requested-With", "XMLHttpRequest")
                 .header("Origin", BASE_URL)
-                .header("Referer", &manga.url.clone().unwrap_or_default())
+                .header("Referer", &manga_url)
                 .html();
 
             let chapters = if let Ok(ch_html) = chapters_html {
