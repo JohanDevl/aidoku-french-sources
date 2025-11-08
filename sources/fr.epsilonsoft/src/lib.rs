@@ -164,7 +164,7 @@ impl EpsilonSoft {
     fn build_search_url(&self, query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
         let mut url_params: Vec<String> = Vec::new();
         let mut status_val = String::new();
-        let mut _type_val = String::new();
+        let mut type_val = String::new();
         let mut orderby_val = String::new();
         let mut genres: Vec<String> = Vec::new();
 
@@ -173,7 +173,7 @@ impl EpsilonSoft {
                 FilterValue::Select { id, value } => {
                     match id.as_str() {
                         "status" => status_val = value,
-                        "type" => _type_val = value,
+                        "type" => type_val = value,
                         "orderby" => orderby_val = value,
                         _ => {}
                     }
@@ -201,37 +201,25 @@ impl EpsilonSoft {
             }
         }
 
-        if !orderby_val.is_empty() && orderby_val != "Défaut" {
-            let order_param = match orderby_val.as_str() {
-                "Récent" => "latest",
-                "Populaire" => "views",
-                "Alphabétique" => "alphabet",
-                "Note" => "rating",
-                "Tendance" => "trending",
-                "Nouveauté" => "new-manga",
-                _ => "",
-            };
-            if !order_param.is_empty() {
-                url_params.push(format!("m_orderby={}", order_param));
-            }
+        // orderby_val is now the ID (e.g., "latest", "views", etc.)
+        if !orderby_val.is_empty() && orderby_val != "default" {
+            url_params.push(format!("m_orderby={}", orderby_val));
         }
 
-        if !status_val.is_empty() && status_val != "Tout" {
-            let status_param = match status_val.as_str() {
-                "En cours" => "on-going",
-                "Terminé" => "completed",
-                "En pause" => "on-hold",
-                "Abandonné" => "canceled",
-                _ => "",
-            };
-            if !status_param.is_empty() {
-                url_params.push(format!("status[]={}", status_param));
-            }
+        // status_val is now the ID (e.g., "on-going", "completed", etc.)
+        if !status_val.is_empty() && status_val != "tout" {
+            url_params.push(format!("status[]={}", status_val));
         }
 
+        // type_val is now the ID (e.g., "manga", "manhwa", etc.)
+        if !type_val.is_empty() && type_val != "tout" {
+            url_params.push(format!("wp-manga-type={}", type_val));
+        }
+
+        // genres now contain IDs (e.g., "action", "arts-martiaux", etc.)
         for genre in genres {
             if !genre.is_empty() {
-                url_params.push(format!("genre[]={}", urlencode(&genre)));
+                url_params.push(format!("genre[]={}", genre));
             }
         }
 
