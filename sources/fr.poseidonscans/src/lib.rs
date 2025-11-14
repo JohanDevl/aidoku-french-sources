@@ -11,8 +11,8 @@ use aidoku::{
 mod parser;
 mod helper;
 
-pub static BASE_URL: &str = "https://poseidonscans.com";
-pub static API_URL: &str = "https://poseidonscans.com/api";
+pub static BASE_URL: &str = "https://poseidon-scans.com";
+pub static API_URL: &str = "https://poseidon-scans.com/api";
 
 pub struct PoseidonScans;
 

@@ -8,7 +8,7 @@ This repository hosts French manga/scan sources compatible with the [Aidoku](htt
 
 ## 🌐 Website
 
-Check out our interactive website to browse available sources: **[johandevl.github.io/aidoku-french-sources](https://johandevl.github.io/aidoku-french-sources/)**
+Check out our interactive website to browse available sources: **[aidoku-french-sources.johandev.com](https://aidoku-french-sources.johandev.com/)**
 
 ## 🚀 Quick Installation
 
@@ -16,14 +16,14 @@ Check out our interactive website to browse available sources: **[johandevl.gith
 
 Click this link from your iOS device with Aidoku installed:
 
-**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://johandev.com/aidoku-french-sources/index.min.json)**
+**[➕ Add this source list](https://aidoku.app/add-source-list/?url=https://aidoku-french-sources.johandev.com/index.min.json)**
 
 ### Method 2: Manual Installation
 
 1. Open the **Aidoku** app
 2. Go to **Settings** → **Source Lists**
 3. Tap **Add Source List**
-4. Paste this URL: `https://johandev.com/aidoku-french-sources/index.min.json`
+4. Paste this URL: `https://aidoku-french-sources.johandev.com/index.min.json`
 5. Tap **Add**
 
 ### Method 3: Development Branch (Latest)
