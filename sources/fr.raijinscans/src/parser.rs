@@ -307,10 +307,15 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				false
 			} || url.contains("/connexion");
 
-			let date_uploaded = if let Some(spans) = item.select("a span:nth-of-type(2)") {
+			let date_uploaded = if let Some(spans) = item.select("a > span:last-child") {
 				if let Some(span) = spans.first() {
-					let date_text = span.text().unwrap_or_default().to_lowercase();
-					parse_relative_date(&date_text)
+					let date_text = span.text().unwrap_or_default();
+					let date_text_trimmed = date_text.trim();
+					if !date_text_trimmed.is_empty() {
+						parse_relative_date(date_text_trimmed)
+					} else {
+						None
+					}
 				} else {
 					None
 				}
