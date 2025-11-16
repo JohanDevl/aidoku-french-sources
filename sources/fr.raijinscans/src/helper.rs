@@ -1,4 +1,5 @@
 use aidoku::alloc::{String, Vec, format, string::ToString};
+use aidoku::imports::std::current_date;
 
 extern crate alloc;
 
@@ -59,37 +60,90 @@ pub fn decode_base64(encoded: &str) -> Option<String> {
 }
 
 pub fn parse_relative_date(text: &str) -> Option<i64> {
-    let text = text.to_lowercase();
-    let mut offset: i64 = 0;
+    const SECONDS_PER_MINUTE: i64 = 60;
+    const SECONDS_PER_HOUR: i64 = 3600;
+    const SECONDS_PER_DAY: i64 = 86400;
+    const DAYS_PER_WEEK: i64 = 7;
+    const DAYS_PER_MONTH: i64 = 30;
+    const DAYS_PER_YEAR: i64 = 365;
 
-    if text.contains("aujourd'hui") || text.contains("today") {
-        return Some(0);
+    let text_lower = text.trim().to_lowercase();
+
+    if text_lower.contains("aujourd'hui") || text_lower.contains("today") {
+        return Some(current_date());
     }
 
-    if text.contains("hier") || text.contains("yesterday") {
-        return Some(-86400);
+    if text_lower.contains("hier") || text_lower.contains("yesterday") {
+        return Some(current_date() - SECONDS_PER_DAY);
     }
 
-    if let Some(value_str) = text.split_whitespace().next() {
-        if let Ok(value) = value_str.parse::<i64>() {
-            if text.contains("heure") || text.contains("hour") {
-                offset = value * 3600;
-            } else if text.contains("min") {
-                offset = value * 60;
-            } else if text.contains("jour") || text.contains("day") {
-                offset = value * 86400;
-            } else if text.contains("semaine") || text.contains("week") {
-                offset = value * 86400 * 7;
-            } else if text.contains("mois") || text.contains("month") {
-                offset = value * 86400 * 30;
-            } else if text.contains("an") || text.contains("year") {
-                offset = value * 86400 * 365;
+    let text_clean = text_lower
+        .trim_start_matches("il y a")
+        .trim();
+
+    let parts: Vec<&str> = text_clean.split_whitespace().collect();
+
+    let (value, unit_text) = if !parts.is_empty() {
+        if let Ok(num) = parts[0].parse::<i64>() {
+            // Path 1: Separated number and unit (e.g., "1 mois", "2 jours")
+            let unit = parts.get(1).unwrap_or(&"").to_string();
+            (num, unit)
+        } else {
+            // Path 2: Combined number and unit (e.g., "13h", "2j", "5m")
+            let mut num_str = String::new();
+            let mut unit_str = String::new();
+            let mut parsing_number = true;
+
+            for ch in parts[0].chars() {
+                if ch.is_numeric() && parsing_number {
+                    num_str.push(ch);
+                } else {
+                    parsing_number = false;
+                    unit_str.push(ch);
+                }
             }
-            return Some(-offset);
+
+            if let Ok(num) = num_str.parse::<i64>() {
+                (num, unit_str)
+            } else {
+                return None;
+            }
         }
+    } else {
+        return None;
+    };
+
+    if unit_text.is_empty() && parts.len() == 1 {
+        return None;
     }
 
-    None
+    // Unit detection: ordered from most specific to least specific
+    // Note: "m" = months (based on RaijinScans actual usage: "2m", "5m", "8m")
+    //       "min" = minutes (to avoid confusion with "mois")
+    let offset = if text_lower.contains(" min") || (unit_text == "min" && !text_lower.contains("mois")) {
+        // Minutes: "30min", "il y a 10 min"
+        value * SECONDS_PER_MINUTE
+    } else if unit_text.starts_with('h') || text_lower.contains("heure") || text_lower.contains("hour") {
+        // Hours: "13h", "il y a 2 heures"
+        value * SECONDS_PER_HOUR
+    } else if unit_text.starts_with('j') || text_lower.contains("jour") || text_lower.contains("day") {
+        // Days: "2j", "il y a 3 jours"
+        value * SECONDS_PER_DAY
+    } else if text_lower.contains("semaine") || text_lower.contains("week") {
+        // Weeks: "il y a 1 semaine"
+        value * SECONDS_PER_DAY * DAYS_PER_WEEK
+    } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
+        // Months: "2m", "5m", "il y a 1 mois"
+        value * SECONDS_PER_DAY * DAYS_PER_MONTH
+    } else if unit_text == "an" || unit_text == "ans" || text_lower.contains("year") {
+        // Years: "il y a 1 an", "il y a 2 ans"
+        // Using exact unit_text match to avoid false positives (e.g., "France", "ancien")
+        value * SECONDS_PER_DAY * DAYS_PER_YEAR
+    } else {
+        return None;
+    };
+
+    Some(current_date() - offset)
 }
 
 pub fn validate_image_url(url: &str) -> bool {
