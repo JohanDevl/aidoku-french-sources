@@ -135,8 +135,9 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
     } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
         // Months: "2m", "5m", "il y a 1 mois"
         value * SECONDS_PER_DAY * DAYS_PER_MONTH
-    } else if text_lower.contains(" an") || text_lower.contains("year") {
+    } else if unit_text == "an" || unit_text == "ans" || text_lower.contains("year") {
         // Years: "il y a 1 an", "il y a 2 ans"
+        // Using exact unit_text match to avoid false positives (e.g., "France", "ancien")
         value * SECONDS_PER_DAY * DAYS_PER_YEAR
     } else {
         return None;

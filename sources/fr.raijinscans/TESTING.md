@@ -44,12 +44,26 @@ This document provides manual test cases for the date parsing function based on 
 3. Days (`j`, `jour`, `day`)
 4. Weeks (`semaine`, `week`)
 5. Months (`m`, `mois`, `month`) - After minutes to avoid conflicts
-6. Years (` an`, `year`)
+6. Years (`an`, `ans`, `year`) - Exact match to avoid false positives
 
 **Timestamp Calculation:**
 ```rust
 current_date() - offset  // Returns absolute Unix timestamp
 ```
+
+**Time Constants:**
+- 1 minute = 60 seconds
+- 1 hour = 3,600 seconds
+- 1 day = 86,400 seconds
+- 1 week = 7 days
+- **1 month = 30 days (approximation)**
+- **1 year = 365 days (approximation)**
+
+⚠️ **Known Limitation:** Months and years use fixed-day approximations:
+- Month calculation assumes 30 days (not actual calendar months)
+- Year calculation assumes 365 days (ignores leap years)
+- This is acceptable for relative dates in manga chapter uploads
+- Maximum error: ~2 days for "1 month ago", ~1 day for "1 year ago"
 
 ### Manual Testing Procedure
 
