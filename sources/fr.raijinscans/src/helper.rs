@@ -60,6 +60,13 @@ pub fn decode_base64(encoded: &str) -> Option<String> {
 }
 
 pub fn parse_relative_date(text: &str) -> Option<i64> {
+    const SECONDS_PER_MINUTE: i64 = 60;
+    const SECONDS_PER_HOUR: i64 = 3600;
+    const SECONDS_PER_DAY: i64 = 86400;
+    const DAYS_PER_WEEK: i64 = 7;
+    const DAYS_PER_MONTH: i64 = 30;
+    const DAYS_PER_YEAR: i64 = 365;
+
     let text_lower = text.trim().to_lowercase();
 
     if text_lower.contains("aujourd'hui") || text_lower.contains("today") {
@@ -67,7 +74,7 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
     }
 
     if text_lower.contains("hier") || text_lower.contains("yesterday") {
-        return Some(current_date() - 86400);
+        return Some(current_date() - SECONDS_PER_DAY);
     }
 
     let text_clean = text_lower
@@ -104,18 +111,22 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
         return None;
     };
 
-    let offset = if unit_text.starts_with('h') || text_lower.contains("heure") || text_lower.contains("hour") {
-        value * 3600
+    if unit_text.is_empty() && parts.len() == 1 {
+        return None;
+    }
+
+    let offset = if text_lower.contains(" min") || (unit_text == "min" && !text_lower.contains("mois")) {
+        value * SECONDS_PER_MINUTE
+    } else if unit_text.starts_with('h') || text_lower.contains("heure") || text_lower.contains("hour") {
+        value * SECONDS_PER_HOUR
     } else if unit_text.starts_with('j') || text_lower.contains("jour") || text_lower.contains("day") {
-        value * 86400
-    } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
-        value * 86400 * 30
+        value * SECONDS_PER_DAY
     } else if text_lower.contains("semaine") || text_lower.contains("week") {
-        value * 86400 * 7
-    } else if text_lower.contains("an") || text_lower.contains("year") {
-        value * 86400 * 365
-    } else if text_lower.contains("min") {
-        value * 60
+        value * SECONDS_PER_DAY * DAYS_PER_WEEK
+    } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
+        value * SECONDS_PER_DAY * DAYS_PER_MONTH
+    } else if text_lower.contains(" an") || text_lower.contains("year") {
+        value * SECONDS_PER_DAY * DAYS_PER_YEAR
     } else {
         return None;
     };
