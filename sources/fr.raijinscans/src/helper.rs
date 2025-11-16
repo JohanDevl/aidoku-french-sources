@@ -59,37 +59,67 @@ pub fn decode_base64(encoded: &str) -> Option<String> {
 }
 
 pub fn parse_relative_date(text: &str) -> Option<i64> {
-    let text = text.to_lowercase();
-    let mut offset: i64 = 0;
+    let text_lower = text.trim().to_lowercase();
 
-    if text.contains("aujourd'hui") || text.contains("today") {
+    if text_lower.contains("aujourd'hui") || text_lower.contains("today") {
         return Some(0);
     }
 
-    if text.contains("hier") || text.contains("yesterday") {
+    if text_lower.contains("hier") || text_lower.contains("yesterday") {
         return Some(-86400);
     }
 
-    if let Some(value_str) = text.split_whitespace().next() {
-        if let Ok(value) = value_str.parse::<i64>() {
-            if text.contains("heure") || text.contains("hour") {
-                offset = value * 3600;
-            } else if text.contains("min") {
-                offset = value * 60;
-            } else if text.contains("jour") || text.contains("day") {
-                offset = value * 86400;
-            } else if text.contains("semaine") || text.contains("week") {
-                offset = value * 86400 * 7;
-            } else if text.contains("mois") || text.contains("month") {
-                offset = value * 86400 * 30;
-            } else if text.contains("an") || text.contains("year") {
-                offset = value * 86400 * 365;
-            }
-            return Some(-offset);
-        }
-    }
+    let text_clean = text_lower
+        .trim_start_matches("il y a")
+        .trim();
 
-    None
+    let parts: Vec<&str> = text_clean.split_whitespace().collect();
+
+    let (value, unit_text) = if !parts.is_empty() {
+        if let Ok(num) = parts[0].parse::<i64>() {
+            let unit = parts.get(1).unwrap_or(&"").to_string();
+            (num, unit)
+        } else {
+            let mut num_str = String::new();
+            let mut unit_str = String::new();
+            let mut parsing_number = true;
+
+            for ch in parts[0].chars() {
+                if ch.is_numeric() && parsing_number {
+                    num_str.push(ch);
+                } else {
+                    parsing_number = false;
+                    unit_str.push(ch);
+                }
+            }
+
+            if let Ok(num) = num_str.parse::<i64>() {
+                (num, unit_str)
+            } else {
+                return None;
+            }
+        }
+    } else {
+        return None;
+    };
+
+    let offset = if unit_text.starts_with('h') || text_lower.contains("heure") || text_lower.contains("hour") {
+        value * 3600
+    } else if unit_text.starts_with('j') || text_lower.contains("jour") || text_lower.contains("day") {
+        value * 86400
+    } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
+        value * 86400 * 30
+    } else if text_lower.contains("semaine") || text_lower.contains("week") {
+        value * 86400 * 7
+    } else if text_lower.contains("an") || text_lower.contains("year") {
+        value * 86400 * 365
+    } else if text_lower.contains("min") {
+        value * 60
+    } else {
+        return None;
+    };
+
+    Some(-offset)
 }
 
 pub fn validate_image_url(url: &str) -> bool {
