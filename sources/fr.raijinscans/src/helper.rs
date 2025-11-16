@@ -1,4 +1,5 @@
 use aidoku::alloc::{String, Vec, format, string::ToString};
+use aidoku::imports::std::current_date;
 
 extern crate alloc;
 
@@ -62,11 +63,11 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
     let text_lower = text.trim().to_lowercase();
 
     if text_lower.contains("aujourd'hui") || text_lower.contains("today") {
-        return Some(0);
+        return Some(current_date());
     }
 
     if text_lower.contains("hier") || text_lower.contains("yesterday") {
-        return Some(-86400);
+        return Some(current_date() - 86400);
     }
 
     let text_clean = text_lower
@@ -119,7 +120,7 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
         return None;
     };
 
-    Some(-offset)
+    Some(current_date() - offset)
 }
 
 pub fn validate_image_url(url: &str) -> bool {
