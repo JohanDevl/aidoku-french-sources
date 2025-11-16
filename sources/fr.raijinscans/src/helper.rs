@@ -85,9 +85,11 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
 
     let (value, unit_text) = if !parts.is_empty() {
         if let Ok(num) = parts[0].parse::<i64>() {
+            // Path 1: Separated number and unit (e.g., "1 mois", "2 jours")
             let unit = parts.get(1).unwrap_or(&"").to_string();
             (num, unit)
         } else {
+            // Path 2: Combined number and unit (e.g., "13h", "2j", "5m")
             let mut num_str = String::new();
             let mut unit_str = String::new();
             let mut parsing_number = true;
@@ -115,17 +117,26 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
         return None;
     }
 
+    // Unit detection: ordered from most specific to least specific
+    // Note: "m" = months (based on RaijinScans actual usage: "2m", "5m", "8m")
+    //       "min" = minutes (to avoid confusion with "mois")
     let offset = if text_lower.contains(" min") || (unit_text == "min" && !text_lower.contains("mois")) {
+        // Minutes: "30min", "il y a 10 min"
         value * SECONDS_PER_MINUTE
     } else if unit_text.starts_with('h') || text_lower.contains("heure") || text_lower.contains("hour") {
+        // Hours: "13h", "il y a 2 heures"
         value * SECONDS_PER_HOUR
     } else if unit_text.starts_with('j') || text_lower.contains("jour") || text_lower.contains("day") {
+        // Days: "2j", "il y a 3 jours"
         value * SECONDS_PER_DAY
     } else if text_lower.contains("semaine") || text_lower.contains("week") {
+        // Weeks: "il y a 1 semaine"
         value * SECONDS_PER_DAY * DAYS_PER_WEEK
     } else if unit_text.starts_with('m') || text_lower.contains("mois") || text_lower.contains("month") {
+        // Months: "2m", "5m", "il y a 1 mois"
         value * SECONDS_PER_DAY * DAYS_PER_MONTH
     } else if text_lower.contains(" an") || text_lower.contains("year") {
+        // Years: "il y a 1 an", "il y a 2 ans"
         value * SECONDS_PER_DAY * DAYS_PER_YEAR
     } else {
         return None;
