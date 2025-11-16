@@ -307,7 +307,7 @@ pub fn parse_chapter_list(html: &Document) -> Vec<Chapter> {
 				false
 			} || url.contains("/connexion");
 
-			let date_uploaded = if let Some(spans) = item.select("a > span:last-child") {
+			let date_uploaded = if let Some(spans) = item.select("a > span:nth-of-type(2)") {
 				if let Some(span) = spans.first() {
 					let date_text = span.text().unwrap_or_default();
 					let date_text_trimmed = date_text.trim();
