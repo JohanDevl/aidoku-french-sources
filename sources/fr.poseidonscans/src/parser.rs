@@ -1348,9 +1348,9 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	}
 
 	// Fallback to old selectors if new structure not found
-	// Note: New seen_urls set for fallback section (API section returned above if successful)
+	// Note: Separate seen_urls set for fallback section (API section returned above if successful)
 	let mut fallback_pages: Vec<Page> = Vec::new();
-	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
+	let mut fallback_seen_urls: BTreeSet<String> = BTreeSet::new();
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
 		"img[src*='/chapter/']",
@@ -1382,7 +1382,7 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 							format!("{}/{}", BASE_URL, url)
 						};
 
-						if seen_urls.insert(absolute_url.clone()) {
+						if fallback_seen_urls.insert(absolute_url.clone()) {
 							fallback_pages.push(Page {
 								content: PageContent::url(absolute_url),
 								thumbnail: None,
@@ -1405,7 +1405,8 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 }
 
 // Parse images from JSON array (common for both JSON-LD and __NEXT_DATA__)
-fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result<Vec<Page>> {
+// Note: Uses its own deduplication set as this function is called independently
+fn parse_images_from_json_array(images_array: &[serde_json::Value]) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
 	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
 
