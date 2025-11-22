@@ -1295,6 +1295,7 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 // Extract pages from HTML as fallback
 fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<(usize, Page)> = Vec::new(); // Store with order for sorting
+	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
 
 	// First try the new PoseidonScans structure with API endpoints
 	if let Some(img_elements) = html.select("img[src*='/api/chapters']") {
@@ -1306,6 +1307,11 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 					} else {
 						src.to_string()
 					};
+
+					// Skip if URL already seen (deduplication)
+					if !seen_urls.insert(absolute_url.clone()) {
+						continue;
+					}
 
 					// Get order from parent div's data-order attribute
 					let mut order = 0;
@@ -1342,7 +1348,9 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	}
 
 	// Fallback to old selectors if new structure not found
+	// Note: Separate seen_urls set for fallback section (API section returned above if successful)
 	let mut fallback_pages: Vec<Page> = Vec::new();
+	let mut fallback_seen_urls: BTreeSet<String> = BTreeSet::new();
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
 		"img[src*='/chapter/']",
@@ -1374,12 +1382,14 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 							format!("{}/{}", BASE_URL, url)
 						};
 
-						fallback_pages.push(Page {
-							content: PageContent::url(absolute_url),
-							thumbnail: None,
-							has_description: false,
-							description: None,
-						});
+						if fallback_seen_urls.insert(absolute_url.clone()) {
+							fallback_pages.push(Page {
+								content: PageContent::url(absolute_url),
+								thumbnail: None,
+								has_description: false,
+								description: None,
+							});
+						}
 					}
 				}
 			}
@@ -1395,8 +1405,10 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 }
 
 // Parse images from JSON array (common for both JSON-LD and __NEXT_DATA__)
-fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result<Vec<Page>> {
+// Note: Uses its own deduplication set as this function is called independently
+fn parse_images_from_json_array(images_array: &[serde_json::Value]) -> Result<Vec<Page>> {
 	let mut pages: Vec<Page> = Vec::new();
+	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
 
 	for image_value in images_array.iter() {
 		if let Some(image_obj) = image_value.as_object() {
@@ -1417,12 +1429,14 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 					format!("{}/{}", BASE_URL, url)
 				};
 
-				pages.push(Page {
-					content: PageContent::url(absolute_url),
-					thumbnail: None,
-					has_description: false,
-					description: None,
-				});
+				if seen_urls.insert(absolute_url.clone()) {
+					pages.push(Page {
+						content: PageContent::url(absolute_url),
+						thumbnail: None,
+						has_description: false,
+						description: None,
+					});
+				}
 			}
 		} else if let Some(url_str) = image_value.as_str() {
 			let absolute_url = if url_str.starts_with("http") {
@@ -1433,12 +1447,14 @@ fn parse_images_from_json_array(images_array: &Vec<serde_json::Value>) -> Result
 				format!("{}/{}", BASE_URL, url_str)
 			};
 
-			pages.push(Page {
-				content: PageContent::url(absolute_url),
-				thumbnail: None,
-				has_description: false,
-				description: None,
-			});
+			if seen_urls.insert(absolute_url.clone()) {
+				pages.push(Page {
+					content: PageContent::url(absolute_url),
+					thumbnail: None,
+					has_description: false,
+					description: None,
+				});
+			}
 		}
 	}
 
