@@ -1295,6 +1295,7 @@ fn extract_pages_from_nextdata(html: &Document) -> Result<Vec<Page>> {
 // Extract pages from HTML as fallback
 fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 	let mut pages: Vec<(usize, Page)> = Vec::new(); // Store with order for sorting
+	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
 
 	// First try the new PoseidonScans structure with API endpoints
 	if let Some(img_elements) = html.select("img[src*='/api/chapters']") {
@@ -1306,6 +1307,11 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 					} else {
 						src.to_string()
 					};
+
+					// Skip if URL already seen (deduplication)
+					if !seen_urls.insert(absolute_url.clone()) {
+						continue;
+					}
 
 					// Get order from parent div's data-order attribute
 					let mut order = 0;
