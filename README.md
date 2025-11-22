@@ -45,7 +45,7 @@ Or manually add: `https://raw.githubusercontent.com/JohanDevl/aidoku-french-sour
 |  **Astral Manga**  |    [astral-manga.fr](https://astral-manga.fr/)    | ❌ **Offline** |    Madara     | Website temporarily down      |
 |   **LelscanFR**    |      [lelscanfr.com](https://lelscanfr.com/)      | ✅ **Active**  |    Custom     | Recent French scanlations     |
 |  **PhenixScans**   |   [phenix-scans.com](https://phenix-scans.com/)   | ✅ **Active**  |    Custom     | French scanlation community   |
-| **PoseidonScans**  |  [poseidonscans.com](https://poseidonscans.com/)  | ✅ **Active**  |    Custom     | Next.js scanlation platform   |
+| **PoseidonScans**  |  [poseidon-scans.com](https://poseidon-scans.com/)  | ✅ **Active**  |    Custom     | Next.js scanlation platform   |
 |  **RaijinScans**   |    [raijinscan.co](https://raijinscan.co/)    | ✅ **Active**  |    Custom     | WordPress Madara-based scanlations |
 |   **RimuScans**    |      [rimuscans.com](https://rimuscans.com/)      | ✅ **Active**  |    Custom     | French manga scanlation platform  |
 |   **AnimeSama**    |      [anime-sama.fr](https://anime-sama.fr/)      | ✅ **Active**  |    Custom     | Anime/Manga hybrid platform   |

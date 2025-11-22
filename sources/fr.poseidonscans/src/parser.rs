@@ -1343,6 +1343,7 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 
 	// Fallback to old selectors if new structure not found
 	let mut fallback_pages: Vec<Page> = Vec::new();
+	let mut seen_urls: BTreeSet<String> = BTreeSet::new();
 	let image_selectors = [
 		"img[alt*='Chapter Image']",
 		"img[src*='/chapter/']",
@@ -1374,12 +1375,14 @@ fn extract_pages_from_html(html: &Document) -> Result<Vec<Page>> {
 							format!("{}/{}", BASE_URL, url)
 						};
 
-						fallback_pages.push(Page {
-							content: PageContent::url(absolute_url),
-							thumbnail: None,
-							has_description: false,
-							description: None,
-						});
+						if seen_urls.insert(absolute_url.clone()) {
+							fallback_pages.push(Page {
+								content: PageContent::url(absolute_url),
+								thumbnail: None,
+								has_description: false,
+								description: None,
+							});
+						}
 					}
 				}
 			}
