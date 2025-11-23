@@ -351,13 +351,21 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 						// Second span contains the value
 						if let Some(value_text) = span_vec[1].text() {
-							let value = value_text.trim().to_string();
-							if !value.is_empty() {
-								if label.contains("auteur") && authors.is_none() {
-									authors = Some(vec![value.clone()]);
-								} else if label.contains("artiste") && artists.is_none() {
-									artists = Some(vec![value]);
-								}
+							let value = value_text.trim();
+							if value.is_empty() {
+								continue;
+							}
+
+							let value = value.to_string();
+							if label.contains("auteur") && authors.is_none() {
+								authors = Some(vec![value]);
+							} else if label.contains("artiste") && artists.is_none() {
+								artists = Some(vec![value]);
+							}
+
+							// Early termination once both are found
+							if authors.is_some() && artists.is_some() {
+								break;
 							}
 						}
 					}
