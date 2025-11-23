@@ -315,15 +315,27 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		}
 	}
 
-	// Extract description
-	if let Some(desc_text) = html
-		.select("p.text-gray-300.leading-relaxed.whitespace-pre-line")
-		.and_then(|els| els.first())
-		.and_then(|el| el.text())
-	{
-		let desc = desc_text.trim().to_string();
-		if !desc.is_empty() && desc != "Aucune description." {
-			description = desc;
+	// Extract description with fallback selectors for robustness
+	let description_selectors = [
+		// New HTML structure (current)
+		"p.text-gray-300.leading-relaxed.line-clamp-3",
+		// Fallback: without line-clamp class
+		"p.text-gray-300.leading-relaxed",
+		// Old structure (for backwards compatibility)
+		"p.text-gray-300.leading-relaxed.whitespace-pre-line",
+	];
+
+	for selector in &description_selectors {
+		if let Some(desc_text) = html
+			.select(selector)
+			.and_then(|els| els.first())
+			.and_then(|el| el.text())
+		{
+			let desc = desc_text.trim().to_string();
+			if !desc.is_empty() && desc != "Aucune description." {
+				description = desc;
+				break;
+			}
 		}
 	}
 
