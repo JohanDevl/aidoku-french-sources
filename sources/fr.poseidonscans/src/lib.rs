@@ -89,14 +89,14 @@ impl Source for PoseidonScans {
         parser::parse_series_page(&html)
     }
 
-    fn get_manga_update(&self, manga: Manga, _needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+    fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
         let html = helper::build_html_request(&url)?.html()?;
 
         let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
 
-        if _needs_details {
+        if needs_details {
             send_partial_result(&updated_manga);
         }
 
