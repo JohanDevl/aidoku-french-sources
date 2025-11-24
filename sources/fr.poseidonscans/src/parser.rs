@@ -7,6 +7,7 @@ use aidoku::{
 		vec, String, Vec,
 	},
 	imports::html::Document,
+	println,
 	serde::Deserialize,
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	UpdateStrategy, Viewer,
@@ -344,8 +345,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	// Extract author and artist from HTML - new structure with flex divs
 	println!("[PoseidonScans] Attempting to extract author/artist from div.flex");
 	if let Some(flex_divs) = html.select("div.flex") {
-		let flex_count = flex_divs.len();
-		println!("[PoseidonScans] Found {} div.flex elements", flex_count);
+		println!("[PoseidonScans] Found div.flex elements");
 
 		for (div_idx, div) in flex_divs.enumerate() {
 			if let Some(spans) = div.select("span") {
