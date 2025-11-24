@@ -5,6 +5,7 @@ use aidoku::{
     Page, PageContext, Result, Source,
     alloc::{String, Vec},
     imports::{net::Request, std::send_partial_result},
+    println,
     prelude::*,
 };
 
