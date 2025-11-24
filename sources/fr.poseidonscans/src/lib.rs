@@ -91,7 +91,11 @@ impl Source for PoseidonScans {
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[PoseidonScans] get_manga_update called for: {}", manga.key);
+        println!("[PoseidonScans] ========== get_manga_update START ==========");
+        println!("[PoseidonScans] Manga key: {}", manga.key);
+        println!("[PoseidonScans] Manga title: {}", manga.title);
+        println!("[PoseidonScans] Current UpdateStrategy: {:?}", manga.update_strategy);
+        println!("[PoseidonScans] Current next_update_time: {:?}", manga.next_update_time);
         println!("[PoseidonScans] needs_details: {}, needs_chapters: {}", needs_details, needs_chapters);
 
         let encoded_key = helper::urlencode(manga.key.clone());
@@ -142,11 +146,18 @@ impl Source for PoseidonScans {
 
 impl ListingProvider for PoseidonScans {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+        println!("[PoseidonScans] get_manga_list called: listing='{}', page={}", listing.name, page);
+
         match listing.name.as_str() {
             "Dernières Sorties" => {
                 let url = format!("{}/manga/lastchapters?page={}&limit=20", API_URL, page);
                 let response = helper::build_api_request(&url)?.string()?;
-                parser::parse_latest_manga(response)
+                let result = parser::parse_latest_manga(response)?;
+                println!("[PoseidonScans] Returning {} manga from 'Dernières Sorties'", result.entries.len());
+                if let Some(first) = result.entries.first() {
+                    println!("[PoseidonScans] First manga UpdateStrategy: {:?}", first.update_strategy);
+                }
+                Ok(result)
             },
             "Populaire" => {
                 // Popular listing only has one page
@@ -159,7 +170,12 @@ impl ListingProvider for PoseidonScans {
 
                 let url = format!("{}/manga/popular", API_URL);
                 let response = helper::build_api_request(&url)?.string()?;
-                parser::parse_popular_manga(response)
+                let result = parser::parse_popular_manga(response)?;
+                println!("[PoseidonScans] Returning {} manga from 'Populaire'", result.entries.len());
+                if let Some(first) = result.entries.first() {
+                    println!("[PoseidonScans] First manga UpdateStrategy: {:?}", first.update_strategy);
+                }
+                Ok(result)
             },
             _ => {
                 Ok(MangaPageResult {
