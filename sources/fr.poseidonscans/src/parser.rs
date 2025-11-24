@@ -7,7 +7,6 @@ use aidoku::{
 		vec, String, Vec,
 	},
 	imports::html::Document,
-	println,
 	serde::Deserialize,
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
 	UpdateStrategy, Viewer,
@@ -241,8 +240,6 @@ pub fn parse_popular_manga(response: String) -> Result<MangaPageResult> {
 // HTML parsing functions for details, chapters, and pages
 
 pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> {
-	println!("[PoseidonScans] parse_manga_details starting for: {}", manga_key);
-
 	let mut title = manga_key.clone();
 	let mut description = String::new();
 	let mut authors: Option<Vec<String>> = None;
@@ -343,25 +340,19 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 	}
 
 	// Extract author and artist from HTML - new structure with flex divs
-	println!("[PoseidonScans] Attempting to extract author/artist from div.flex");
 	if let Some(flex_divs) = html.select("div.flex") {
-		println!("[PoseidonScans] Found div.flex elements");
-
 		for (div_idx, div) in flex_divs.enumerate() {
 			if let Some(spans) = div.select("span") {
 				let span_vec: Vec<_> = spans.collect();
-				println!("[PoseidonScans] div.flex[{}]: {} spans found", div_idx, span_vec.len());
 
 				if span_vec.len() >= 2 {
 					// First span contains the label (Auteur, Artiste, etc.)
 					if let Some(label_text) = span_vec[0].text() {
 						let label = label_text.trim().to_lowercase();
-						println!("[PoseidonScans] div.flex[{}]: label = '{}'", div_idx, label);
 
 						// Second span contains the value
 						if let Some(value_text) = span_vec[1].text() {
 							let value = value_text.trim();
-							println!("[PoseidonScans] div.flex[{}]: value = '{}'", div_idx, value);
 
 							if value.is_empty() {
 								continue;
@@ -369,10 +360,8 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 							let value = value.to_string();
 							if label.contains("auteur") && authors.is_none() {
-								println!("[PoseidonScans] Found author: {}", value);
 								authors = Some(vec![value]);
 							} else if label.contains("artiste") && artists.is_none() {
-								println!("[PoseidonScans] Found artist: {}", value);
 								artists = Some(vec![value]);
 							}
 						}
@@ -382,29 +371,21 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 			// Check if we found both before continuing
 			if authors.is_some() && artists.is_some() {
-				println!("[PoseidonScans] Found both author and artist, stopping search");
 				break;
 			}
 		}
-	} else {
-		println!("[PoseidonScans] No div.flex elements found");
 	}
-
-	println!("[PoseidonScans] After div.flex extraction: authors={:?}, artists={:?}", authors, artists);
 
 	// Fallback: Old HTML structure with nested spans
 	if authors.is_none() || artists.is_none() {
-		println!("[PoseidonScans] Trying fallback method for author/artist");
 		if let Some(span_elements) = html.select("span") {
 			for span_element in span_elements {
 				if let Some(span_html) = span_element.html() {
 					if span_html.contains("Auteur:") && authors.is_none() {
-						println!("[PoseidonScans] Fallback: Found 'Auteur:' in span");
 						if let Some(author_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
 							if let Some(author_text) = author_span.text() {
 								let author = author_text.trim().to_string();
 								if !author.is_empty() {
-									println!("[PoseidonScans] Fallback: Found author: {}", author);
 									authors = Some(vec![author]);
 								}
 							}
@@ -412,12 +393,10 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 					}
 
 					if span_html.contains("Artiste:") && artists.is_none() {
-						println!("[PoseidonScans] Fallback: Found 'Artiste:' in span");
 						if let Some(artist_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
 							if let Some(artist_text) = artist_span.text() {
 								let artist = artist_text.trim().to_string();
 								if !artist.is_empty() {
-									println!("[PoseidonScans] Fallback: Found artist: {}", artist);
 									artists = Some(vec![artist]);
 								}
 							}
@@ -426,13 +405,11 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 					// Stop if we found both
 					if authors.is_some() && artists.is_some() {
-						println!("[PoseidonScans] Fallback: Found both, stopping");
 						break;
 					}
 				}
 			}
 		}
-		println!("[PoseidonScans] After fallback: authors={:?}, artists={:?}", authors, artists);
 	}
 
 	// Extract tags from JSON-LD and status from HTML
@@ -520,16 +497,6 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 	let content_rating = calculate_content_rating(&tags);
 	let viewer = calculate_viewer(&tags);
-
-	println!("[PoseidonScans] Final manga object:");
-	println!("  - key: {}", manga_key);
-	println!("  - title: {}", title);
-	println!("  - authors: {:?}", authors);
-	println!("  - artists: {:?}", artists);
-	println!("  - description length: {}", description.len());
-	println!("  - status: {:?}", status);
-	println!("  - tags count: {:?}", tags.as_ref().map(|t| t.len()));
-	println!("  - update_strategy: Always");
 
 	Ok(Manga {
 		key: manga_key.clone(),

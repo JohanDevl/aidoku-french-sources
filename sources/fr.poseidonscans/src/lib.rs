@@ -5,7 +5,6 @@ use aidoku::{
     Page, PageContext, Result, Source,
     alloc::{String, Vec},
     imports::{net::Request, std::send_partial_result},
-    println,
     prelude::*,
 };
 
@@ -91,44 +90,21 @@ impl Source for PoseidonScans {
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
-        println!("[PoseidonScans] ========== get_manga_update START ==========");
-        println!("[PoseidonScans] Manga key: {}", manga.key);
-        println!("[PoseidonScans] Manga title: {}", manga.title);
-        println!("[PoseidonScans] Current UpdateStrategy: {:?}", manga.update_strategy);
-        println!("[PoseidonScans] Current next_update_time: {:?}", manga.next_update_time);
-        println!("[PoseidonScans] needs_details: {}, needs_chapters: {}", needs_details, needs_chapters);
-
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
-        println!("[PoseidonScans] Fetching URL: {}", url);
-
         let html = helper::build_html_request(&url)?.html()?;
-        println!("[PoseidonScans] HTML fetched successfully");
 
         let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
 
-        println!("[PoseidonScans] Parsed manga details:");
-        println!("  - Title: {}", updated_manga.title);
-        println!("  - Authors: {:?}", updated_manga.authors);
-        println!("  - Artists: {:?}", updated_manga.artists);
-        println!("  - Description: {:?}", updated_manga.description.as_ref().map(|d| &d[..50.min(d.len())]));
-        println!("  - Status: {:?}", updated_manga.status);
-        println!("  - Tags count: {:?}", updated_manga.tags.as_ref().map(|t| t.len()));
-        println!("  - UpdateStrategy: {:?}", updated_manga.update_strategy);
-
         if needs_details {
-            println!("[PoseidonScans] Sending partial result for details");
             send_partial_result(&updated_manga);
         }
 
         if needs_chapters {
-            println!("[PoseidonScans] Parsing chapters");
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
-            println!("[PoseidonScans] Found {} chapters", chapters.len());
             updated_manga.chapters = Some(chapters);
         }
 
-        println!("[PoseidonScans] get_manga_update completed successfully");
         Ok(updated_manga)
     }
 
@@ -146,18 +122,11 @@ impl Source for PoseidonScans {
 
 impl ListingProvider for PoseidonScans {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        println!("[PoseidonScans] get_manga_list called: listing='{}', page={}", listing.name, page);
-
         match listing.name.as_str() {
             "Dernières Sorties" => {
                 let url = format!("{}/manga/lastchapters?page={}&limit=20", API_URL, page);
                 let response = helper::build_api_request(&url)?.string()?;
-                let result = parser::parse_latest_manga(response)?;
-                println!("[PoseidonScans] Returning {} manga from 'Dernières Sorties'", result.entries.len());
-                if let Some(first) = result.entries.first() {
-                    println!("[PoseidonScans] First manga UpdateStrategy: {:?}", first.update_strategy);
-                }
-                Ok(result)
+                parser::parse_latest_manga(response)
             },
             "Populaire" => {
                 // Popular listing only has one page
@@ -170,12 +139,7 @@ impl ListingProvider for PoseidonScans {
 
                 let url = format!("{}/manga/popular", API_URL);
                 let response = helper::build_api_request(&url)?.string()?;
-                let result = parser::parse_popular_manga(response)?;
-                println!("[PoseidonScans] Returning {} manga from 'Populaire'", result.entries.len());
-                if let Some(first) = result.entries.first() {
-                    println!("[PoseidonScans] First manga UpdateStrategy: {:?}", first.update_strategy);
-                }
-                Ok(result)
+                parser::parse_popular_manga(response)
             },
             _ => {
                 Ok(MangaPageResult {
