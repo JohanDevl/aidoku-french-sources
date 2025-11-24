@@ -90,21 +90,40 @@ impl Source for PoseidonScans {
     }
 
     fn get_manga_update(&self, manga: Manga, needs_details: bool, needs_chapters: bool) -> Result<Manga> {
+        println!("[PoseidonScans] get_manga_update called for: {}", manga.key);
+        println!("[PoseidonScans] needs_details: {}, needs_chapters: {}", needs_details, needs_chapters);
+
         let encoded_key = helper::urlencode(manga.key.clone());
         let url = format!("{}/serie/{}", BASE_URL, encoded_key);
+        println!("[PoseidonScans] Fetching URL: {}", url);
+
         let html = helper::build_html_request(&url)?.html()?;
+        println!("[PoseidonScans] HTML fetched successfully");
 
         let mut updated_manga = parser::parse_manga_details(manga.key.clone(), &html)?;
 
+        println!("[PoseidonScans] Parsed manga details:");
+        println!("  - Title: {}", updated_manga.title);
+        println!("  - Authors: {:?}", updated_manga.authors);
+        println!("  - Artists: {:?}", updated_manga.artists);
+        println!("  - Description: {:?}", updated_manga.description.as_ref().map(|d| &d[..50.min(d.len())]));
+        println!("  - Status: {:?}", updated_manga.status);
+        println!("  - Tags count: {:?}", updated_manga.tags.as_ref().map(|t| t.len()));
+        println!("  - UpdateStrategy: {:?}", updated_manga.update_strategy);
+
         if needs_details {
+            println!("[PoseidonScans] Sending partial result for details");
             send_partial_result(&updated_manga);
         }
 
         if needs_chapters {
+            println!("[PoseidonScans] Parsing chapters");
             let chapters = parser::parse_chapter_list(manga.key, &html)?;
+            println!("[PoseidonScans] Found {} chapters", chapters.len());
             updated_manga.chapters = Some(chapters);
         }
 
+        println!("[PoseidonScans] get_manga_update completed successfully");
         Ok(updated_manga)
     }
 
