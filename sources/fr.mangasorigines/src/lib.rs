@@ -375,7 +375,7 @@ impl MangasOrigines {
                                     tags: None,
                                     chapters: None,
                                     next_update_time: None,
-                                    update_strategy: UpdateStrategy::Never,
+                                    update_strategy: UpdateStrategy::Always,
                                 });
                             }
                         }
@@ -420,7 +420,7 @@ impl MangasOrigines {
             tags,
             chapters: None,
             next_update_time: None,
-            update_strategy: UpdateStrategy::Never,
+            update_strategy: UpdateStrategy::Always,
         };
 
         if needs_chapters {

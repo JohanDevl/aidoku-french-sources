@@ -675,7 +675,7 @@ impl MangaScantrad {
                             viewer,
                             chapters: None,
                             next_update_time: None,
-                            update_strategy: UpdateStrategy::Never,
+                            update_strategy: UpdateStrategy::Always,
                         });
                     }
                     break; // Stop after finding items with one selector
@@ -958,7 +958,7 @@ impl MangaScantrad {
             viewer,
             chapters,
             next_update_time: None,
-            update_strategy: UpdateStrategy::Never,
+            update_strategy: UpdateStrategy::Always,
         })
     }
     

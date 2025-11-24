@@ -192,7 +192,7 @@ impl MangaItem {
 			viewer,
 			chapters: None,
 			next_update_time: None,
-			update_strategy: UpdateStrategy::Never,
+			update_strategy: UpdateStrategy::Always,
 		})
 	}
 }
@@ -383,7 +383,7 @@ pub fn parse_manga_details(manga_id: &str, response: &str) -> Result<Manga> {
 		viewer,
 		chapters: None,
 		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
+		update_strategy: UpdateStrategy::Always,
 	})
 }
 
