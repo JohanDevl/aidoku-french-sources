@@ -195,7 +195,6 @@ impl Source for AnimeSama {
 			// Pour les chapitres, utiliser aussi l'URL de base (le JavaScript est sur la page principale)
 			let html = make_realistic_request(&base_manga_url)?;
 			let chapters = parser::parse_chapter_list(manga.key.clone(), html)?;
-			let chapter_count = chapters.len();
 			manga.chapters = Some(chapters);
 		}
 

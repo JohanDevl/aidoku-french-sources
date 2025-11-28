@@ -380,7 +380,7 @@ impl SushiScans {
                     viewer: Viewer::RightToLeft,
                     chapters: None,
                     next_update_time: None,
-                    update_strategy: UpdateStrategy::Never,
+                    update_strategy: UpdateStrategy::Always,
                 });
             }
         }
@@ -558,7 +558,7 @@ impl SushiScans {
             viewer,
             chapters: None,
             next_update_time: None,
-            update_strategy: UpdateStrategy::Never,
+            update_strategy: UpdateStrategy::Always,
         };
 
         if _needs_details {
@@ -567,7 +567,6 @@ impl SushiScans {
 
         if needs_chapters {
             let chapters = self.parse_chapter_list(&html)?;
-            let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
         }
 

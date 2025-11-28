@@ -70,7 +70,6 @@ impl Source for FMTeam {
 
         if needs_chapters {
             let chapters = parser::parse_chapter_list_json(&manga.key, &response)?;
-            let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
         }
 

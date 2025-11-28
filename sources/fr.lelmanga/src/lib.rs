@@ -371,7 +371,7 @@ impl LelManga {
                     viewer: Viewer::RightToLeft,
                     chapters: None,
                     next_update_time: None,
-                    update_strategy: UpdateStrategy::Never,
+                    update_strategy: UpdateStrategy::Always,
                 });
             }
         }
@@ -1033,7 +1033,7 @@ impl LelManga {
             viewer,
             chapters: None,
             next_update_time: None,
-            update_strategy: UpdateStrategy::Never,
+            update_strategy: UpdateStrategy::Always,
         }
     }
 }

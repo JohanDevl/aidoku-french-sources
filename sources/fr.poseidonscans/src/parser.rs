@@ -155,7 +155,7 @@ impl MangaItem {
 			viewer,
 			chapters: None,
 			next_update_time: None,
-			update_strategy: UpdateStrategy::Never,
+			update_strategy: UpdateStrategy::Always,
 		}
 	}
 }
@@ -180,7 +180,7 @@ impl LatestChapterItem {
 			viewer: Viewer::RightToLeft,
 			chapters: None,
 			next_update_time: None,
-			update_strategy: UpdateStrategy::Never,
+			update_strategy: UpdateStrategy::Always,
 		}
 	}
 }
@@ -341,9 +341,10 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 	// Extract author and artist from HTML - new structure with flex divs
 	if let Some(flex_divs) = html.select("div.flex") {
-		for div in flex_divs {
+		for (_, div) in flex_divs.enumerate() {
 			if let Some(spans) = div.select("span") {
 				let span_vec: Vec<_> = spans.collect();
+
 				if span_vec.len() >= 2 {
 					// First span contains the label (Auteur, Artiste, etc.)
 					if let Some(label_text) = span_vec[0].text() {
@@ -352,6 +353,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 						// Second span contains the value
 						if let Some(value_text) = span_vec[1].text() {
 							let value = value_text.trim();
+
 							if value.is_empty() {
 								continue;
 							}
@@ -362,33 +364,48 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 							} else if label.contains("artiste") && artists.is_none() {
 								artists = Some(vec![value]);
 							}
-
-							// Early termination once both are found
-							if authors.is_some() && artists.is_some() {
-								break;
-							}
 						}
 					}
 				}
+			}
+
+			// Check if we found both before continuing
+			if authors.is_some() && artists.is_some() {
+				break;
 			}
 		}
 	}
 
 	// Fallback: Old HTML structure with nested spans
-	if authors.is_none() {
+	if authors.is_none() || artists.is_none() {
 		if let Some(span_elements) = html.select("span") {
 			for span_element in span_elements {
 				if let Some(span_html) = span_element.html() {
-					if span_html.contains("Auteur:") {
+					if span_html.contains("Auteur:") && authors.is_none() {
 						if let Some(author_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
 							if let Some(author_text) = author_span.text() {
 								let author = author_text.trim().to_string();
 								if !author.is_empty() {
 									authors = Some(vec![author]);
-									break;
 								}
 							}
 						}
+					}
+
+					if span_html.contains("Artiste:") && artists.is_none() {
+						if let Some(artist_span) = span_element.select("span.text-gray-300.font-bold").and_then(|els| els.first()) {
+							if let Some(artist_text) = artist_span.text() {
+								let artist = artist_text.trim().to_string();
+								if !artist.is_empty() {
+									artists = Some(vec![artist]);
+								}
+							}
+						}
+					}
+
+					// Stop if we found both
+					if authors.is_some() && artists.is_some() {
+						break;
 					}
 				}
 			}
@@ -499,7 +516,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 		viewer,
 		chapters: None,
 		next_update_time: None,
-		update_strategy: UpdateStrategy::Never,
+		update_strategy: UpdateStrategy::Always,
 	})
 }
 
@@ -1632,7 +1649,7 @@ pub fn parse_series_page(html: &Document) -> Result<MangaPageResult> {
 					viewer,
 					chapters: None,
 					next_update_time: None,
-					update_strategy: UpdateStrategy::Never,
+					update_strategy: UpdateStrategy::Always,
 				});
 			}
 		}
