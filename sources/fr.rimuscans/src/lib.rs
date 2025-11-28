@@ -140,7 +140,6 @@ impl Source for RimuScans {
 
 			if needs_chapters {
 				let chapters = parse_chapter_list(&html);
-				let chapter_count = chapters.len();
 				updated_manga.chapters = Some(chapters);
 			}
 		}

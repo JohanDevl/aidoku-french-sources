@@ -341,7 +341,7 @@ pub fn parse_manga_details(manga_key: String, html: &Document) -> Result<Manga> 
 
 	// Extract author and artist from HTML - new structure with flex divs
 	if let Some(flex_divs) = html.select("div.flex") {
-		for (div_idx, div) in flex_divs.enumerate() {
+		for (_, div) in flex_divs.enumerate() {
 			if let Some(spans) = div.select("span") {
 				let span_vec: Vec<_> = spans.collect();
 

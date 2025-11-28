@@ -567,7 +567,6 @@ impl SushiScans {
 
         if needs_chapters {
             let chapters = self.parse_chapter_list(&html)?;
-            let chapter_count = chapters.len();
             manga.chapters = Some(chapters);
         }
 
