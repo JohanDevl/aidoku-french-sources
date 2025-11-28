@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JohanDevl's French Sources - Aidoku Extensions</title>
+    <meta
+      name="description"
+      content="Repository of French manga sources compatible with Aidoku app"
+    />
+    <link rel="icon" type="image/svg+xml" href="./icons/aidoku.svg" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="logo-section">
+          <div class="logo">
+            <img src="./icons/aidoku.svg" alt="Aidoku" width="80" height="80" />
+          </div>
+        </div>
+
+        <h1 class="title">JohanDevl's French Sources</h1>
+        <p class="description">
+          A repository for French manga sources compatible with Aidoku
+        </p>
+
+        <a
+          href="https://aidoku.app/add-source-list/?url=https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/index.min.json"
+          class="add-button"
+        >
+          Add to Aidoku
+        </a>
+      </header>
+
+      <main class="main-content">
+        <section class="guide-section">
+          <p>Multiple French sources for Aidoku</p>
+
+          <div class="info-box">
+            <p>
+              A guide is available to learn everything about extensions
+              repositories.
+            </p>
+            <p>
+              Check it
+              <a
+                href="https://aidoku.app/help/guides/getting-started/"
+                target="_blank"
+                >here</a
+              >
+              to learn how to add and use this repository in Aidoku.
+            </p>
+          </div>
+
+          <div class="info-box">
+            <p>
+              On an iOS device with Aidoku installed, press
+              <strong>Add to Aidoku</strong> or use the base URL to add this
+              repository to the app.
+            </p>
+          </div>
+
+          <div class="url-section">
+            <h3>Base URL:</h3>
+            <code class="base-url"
+              >https://raw.githubusercontent.com/JohanDevl/aidoku-french-sources/sources/index.min.json</code
+            >
+          </div>
+        </section>
+
+        <section class="sources-section">
+          <h2>Available Sources:</h2>
+          <div id="sources-list" class="sources-grid">
+            <!-- Sources will be loaded dynamically -->
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>Made with ❤️ for the French manga community</p>
+        <p>
+          <a
+            href="https://github.com/JohanDevl/aidoku-french-sources"
+            target="_blank"
+            >View on GitHub</a
+          >
+          ·
+          <a href="https://aidoku.app/" target="_blank">Aidoku App</a>
+        </p>
+      </footer>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
