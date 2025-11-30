@@ -6,10 +6,12 @@
     "options": ["Tout", "Manga", "Manhwa", "Manhua"]
   },
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "status",
-    "title": "Status",
-    "options": ["Tout", "En cours", "Terminé", "Abandonné"]
+    "title": "Statut",
+    "canExclude": true,
+    "options": ["En cours", "Terminé", "Abandonné"],
+    "ids": ["En cours", "Terminé", "Abandonné"]
   },
   {
     "type": "select",
@@ -20,7 +22,7 @@
       "Tout",
       "Action",
       "Aventure",
-      "Comédie", 
+      "Comédie",
       "Drame",
       "Ecchi",
       "Fantastique",
@@ -47,10 +49,5 @@
       "Tragédie",
       "Webtoon"
     ]
-  },
-  {
-    "type": "text",
-    "id": "search",
-    "title": "Recherche"
   }
 ]

@@ -29,9 +29,33 @@ impl Source for CrunchyScan {
         &self,
         query: Option<String>,
         page: i32,
-        _filters: Vec<FilterValue>,
+        filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
         let search_query = query.unwrap_or_default();
+
+        // Process filters
+        let mut included_status: Vec<String> = Vec::new();
+        let mut excluded_status: Vec<String> = Vec::new();
+
+        for filter in filters {
+            match filter {
+                FilterValue::MultiSelect { id, included, excluded } => {
+                    if id == "status" {
+                        for status in included {
+                            if !status.is_empty() {
+                                included_status.push(status);
+                            }
+                        }
+                        for status in excluded {
+                            if !status.is_empty() {
+                                excluded_status.push(status);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
 
         // Step 1: Get the catalog page to extract CSRF token
         let catalog_url = format!("{}/catalog", BASE_URL);
@@ -45,20 +69,41 @@ impl Source for CrunchyScan {
 
         // Extract CSRF token from meta tag: <meta name="csrf-token" content="...">
         let csrf_token = helper::extract_csrf_token(&html_string).unwrap_or_default();
-        println!("[CrunchyScan] CSRF Token: {}", if csrf_token.is_empty() { "NOT FOUND" } else { &csrf_token });
 
-        if csrf_token.is_empty() {
-            println!("[CrunchyScan] Warning: No CSRF token found, API call may fail");
-        }
+        // Build status params
+        let status_params = if !included_status.is_empty() {
+            // User selected specific status to include
+            included_status.iter()
+                .map(|s| format!("status%5B%5D={}", helper::urlencode(s)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            // Default: include all status
+            String::from("status%5B%5D=En+cours&status%5B%5D=Termin%C3%A9&status%5B%5D=Abandonn%C3%A9")
+        };
+
+        // Build exclude_status params
+        let exclude_status_params = if !excluded_status.is_empty() {
+            excluded_status.iter()
+                .map(|s| format!("exclude_status%5B%5D={}", helper::urlencode(s)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            String::new()
+        };
 
         // Step 2: Make the API POST request with CSRF token
-        // Required params: affichage, status[], orderWith, orderBy
-        // status values: "En cours", "Terminé", "En pause", "Abandonné"
-        let body = format!(
-            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&status%5B%5D=En+cours&status%5B%5D=Termin%C3%A9&status%5B%5D=En+pause&status%5B%5D=Abandonn%C3%A9",
+        let mut body = format!(
+            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&{}",
             page,
-            helper::urlencode(&search_query)
+            helper::urlencode(&search_query),
+            status_params
         );
+
+        // Add exclude_status if any
+        if !exclude_status_params.is_empty() {
+            body = format!("{}&{}", body, exclude_status_params);
+        }
 
         let response = Request::post(API_URL)?
             .header("User-Agent", USER_AGENT)
