@@ -1,5 +1,34 @@
 use aidoku::alloc::{String, Vec, format, string::ToString};
 
+/// Extract CSRF token from HTML page
+/// Looks for: <meta name="csrf-token" content="...">
+pub fn extract_csrf_token(html: &str) -> Option<String> {
+    // Look for csrf-token meta tag
+    if let Some(start) = html.find("name=\"csrf-token\"") {
+        // Find the content attribute after it
+        let after_name = &html[start..];
+        if let Some(content_start) = after_name.find("content=\"") {
+            let content_after = &after_name[content_start + 9..]; // Skip 'content="'
+            if let Some(end) = content_after.find('"') {
+                return Some(content_after[..end].to_string());
+            }
+        }
+    }
+
+    // Alternative: look for content first then name
+    if let Some(start) = html.find("content=\"") {
+        let before = &html[..start];
+        if before.ends_with("csrf-token\" ") || before.contains("csrf-token\"") {
+            let after = &html[start + 9..];
+            if let Some(end) = after.find('"') {
+                return Some(after[..end].to_string());
+            }
+        }
+    }
+
+    None
+}
+
 pub fn urlencode(string: &str) -> String {
     let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
     let hex = "0123456789abcdef".as_bytes();

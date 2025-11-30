@@ -33,7 +33,25 @@ impl Source for CrunchyScan {
     ) -> Result<MangaPageResult> {
         let search_query = query.unwrap_or_default();
 
-        // Build form data for POST request
+        // Step 1: Get the catalog page to extract CSRF token
+        let catalog_url = format!("{}/catalog", BASE_URL);
+        let catalog_response = Request::get(&catalog_url)?
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
+            .send()?;
+
+        let html_string = catalog_response.get_string()?;
+
+        // Extract CSRF token from meta tag: <meta name="csrf-token" content="...">
+        let csrf_token = helper::extract_csrf_token(&html_string).unwrap_or_default();
+        println!("[CrunchyScan] CSRF Token: {}", if csrf_token.is_empty() { "NOT FOUND" } else { &csrf_token });
+
+        if csrf_token.is_empty() {
+            println!("[CrunchyScan] Warning: No CSRF token found, API call may fail");
+        }
+
+        // Step 2: Make the API POST request with CSRF token
         let body = format!(
             "page={}&search={}&order=latest&type=&status=&categories=",
             page,
@@ -42,12 +60,13 @@ impl Source for CrunchyScan {
 
         let response = Request::post(API_URL)?
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/json, text/plain, */*")
+            .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8")
             .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
             .header("X-Requested-With", "XMLHttpRequest")
+            .header("X-Csrf-Token", &csrf_token)
             .header("Origin", BASE_URL)
-            .header("Referer", &format!("{}/catalog", BASE_URL))
+            .header("Referer", &catalog_url)
             .body(body.as_bytes())
             .send()?;
 
