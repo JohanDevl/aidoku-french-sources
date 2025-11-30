@@ -38,6 +38,8 @@ impl Source for CrunchyScan {
         let mut excluded_status: Vec<String> = Vec::new();
         let mut included_types: Vec<String> = Vec::new();
         let mut excluded_types: Vec<String> = Vec::new();
+        let mut order_with = String::from("Récent");
+        let mut order_by = String::from("desc");
 
         for filter in filters {
             match filter {
@@ -65,6 +67,21 @@ impl Source for CrunchyScan {
                                 if !t.is_empty() {
                                     excluded_types.push(t);
                                 }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                FilterValue::Select { id, value } => {
+                    match id.as_str() {
+                        "orderwith" => {
+                            if !value.is_empty() {
+                                order_with = value;
+                            }
+                        }
+                        "orderby" => {
+                            if !value.is_empty() {
+                                order_by = value;
                             }
                         }
                         _ => {}
@@ -131,9 +148,11 @@ impl Source for CrunchyScan {
 
         // Step 2: Make the API POST request with CSRF token
         let mut body = format!(
-            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&{}",
+            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith={}&orderBy={}&{}",
             page,
             helper::urlencode(&search_query),
+            helper::urlencode(&order_with),
+            helper::urlencode(&order_by),
             status_params
         );
 

@@ -51,5 +51,19 @@
       "Tragédie",
       "Webtoon"
     ]
+  },
+  {
+    "type": "select",
+    "id": "orderwith",
+    "title": "Order With",
+    "options": ["Récent", "Vues", "Note", "Alphabétiquement"],
+    "ids": ["Récent", "Vues", "Note", "Alphabétiquement"]
+  },
+  {
+    "type": "select",
+    "id": "orderby",
+    "title": "Order By",
+    "options": ["Desc", "Asc"],
+    "ids": ["desc", "asc"]
   }
 ]
