@@ -12,6 +12,7 @@ use crate::BASE_URL;
 
 // Parse manga list from HTML catalog page
 pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> {
+    println!("[CrunchyScan] parse_manga_list called");
     let mut mangas: Vec<Manga> = Vec::new();
     let mut seen_keys: Vec<String> = Vec::new();
 
@@ -21,14 +22,23 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
     ];
 
     for selector in &card_selectors {
+        println!("[CrunchyScan] Trying selector: {}", selector);
         if let Some(cards) = html.select(selector) {
+            println!("[CrunchyScan] Found cards with selector: {}", selector);
+            let mut card_index = 0;
+
             for card in cards {
+                card_index += 1;
+                println!("[CrunchyScan] Processing card #{}", card_index);
                 let href = card.select("a.manga_cover")
                     .and_then(|links| links.first())
                     .and_then(|link| link.attr("href"))
                     .unwrap_or_default();
 
+                println!("[CrunchyScan] Card href: {}", href);
+
                 if href.is_empty() || !href.contains("/lecture-en-ligne/") {
+                    println!("[CrunchyScan] Skipping - invalid href");
                     continue;
                 }
 
@@ -39,7 +49,10 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                     .trim_end_matches('/')
                     .to_string();
 
+                println!("[CrunchyScan] Extracted key: {}", key);
+
                 if key.is_empty() || seen_keys.contains(&key) {
+                    println!("[CrunchyScan] Skipping - empty or duplicate key");
                     continue;
                 }
 
@@ -50,7 +63,10 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                     .trim()
                     .to_string();
 
+                println!("[CrunchyScan] Extracted title: {}", title);
+
                 if title.is_empty() {
+                    println!("[CrunchyScan] Skipping - empty title");
                     continue;
                 }
 
@@ -62,6 +78,8 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                             .or_else(|| img.attr("data-lazy-src"))
                     })
                     .map(|s| s.to_string());
+
+                println!("[CrunchyScan] Extracted cover: {:?}", cover);
 
                 seen_keys.push(key.clone());
                 mangas.push(Manga {
@@ -80,14 +98,19 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                     next_update_time: None,
                     update_strategy: UpdateStrategy::Never,
                 });
+                println!("[CrunchyScan] Added manga to list");
             }
 
             if !mangas.is_empty() {
+                println!("[CrunchyScan] Found {} mangas, breaking", mangas.len());
                 break;
             }
+        } else {
+            println!("[CrunchyScan] No cards found with selector: {}", selector);
         }
     }
 
+    println!("[CrunchyScan] Total mangas found: {}", mangas.len());
     let has_next_page = html.select(".pagination .next, a[rel='next']").is_some();
 
     Ok(MangaPageResult {

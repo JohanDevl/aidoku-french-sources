@@ -30,7 +30,8 @@ impl Source for CrunchyScan {
         page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        // Use catalog page with HTML parsing instead of API
+        println!("[CrunchyScan] get_search_manga_list called - page: {}", page);
+
         let url = if let Some(search_query) = query {
             if !search_query.is_empty() {
                 format!("{}/catalog?page={}&search={}", BASE_URL, page, helper::urlencode(&search_query))
@@ -40,6 +41,8 @@ impl Source for CrunchyScan {
         } else {
             format!("{}/catalog?page={}", BASE_URL, page)
         };
+
+        println!("[CrunchyScan] Requesting URL: {}", url);
 
         let html = Request::get(&url)?
             .header("User-Agent", USER_AGENT)
@@ -51,6 +54,8 @@ impl Source for CrunchyScan {
             .header("Upgrade-Insecure-Requests", "1")
             .header("Referer", BASE_URL)
             .html()?;
+
+        println!("[CrunchyScan] HTML received, parsing...");
 
         parser::parse_manga_list(&html, page)
     }
