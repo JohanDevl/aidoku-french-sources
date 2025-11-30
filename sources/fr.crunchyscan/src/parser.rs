@@ -30,15 +30,23 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
             for card in cards {
                 card_index += 1;
                 println!("[CrunchyScan] Processing card #{}", card_index);
-                let href = card.select("a.manga_cover")
+
+                // Use attribute selector for more robust matching
+                let href = card.select("a[href*='/lecture-en-ligne/']")
                     .and_then(|links| links.first())
                     .and_then(|link| link.attr("href"))
                     .unwrap_or_default();
 
                 println!("[CrunchyScan] Card href: {}", href);
 
-                if href.is_empty() || !href.contains("/lecture-en-ligne/") {
-                    println!("[CrunchyScan] Skipping - invalid href");
+                if href.is_empty() {
+                    println!("[CrunchyScan] Skipping - empty href");
+                    continue;
+                }
+
+                // Skip chapter links
+                if href.contains("/read/") {
+                    println!("[CrunchyScan] Skipping - chapter link");
                     continue;
                 }
 
@@ -56,10 +64,17 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                     continue;
                 }
 
-                let title = card.select("a.font-bold")
+                // Try multiple selectors for title
+                let title = card.select("a[class*='font-bold']")
                     .and_then(|links| links.first())
                     .and_then(|link| link.text())
+                    .or_else(|| {
+                        card.select("a[href*='/lecture-en-ligne/']")
+                            .and_then(|links| links.first())
+                            .and_then(|link| link.attr("title"))
+                    })
                     .unwrap_or_default()
+                    .replace("Lire le manga ", "")
                     .trim()
                     .to_string();
 
@@ -70,7 +85,8 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                     continue;
                 }
 
-                let cover = card.select("a.manga_cover img")
+                // Try multiple selectors for cover
+                let cover = card.select("img")
                     .and_then(|imgs| imgs.first())
                     .and_then(|img| {
                         img.attr("src")
