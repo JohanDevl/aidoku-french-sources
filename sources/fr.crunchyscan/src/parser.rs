@@ -1,7 +1,7 @@
 use aidoku::{
     Result, Manga, Page, PageContent, MangaPageResult, MangaStatus, Chapter, UpdateStrategy,
     ContentRating, Viewer,
-    alloc::{String, Vec, string::ToString, vec},
+    alloc::{String, Vec, string::ToString},
     imports::html::Document,
     prelude::*,
     AidokuError,
@@ -97,132 +97,140 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
     let mut description = String::new();
     let mut tags: Vec<String> = Vec::new();
     let mut status = MangaStatus::Unknown;
-    let mut authors: Option<Vec<String>> = None;
+    let mut authors: Vec<String> = Vec::new();
+    let mut artists: Vec<String> = Vec::new();
 
-    // Extract title
-    let title_selectors = [
-        "h1.entry-title",
-        ".manga-title",
-        ".series-title",
-        "h1",
-    ];
-    for selector in &title_selectors {
-        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
-            if let Some(text) = elem.text() {
-                title = text.trim().to_string();
-                if !title.is_empty() {
-                    break;
-                }
-            }
+    // Extract title from h1
+    if let Some(elem) = html.select("h1").and_then(|els| els.first()) {
+        if let Some(text) = elem.text() {
+            title = text.trim().to_string();
         }
     }
 
-    // Extract cover
+    // Extract cover - look for img with manga name in alt or class containing cover
     let cover_selectors = [
         "img[class*='cover']",
-        ".manga-cover img",
-        ".series-image img",
-        "img[alt*='cover']",
+        "img[class*='rounded-lg']",
         ".thumb img",
+        "img",
     ];
     for selector in &cover_selectors {
-        if let Some(img) = html.select(selector).and_then(|els| els.first()) {
-            if let Some(src) = img.attr("data-src")
-                .or_else(|| img.attr("data-lazy-src"))
-                .or_else(|| img.attr("src")) {
-                cover = if src.starts_with("http") {
-                    src.to_string()
-                } else {
-                    format!("{}/{}", BASE_URL, src.trim_start_matches('/'))
-                };
-                if !cover.is_empty() {
-                    break;
+        if let Some(imgs) = html.select(selector) {
+            for img in imgs {
+                if let Some(src) = img.attr("data-src")
+                    .or_else(|| img.attr("data-lazy-src"))
+                    .or_else(|| img.attr("src")) {
+                    // Skip small icons and navigation images
+                    if src.contains("cover") || src.contains("manga") || src.contains("storage") {
+                        cover = if src.starts_with("http") {
+                            src.to_string()
+                        } else {
+                            format!("{}/{}", BASE_URL, src.trim_start_matches('/'))
+                        };
+                        break;
+                    }
+                }
+            }
+            if !cover.is_empty() {
+                break;
+            }
+        }
+    }
+
+    // Extract description from div.max-h-48 p
+    if let Some(elem) = html.select("div.max-h-48 p").and_then(|els| els.first()) {
+        if let Some(text) = elem.text() {
+            description = text.trim().to_string();
+        }
+    }
+    // Fallback selectors for description
+    if description.is_empty() {
+        let desc_selectors = [
+            ".description p",
+            ".synopsis p",
+            ".summary p",
+        ];
+        for selector in &desc_selectors {
+            if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+                if let Some(text) = elem.text() {
+                    description = text.trim().to_string();
+                    if !description.is_empty() {
+                        break;
+                    }
                 }
             }
         }
     }
 
-    // Extract description
-    let desc_selectors = [
-        ".description",
-        ".synopsis",
-        "[class*='desc']",
-        ".manga-description",
-        ".summary",
-    ];
-    for selector in &desc_selectors {
-        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+    // Extract genres/tags from links with class "tag" or href containing /catalog/genre/
+    if let Some(els) = html.select("a.tag") {
+        for elem in els {
             if let Some(text) = elem.text() {
-                description = text.trim().to_string();
-                if !description.is_empty() {
-                    break;
+                let tag = text.trim().to_string();
+                if !tag.is_empty() && !tags.contains(&tag) {
+                    tags.push(tag);
                 }
             }
         }
     }
-
-    // Extract genres/tags
-    let genre_selectors = [
-        ".genre",
-        ".tag",
-        "[class*='genre'] a",
-        ".genres a",
-    ];
-    for selector in &genre_selectors {
-        if let Some(els) = html.select(selector) {
+    // Fallback: links with href containing /catalog/genre/
+    if tags.is_empty() {
+        if let Some(els) = html.select("a[href*='/catalog/genre/']") {
             for elem in els {
                 if let Some(text) = elem.text() {
                     let tag = text.trim().to_string();
-                    if !tag.is_empty() {
+                    if !tag.is_empty() && !tags.contains(&tag) {
                         tags.push(tag);
                     }
                 }
             }
-            if !tags.is_empty() {
-                break;
-            }
         }
     }
 
-    // Extract status
-    let status_selectors = [
-        ".status",
-        "[class*='status']",
-        ".manga-status",
-    ];
-    for selector in &status_selectors {
-        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
+    // Extract status - look for p element with status classes after Status heading
+    // The structure is: <h3>🚦 Status</h3><p class="bg-[#23252B]...">En Cours</p>
+    // Try to find p elements that likely contain status (styled with bg- class)
+    if let Some(els) = html.select("p[class*='bg-']") {
+        for elem in els {
             if let Some(text) = elem.text() {
-                let status_str = text.to_lowercase();
-                status = if status_str.contains("en cours") || status_str.contains("ongoing") {
-                    MangaStatus::Ongoing
-                } else if status_str.contains("terminé") || status_str.contains("completed") {
-                    MangaStatus::Completed
-                } else if status_str.contains("abandonné") || status_str.contains("cancelled") {
-                    MangaStatus::Cancelled
-                } else if status_str.contains("en pause") || status_str.contains("hiatus") {
-                    MangaStatus::Hiatus
-                } else {
-                    MangaStatus::Unknown
-                };
-                break;
-            }
-        }
-    }
-
-    // Extract author
-    let author_selectors = [
-        ".author-content",
-        "[class*='author']",
-        ".manga-author",
-    ];
-    for selector in &author_selectors {
-        if let Some(elem) = html.select(selector).and_then(|els| els.first()) {
-            if let Some(text) = elem.text() {
-                let author_str = text.trim().to_string();
-                if !author_str.is_empty() {
-                    authors = Some(vec![author_str]);
+                let status_str = text.trim().to_lowercase();
+                // Check if this looks like a status value
+                if status_str.contains("en cours") || status_str.contains("ongoing") {
+                    status = MangaStatus::Ongoing;
                     break;
+                } else if status_str.contains("terminé") || status_str.contains("completed") {
+                    status = MangaStatus::Completed;
+                    break;
+                } else if status_str.contains("abandonné") || status_str.contains("cancelled") {
+                    status = MangaStatus::Cancelled;
+                    break;
+                } else if status_str.contains("en pause") || status_str.contains("hiatus") {
+                    status = MangaStatus::Hiatus;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Extract authors from links with href containing /catalog/author/
+    if let Some(els) = html.select("a[href*='/catalog/author/']") {
+        for elem in els {
+            if let Some(text) = elem.text() {
+                let author = text.trim().to_string();
+                if !author.is_empty() && !authors.contains(&author) {
+                    authors.push(author);
+                }
+            }
+        }
+    }
+
+    // Extract artists from links with href containing /catalog/artist/
+    if let Some(els) = html.select("a[href*='/catalog/artist/']") {
+        for elem in els {
+            if let Some(text) = elem.text() {
+                let artist = text.trim().to_string();
+                if !artist.is_empty() && !artists.contains(&artist) {
+                    artists.push(artist);
                 }
             }
         }
@@ -232,8 +240,8 @@ pub fn parse_manga_details(html: &Document, key: &str) -> Result<Manga> {
         key: key.to_string(),
         title,
         cover: if cover.is_empty() { None } else { Some(cover) },
-        authors,
-        artists: None,
+        authors: if authors.is_empty() { None } else { Some(authors) },
+        artists: if artists.is_empty() { None } else { Some(artists) },
         description: if description.is_empty() { None } else { Some(description) },
         tags: if tags.is_empty() { None } else { Some(tags) },
         url: Some(format!("{}/lecture-en-ligne/{}", BASE_URL, key)),
