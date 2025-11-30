@@ -16,118 +16,88 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
     let mut mangas: Vec<Manga> = Vec::new();
     let mut seen_keys: Vec<String> = Vec::new();
 
-    let card_selectors = [
-        "#advanced_manga_containter > div",
-        ".grid > div.flex.flex-col",
-    ];
+    // Try selecting all links globally
+    println!("[CrunchyScan] Selecting all 'a' elements");
+    if let Some(links) = html.select("a") {
+        let mut link_count = 0;
+        for link in links {
+            link_count += 1;
 
-    for selector in &card_selectors {
-        println!("[CrunchyScan] Trying selector: {}", selector);
-        if let Some(cards) = html.select(selector) {
-            println!("[CrunchyScan] Found cards with selector: {}", selector);
-            let mut card_index = 0;
+            let href = link.attr("href").unwrap_or_default();
 
-            for card in cards {
-                card_index += 1;
-                println!("[CrunchyScan] Processing card #{}", card_index);
+            // Only process manga links (not chapter links)
+            if !href.contains("/lecture-en-ligne/") || href.contains("/read/") {
+                continue;
+            }
 
-                // Use attribute selector for more robust matching
-                let href = card.select("a[href*='/lecture-en-ligne/']")
-                    .and_then(|links| links.first())
-                    .and_then(|link| link.attr("href"))
-                    .unwrap_or_default();
+            println!("[CrunchyScan] Link #{}: {}", link_count, href);
 
-                println!("[CrunchyScan] Card href: {}", href);
+            let key = href
+                .replace(BASE_URL, "")
+                .replace("/lecture-en-ligne/", "")
+                .trim_start_matches('/')
+                .trim_end_matches('/')
+                .to_string();
 
-                if href.is_empty() {
-                    println!("[CrunchyScan] Skipping - empty href");
-                    continue;
-                }
+            if key.is_empty() || seen_keys.contains(&key) {
+                continue;
+            }
 
-                // Skip chapter links
-                if href.contains("/read/") {
-                    println!("[CrunchyScan] Skipping - chapter link");
-                    continue;
-                }
+            // Get title from link text or title attribute
+            let title_text = link.text().unwrap_or_default();
+            let title_attr = link.attr("title").unwrap_or_default();
 
-                let key = href
-                    .replace(BASE_URL, "")
-                    .replace("/lecture-en-ligne/", "")
-                    .trim_start_matches('/')
-                    .trim_end_matches('/')
-                    .to_string();
+            println!("[CrunchyScan] Title text: '{}', title attr: '{}'", title_text, title_attr);
 
-                println!("[CrunchyScan] Extracted key: {}", key);
-
-                if key.is_empty() || seen_keys.contains(&key) {
-                    println!("[CrunchyScan] Skipping - empty or duplicate key");
-                    continue;
-                }
-
-                // Try multiple selectors for title
-                let title = card.select("a[class*='font-bold']")
-                    .and_then(|links| links.first())
-                    .and_then(|link| link.text())
-                    .or_else(|| {
-                        card.select("a[href*='/lecture-en-ligne/']")
-                            .and_then(|links| links.first())
-                            .and_then(|link| link.attr("title"))
-                    })
-                    .unwrap_or_default()
+            let title = if !title_text.trim().is_empty() && !title_text.contains("Chapitre") {
+                title_text.trim().to_string()
+            } else {
+                title_attr
                     .replace("Lire le manga ", "")
                     .trim()
-                    .to_string();
+                    .to_string()
+            };
 
-                println!("[CrunchyScan] Extracted title: {}", title);
-
-                if title.is_empty() {
-                    println!("[CrunchyScan] Skipping - empty title");
-                    continue;
-                }
-
-                // Try multiple selectors for cover
-                let cover = card.select("img")
-                    .and_then(|imgs| imgs.first())
-                    .and_then(|img| {
-                        img.attr("src")
-                            .or_else(|| img.attr("data-src"))
-                            .or_else(|| img.attr("data-lazy-src"))
-                    })
-                    .map(|s| s.to_string());
-
-                println!("[CrunchyScan] Extracted cover: {:?}", cover);
-
-                seen_keys.push(key.clone());
-                mangas.push(Manga {
-                    key,
-                    title,
-                    cover,
-                    authors: None,
-                    artists: None,
-                    description: None,
-                    tags: None,
-                    url: Some(href.to_string()),
-                    status: MangaStatus::Unknown,
-                    content_rating: ContentRating::Safe,
-                    viewer: Viewer::RightToLeft,
-                    chapters: None,
-                    next_update_time: None,
-                    update_strategy: UpdateStrategy::Never,
-                });
-                println!("[CrunchyScan] Added manga to list");
+            if title.is_empty() {
+                continue;
             }
 
-            if !mangas.is_empty() {
-                println!("[CrunchyScan] Found {} mangas, breaking", mangas.len());
-                break;
-            }
-        } else {
-            println!("[CrunchyScan] No cards found with selector: {}", selector);
+            // Try to get cover from img inside link or sibling
+            let cover = link.select("img")
+                .and_then(|imgs| imgs.first())
+                .and_then(|img| {
+                    img.attr("src")
+                        .or_else(|| img.attr("data-src"))
+                })
+                .map(|s| s.to_string());
+
+            println!("[CrunchyScan] Found manga: {} (cover: {:?})", title, cover.is_some());
+
+            seen_keys.push(key.clone());
+            mangas.push(Manga {
+                key,
+                title,
+                cover,
+                authors: None,
+                artists: None,
+                description: None,
+                tags: None,
+                url: Some(href.to_string()),
+                status: MangaStatus::Unknown,
+                content_rating: ContentRating::Safe,
+                viewer: Viewer::RightToLeft,
+                chapters: None,
+                next_update_time: None,
+                update_strategy: UpdateStrategy::Never,
+            });
         }
+        println!("[CrunchyScan] Processed {} links total", link_count);
+    } else {
+        println!("[CrunchyScan] No links found!");
     }
 
     println!("[CrunchyScan] Total mangas found: {}", mangas.len());
-    let has_next_page = html.select(".pagination .next, a[rel='next']").is_some();
+    let has_next_page = html.select("a.next, button.next").is_some();
 
     Ok(MangaPageResult {
         entries: mangas,
