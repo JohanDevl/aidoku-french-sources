@@ -52,6 +52,16 @@ impl Source for CrunchyScan {
             .send()?;
 
         let json_string = response.get_string()?;
+
+        // Debug: log the response
+        let preview = if json_string.len() > 500 {
+            &json_string[..500]
+        } else {
+            &json_string
+        };
+        println!("[CrunchyScan] API Response (first 500 chars): {}", preview);
+        println!("[CrunchyScan] Response length: {}", json_string.len());
+
         parser::parse_manga_list_json(&json_string, page)
     }
 
