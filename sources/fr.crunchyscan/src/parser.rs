@@ -302,14 +302,16 @@ pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
                     continue;
                 }
 
-                let chapter_number = helper::extract_chapter_number(&chapter_title);
+                // Parse volume and chapter numbers
+                // Format can be: ".Volume 38", "Chapitre 10", ".Volume 5 - Chapitre 42"
+                let (volume_number, chapter_number) = helper::extract_volume_and_chapter(&chapter_title);
 
                 seen_urls.push(url.clone());
                 chapters.push(Chapter {
                     key: url.clone(),
                     title: Some(chapter_title),
-                    chapter_number: Some(chapter_number),
-                    volume_number: None,
+                    chapter_number,
+                    volume_number,
                     date_uploaded: None,
                     scanlators: None,
                     url: Some(url),

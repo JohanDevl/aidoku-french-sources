@@ -133,13 +133,77 @@ pub fn extract_chapter_number(chapter_title: &str) -> f32 {
         let number_str: String = captures.chars()
             .filter(|c| c.is_ascii_digit() || *c == '.')
             .collect();
-        
+
         if let Ok(num) = number_str.parse::<f32>() {
             return num;
         }
     }
-    
+
     1.0
+}
+
+/// Extract volume and chapter numbers from title
+/// Formats: ".Volume 38", "Chapitre 10", ".Volume 5 - Chapitre 42", "Volume 3"
+/// Returns (Option<volume_number>, Option<chapter_number>)
+pub fn extract_volume_and_chapter(title: &str) -> (Option<f32>, Option<f32>) {
+    let title_lower = title.to_lowercase();
+
+    // Check if there's a separator (hyphen) indicating both volume and chapter
+    if let Some(sep_pos) = title.find(" - ") {
+        let before_sep = &title[..sep_pos];
+        let after_sep = &title[sep_pos + 3..];
+        let before_lower = before_sep.to_lowercase();
+        let after_lower = after_sep.to_lowercase();
+
+        // Check if before separator is volume and after is chapter
+        if before_lower.contains("volume") || before_lower.contains(".volume") {
+            let volume_num = extract_number_from_str(before_sep);
+            let chapter_num = if after_lower.contains("chapitre") || after_lower.contains("chapter") {
+                extract_number_from_str(after_sep)
+            } else {
+                // After separator might just be a number
+                extract_number_from_str(after_sep)
+            };
+            return (volume_num, chapter_num);
+        }
+    }
+
+    // No separator - check if it's volume or chapter only
+    if title_lower.contains("volume") || title_lower.contains(".volume") {
+        // It's a volume only
+        let volume_num = extract_number_from_str(title);
+        return (volume_num, None);
+    }
+
+    // It's a chapter (default case)
+    let chapter_num = extract_number_from_str(title);
+    (None, chapter_num)
+}
+
+/// Extract a number from a string
+fn extract_number_from_str(s: &str) -> Option<f32> {
+    // Find the first sequence of digits (possibly with decimal point)
+    let mut number_str = String::new();
+    let mut found_digit = false;
+
+    for c in s.chars() {
+        if c.is_ascii_digit() {
+            number_str.push(c);
+            found_digit = true;
+        } else if c == '.' && found_digit && !number_str.contains('.') {
+            // Allow decimal point only after we found digits and only one
+            number_str.push(c);
+        } else if found_digit {
+            // Stop at first non-digit after finding digits
+            break;
+        }
+    }
+
+    if number_str.is_empty() {
+        None
+    } else {
+        number_str.trim_end_matches('.').parse::<f32>().ok()
+    }
 }
 
 pub fn make_absolute_url(base_url: &str, url: &str) -> String {
