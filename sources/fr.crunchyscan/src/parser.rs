@@ -24,13 +24,23 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
             link_count += 1;
 
             let href = link.attr("href").unwrap_or_default();
+            let class = link.attr("class").unwrap_or_default();
+            let text = link.text().unwrap_or_default();
+
+            // Log ALL links for debug
+            println!("[CrunchyScan] Link #{}: href='{}' class='{}' text='{}'",
+                link_count,
+                if href.len() > 50 { &href[..50] } else { &href },
+                class,
+                if text.len() > 30 { &text[..30] } else { &text }
+            );
 
             // Only process manga links (not chapter links)
             if !href.contains("/lecture-en-ligne/") || href.contains("/read/") {
                 continue;
             }
 
-            println!("[CrunchyScan] Link #{}: {}", link_count, href);
+            println!("[CrunchyScan] -> MATCH: {}", href);
 
             let key = href
                 .replace(BASE_URL, "")
