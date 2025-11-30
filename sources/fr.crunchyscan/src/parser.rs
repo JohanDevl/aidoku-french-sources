@@ -259,65 +259,64 @@ pub fn parse_chapter_list(html: &Document) -> Result<Vec<Chapter>> {
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut seen_urls: Vec<String> = Vec::new();
 
-    // Try to find chapter links
-    let chapter_selectors = [
-        "a[href*='/read/']",
-        ".chapter-link",
-        ".chapter a",
-        "li a[href*='chapitre']",
-    ];
-
-    for selector in &chapter_selectors {
-        if let Some(links) = html.select(selector) {
-            for link in links {
-                if let Some(href) = link.attr("href") {
-                    let url = if href.starts_with("http") {
-                        href.to_string()
-                    } else if href.starts_with("/") {
-                        format!("{}{}", BASE_URL, href)
-                    } else {
-                        format!("{}/{}", BASE_URL, href)
-                    };
-
-                    // Skip duplicates
-                    if seen_urls.contains(&url) {
-                        continue;
-                    }
-
-                    // Extract chapter number
-                    let chapter_text = link.text().unwrap_or_default();
-
-                    // Skip chapters with time info in title (duplicates from other sections)
-                    let chapter_text_lower = chapter_text.to_lowercase();
-                    if chapter_text_lower.contains("heures") || chapter_text_lower.contains("heure") ||
-                       chapter_text_lower.contains("jours") || chapter_text_lower.contains("jour") ||
-                       chapter_text_lower.contains("années") || chapter_text_lower.contains("année") ||
-                       chapter_text_lower.contains("mois") || chapter_text_lower.contains("semaines") ||
-                       chapter_text_lower.contains("semaine") || chapter_text_lower.contains("minutes") ||
-                       chapter_text_lower.contains("minute") {
-                        continue;
-                    }
-
-                    let chapter_number = helper::extract_chapter_number(&chapter_text);
-
-                    seen_urls.push(url.clone());
-                    chapters.push(Chapter {
-                        key: url.clone(),
-                        title: Some(chapter_text.trim().to_string()),
-                        chapter_number: Some(chapter_number),
-                        volume_number: None,
-                        date_uploaded: None,
-                        scanlators: None,
-                        url: Some(url),
-                        language: Some(String::from("fr")),
-                        thumbnail: None,
-                        locked: false,
-                    });
+    // Use specific selector for chapter links in ChapterWrap
+    // Structure: <a class="chapter-link" href="...read/..." title="Lire .Volume X">
+    if let Some(links) = html.select("a.chapter-link") {
+        for link in links {
+            if let Some(href) = link.attr("href") {
+                // Only process /read/ URLs
+                if !href.contains("/read/") {
+                    continue;
                 }
-            }
 
-            if !chapters.is_empty() {
-                break;
+                let url = if href.starts_with("http") {
+                    href.to_string()
+                } else if href.starts_with("/") {
+                    format!("{}{}", BASE_URL, href)
+                } else {
+                    format!("{}/{}", BASE_URL, href)
+                };
+
+                // Skip duplicates
+                if seen_urls.contains(&url) {
+                    continue;
+                }
+
+                // Get title from title attribute (e.g., "Lire .Volume 38")
+                // and remove the "Lire " prefix
+                let title_attr = link.attr("title").unwrap_or_default();
+                let chapter_title = title_attr
+                    .trim_start_matches("Lire ")
+                    .trim()
+                    .to_string();
+
+                // Fallback to text content if title is empty
+                let chapter_title = if chapter_title.is_empty() {
+                    link.text().unwrap_or_default().trim().to_string()
+                } else {
+                    chapter_title
+                };
+
+                // Skip if still empty or just "Lire"
+                if chapter_title.is_empty() || chapter_title == "Lire" {
+                    continue;
+                }
+
+                let chapter_number = helper::extract_chapter_number(&chapter_title);
+
+                seen_urls.push(url.clone());
+                chapters.push(Chapter {
+                    key: url.clone(),
+                    title: Some(chapter_title),
+                    chapter_number: Some(chapter_number),
+                    volume_number: None,
+                    date_uploaded: None,
+                    scanlators: None,
+                    url: Some(url),
+                    language: Some(String::from("fr")),
+                    thumbnail: None,
+                    locked: false,
+                });
             }
         }
     }
