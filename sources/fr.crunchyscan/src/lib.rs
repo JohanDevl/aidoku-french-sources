@@ -53,8 +53,9 @@ impl Source for CrunchyScan {
 
         // Step 2: Make the API POST request with CSRF token
         // Required params: affichage, status[], orderWith, orderBy
+        // status values: "En cours", "Terminé", "En pause", "Abandonné"
         let body = format!(
-            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=200&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&status%5B%5D=",
+            "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&status%5B%5D=En+cours&status%5B%5D=Termin%C3%A9&status%5B%5D=En+pause&status%5B%5D=Abandonn%C3%A9",
             page,
             helper::urlencode(&search_query)
         );
