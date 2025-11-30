@@ -634,8 +634,8 @@ impl SushiScans {
                         let (clean_title, title_date) = self.extract_date_from_title(&raw_title);
                         let title = clean_title;
 
-                        // Extract chapter number from clean title
-                        let chapter_number = self.extract_chapter_number(&title);
+                        // Extract volume and chapter numbers from clean title
+                        let (volume_number, chapter_number) = self.extract_volume_and_chapter(&title);
 
                         // Extract date with multiple methods: 1) from title, 2) from selectors
                         let mut date_uploaded = title_date; // Use title date first if found
@@ -674,8 +674,8 @@ impl SushiScans {
                         chapters.push(Chapter {
                             key: chapter_key,
                             title: Some(title),
-                            chapter_number: Some(chapter_number),
-                            volume_number: None,
+                            chapter_number,
+                            volume_number,
                             date_uploaded,
                             scanlators: None,
                             url: Some(url),
@@ -749,6 +749,46 @@ impl SushiScans {
         }
 
         1.0
+    }
+
+    fn extract_number_from_str(&self, s: &str) -> Option<f32> {
+        let mut number_str = String::new();
+        let mut found_digit = false;
+
+        for c in s.chars() {
+            if c.is_ascii_digit() {
+                number_str.push(c);
+                found_digit = true;
+            } else if c == '.' && found_digit && !number_str.contains('.') {
+                number_str.push(c);
+            } else if found_digit {
+                break;
+            }
+        }
+
+        if number_str.is_empty() {
+            None
+        } else {
+            number_str.trim_end_matches('.').parse::<f32>().ok()
+        }
+    }
+
+    fn extract_volume_and_chapter(&self, title: &str) -> (Option<f32>, Option<f32>) {
+        let check_part = if let Some(sep_pos) = title.find(" - ") {
+            &title[..sep_pos]
+        } else {
+            title
+        };
+
+        let check_lower = check_part.to_lowercase();
+
+        if check_lower.contains("volume") {
+            let volume_num = self.extract_number_from_str(check_part);
+            return (volume_num, None);
+        }
+
+        let chapter_num = Some(self.extract_chapter_number(title));
+        (None, chapter_num)
     }
 
     fn parse_chapter_date(&self, date_str: &str) -> Option<i64> {
