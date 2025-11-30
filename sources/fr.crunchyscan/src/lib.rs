@@ -38,6 +38,8 @@ impl Source for CrunchyScan {
         let mut excluded_status: Vec<String> = Vec::new();
         let mut included_types: Vec<String> = Vec::new();
         let mut excluded_types: Vec<String> = Vec::new();
+        let mut included_genres: Vec<String> = Vec::new();
+        let mut excluded_genres: Vec<String> = Vec::new();
         let mut order_with = String::from("Récent");
         let mut order_by = String::from("desc");
 
@@ -66,6 +68,18 @@ impl Source for CrunchyScan {
                             for t in excluded {
                                 if !t.is_empty() {
                                     excluded_types.push(t);
+                                }
+                            }
+                        }
+                        "genres" => {
+                            for g in included {
+                                if !g.is_empty() {
+                                    included_genres.push(g);
+                                }
+                            }
+                            for g in excluded {
+                                if !g.is_empty() {
+                                    excluded_genres.push(g);
                                 }
                             }
                         }
@@ -146,6 +160,26 @@ impl Source for CrunchyScan {
             String::new()
         };
 
+        // Build genres params
+        let genres_params = if !included_genres.is_empty() {
+            included_genres.iter()
+                .map(|g| format!("genres%5B%5D={}", helper::urlencode(g)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            String::new()
+        };
+
+        // Build exclude_genres params
+        let exclude_genres_params = if !excluded_genres.is_empty() {
+            excluded_genres.iter()
+                .map(|g| format!("exclude_genres%5B%5D={}", helper::urlencode(g)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            String::new()
+        };
+
         // Step 2: Make the API POST request with CSRF token
         let mut body = format!(
             "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith={}&orderBy={}&{}",
@@ -169,6 +203,16 @@ impl Source for CrunchyScan {
         // Add exclude_types if any
         if !exclude_types_params.is_empty() {
             body = format!("{}&{}", body, exclude_types_params);
+        }
+
+        // Add genres if any
+        if !genres_params.is_empty() {
+            body = format!("{}&{}", body, genres_params);
+        }
+
+        // Add exclude_genres if any
+        if !exclude_genres_params.is_empty() {
+            body = format!("{}&{}", body, exclude_genres_params);
         }
 
         let response = Request::post(API_URL)?
