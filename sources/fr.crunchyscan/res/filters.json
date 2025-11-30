@@ -1,9 +1,11 @@
 [
   {
-    "type": "select",
+    "type": "multi-select",
     "id": "type",
     "title": "Type",
-    "options": ["Tout", "Manga", "Manhwa", "Manhua"]
+    "canExclude": true,
+    "options": ["Manga", "Manhwa", "Manhua", "Bande Dessinée"],
+    "ids": ["Manga", "Manhwa", "Manhua", "Bande Dessinée"]
   },
   {
     "type": "multi-select",

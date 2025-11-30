@@ -36,21 +36,38 @@ impl Source for CrunchyScan {
         // Process filters
         let mut included_status: Vec<String> = Vec::new();
         let mut excluded_status: Vec<String> = Vec::new();
+        let mut included_types: Vec<String> = Vec::new();
+        let mut excluded_types: Vec<String> = Vec::new();
 
         for filter in filters {
             match filter {
                 FilterValue::MultiSelect { id, included, excluded } => {
-                    if id == "status" {
-                        for status in included {
-                            if !status.is_empty() {
-                                included_status.push(status);
+                    match id.as_str() {
+                        "status" => {
+                            for status in included {
+                                if !status.is_empty() {
+                                    included_status.push(status);
+                                }
+                            }
+                            for status in excluded {
+                                if !status.is_empty() {
+                                    excluded_status.push(status);
+                                }
                             }
                         }
-                        for status in excluded {
-                            if !status.is_empty() {
-                                excluded_status.push(status);
+                        "type" => {
+                            for t in included {
+                                if !t.is_empty() {
+                                    included_types.push(t);
+                                }
+                            }
+                            for t in excluded {
+                                if !t.is_empty() {
+                                    excluded_types.push(t);
+                                }
                             }
                         }
+                        _ => {}
                     }
                 }
                 _ => {}
@@ -92,6 +109,26 @@ impl Source for CrunchyScan {
             String::new()
         };
 
+        // Build types params
+        let types_params = if !included_types.is_empty() {
+            included_types.iter()
+                .map(|t| format!("types%5B%5D={}", helper::urlencode(t)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            String::new()
+        };
+
+        // Build exclude_types params
+        let exclude_types_params = if !excluded_types.is_empty() {
+            excluded_types.iter()
+                .map(|t| format!("exclude_types%5B%5D={}", helper::urlencode(t)))
+                .collect::<Vec<_>>()
+                .join("&")
+        } else {
+            String::new()
+        };
+
         // Step 2: Make the API POST request with CSRF token
         let mut body = format!(
             "affichage=grid&team=&artist=&author=&page={}&chapters%5B%5D=0&chapters%5B%5D=9999&searchTerm={}&orderWith=R%C3%A9cent&orderBy=desc&{}",
@@ -103,6 +140,16 @@ impl Source for CrunchyScan {
         // Add exclude_status if any
         if !exclude_status_params.is_empty() {
             body = format!("{}&{}", body, exclude_status_params);
+        }
+
+        // Add types if any
+        if !types_params.is_empty() {
+            body = format!("{}&{}", body, types_params);
+        }
+
+        // Add exclude_types if any
+        if !exclude_types_params.is_empty() {
+            body = format!("{}&{}", body, exclude_types_params);
         }
 
         let response = Request::post(API_URL)?
