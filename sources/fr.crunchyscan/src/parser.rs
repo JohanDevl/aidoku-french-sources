@@ -10,37 +10,20 @@ use core::cmp::Ordering;
 use crate::helper;
 use crate::BASE_URL;
 
-// Parse manga list from HTML catalog page
+// Parse manga list from HTML catalog page (legacy, kept for reference)
+#[allow(dead_code)]
 pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> {
-    println!("[CrunchyScan] parse_manga_list called");
     let mut mangas: Vec<Manga> = Vec::new();
     let mut seen_keys: Vec<String> = Vec::new();
 
-    // Try selecting all links globally
-    println!("[CrunchyScan] Selecting all 'a' elements");
     if let Some(links) = html.select("a") {
-        let mut link_count = 0;
         for link in links {
-            link_count += 1;
-
             let href = link.attr("href").unwrap_or_default();
-            let class = link.attr("class").unwrap_or_default();
-            let text = link.text().unwrap_or_default();
-
-            // Log ALL links for debug
-            println!("[CrunchyScan] Link #{}: href='{}' class='{}' text='{}'",
-                link_count,
-                if href.len() > 50 { &href[..50] } else { &href },
-                class,
-                if text.len() > 30 { &text[..30] } else { &text }
-            );
 
             // Only process manga links (not chapter links)
             if !href.contains("/lecture-en-ligne/") || href.contains("/read/") {
                 continue;
             }
-
-            println!("[CrunchyScan] -> MATCH: {}", href);
 
             let key = href
                 .replace(BASE_URL, "")
@@ -56,8 +39,6 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
             // Get title from link text or title attribute
             let title_text = link.text().unwrap_or_default();
             let title_attr = link.attr("title").unwrap_or_default();
-
-            println!("[CrunchyScan] Title text: '{}', title attr: '{}'", title_text, title_attr);
 
             let title = if !title_text.trim().is_empty() && !title_text.contains("Chapitre") {
                 title_text.trim().to_string()
@@ -81,8 +62,6 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                 })
                 .map(|s| s.to_string());
 
-            println!("[CrunchyScan] Found manga: {} (cover: {:?})", title, cover.is_some());
-
             seen_keys.push(key.clone());
             mangas.push(Manga {
                 key,
@@ -101,12 +80,8 @@ pub fn parse_manga_list(html: &Document, _page: i32) -> Result<MangaPageResult> 
                 update_strategy: UpdateStrategy::Never,
             });
         }
-        println!("[CrunchyScan] Processed {} links total", link_count);
-    } else {
-        println!("[CrunchyScan] No links found!");
     }
 
-    println!("[CrunchyScan] Total mangas found: {}", mangas.len());
     let has_next_page = html.select("a.next, button.next").is_some();
 
     Ok(MangaPageResult {
@@ -394,11 +369,11 @@ pub fn parse_page_list(html: &Document) -> Result<Vec<Page>> {
 }
 
 // Parse manga list from JSON API response
-pub fn parse_manga_list_json(data: &[u8], _page: i32) -> Result<MangaPageResult> {
+pub fn parse_manga_list_json(data: &str, _page: i32) -> Result<MangaPageResult> {
     let mut mangas: Vec<Manga> = Vec::new();
 
     // Parse JSON
-    let json: serde_json::Value = serde_json::from_slice(data)
+    let json: serde_json::Value = serde_json::from_str(data)
         .map_err(|_| AidokuError::JsonParseError)?;
 
     // Get data array from JSON
