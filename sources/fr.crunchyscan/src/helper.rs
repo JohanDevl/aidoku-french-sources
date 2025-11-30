@@ -143,39 +143,26 @@ pub fn extract_chapter_number(chapter_title: &str) -> f32 {
 }
 
 /// Extract volume and chapter numbers from title
-/// Formats: ".Volume 38", "Chapitre 10", ".Volume 5 - Chapitre 42", "Volume 3"
+/// Formats: ".Volume 38", "Chapitre 10", "Volume 3"
+/// If title contains "volume" or ".volume" before a hyphen, it's a volume (not chapter)
 /// Returns (Option<volume_number>, Option<chapter_number>)
 pub fn extract_volume_and_chapter(title: &str) -> (Option<f32>, Option<f32>) {
-    let title_lower = title.to_lowercase();
+    // Check the part before hyphen (if any) to determine if it's a volume
+    let check_part = if let Some(sep_pos) = title.find(" - ") {
+        &title[..sep_pos]
+    } else {
+        title
+    };
 
-    // Check if there's a separator (hyphen) indicating both volume and chapter
-    if let Some(sep_pos) = title.find(" - ") {
-        let before_sep = &title[..sep_pos];
-        let after_sep = &title[sep_pos + 3..];
-        let before_lower = before_sep.to_lowercase();
-        let after_lower = after_sep.to_lowercase();
+    let check_lower = check_part.to_lowercase();
 
-        // Check if before separator is volume and after is chapter
-        if before_lower.contains("volume") || before_lower.contains(".volume") {
-            let volume_num = extract_number_from_str(before_sep);
-            let chapter_num = if after_lower.contains("chapitre") || after_lower.contains("chapter") {
-                extract_number_from_str(after_sep)
-            } else {
-                // After separator might just be a number
-                extract_number_from_str(after_sep)
-            };
-            return (volume_num, chapter_num);
-        }
-    }
-
-    // No separator - check if it's volume or chapter only
-    if title_lower.contains("volume") || title_lower.contains(".volume") {
-        // It's a volume only
-        let volume_num = extract_number_from_str(title);
+    // If it contains "volume" or ".volume", it's a volume
+    if check_lower.contains("volume") {
+        let volume_num = extract_number_from_str(check_part);
         return (volume_num, None);
     }
 
-    // It's a chapter (default case)
+    // Otherwise it's a chapter
     let chapter_num = extract_number_from_str(title);
     (None, chapter_num)
 }
